@@ -3,8 +3,8 @@ import { supabase } from "@/lib/supabase";
 
 export default async function Home() {
   const { data, error } = await supabase
-    .from("manga")
-    .select("id, title, publisher, isbn")
+    .from("manga_editions")
+    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number")
     .limit(12);
 
   const manga = (data ?? []) as Manga[];
@@ -62,12 +62,16 @@ export default async function Home() {
                   <h3>{item.title || "Untitled manga"}</h3>
                   <dl>
                     <div>
+                      <dt>Series</dt>
+                      <dd>{item.series || "Not yet recorded"}</dd>
+                    </div>
+                    <div>
                       <dt>Publisher</dt>
                       <dd>{item.publisher || "Not yet recorded"}</dd>
                     </div>
                     <div>
                       <dt>ISBN</dt>
-                      <dd>{item.isbn || "Not yet recorded"}</dd>
+                      <dd>{item.isbn_13 || "Not yet recorded"}</dd>
                     </div>
                   </dl>
                 </div>

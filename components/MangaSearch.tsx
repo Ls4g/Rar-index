@@ -6,8 +6,14 @@ import { supabase } from "@/lib/supabase";
 export type Manga = {
   id: string | number;
   title: string | null;
+  series: string | null;
+  volume_number: string | null;
+  author: string | null;
   publisher: string | null;
-  isbn: string | null;
+  language: string | null;
+  isbn_13: string | null;
+  edition_statement: string | null;
+  printing_number: number | null;
 };
 
 type MangaSearchProps = {
@@ -37,9 +43,9 @@ export default function MangaSearch({ initialResults }: MangaSearchProps) {
     setMessage("");
 
     const { data, error } = await supabase
-      .from("manga")
-      .select("id, title, publisher, isbn")
-      .or(`title.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,isbn.ilike.%${safeTerm}%`)
+      .from("manga_editions")
+      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number")
+      .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%`)
       .limit(8);
 
     setIsLoading(false);
@@ -83,9 +89,13 @@ export default function MangaSearch({ initialResults }: MangaSearchProps) {
             <span className="result-marker" aria-hidden="true" />
             <div>
               <strong>{item.title || "Untitled manga"}</strong>
-              <span>{item.publisher || "Publisher not recorded"}</span>
+              <span>
+                {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.publisher]
+                  .filter(Boolean)
+                  .join(" · ") || "Edition details not recorded"}
+              </span>
             </div>
-            <small>{item.isbn || "ISBN pending"}</small>
+            <small>{item.isbn_13 || "ISBN pending"}</small>
           </div>
         ))}
       </div>
