@@ -1,25 +1,97 @@
+import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import { supabase } from "@/lib/supabase";
 
 export default async function Home() {
-  const { data: manga, error } = await supabase
-  .from("manga")
-  .select("*");
+  const { data, error } = await supabase
+    .from("manga")
+    .select("id, title, publisher, isbn")
+    .limit(12);
 
-console.log({ manga, error });
+  const manga = (data ?? []) as Manga[];
 
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>RAR Index</h1>
+    <main>
+      <header className="site-header">
+        <a className="brand" href="#top" aria-label="RAR Index home">
+          <span className="brand-mark">R</span>
+          <span>RAR</span>
+          <em>Index</em>
+        </a>
+        <span className="header-note">Manga market intelligence</span>
+      </header>
 
-      {error && <p>Error: {error.message}</p>}
-
-      {manga?.map((item) => (
-        <div key={item.id} style={{ marginBottom: "1rem" }}>
-          <h2>{item.title}</h2>
-          <p>{item.publisher}</p>
-          <p>{item.isbn}</p>
+      <section id="top" className="hero">
+        <div className="hero-grid" />
+        <div className="hero-content">
+          <p className="eyebrow">Manga collecting, made legible</p>
+          <h1>
+            Know what you own.
+            <span>Find what matters.</span>
+          </h1>
+          <p className="hero-copy">
+            RAR Index is building the reference point for manga editions,
+            market history and collector knowledge.
+          </p>
+          <MangaSearch initialResults={manga} />
         </div>
-      ))}
+      </section>
+
+      <section className="index-section" aria-labelledby="new-additions-heading">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">The RAR Index</p>
+            <h2 id="new-additions-heading">New additions</h2>
+          </div>
+          <span>{manga.length} edition{manga.length === 1 ? "" : "s"} indexed</span>
+        </div>
+
+        {error ? (
+          <div className="status-message" role="alert">
+            We could not load the manga index right now. Please try again shortly.
+          </div>
+        ) : manga.length > 0 ? (
+          <div className="manga-grid">
+            {manga.map((item, index) => (
+              <article className="manga-card" key={item.id}>
+                <div className="card-cover" aria-hidden="true">
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <i>RAR</i>
+                </div>
+                <div className="card-body">
+                  <p className="card-kicker">Manga edition</p>
+                  <h3>{item.title || "Untitled manga"}</h3>
+                  <dl>
+                    <div>
+                      <dt>Publisher</dt>
+                      <dd>{item.publisher || "Not yet recorded"}</dd>
+                    </div>
+                    <div>
+                      <dt>ISBN</dt>
+                      <dd>{item.isbn || "Not yet recorded"}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="status-message">
+            The index is ready for its first manga entries.
+          </div>
+        )}
+      </section>
+
+      <section className="principle-section">
+        <p className="eyebrow">Built for collectors</p>
+        <p>
+          Database first. Price history next. Intelligence on top.
+        </p>
+      </section>
+
+      <footer>
+        <span>RAR Index</span>
+        <span>Collectible intelligence, beginning with manga.</span>
+      </footer>
     </main>
   );
 }
