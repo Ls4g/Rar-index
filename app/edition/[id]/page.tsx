@@ -24,6 +24,8 @@ type ObservedSale = {
   sale_price: number;
   currency: string;
   item_condition: string | null;
+  grading_company: string | null;
+  grade_label: string | null;
   match_status: "verified_match" | "needs_review" | "excluded";
 };
 
@@ -58,6 +60,12 @@ function matchStatusLabel(status: ObservedSale["match_status"]) {
   return status === "verified_match" ? "Edition match verified" : "Edition match under review";
 }
 
+function signalLabel(verifiedSales: number, verifiedSources: number) {
+  if (verifiedSales >= 6 && verifiedSources >= 3) return "Established evidence";
+  if (verifiedSales >= 3 && verifiedSources >= 2) return "Developing evidence";
+  return "Early evidence";
+}
+
 export default async function EditionPage({ params }: EditionPageProps) {
   const { id } = await params;
   const { data: edition } = await supabase
@@ -70,7 +78,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   if (!edition) notFound();
 
-  const [metricsResult, sourceLinksResult, observedSalesResult, verifiedSalesResult] = await Promise.all([
+  const [metricsResult, sourceLinksResult, observedSalesResult] = await Promise.all([
     supabase
       .from("edition_market_metrics")
       .select("currency, verified_sale_count, lowest_verified_sale, market_value_median, highest_verified_sale, latest_sale_date")
@@ -82,25 +90,21 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .order("is_primary", { ascending: false }),
     supabase
       .from("price_observations")
-      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, item_condition, match_status")
+      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, item_condition, grading_company, grade_label, match_status")
       .eq("edition_id", id)
       .eq("sale_status", "confirmed")
       .neq("match_status", "excluded")
       .order("sold_date", { ascending: false })
-      .limit(5),
-    supabase
-      .from("price_observations")
-      .select("sold_date, sale_price, currency")
-      .eq("edition_id", id)
-      .eq("sale_status", "confirmed")
-      .eq("match_status", "verified_match")
-      .order("sold_date", { ascending: true })
-      .limit(30),
+      .limit(100),
   ]);
 
   const sourceLinks = (sourceLinksResult.data ?? []) as SourceLink[];
   const observedSales = (observedSalesResult.data ?? []) as ObservedSale[];
-  const verifiedSales = (verifiedSalesResult.data ?? []) as Array<Pick<ObservedSale, "sold_date" | "sale_price" | "currency">>;
+  const verifiedSales = observedSales.filter((sale) => sale.match_status === "verified_match");
+  const pendingSales = observedSales.filter((sale) => sale.match_status === "needs_review");
+  const verifiedSourceIds = new Set(verifiedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
+  const observedSourceIds = new Set(observedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
+  const latestVerifiedSale = [...verifiedSales].sort((a, b) => (b.sold_date ?? "").localeCompare(a.sold_date ?? ""))[0];
   const sourceIds = [
     ...new Set([
       ...sourceLinks.map((source) => source.source_id),
@@ -210,6 +214,31 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 <p>RAR will show a market value only after it has sales proven to match this exact edition.</p>
               </div>
             )}
+
+            <div className="confidence-panel">
+              <p className="eyebrow">RAR confidence</p>
+              <strong className="confidence-label">{signalLabel(verifiedSales.length, verifiedSourceIds.size)}</strong>
+              <div className="confidence-grid">
+                <div className="confidence-signal">
+                  <span>Verified sales</span>
+                  <strong>{verifiedSales.length}</strong>
+                </div>
+                <div className="confidence-signal">
+                  <span>Under review</span>
+                  <strong>{pendingSales.length}</strong>
+                </div>
+                <div className="confidence-signal">
+                  <span>Source coverage</span>
+                  <strong>{verifiedSourceIds.size} / {observedSourceIds.size || 0}</strong>
+                  <small>verified / observed sources</small>
+                </div>
+                <div className="confidence-signal">
+                  <span>Latest verified sale</span>
+                  <strong>{latestVerifiedSale ? formatPrice(latestVerifiedSale.sale_price, latestVerifiedSale.currency) : "—"}</strong>
+                  <small>{latestVerifiedSale ? formatDate(latestVerifiedSale.sold_date) : "No verified sale yet"}</small>
+                </div>
+              </div>
+            </div>
           </aside>
         </div>
 
@@ -227,13 +256,13 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </div>
           {observedSales.length ? (
             <div className="observed-sales-list">
-              {observedSales.map((sale) => {
+              {observedSales.slice(0, 12).map((sale) => {
                 const content = (
                   <>
                     <div>
                       <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
                       <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
-                      <small>{formatDate(sale.sold_date)}{sale.item_condition ? ` · ${sale.item_condition} condition` : ""}</small>
+                      <small>{formatDate(sale.sold_date)}{sale.item_condition ? ` · ${sale.item_condition} condition` : ""}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
                     </div>
                     <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
                   </>
