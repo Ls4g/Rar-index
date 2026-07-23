@@ -27,5 +27,12 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/review/:path*", "/api/review/:path*"],
+  matcher: [
+    "/review/:path*",
+    "/catalogue-import/:path*",
+    "/catalogue-review/:path*",
+    "/api/review/:path*",
+    "/api/catalogue-import/:path*",
+    "/api/catalogue-review/:path*",
+  ],
 };
