@@ -1,0 +1,68 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
+
+const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }> = [
+  { value: "approve_new", label: "Create verified edition", hint: "Only where the source proves a physical edition." },
+  { value: "link_existing", label: "Link existing edition", hint: "Attach the source to the exact RAR edition ID." },
+  { value: "needs_review", label: "Keep in review", hint: "Evidence is useful but incomplete." },
+  { value: "duplicate", label: "Mark duplicate", hint: "Already represented by another queued source." },
+  { value: "rejected", label: "Reject candidate", hint: "Wrong work or insufficient catalogue evidence." },
+];
+
+export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate }: { catalogueImportId: string; isEditionCandidate: boolean }) {
+  const router = useRouter();
+  const [decision, setDecision] = useState<CatalogueDecision>("needs_review");
+  const [reviewer, setReviewer] = useState("");
+  const [notes, setNotes] = useState("");
+  const [existingEditionId, setExistingEditionId] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const allowedDecisions = isEditionCandidate ? decisions : decisions.filter((item) => item.value !== "approve_new");
+
+  async function saveDecision(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/catalogue-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ catalogueImportId, decision, reviewer, notes, existingEditionId }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setMessage(result.error ?? "The catalogue decision could not be saved.");
+        return;
+      }
+      setMessage("Decision recorded. The queue has been refreshed.");
+      router.refresh();
+    } catch {
+      setMessage("The catalogue decision could not be saved. Check the connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="review-decision catalogue-decision" onSubmit={saveDecision}>
+      <div className="review-decision-heading"><span>Catalogue decision</span><small>Approval records a durable evidence note.</small></div>
+      <div className="catalogue-options" role="radiogroup" aria-label="Catalogue decision">
+        {allowedDecisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
+          <input checked={decision === option.value} name={`catalogue-decision-${catalogueImportId}`} onChange={() => setDecision(option.value)} type="radio" value={option.value} />
+          <strong>{option.label}</strong><small>{option.hint}</small>
+        </label>)}
+      </div>
+      <div className="review-form-fields">
+        <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" required value={reviewer} /></label>
+        {decision === "link_existing" ? <label>Existing RAR edition ID<input onChange={(event) => setExistingEditionId(event.target.value)} placeholder="UUID from the exact edition page" required value={existingEditionId} /></label> : null}
+        <label className={decision === "link_existing" ? "catalogue-notes" : "catalogue-notes-wide"}>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What does this source prove about the edition, or why is it not acceptable?" required value={notes} /></label>
+      </div>
+      <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save catalogue decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
+    </form>
+  );
+}
