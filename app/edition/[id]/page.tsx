@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import PriceHistoryChart from "@/components/PriceHistoryChart";
 import { supabase } from "@/lib/supabase";
 
 type EditionPageProps = {
@@ -69,7 +70,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   if (!edition) notFound();
 
-  const [metricsResult, sourceLinksResult, observedSalesResult] = await Promise.all([
+  const [metricsResult, sourceLinksResult, observedSalesResult, verifiedSalesResult] = await Promise.all([
     supabase
       .from("edition_market_metrics")
       .select("currency, verified_sale_count, lowest_verified_sale, market_value_median, highest_verified_sale, latest_sale_date")
@@ -87,10 +88,19 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .neq("match_status", "excluded")
       .order("sold_date", { ascending: false })
       .limit(5),
+    supabase
+      .from("price_observations")
+      .select("sold_date, sale_price, currency")
+      .eq("edition_id", id)
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .order("sold_date", { ascending: true })
+      .limit(30),
   ]);
 
   const sourceLinks = (sourceLinksResult.data ?? []) as SourceLink[];
   const observedSales = (observedSalesResult.data ?? []) as ObservedSale[];
+  const verifiedSales = (verifiedSalesResult.data ?? []) as Array<Pick<ObservedSale, "sold_date" | "sale_price" | "currency">>;
   const sourceIds = [
     ...new Set([
       ...sourceLinks.map((source) => source.source_id),
@@ -202,6 +212,10 @@ export default async function EditionPage({ params }: EditionPageProps) {
             )}
           </aside>
         </div>
+
+        <section className="price-history-section">
+          <PriceHistoryChart sales={verifiedSales} />
+        </section>
 
         <section className="observed-sales-section">
           <div className="section-intro">
