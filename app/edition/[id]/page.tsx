@@ -15,6 +15,17 @@ type SourceLink = {
 
 type Source = { id: string; name: string };
 
+type ObservedSale = {
+  source_id: string | null;
+  source_listing_url: string | null;
+  listing_title: string | null;
+  sold_date: string | null;
+  sale_price: number;
+  currency: string;
+  item_condition: string | null;
+  match_status: "verified_match" | "needs_review" | "excluded";
+};
+
 type Metric = {
   currency: string;
   verified_sale_count: number;
@@ -42,6 +53,10 @@ function formatDate(value: string | null) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function matchStatusLabel(status: ObservedSale["match_status"]) {
+  return status === "verified_match" ? "Edition match verified" : "Edition match under review";
+}
+
 export default async function EditionPage({ params }: EditionPageProps) {
   const { id } = await params;
   const { data: edition } = await supabase
@@ -54,7 +69,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   if (!edition) notFound();
 
-  const [metricsResult, sourceLinksResult] = await Promise.all([
+  const [metricsResult, sourceLinksResult, observedSalesResult] = await Promise.all([
     supabase
       .from("edition_market_metrics")
       .select("currency, verified_sale_count, lowest_verified_sale, market_value_median, highest_verified_sale, latest_sale_date")
@@ -64,10 +79,24 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .select("source_id, source_record_url, verification_notes, fields_verified")
       .eq("edition_id", id)
       .order("is_primary", { ascending: false }),
+    supabase
+      .from("price_observations")
+      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, item_condition, match_status")
+      .eq("edition_id", id)
+      .eq("sale_status", "confirmed")
+      .neq("match_status", "excluded")
+      .order("sold_date", { ascending: false })
+      .limit(5),
   ]);
 
   const sourceLinks = (sourceLinksResult.data ?? []) as SourceLink[];
-  const sourceIds = [...new Set(sourceLinks.map((source) => source.source_id))];
+  const observedSales = (observedSalesResult.data ?? []) as ObservedSale[];
+  const sourceIds = [
+    ...new Set([
+      ...sourceLinks.map((source) => source.source_id),
+      ...observedSales.map((sale) => sale.source_id).filter((id): id is string => Boolean(id)),
+    ]),
+  ];
   const sourcesResult = sourceIds.length
     ? await supabase.from("sources").select("id, name").in("id", sourceIds)
     : { data: [] as Source[] };
@@ -173,6 +202,44 @@ export default async function EditionPage({ params }: EditionPageProps) {
             )}
           </aside>
         </div>
+
+        <section className="observed-sales-section">
+          <div className="section-intro">
+            <p className="eyebrow">Recent market evidence</p>
+            <h2>Confirmed sales</h2>
+            <p className="section-copy">
+              These are completed marketplace sales. RAR only uses a sale in the market value once the listing is proven to match this exact edition.
+            </p>
+          </div>
+          {observedSales.length ? (
+            <div className="observed-sales-list">
+              {observedSales.map((sale) => {
+                const content = (
+                  <>
+                    <div>
+                      <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
+                      <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
+                      <small>{formatDate(sale.sold_date)}{sale.item_condition ? ` · ${sale.item_condition} condition` : ""}</small>
+                    </div>
+                    <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
+                  </>
+                );
+
+                return sale.source_listing_url ? (
+                  <a className="observed-sale" href={sale.source_listing_url} target="_blank" rel="noreferrer" key={sale.source_listing_url}>
+                    {content}
+                  </a>
+                ) : (
+                  <div className="observed-sale" key={`${sale.sold_date}-${sale.sale_price}`}>
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="status-message">No completed sales have been recorded for this edition yet.</p>
+          )}
+        </section>
 
         <section className="sources-section">
           <div className="section-intro">
