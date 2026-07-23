@@ -1,0 +1,55 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+type ReviewDecision = "verified_match" | "needs_review" | "excluded";
+
+const decisions: Array<{ value: ReviewDecision; label: string; hint: string }> = [
+  { value: "verified_match", label: "Verify exact match", hint: "Use only when the edition evidence is exact." },
+  { value: "needs_review", label: "Keep in review", hint: "Use when the sale is real but edition evidence is incomplete." },
+  { value: "excluded", label: "Exclude sale", hint: "Use for wrong editions, withdrawn listings or non-sales." },
+];
+
+export default function ReviewDecisionForm({ observationId }: { observationId: string }) {
+  const router = useRouter();
+  const [decision, setDecision] = useState<ReviewDecision>("needs_review");
+  const [reviewer, setReviewer] = useState("");
+  const [notes, setNotes] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submitReview(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ observationId, decision, reviewer, notes }) });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) { setMessage(result.error ?? "The decision could not be saved."); return; }
+      setMessage("Decision recorded. The queue has been refreshed.");
+      router.refresh();
+    } catch {
+      setMessage("The decision could not be saved. Check the connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="review-decision" onSubmit={submitReview}>
+      <div className="review-decision-heading"><span>Record review decision</span><small>Every decision is saved with its evidence note.</small></div>
+      <div className="review-options" role="radiogroup" aria-label="Review decision">
+        {decisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
+          <input checked={decision === option.value} name={`decision-${observationId}`} onChange={() => setDecision(option.value)} type="radio" value={option.value} />
+          <strong>{option.label}</strong><small>{option.hint}</small>
+        </label>)}
+      </div>
+      <div className="review-form-fields">
+        <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
+        <label>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What proves the edition match, or why is it excluded?" required value={notes} /></label>
+      </div>
+      <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
+    </form>
+  );
+}
