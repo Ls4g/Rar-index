@@ -12,6 +12,7 @@ export type Manga = {
   author: string | null;
   publisher: string | null;
   language: string | null;
+  country: string | null;
   isbn_13: string | null;
   edition_statement: string | null;
   printing_number: number | null;
@@ -49,8 +50,8 @@ export default function MangaSearch() {
 
     const { data, error } = await supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
-      .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%`)
+      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name")
+      .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
       .limit(8);
 
     if (requestId !== searchVersion.current) return;
@@ -102,7 +103,7 @@ export default function MangaSearch() {
           name="manga-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search title, publisher or ISBN"
+          placeholder="Search title, edition, language or ISBN"
           autoComplete="off"
         />
         <button type="submit" disabled={isLoading}>
@@ -123,7 +124,7 @@ export default function MangaSearch() {
               <div>
                 <strong>{item.title || "Untitled manga"}</strong>
                 <span>
-                  {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.publisher]
+                  {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.language, item.publisher]
                     .filter(Boolean)
                     .join(" · ") || "Edition details not recorded"}
                 </span>
