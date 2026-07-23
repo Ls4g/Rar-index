@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import PriceHistoryChart from "@/components/PriceHistoryChart";
+import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
 import { supabase } from "@/lib/supabase";
 
 type EditionPageProps = {
