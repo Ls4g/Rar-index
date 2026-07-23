@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import ReviewDecisionForm from "@/components/ReviewDecisionForm";
 
 type ReviewRecord = {
   observation_id: string;
@@ -126,6 +127,7 @@ export default async function ReviewQueuePage() {
                   <span>Why it needs review</span>
                   <p>{record.match_notes ?? "Check the listing images and edition identifiers before verifying."}</p>
                 </div>
+                <ReviewDecisionForm observationId={record.observation_id} />
               </article>
             ))}
           </div>
