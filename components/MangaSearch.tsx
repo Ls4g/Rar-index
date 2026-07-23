@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export type Manga = {
   id: string | number;
@@ -15,39 +15,45 @@ export type Manga = {
   isbn_13: string | null;
   edition_statement: string | null;
   printing_number: number | null;
+  variant_name: string | null;
 };
 
-type MangaSearchProps = {
-  initialResults: Manga[];
-};
+function editionLabel(item: Manga) {
+  if (item.variant_name) return item.variant_name;
+  if (item.printing_number) return `${item.printing_number}${item.printing_number === 1 ? "st" : "th"} printing`;
+  return item.edition_statement || "Standard edition";
+}
 
-export default function MangaSearch({ initialResults }: MangaSearchProps) {
+export default function MangaSearch() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Manga[]>(initialResults.slice(0, 4));
+  const [results, setResults] = useState<Manga[]>([]);
   const [searched, setSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const searchVersion = useRef(0);
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const term = query.trim();
+  async function searchEditions(searchTerm: string) {
+    const term = searchTerm.trim();
 
     if (!term) {
-      setResults(initialResults.slice(0, 4));
+      setResults([]);
       setSearched(false);
-      setMessage("Showing recent additions. Enter a title, publisher or ISBN to search.");
+      setMessage("");
       return;
     }
 
     const safeTerm = term.replace(/[,%()]/g, " ");
+    const requestId = ++searchVersion.current;
     setIsLoading(true);
     setMessage("");
 
     const { data, error } = await supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number")
+      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
       .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%`)
       .limit(8);
+
+    if (requestId !== searchVersion.current) return;
 
     setIsLoading(false);
     setSearched(true);
@@ -59,6 +65,30 @@ export default function MangaSearch({ initialResults }: MangaSearchProps) {
     }
 
     setResults((data ?? []) as Manga[]);
+  }
+
+  useEffect(() => {
+    const term = query.trim();
+
+    if (!term) {
+      searchVersion.current += 1;
+      setResults([]);
+      setSearched(false);
+      setMessage("");
+      setIsLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void searchEditions(term);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await searchEditions(query);
   }
 
   return (
@@ -80,26 +110,30 @@ export default function MangaSearch({ initialResults }: MangaSearchProps) {
         </button>
       </form>
 
-      <div className="search-results" aria-live="polite">
-        {message ? <p className="search-message">{message}</p> : null}
-        {!message && results.length === 0 && searched ? (
-          <p className="search-message">No editions found yet. Try a different title or ISBN.</p>
-        ) : null}
-        {results.map((item) => (
-          <Link className="search-result" href={`/edition/${item.id}`} key={item.id}>
-            <span className="result-marker" aria-hidden="true" />
-            <div>
-              <strong>{item.title || "Untitled manga"}</strong>
-              <span>
-                {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.publisher]
-                  .filter(Boolean)
-                  .join(" · ") || "Edition details not recorded"}
-              </span>
-            </div>
-            <small>{item.isbn_13 || "ISBN pending"}</small>
-          </Link>
-        ))}
-      </div>
+      {(isLoading || message || results.length > 0 || searched) ? (
+        <div className="search-results" aria-live="polite">
+          {isLoading ? <p className="search-message">Searching editions…</p> : null}
+          {message ? <p className="search-message">{message}</p> : null}
+          {!isLoading && !message && results.length === 0 && searched ? (
+            <p className="search-message">No editions found yet. Try a different title or ISBN.</p>
+          ) : null}
+          {results.map((item) => (
+            <Link className="search-result" href={`/edition/${item.id}`} key={item.id}>
+              <span className="result-marker" aria-hidden="true" />
+              <div>
+                <strong>{item.title || "Untitled manga"}</strong>
+                <span>
+                  {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.publisher]
+                    .filter(Boolean)
+                    .join(" · ") || "Edition details not recorded"}
+                </span>
+                <em className="search-edition-label">{editionLabel(item)}</em>
+              </div>
+              <small>{item.isbn_13 || "ISBN pending"}</small>
+            </Link>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

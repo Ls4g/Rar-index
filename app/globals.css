@@ -60,9 +60,10 @@ h1 span { display: block; color: var(--gold-light); font-style: italic; }
 .search-form button:disabled { cursor: wait; opacity: .7; }
 .search-results { margin-top: .8rem; background: rgba(244,240,232,.08); backdrop-filter: blur(10px); }
 .search-result { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: .8rem; align-items: center; padding: .75rem 1rem; border-top: 1px solid rgba(244,240,232,.14); }
-.search-result strong, .search-result span, .search-result small { display: block; }
+.search-result strong, .search-result span, .search-result small, .search-edition-label { display: block; }
 .search-result strong { color: var(--paper); font-size: .88rem; }
 .search-result span, .search-result small, .search-message { color: rgba(244,240,232,.58); font-size: .72rem; }
+.search-edition-label { margin-top: .23rem; color: var(--gold-light); font-size: .66rem; font-style: normal; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .result-marker { width: .42rem; height: .42rem; background: var(--gold-light); }
 .search-message { margin: 0; padding: .8rem 1rem; }
 

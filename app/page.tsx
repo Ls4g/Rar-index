@@ -5,7 +5,7 @@ import Link from "next/link";
 export default async function Home() {
   const { data, error } = await supabase
     .from("manga_editions")
-    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number")
+    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
     .limit(12);
 
   const manga = (data ?? []) as Manga[];
@@ -33,7 +33,7 @@ export default async function Home() {
             RAR Index is building the reference point for manga editions,
             market history and collector knowledge.
           </p>
-          <MangaSearch initialResults={manga} />
+          <MangaSearch />
         </div>
       </section>
 
