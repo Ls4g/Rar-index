@@ -2,6 +2,9 @@ import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
+// Catalogue updates should appear without waiting for the next deployment.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { data, error } = await supabase
     .from("manga_editions")

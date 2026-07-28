@@ -2,6 +2,9 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import ReviewDecisionForm from "@/components/ReviewDecisionForm";
 
+// This is an operational queue: newly imported sales must appear immediately.
+export const dynamic = "force-dynamic";
+
 type ReviewRecord = {
   observation_id: string;
   match_status: "verified_match" | "needs_review" | "excluded";

@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
 import { supabase } from "@/lib/supabase";
 
+// Valuations are live market intelligence, not deployment-time content.
+export const dynamic = "force-dynamic";
+
 type EditionPageProps = {
   params: Promise<{ id: string }>;
 };
