@@ -59,7 +59,7 @@ export default async function CatalogueReviewPage() {
               {record.candidate_release_date ? <div><dt>Release date</dt><dd>{record.candidate_release_date}</dd></div> : null}
             </dl>
             {record.candidate_kind === "series_reference" ? <div className="review-note"><span>Physical-edition safeguard</span><p>A MangaDex series reference can support research, but it cannot create a physical RAR edition. Link it to an exact existing edition or keep it in review.</p></div> : null}
-            <CatalogueDecisionForm catalogueImportId={record.id} isEditionCandidate={record.candidate_kind === "edition_candidate"} />
+            <CatalogueDecisionForm catalogueImportId={record.id} isEditionCandidate={record.candidate_kind === "edition_candidate"} candidateTitle={record.candidate_title} />
           </article>
         ))}</div> : <div className="review-empty"><strong>The catalogue queue is clear.</strong><p>Use the catalogue importer to bring in the next source candidates.</p></div>}
       </section>

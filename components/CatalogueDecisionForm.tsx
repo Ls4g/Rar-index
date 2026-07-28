@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
@@ -13,7 +13,9 @@ const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }
   { value: "rejected", label: "Reject candidate", hint: "Wrong work or insufficient catalogue evidence." },
 ];
 
-export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate }: { catalogueImportId: string; isEditionCandidate: boolean }) {
+type EditionSuggestion = { id: string; title: string | null; language: string | null; isbn_13: string | null; printing_number: number | null };
+
+export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string }) {
   const router = useRouter();
   const [decision, setDecision] = useState<CatalogueDecision>("needs_review");
   const [reviewer, setReviewer] = useState("");
@@ -21,6 +23,17 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   const [existingEditionId, setExistingEditionId] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState<EditionSuggestion[]>([]);
+
+  useEffect(() => {
+    if (decision !== "link_existing" || candidateTitle.trim().length < 2) return setSuggestions([]);
+    const controller = new AbortController();
+    fetch(`/api/price-import?q=${encodeURIComponent(candidateTitle.trim())}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((result: { editions?: EditionSuggestion[] }) => setSuggestions(result.editions ?? []))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [decision, candidateTitle]);
 
   const allowedDecisions = isEditionCandidate ? decisions : decisions.filter((item) => item.value !== "approve_new");
 
@@ -62,6 +75,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
         {decision === "link_existing" ? <label>Existing RAR edition ID<input onChange={(event) => setExistingEditionId(event.target.value)} placeholder="UUID from the exact edition page" required value={existingEditionId} /></label> : null}
         <label className={decision === "link_existing" ? "catalogue-notes" : "catalogue-notes-wide"}>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What does this source prove about the edition, or why is it not acceptable?" required value={notes} /></label>
       </div>
+      {decision === "link_existing" && suggestions.length ? <div className="edition-suggestions">{suggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setExistingEditionId(edition.id)}>{[edition.title, edition.language, edition.printing_number ? `Printing ${edition.printing_number}` : null, edition.isbn_13 ? `ISBN ${edition.isbn_13}` : null].filter(Boolean).join(" | ")}</button>)}</div> : null}
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save catalogue decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </form>
   );
