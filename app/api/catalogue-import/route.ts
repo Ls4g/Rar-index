@@ -102,7 +102,7 @@ async function mangaDexCandidates(query: string) {
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { source?: unknown; query?: unknown };
+  let payload: { source?: unknown; query?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -122,9 +122,15 @@ export async function POST(request: Request) {
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
     const candidates = source === "open_library" ? await openLibraryCandidates(query) : await mangaDexCandidates(query);
-    if (!candidates.length) return Response.json({ imported: 0, message: "No usable catalogue candidates were returned." });
+    if (!candidates.length) return Response.json({ imported: 0, candidates: [], message: "No usable catalogue candidates were returned." });
+    if (payload.dryRun === true) return Response.json({ candidates, message: `Review ${candidates.length} source result${candidates.length === 1 ? "" : "s"}; select only the exact record${candidates.length === 1 ? "" : "s"} to queue.` });
 
-    const rows = candidates.map((candidate) => ({ ...candidate, source_id: sourceRecord.id }));
+    const selectedExternalIds = Array.isArray(payload.selectedExternalIds) ? payload.selectedExternalIds.filter((id): id is string => typeof id === "string").map((id) => id.trim()).filter(Boolean) : [];
+    if (!selectedExternalIds.length) return Response.json({ error: "Select at least one exact source record before queuing." }, { status: 400 });
+    const selected = candidates.filter((candidate) => selectedExternalIds.includes(candidate.external_id));
+    if (!selected.length) return Response.json({ error: "The selected source records are no longer in this search result. Search again." }, { status: 400 });
+
+    const rows = selected.map((candidate) => ({ ...candidate, source_id: sourceRecord.id }));
     const { error: writeError } = await admin.from("catalogue_import_queue").upsert(rows, {
       onConflict: "source_id,external_id",
       ignoreDuplicates: true,
