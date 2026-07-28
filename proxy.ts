@@ -33,5 +33,6 @@ export const config = {
     "/api/catalogue-import/:path*",
     "/api/catalogue-review/:path*",
     "/api/price-import/:path*",
+    "/api/collection-runs/:path*",
   ],
 };

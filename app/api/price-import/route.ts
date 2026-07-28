@@ -39,6 +39,8 @@ type Edition = {
   variant_name: string | null;
 };
 
+type CollectionRun = { id: string; profile_id: string };
+
 type CsvRow = Record<string, string>;
 type ReportRow = {
   rowNumber: number;
@@ -227,6 +229,27 @@ async function loadEdition(editionId: string) {
   return (data as Edition | null) ?? null;
 }
 
+async function loadCollectionRun(collectionRunId: string, editionId: string) {
+  const admin = getSupabaseAdmin();
+  const { data: run, error: runError } = await admin
+    .from("marketplace_collection_runs")
+    .select("id,profile_id")
+    .eq("id", collectionRunId)
+    .maybeSingle();
+  if (runError || !run) return null;
+
+  const typedRun = run as CollectionRun;
+  const { data: profile, error: profileError } = await admin
+    .from("marketplace_search_profiles")
+    .select("id")
+    .eq("id", typedRun.profile_id)
+    .eq("edition_id", editionId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (profileError || !profile) return null;
+  return typedRun;
+}
+
 async function preflight(csv: string, edition: Edition) {
   const parsedRows = parseCsv(csv);
   const admin = getSupabaseAdmin();
@@ -401,7 +424,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { editionId?: unknown; csv?: unknown; dryRun?: unknown };
+  let payload: { editionId?: unknown; collectionRunId?: unknown; csv?: unknown; dryRun?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -409,15 +432,19 @@ export async function POST(request: Request) {
   }
 
   const editionId = typeof payload.editionId === "string" ? payload.editionId.trim() : "";
+  const collectionRunId = typeof payload.collectionRunId === "string" ? payload.collectionRunId.trim() : "";
   const csv = typeof payload.csv === "string" ? payload.csv : "";
   const dryRun = payload.dryRun !== false;
   if (!editionId) return Response.json({ error: "Select the exact RAR edition for this batch." }, { status: 400 });
+  if (!collectionRunId) return Response.json({ error: "Choose the recorded collection run that found this batch." }, { status: 400 });
   if (!csv.trim()) return Response.json({ error: "Paste a CSV batch before running preflight." }, { status: 400 });
   if (csv.length > MAX_CSV_CHARACTERS) return Response.json({ error: "This CSV is too large. Split it into smaller batches of up to 500 rows." }, { status: 400 });
 
   try {
     const edition = await loadEdition(editionId);
     if (!edition) return Response.json({ error: "Select a verified RAR edition before importing sales." }, { status: 400 });
+    const collectionRun = await loadCollectionRun(collectionRunId, edition.id);
+    if (!collectionRun) return Response.json({ error: "Choose an active collection run for this exact edition." }, { status: 400 });
 
     const result = await preflight(csv, edition);
     if (dryRun || !result.ready.length) return Response.json({ ...publicPreflight(result), committed: 0 });
@@ -425,6 +452,7 @@ export async function POST(request: Request) {
     const importedAt = new Date().toISOString();
     const records = result.ready.map((sale) => ({
       edition_id: edition.id,
+      collection_run_id: collectionRun.id,
       source_id: sale.sourceId,
       source_listing_url: sale.sourceListingUrl,
       external_id: sale.externalId,

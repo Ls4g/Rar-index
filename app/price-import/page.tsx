@@ -12,7 +12,7 @@ export default function PriceImportPage() {
         <div>
           <p className="eyebrow">Repeatable price workflow</p>
           <h1>Preflight a sale batch</h1>
-          <p>Check a structured CSV before it touches RAR. Only confirmed sales for one selected edition enter the review queue.</p>
+          <p>Check a structured CSV before it touches RAR. Each batch must link to one recorded collection run for one selected edition before it can enter the review queue.</p>
         </div>
       </section>
       <section className="catalogue-content">
