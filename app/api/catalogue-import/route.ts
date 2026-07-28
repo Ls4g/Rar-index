@@ -1,7 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-type CatalogueSource = "open_library" | "mangadex" | "shueisha" | "ndl_search";
-
 function isStaffRequest(request: Request) {
   const authorization = request.headers.get("authorization");
   const username = process.env.RAR_REVIEW_USERNAME;
@@ -182,7 +180,7 @@ async function mangaDexCandidates(query: string) {
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { source?: unknown; query?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
+  let payload: { source?: unknown; query?: unknown; queries?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -191,7 +189,11 @@ export async function POST(request: Request) {
 
   const source = payload.source;
   const query = typeof payload.query === "string" ? payload.query.trim() : "";
-  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search") || query.length < 2 || query.length > 120) {
+  const suppliedQueries = Array.isArray(payload.queries)
+    ? payload.queries.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
+    : query ? [query] : [];
+  const searchQueries = source === "shueisha" ? [...new Set(suppliedQueries)] : suppliedQueries.slice(0, 1);
+  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 120)) {
     return Response.json({ error: "Choose a catalogue source and enter a search of 2–120 characters." }, { status: 400 });
   }
 
@@ -201,7 +203,13 @@ export async function POST(request: Request) {
     const { data: sourceRecord, error: sourceError } = await admin.from("sources").select("id").eq("name", sourceName).maybeSingle();
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
-    const candidates = source === "open_library" ? await openLibraryCandidates(query) : source === "mangadex" ? await mangaDexCandidates(query) : source === "shueisha" ? await shueishaCandidates(query) : await ndlSearchCandidates(query);
+    const candidateGroups = await Promise.all(searchQueries.map((searchQuery) => (
+      source === "open_library" ? openLibraryCandidates(searchQuery)
+        : source === "mangadex" ? mangaDexCandidates(searchQuery)
+          : source === "shueisha" ? shueishaCandidates(searchQuery)
+            : ndlSearchCandidates(searchQuery)
+    )));
+    const candidates = candidateGroups.flat().filter((candidate, index, values) => values.findIndex((value) => value.external_id === candidate.external_id) === index);
     if (!candidates.length) return Response.json({ imported: 0, candidates: [], message: "No usable catalogue candidates were returned." });
     if (payload.dryRun === true) return Response.json({ candidates, message: `Review ${candidates.length} source result${candidates.length === 1 ? "" : "s"}; select only the exact record${candidates.length === 1 ? "" : "s"} to queue.` });
 

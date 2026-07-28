@@ -8,6 +8,7 @@ type Candidate = { external_id: string; source_record_url: string; candidate_kin
 export default function CatalogueImportForm() {
   const [source, setSource] = useState<CatalogueSource>("open_library");
   const [query, setQuery] = useState("");
+  const [batchIsbns, setBatchIsbns] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -21,6 +22,8 @@ export default function CatalogueImportForm() {
 
   async function importCandidates(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const queries = source === "shueisha" ? batchIsbns.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean) : [query.trim()];
+    if (!queries.length) return setMessage(source === "shueisha" ? "Paste at least one ISBN first." : "Enter a title or ISBN first.");
     setSaving(true);
     setMessage("");
 
@@ -28,7 +31,7 @@ export default function CatalogueImportForm() {
       const response = await fetch("/api/catalogue-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, query, dryRun: true }),
+        body: JSON.stringify({ source, query, queries, dryRun: true }),
       });
       const result = (await response.json()) as { error?: string; message?: string; candidates?: Candidate[] };
       if (!response.ok) throw new Error(result.error ?? "Candidates could not be found.");
@@ -46,7 +49,8 @@ export default function CatalogueImportForm() {
     if (!selectedIds.length) return setMessage("Select at least one exact source record first.");
     setSaving(true); setMessage("");
     try {
-      const response = await fetch("/api/catalogue-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, query, selectedExternalIds: selectedIds }) });
+      const queries = source === "shueisha" ? batchIsbns.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean) : [query.trim()];
+      const response = await fetch("/api/catalogue-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, query, queries, selectedExternalIds: selectedIds }) });
       const result = (await response.json()) as { error?: string; message?: string };
       if (!response.ok) throw new Error(result.error ?? "Candidates could not be queued.");
       setCandidates([]); setSelectedIds([]); setMessage(result.message ?? "Candidates queued for review.");
@@ -65,15 +69,18 @@ export default function CatalogueImportForm() {
           <option value="ndl_search">National Diet Library — Japanese bibliography</option>
         </select>
       </label>
-      <label>
+      {source === "shueisha" ? <label>
+        Japanese ISBNs
+        <textarea minLength={2} onChange={(event) => { setBatchIsbns(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={"One ISBN per line\n9784088725093\n9784088725109"} required value={batchIsbns} />
+      </label> : <label>
         Search title
         <input minLength={2} onChange={(event) => { setQuery(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={sourceInstructions[source].placeholder} required value={query} />
-      </label>
+      </label>}
       <div className="catalogue-form-actions">
         <button disabled={saving} type="submit">{saving ? "Importing…" : "Find candidates"}</button>
         {message ? <p role="status">{message}</p> : null}
       </div>
-      <p className="catalogue-form-note">{sourceInstructions[source].description} Nothing here becomes a verified edition automatically. Each candidate is checked in the catalogue review queue.</p>
+      <p className="catalogue-form-note">{sourceInstructions[source].description} {source === "shueisha" ? "Paste up to 25 ISBNs, one per line. Each result is still individually selected and reviewed." : ""} Nothing here becomes a verified edition automatically. Each candidate is checked in the catalogue review queue.</p>
       {candidates.length ? <div className="catalogue-options" aria-label="Source candidates">{candidates.map((candidate) => <label className={selectedIds.includes(candidate.external_id) ? "selected" : ""} key={candidate.external_id}><input type="checkbox" checked={selectedIds.includes(candidate.external_id)} onChange={() => setSelectedIds((ids) => ids.includes(candidate.external_id) ? ids.filter((id) => id !== candidate.external_id) : [...ids, candidate.external_id])} /><strong>{candidate.candidate_title}</strong><small>{[candidate.candidate_kind === "series_reference" ? "Series reference" : "Edition candidate", candidate.candidate_language, candidate.candidate_isbn_13, candidate.candidate_release_date].filter(Boolean).join(" · ")}</small><a href={candidate.source_record_url} target="_blank" rel="noreferrer">Open source ↗</a></label>)}</div> : null}
       {candidates.length ? <div className="catalogue-form-actions"><button type="button" disabled={saving} onClick={queueSelected}>Queue {selectedIds.length} selected record{selectedIds.length === 1 ? "" : "s"}</button><p>Select only records you can identify; unselected results never enter RAR.</p></div> : null}
     </form>

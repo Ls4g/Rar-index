@@ -29,6 +29,7 @@ type ObservedSale = {
   grading_company: string | null;
   grade_label: string | null;
   match_status: "verified_match" | "needs_review" | "excluded";
+  raw_payload: unknown;
 };
 
 type Metric = {
@@ -68,6 +69,14 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
   return "Early evidence";
 }
 
+function copyrightProofUrl(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+  const metadata = (payload as { rar_import_metadata?: unknown }).rar_import_metadata;
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as { evidence_image_url?: unknown }).evidence_image_url;
+  return typeof value === "string" && /^https?:\/\//.test(value) ? value : null;
+}
+
 export default async function EditionPage({ params }: EditionPageProps) {
   const { id } = await params;
   const { data: edition } = await supabase
@@ -92,7 +101,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .order("is_primary", { ascending: false }),
     supabase
       .from("price_observations")
-      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status")
+      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status, raw_payload")
       .eq("edition_id", id)
       .eq("sale_status", "confirmed")
       .neq("match_status", "excluded")
@@ -118,6 +127,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
     : { data: [] as Source[] };
   const sourceNames = new Map((sourcesResult.data ?? []).map((source) => [source.id, source.name]));
   const metrics = (metricsResult.data ?? []) as Metric[];
+  const copyrightProofUrls = [...new Set(observedSales.map((sale) => copyrightProofUrl(sale.raw_payload)).filter((url): url is string => Boolean(url)))];
 
   const details = [
     ["Series", edition.series],
@@ -246,6 +256,20 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
         <section className="price-history-section">
           <PriceHistoryChart sales={verifiedSales} />
+        </section>
+
+        <section className="edition-evidence-section">
+          <div className="section-intro">
+            <p className="eyebrow">Why this edition is identified this way</p>
+            <h2>Edition evidence</h2>
+            <p className="section-copy">RAR separates the publisher&apos;s edition record from proof of a specific printing. A first-print claim requires copyright-page evidence.</p>
+          </div>
+          <div className="edition-evidence-grid">
+            <div><span>Edition identifiers</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
+            <div><span>Printing status</span><strong>{edition.printing_number === 1 ? "First printing recorded" : edition.printing_number ? `Printing ${edition.printing_number} recorded` : "Printing not yet proven"}</strong><small>{edition.printing_number === 1 ? "Check the copyright-page proof below." : "Do not infer a printing from the release date alone."}</small></div>
+            <div><span>Copyright-page proof</span><strong>{copyrightProofUrls.length ? `${copyrightProofUrls.length} linked reference${copyrightProofUrls.length === 1 ? "" : "s"}` : "No linked reference yet"}</strong><small>{copyrightProofUrls.length ? "Recorded from a specific marketplace listing or physical copy." : "Add a direct proof image when reviewing a sale or edition."}</small></div>
+          </div>
+          {copyrightProofUrls.length ? <div className="evidence-proof-links">{copyrightProofUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer">Open copyright-page proof {index + 1} ↗</a>)}</div> : null}
         </section>
 
         <section className="observed-sales-section">
