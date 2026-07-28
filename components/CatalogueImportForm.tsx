@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type CatalogueSource = "open_library" | "mangadex";
+type CatalogueSource = "open_library" | "mangadex" | "shueisha" | "ndl_search";
 type Candidate = { external_id: string; source_record_url: string; candidate_kind: "edition_candidate" | "series_reference"; candidate_title: string; candidate_author?: string | null; candidate_language?: string | null; candidate_isbn_13?: string | null; candidate_release_date?: string | null };
 
 export default function CatalogueImportForm() {
@@ -12,6 +12,12 @@ export default function CatalogueImportForm() {
   const [saving, setSaving] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const sourceInstructions: Record<CatalogueSource, { description: string; placeholder: string }> = {
+    open_library: { description: "Edition candidates only. Treat every field as a lead to verify.", placeholder: "e.g. One Piece" },
+    mangadex: { description: "Work/series reference only. It cannot create a physical edition.", placeholder: "e.g. One Piece" },
+    shueisha: { description: "Official Shueisha record. Search by Japanese ISBN only (ISBN-10 or ISBN-13).", placeholder: "e.g. 9784088725093" },
+    ndl_search: { description: "National Diet Library cross-check. Search by title or ISBN; records remain candidates.", placeholder: "e.g. ONE PIECE 1 or 9784088725093" },
+  };
 
   async function importCandidates(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,17 +61,19 @@ export default function CatalogueImportForm() {
         <select onChange={(event) => setSource(event.target.value as CatalogueSource)} value={source}>
           <option value="open_library">Open Library — edition candidates</option>
           <option value="mangadex">MangaDex — series references</option>
+          <option value="shueisha">Shueisha Direct — official Japanese editions</option>
+          <option value="ndl_search">National Diet Library — Japanese bibliography</option>
         </select>
       </label>
       <label>
         Search title
-        <input minLength={2} onChange={(event) => { setQuery(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder="e.g. One Piece" required value={query} />
+        <input minLength={2} onChange={(event) => { setQuery(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={sourceInstructions[source].placeholder} required value={query} />
       </label>
       <div className="catalogue-form-actions">
         <button disabled={saving} type="submit">{saving ? "Importing…" : "Find candidates"}</button>
         {message ? <p role="status">{message}</p> : null}
       </div>
-      <p className="catalogue-form-note">Nothing here becomes a verified edition automatically. Each candidate is checked in the catalogue review queue.</p>
+      <p className="catalogue-form-note">{sourceInstructions[source].description} Nothing here becomes a verified edition automatically. Each candidate is checked in the catalogue review queue.</p>
       {candidates.length ? <div className="catalogue-options" aria-label="Source candidates">{candidates.map((candidate) => <label className={selectedIds.includes(candidate.external_id) ? "selected" : ""} key={candidate.external_id}><input type="checkbox" checked={selectedIds.includes(candidate.external_id)} onChange={() => setSelectedIds((ids) => ids.includes(candidate.external_id) ? ids.filter((id) => id !== candidate.external_id) : [...ids, candidate.external_id])} /><strong>{candidate.candidate_title}</strong><small>{[candidate.candidate_kind === "series_reference" ? "Series reference" : "Edition candidate", candidate.candidate_language, candidate.candidate_isbn_13, candidate.candidate_release_date].filter(Boolean).join(" · ")}</small><a href={candidate.source_record_url} target="_blank" rel="noreferrer">Open source ↗</a></label>)}</div> : null}
       {candidates.length ? <div className="catalogue-form-actions"><button type="button" disabled={saving} onClick={queueSelected}>Queue {selectedIds.length} selected record{selectedIds.length === 1 ? "" : "s"}</button><p>Select only records you can identify; unselected results never enter RAR.</p></div> : null}
     </form>
