@@ -7,6 +7,7 @@ const REQUIRED_HEADERS = [
   "source_listing_url",
   "listing_title",
   "sale_status",
+  "sale_type",
   "sold_date",
   "sale_price",
   "currency",
@@ -62,6 +63,7 @@ type PreparedSale = {
   listingTitle: string;
   soldDate: string;
   salePrice: number;
+  saleType: "auction" | "best_offer" | "fixed_price" | "unknown";
   currency: string;
   shippingPrice: number | null;
   itemCondition: string | null;
@@ -246,6 +248,7 @@ async function preflight(csv: string, edition: Edition) {
     const listingTitle = clean(record.listing_title);
     const listingUrl = clean(record.source_listing_url);
     const saleStatus = clean(record.sale_status).toLowerCase();
+    const saleType = clean(record.sale_type).toLowerCase();
     const soldDate = clean(record.sold_date);
     const salePrice = parseMoney(record.sale_price, true);
     const shippingPrice = parseMoney(record.shipping_price, false);
@@ -274,6 +277,9 @@ async function preflight(csv: string, edition: Edition) {
       }
     }
     if (saleStatus !== "confirmed") issues.push("sale_status must be confirmed; ended or withdrawn listings cannot enter the queue");
+    if (!["auction", "best_offer", "fixed_price", "unknown"].includes(saleType)) {
+      issues.push("sale_type must be auction, best_offer, fixed_price, or unknown");
+    }
     if (!isIsoDate(soldDate)) issues.push("sold_date must use YYYY-MM-DD");
     if (salePrice.error) issues.push(`sale_price ${salePrice.error}`);
     if (shippingPrice.error) issues.push(`shipping_price ${shippingPrice.error}`);
@@ -309,6 +315,7 @@ async function preflight(csv: string, edition: Edition) {
       listingTitle,
       soldDate,
       salePrice: salePrice.value,
+      saleType: saleType as PreparedSale["saleType"],
       currency,
       shippingPrice: shippingPrice.value,
       itemCondition: clean(record.item_condition) || null,
@@ -427,7 +434,7 @@ export async function POST(request: Request) {
       currency: sale.currency,
       shipping_price: sale.shippingPrice,
       quantity: 1,
-      sale_type: "marketplace_sale",
+      sale_type: sale.saleType,
       item_condition: sale.itemCondition,
       is_sealed: sale.isSealed,
       raw_payload: {
