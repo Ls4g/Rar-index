@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-type CatalogueSource = "open_library" | "mangadex";
+type CatalogueSource = "open_library" | "mangadex" | "shueisha" | "ndl_search";
 
 function isStaffRequest(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -26,6 +26,86 @@ function languageName(value: string | undefined) {
 function firstTitle(values: Record<string, string> | undefined) {
   if (!values) return null;
   return values.en || values.ja || Object.values(values)[0] || null;
+}
+
+function cleanIsbn(value: string) {
+  return value.replace(/[^0-9Xx]/g, "").toUpperCase();
+}
+
+function isbn13From10(isbn10: string) {
+  if (!/^\d{9}[\dX]$/.test(isbn10)) return null;
+  const firstTwelve = `978${isbn10.slice(0, 9)}`;
+  const total = [...firstTwelve].reduce((sum, digit, index) => sum + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
+  return `${firstTwelve}${(10 - (total % 10)) % 10}`;
+}
+
+function decodeHtml(value: string) {
+  return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function htmlMatch(html: string, pattern: RegExp) {
+  return decodeHtml(html.match(pattern)?.[1] || "") || null;
+}
+
+function xmlValues(xml: string, tag: string) {
+  return [...xml.matchAll(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "g"))].map((match) => decodeHtml(match[1])).filter(Boolean);
+}
+
+async function shueishaCandidates(query: string) {
+  const isbn = cleanIsbn(query);
+  if (!/^\d{9}[\dX]$/.test(isbn) && !/^97[89]\d{10}$/.test(isbn)) throw new Error("Shueisha Direct needs a Japanese ISBN-10 or ISBN-13, not a title search.");
+  const isbn13 = isbn.length === 10 ? isbn13From10(isbn) : isbn;
+  if (!isbn13) throw new Error("That ISBN could not be read.");
+  const sourceRecordUrl = `https://books.shueisha.co.jp/items/contents.html?isbn=${isbn13.slice(0, 3)}-${isbn13.slice(3, 4)}-${isbn13.slice(4, 6)}-${isbn13.slice(6, 12)}-${isbn13.slice(12)}`;
+  const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
+  if (!response.ok) throw new Error("Shueisha did not return a usable record.");
+  const html = await response.text();
+  const sourceIsbn = cleanIsbn(htmlMatch(html, /ISBN[：:]\s*([0-9Xx-]+)/) || "");
+  if (!sourceIsbn || (sourceIsbn !== isbn && isbn13From10(sourceIsbn) !== isbn13 && sourceIsbn !== isbn13)) return [];
+  const release = html.match(/(\d{4})年(\d{1,2})月(\d{1,2})日発売/);
+  const title = htmlMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || htmlMatch(html, /<title[^>]*>([\s\S]*?)<\//i)?.split(/[／|]/)[0]?.trim();
+  if (!title) return [];
+  return [{
+    external_id: isbn13,
+    source_record_url: sourceRecordUrl,
+    raw_payload: { importer: "shueisha_direct", isbn_query: isbn, source_html: html },
+    candidate_kind: "edition_candidate",
+    candidate_title: title,
+    candidate_author: htmlMatch(html, /著者[：:]?\s*<[^>]*>([\s\S]*?)<\//),
+    candidate_publisher: "Shueisha",
+    candidate_language: "Japanese",
+    candidate_isbn_13: isbn13,
+    candidate_release_date: release ? `${release[1]}-${release[2].padStart(2, "0")}-${release[3].padStart(2, "0")}` : null,
+    candidate_format: htmlMatch(html, /(新書判|B6判|A5判|文庫判)[／/]/),
+  }];
+}
+
+async function ndlSearchCandidates(query: string) {
+  const isbn = cleanIsbn(query);
+  const cql = /^\d{9}[\dX]$/.test(isbn) || /^97[89]\d{10}$/.test(isbn) ? `isbn=\"${isbn}\"` : `title=\"${query.replace(/[\"]/g, "")}\"`;
+  const sourceRecordUrl = `https://ndlsearch.ndl.go.jp/api/sru?operation=searchRetrieve&maximumRecords=10&query=${encodeURIComponent(cql)}`;
+  const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
+  if (!response.ok) throw new Error("National Diet Library Search did not return a usable response.");
+  const xml = await response.text();
+  return [...xml.matchAll(/<recordData>([\s\S]*?)<\/recordData>/g)].flatMap((match, index) => {
+    const record = match[1];
+    const title = xmlValues(record, "dc:title")[0];
+    const candidateIsbn = xmlValues(record, "dc:identifier").map(cleanIsbn).find((value) => /^97[89]\d{10}$/.test(value)) || null;
+    const recordId = xmlValues(record, "rdfs:seeAlso")[0]?.match(/R\d+-[^<\s]+/)?.[0] || `result-${index + 1}`;
+    if (!title) return [];
+    return [{
+      external_id: recordId,
+      source_record_url: recordId.startsWith("R") ? `https://ndlsearch.ndl.go.jp/books/${recordId}` : sourceRecordUrl,
+      raw_payload: { importer: "ndl_search", record_xml: record },
+      candidate_kind: "edition_candidate",
+      candidate_title: title,
+      candidate_author: xmlValues(record, "dc:creator")[0] || null,
+      candidate_publisher: xmlValues(record, "dc:publisher")[0] || null,
+      candidate_language: languageName(xmlValues(record, "dc:language")[0]),
+      candidate_isbn_13: candidateIsbn,
+      candidate_release_date: (xmlValues(record, "dc:date")[0] || "").match(/^\d{4}(?:-\d{2}-\d{2})?/)?.[0] || null,
+    }];
+  });
 }
 
 async function openLibraryCandidates(query: string) {
@@ -111,17 +191,17 @@ export async function POST(request: Request) {
 
   const source = payload.source;
   const query = typeof payload.query === "string" ? payload.query.trim() : "";
-  if ((source !== "open_library" && source !== "mangadex") || query.length < 2 || query.length > 120) {
-    return Response.json({ error: "Choose Open Library or MangaDex and enter a search of 2–120 characters." }, { status: 400 });
+  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search") || query.length < 2 || query.length > 120) {
+    return Response.json({ error: "Choose a catalogue source and enter a search of 2–120 characters." }, { status: 400 });
   }
 
   try {
     const admin = getSupabaseAdmin();
-    const sourceName = source === "open_library" ? "Open Library" : "MangaDex";
+    const sourceName = source === "open_library" ? "Open Library" : source === "mangadex" ? "MangaDex" : source === "shueisha" ? "Shueisha Direct" : "National Diet Library Search";
     const { data: sourceRecord, error: sourceError } = await admin.from("sources").select("id").eq("name", sourceName).maybeSingle();
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
-    const candidates = source === "open_library" ? await openLibraryCandidates(query) : await mangaDexCandidates(query);
+    const candidates = source === "open_library" ? await openLibraryCandidates(query) : source === "mangadex" ? await mangaDexCandidates(query) : source === "shueisha" ? await shueishaCandidates(query) : await ndlSearchCandidates(query);
     if (!candidates.length) return Response.json({ imported: 0, candidates: [], message: "No usable catalogue candidates were returned." });
     if (payload.dryRun === true) return Response.json({ candidates, message: `Review ${candidates.length} source result${candidates.length === 1 ? "" : "s"}; select only the exact record${candidates.length === 1 ? "" : "s"} to queue.` });
 
@@ -138,7 +218,7 @@ export async function POST(request: Request) {
     if (writeError) return Response.json({ error: "Catalogue candidates could not be queued." }, { status: 500 });
 
     return Response.json({ imported: rows.length, message: `${rows.length} candidate${rows.length === 1 ? "" : "s"} queued for human verification.` });
-  } catch {
-    return Response.json({ error: "The catalogue source is unavailable right now. Please try again later." }, { status: 502 });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "The catalogue source is unavailable right now. Please try again later." }, { status: 502 });
   }
 }
