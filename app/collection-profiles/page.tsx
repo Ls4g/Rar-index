@@ -11,6 +11,7 @@ type CollectionProfile = {
   is_active: boolean;
   last_checked_at: string | null;
   last_checked_result_count: number | null;
+  collection_interval_days: number;
   edition: { title: string | null; language: string | null; isbn_13: string | null } | null;
   source: { name: string | null } | null;
 };
@@ -36,11 +37,26 @@ function sourceSearchUrl(sourceName: string | null, query: string) {
   return null;
 }
 
+function nextCheck(profile: CollectionProfile) {
+  if (!profile.last_checked_at) return { label: "Ready to check now", isDue: true };
+  const dueAt = new Date(profile.last_checked_at);
+  dueAt.setDate(dueAt.getDate() + profile.collection_interval_days);
+  const isDue = dueAt <= new Date();
+  return { label: isDue ? `Due since ${formatDate(dueAt.toISOString())}` : `Next check ${formatDate(dueAt.toISOString())}`, isDue };
+}
+
+function cadenceLabel(days: number) {
+  if (days === 7) return "Weekly";
+  if (days === 14) return "Every two weeks";
+  if (days === 30) return "Monthly";
+  return `Every ${days} days`;
+}
+
 export default async function CollectionProfilesPage() {
   const admin = getSupabaseAdmin();
   const { data } = await admin
     .from("marketplace_search_profiles")
-    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, edition:manga_editions(title, language, isbn_13), source:sources(name)")
+    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, collection_interval_days, edition:manga_editions(title, language, isbn_13), source:sources(name)")
     .order("created_at", { ascending: false });
   const profiles = (data ?? []) as unknown as CollectionProfile[];
   const profileIds = profiles.map((profile) => profile.id);
@@ -77,16 +93,16 @@ export default async function CollectionProfilesPage() {
         <div className="section-intro">
           <p className="eyebrow">Before collection</p>
           <h2>Search narrowly, then review</h2>
-          <p className="section-copy">Opening a search never imports a sale. Candidates still go through CSV preflight and the protected review queue.</p>
+          <p className="section-copy">Open the exact completed-listings search when it is due, record what you found, then import only the candidates worth reviewing. This is an assisted workflow — it does not scrape or auto-import marketplace data.</p>
         </div>
         {profiles.length ? <div className="review-list">{profiles.map((profile) => {
           const searchUrl = sourceSearchUrl(profile.source?.name ?? null, profile.search_query);
           const runs = runsByProfile.get(profile.id) ?? [];
           return (
             <article className="review-card catalogue-card" key={profile.id}>
-              <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><time>{profile.is_active ? "Active" : "Paused"}</time></div>
+              <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><time>{profile.is_active ? nextCheck(profile).label : "Paused"}</time></div>
               <div className="review-card-main"><div><h3>{profile.edition?.title ?? "Edition"}</h3><p className="review-condition">{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null].filter(Boolean).join(" · ")}</p></div>{searchUrl ? <a className="review-source-link" href={searchUrl} target="_blank" rel="noreferrer">Open completed search ↗</a> : null}</div>
-              <dl className="catalogue-details"><div><dt>Search query</dt><dd>{profile.search_query}</dd></div><div><dt>Last checked</dt><dd>{formatDate(profile.last_checked_at)}{profile.last_checked_result_count !== null ? ` · ${profile.last_checked_result_count} results` : ""}</dd></div></dl>
+              <dl className="catalogue-details"><div><dt>Search query</dt><dd>{profile.search_query}</dd></div><div><dt>Cadence</dt><dd>{cadenceLabel(profile.collection_interval_days)}</dd></div><div><dt>Last checked</dt><dd>{formatDate(profile.last_checked_at)}{profile.last_checked_result_count !== null ? ` · ${profile.last_checked_result_count} results` : ""}</dd></div></dl>
               <div className="review-note"><span>Exact-edition rules</span><p>{profile.scope_notes}</p></div>
               <CollectionRunForm profileId={profile.id} />
               <div className="review-note"><span>Recent collection runs</span>{runs.length ? <ul>{runs.slice(0, 3).map((run) => <li key={run.id}>{formatDate(run.checked_at)} · {run.checked_by} · {run.candidate_count} candidates — {run.notes}</li>)}</ul> : <p>No run has been recorded yet.</p>}</div>
