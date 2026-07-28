@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 
-type CatalogueSource = "open_library" | "mangadex" | "shueisha" | "ndl_search";
+type CatalogueSource = "open_library" | "mangadex" | "shueisha" | "ndl_search" | "publisher_record";
+type PublisherRecordSource = "kodansha_japan" | "kodansha_usa" | "viz_media" | "tokyopop_archive";
 type Candidate = { external_id: string; source_record_url: string; candidate_kind: "edition_candidate" | "series_reference"; candidate_title: string; candidate_author?: string | null; candidate_language?: string | null; candidate_isbn_13?: string | null; candidate_release_date?: string | null };
 
 export default function CatalogueImportForm() {
   const [source, setSource] = useState<CatalogueSource>("open_library");
   const [query, setQuery] = useState("");
   const [batchIsbns, setBatchIsbns] = useState("");
+  const [publisherSource, setPublisherSource] = useState<PublisherRecordSource>("kodansha_japan");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -18,6 +20,7 @@ export default function CatalogueImportForm() {
     mangadex: { description: "Work/series reference only. It cannot create a physical edition.", placeholder: "e.g. One Piece" },
     shueisha: { description: "Official Shueisha record. Search by Japanese ISBN only (ISBN-10 or ISBN-13).", placeholder: "e.g. 9784088725093" },
     ndl_search: { description: "National Diet Library cross-check. Search by title or ISBN; records remain candidates.", placeholder: "e.g. ONE PIECE 1 or 9784088725093" },
+    publisher_record: { description: "Official publisher record, or the labelled TokyoPop archival catalogue record. The original page is preserved for review.", placeholder: "https://..." },
   };
 
   async function importCandidates(event: React.FormEvent<HTMLFormElement>) {
@@ -31,7 +34,7 @@ export default function CatalogueImportForm() {
       const response = await fetch("/api/catalogue-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, query, queries, dryRun: true }),
+        body: JSON.stringify({ source, publisherSource, query, queries, dryRun: true }),
       });
       const result = (await response.json()) as { error?: string; message?: string; candidates?: Candidate[] };
       if (!response.ok) throw new Error(result.error ?? "Candidates could not be found.");
@@ -50,7 +53,7 @@ export default function CatalogueImportForm() {
     setSaving(true); setMessage("");
     try {
       const queries = source === "shueisha" ? batchIsbns.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean) : [query.trim()];
-      const response = await fetch("/api/catalogue-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, query, queries, selectedExternalIds: selectedIds }) });
+      const response = await fetch("/api/catalogue-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, publisherSource, query, queries, selectedExternalIds: selectedIds }) });
       const result = (await response.json()) as { error?: string; message?: string };
       if (!response.ok) throw new Error(result.error ?? "Candidates could not be queued.");
       setCandidates([]); setSelectedIds([]); setMessage(result.message ?? "Candidates queued for review.");
@@ -67,12 +70,24 @@ export default function CatalogueImportForm() {
           <option value="mangadex">MangaDex — series references</option>
           <option value="shueisha">Shueisha Direct — official Japanese editions</option>
           <option value="ndl_search">National Diet Library — Japanese bibliography</option>
+          <option value="publisher_record">Publisher / archive record URL — exact edition</option>
         </select>
       </label>
       {source === "shueisha" ? <label>
         Japanese ISBNs
         <textarea minLength={2} onChange={(event) => { setBatchIsbns(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={"One ISBN per line\n9784088725093\n9784088725109"} required value={batchIsbns} />
-      </label> : <label>
+      </label> : source === "publisher_record" ? <><label>
+        Record source
+        <select onChange={(event) => { setPublisherSource(event.target.value as PublisherRecordSource); setCandidates([]); setSelectedIds([]); }} value={publisherSource}>
+          <option value="kodansha_japan">Kodansha Japan — official publisher</option>
+          <option value="kodansha_usa">Kodansha USA — official publisher</option>
+          <option value="viz_media">VIZ Media — official publisher</option>
+          <option value="tokyopop_archive">TokyoPop archive — Open Library catalogue</option>
+        </select>
+      </label><label>
+        Exact record URL
+        <input minLength={12} onChange={(event) => { setQuery(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={sourceInstructions[source].placeholder} required type="url" value={query} />
+      </label></> : <label>
         Search title
         <input minLength={2} onChange={(event) => { setQuery(event.target.value); setCandidates([]); setSelectedIds([]); }} placeholder={sourceInstructions[source].placeholder} required value={query} />
       </label>}

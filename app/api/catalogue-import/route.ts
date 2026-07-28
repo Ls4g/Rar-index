@@ -177,10 +177,54 @@ async function mangaDexCandidates(query: string) {
   });
 }
 
+const publisherRecords = {
+  kodansha_japan: { name: "Kodansha Japan", publisher: "Kodansha", language: "Japanese", hosts: ["www.kodansha.co.jp", "kc.kodansha.co.jp"] },
+  kodansha_usa: { name: "Kodansha USA", publisher: "Kodansha", language: "English", hosts: ["kodansha.us", "archive.kodansha.us"] },
+  viz_media: { name: "VIZ Media", publisher: "VIZ Media", language: "English", hosts: ["www.viz.com", "viz.com"] },
+  tokyopop_archive: { name: "TokyoPop Archive (Open Library)", publisher: "TokyoPop", language: "English", hosts: ["openlibrary.org"] },
+} as const;
+
+type PublisherRecordSource = keyof typeof publisherRecords;
+
+function titleFromHtml(html: string) {
+  return htmlMatch(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+    || htmlMatch(html, /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
+    || htmlMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
+}
+
+function isbnFromHtml(html: string) {
+  const match = html.match(/ISBN(?:-1[03])?[^0-9Xx]{0,24}((?:97[89][\s-]*)?\d[\d\s-]{8,15}[\dXx])/i);
+  const isbn = cleanIsbn(match?.[1] || "");
+  return /^97[89]\d{10}$/.test(isbn) ? isbn : isbn13From10(isbn);
+}
+
+async function publisherRecordCandidates(query: string, publisherSource: PublisherRecordSource) {
+  const source = publisherRecords[publisherSource];
+  if (!source) throw new Error("Choose a supported publisher record source.");
+  let sourceRecordUrl: URL;
+  try { sourceRecordUrl = new URL(query); } catch { throw new Error("Enter a full publisher-record URL."); }
+  if (sourceRecordUrl.protocol !== "https:" || !source.hosts.includes(sourceRecordUrl.hostname as never)) throw new Error(`That URL is not an approved ${source.name} record.`);
+  const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`${source.name} did not return a usable record.`);
+  const html = await response.text();
+  const title = titleFromHtml(html);
+  if (!title) return [];
+  return [{
+    external_id: sourceRecordUrl.toString(),
+    source_record_url: sourceRecordUrl.toString(),
+    raw_payload: { importer: "publisher_record", publisher_source: publisherSource, source_html: html },
+    candidate_kind: "edition_candidate" as const,
+    candidate_title: title,
+    candidate_publisher: source.publisher,
+    candidate_language: source.language,
+    candidate_isbn_13: isbnFromHtml(html),
+  }];
+}
+
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { source?: unknown; query?: unknown; queries?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
+  let payload: { source?: unknown; publisherSource?: unknown; query?: unknown; queries?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -192,14 +236,15 @@ export async function POST(request: Request) {
   const suppliedQueries = Array.isArray(payload.queries)
     ? payload.queries.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
     : query ? [query] : [];
+  const publisherSource = typeof payload.publisherSource === "string" ? payload.publisherSource as PublisherRecordSource : null;
   const searchQueries = source === "shueisha" ? [...new Set(suppliedQueries)] : suppliedQueries.slice(0, 1);
-  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 120)) {
+  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search" && source !== "publisher_record") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 500) || (source === "publisher_record" && (!publisherSource || !publisherRecords[publisherSource]))) {
     return Response.json({ error: "Choose a catalogue source and enter a search of 2–120 characters." }, { status: 400 });
   }
 
   try {
     const admin = getSupabaseAdmin();
-    const sourceName = source === "open_library" ? "Open Library" : source === "mangadex" ? "MangaDex" : source === "shueisha" ? "Shueisha Direct" : "National Diet Library Search";
+    const sourceName = source === "open_library" ? "Open Library" : source === "mangadex" ? "MangaDex" : source === "shueisha" ? "Shueisha Direct" : source === "ndl_search" ? "National Diet Library Search" : publisherRecords[publisherSource!].name;
     const { data: sourceRecord, error: sourceError } = await admin.from("sources").select("id").eq("name", sourceName).maybeSingle();
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
@@ -207,7 +252,8 @@ export async function POST(request: Request) {
       source === "open_library" ? openLibraryCandidates(searchQuery)
         : source === "mangadex" ? mangaDexCandidates(searchQuery)
           : source === "shueisha" ? shueishaCandidates(searchQuery)
-            : ndlSearchCandidates(searchQuery)
+            : source === "ndl_search" ? ndlSearchCandidates(searchQuery)
+              : publisherRecordCandidates(searchQuery, publisherSource!)
     )));
     const candidates = candidateGroups.flat().filter((candidate, index, values) => values.findIndex((value) => value.external_id === candidate.external_id) === index);
     if (!candidates.length) return Response.json({ imported: 0, candidates: [], message: "No usable catalogue candidates were returned." });
