@@ -17,15 +17,17 @@ Every catalogue candidate must preserve:
 ## Safety rules
 
 1. Imports enter `catalogue_import_queue`; no importer writes directly to `manga_editions`.
-2. Open Library records are **candidates**, not proof. A reviewer verifies physical-edition fields before approval.
-3. MangaDex records are `series_reference` candidates. They can support research but cannot create a physical edition.
-4. Every decision requires a named reviewer and an evidence note of at least 12 characters.
-5. Only `approve_new` creates a verified edition. `link_existing` attaches source evidence to a known exact RAR edition.
-6. Rejected, duplicate and unresolved candidates retain their audit trail rather than disappearing.
+2. Publisher-direct records (for example Shueisha Direct) are the strongest catalogue source for that publisher's standard edition. They still do not prove a particular printing.
+3. National Diet Library Search is an independent bibliographic cross-check. Its records are candidates, not proof of a specific printing.
+4. Open Library records are **candidates**, not proof. A reviewer verifies physical-edition fields before approval.
+5. MangaDex records are `series_reference` candidates. They can support research but cannot create a physical edition.
+6. Every decision requires a named reviewer and an evidence note of at least 12 characters.
+7. Only `approve_new` creates a verified edition. `link_existing` attaches source evidence to a known exact RAR edition.
+8. Rejected, duplicate and unresolved candidates retain their audit trail rather than disappearing.
 
 ## Repeatable operating loop
 
-1. Search one source for a title in **Catalogue import**.
+1. Start with the publisher-direct source where it exists, then use NDL Search as an independent check. Use Open Library and MangaDex only as supporting discovery sources.
 2. Inspect original source evidence in **Catalogue review**.
 3. Approve, link, keep in review, mark duplicate, or reject with a note.
 4. Add marketplace-sale candidates only after the exact edition exists.

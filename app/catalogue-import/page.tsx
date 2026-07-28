@@ -19,7 +19,7 @@ export default function CatalogueImportPage() {
         <div className="section-intro">
           <p className="eyebrow">Step 1 — capture</p>
           <h2>Bring candidates into RAR safely</h2>
-          <p className="section-copy">Open Library can suggest physical edition records. MangaDex provides a useful work-level cross-check, but never creates a physical edition by itself.</p>
+          <p className="section-copy">Shueisha Direct is the preferred starting point for Shueisha manga. National Diet Library records provide an independent Japanese bibliography cross-check. Open Library can suggest edition leads; MangaDex is work-level only.</p>
         </div>
         <CatalogueImportForm />
         <section className="catalogue-rules" aria-label="Catalogue import rules">
