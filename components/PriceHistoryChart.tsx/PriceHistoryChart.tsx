@@ -26,8 +26,9 @@ function comparison(sale: SalePoint) {
   const grading = sale.grading_company || sale.grade_label
     ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${sale.grade_label ? ` ${sale.grade_label}` : ""}`
     : "Raw";
-  const condition = sale.item_condition?.trim() || "Condition not recorded";
-  return { currency: sale.currency, grading, condition, key: `${sale.currency}|${grading}|${condition}` };
+  // Raw condition stays visible on the source sale, but does not split RAR's
+  // raw market evidence. Graded copies remain deliberately separate.
+  return { currency: sale.currency, grading, key: `${sale.currency}|${grading}` };
 }
 
 function trendLabel(sales: Array<SalePoint & { sold_date: string }>) {
@@ -51,7 +52,7 @@ function GhostChart({ comparableCount }: { comparableCount: number }) {
       </svg>
       <div className="ghost-chart-message">
         <strong>Not enough comparable verified sales yet</strong>
-        <p>RAR needs {MIN_COMPARABLE_SALES} verified sales in the same currency, raw/graded state and condition group.{comparableCount ? ` This group currently has ${comparableCount}.` : ""}</p>
+        <p>RAR needs {MIN_COMPARABLE_SALES} verified sales in the same currency and raw/graded state.{comparableCount ? ` This group currently has ${comparableCount}.` : ""}</p>
       </div>
     </div>
   );
@@ -85,7 +86,7 @@ function ComparableChart({ label, sales }: {
         </div>
         <span className="chart-status">{sales.length} sales</span>
       </div>
-      <p className="chart-comparable-label">{label.currency} · {label.grading} · {label.condition}</p>
+      <p className="chart-comparable-label">{label.currency} · {label.grading}</p>
       <div className="price-chart-wrap">
         <svg className="price-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Price history from ${formatShortDate(firstDate)} to ${formatShortDate(lastDate ?? firstDate)}`}>
           <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
@@ -148,7 +149,7 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
       <div className="price-history-grid">
         {chartGroups.map((group) => <ComparableChart key={group.label.key} label={group.label} sales={group.sales} />)}
       </div>
-      <p className="chart-note">Each trend keeps currency, raw/graded state and condition separate. RAR labels a group as rising or falling only after it has at least {MIN_COMPARABLE_SALES} verified comparable sales.</p>
+      <p className="chart-note">Each trend keeps currency and raw/graded state separate. Sale condition stays available on the original source listing. RAR labels a group as rising or falling only after it has at least {MIN_COMPARABLE_SALES} verified comparable sales.</p>
     </div>
   );
 }
