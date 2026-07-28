@@ -271,6 +271,17 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .import-status.ready { border-color: rgba(62,113,68,.45); color: #32623a; }
 .import-status.duplicate { border-color: rgba(170,129,44,.55); color: #84621c; }
 .import-status.blocked { border-color: rgba(154,60,49,.45); color: #9a3c31; }
+.staff-login-page { display: grid; grid-template-rows: auto 1fr; }
+.staff-login-card { width: min(100% - 3rem, 540px); align-self: center; margin: 5rem auto; padding: 2.2rem; border-top: 4px solid var(--gold); background: #e9dfcf; }
+.staff-login-card h1 { margin: .35rem 0 1rem; font-size: clamp(3rem, 7vw, 4.8rem); }
+.staff-login-card > p:not(.eyebrow) { margin-bottom: 1.8rem; color: var(--muted); line-height: 1.6; }
+.staff-login-form { display: grid; gap: 1rem; }
+.staff-login-form label { display: grid; gap: .42rem; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.staff-login-form input { min-height: 2.85rem; border: 1px solid var(--line); border-radius: 0; padding: .65rem; background: var(--paper); color: var(--ink); font: inherit; letter-spacing: normal; text-transform: none; }
+.staff-login-form button { justify-self: start; border: 0; padding: .85rem 1.1rem; background: var(--ink); color: var(--paper); cursor: pointer; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.staff-login-form button:disabled { cursor: wait; opacity: .65; }
+.staff-login-form p { margin: 0; color: #9a3c31; font-size: .8rem; line-height: 1.45; }
+.staff-login-loading { margin: 0; color: var(--muted); font-size: .85rem; }
 
 @media (max-width: 850px) { .manga-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 850px) { .edition-layout { grid-template-columns: 1fr; gap: 3rem; } }
