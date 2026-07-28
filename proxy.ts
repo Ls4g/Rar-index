@@ -31,8 +31,10 @@ export const config = {
     "/review/:path*",
     "/catalogue-import/:path*",
     "/catalogue-review/:path*",
+    "/price-import/:path*",
     "/api/review/:path*",
     "/api/catalogue-import/:path*",
     "/api/catalogue-review/:path*",
+    "/api/price-import/:path*",
   ],
 };
