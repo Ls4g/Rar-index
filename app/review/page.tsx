@@ -23,6 +23,7 @@ type ReviewRecord = {
   edition_statement: string | null;
   printing_number: number | null;
   source_name: string | null;
+  evidence_image_url: string | null;
 };
 
 function formatPrice(value: number | null, currency: string | null) {
@@ -108,6 +109,9 @@ export default async function ReviewQueuePage() {
                   {record.source_listing_url ? (
                     <a className="review-source-link" href={record.source_listing_url} target="_blank" rel="noreferrer">Open original listing ↗</a>
                   ) : null}
+                  {record.evidence_image_url ? (
+                    <a className="review-source-link" href={record.evidence_image_url} target="_blank" rel="noreferrer">Open copyright-page proof ↗</a>
+                  ) : null}
                 </div>
                 <div className="review-match">
                   <p className="eyebrow">Proposed edition</p>
@@ -125,7 +129,7 @@ export default async function ReviewQueuePage() {
                 </div>
                 <div className="review-note">
                   <span>Why it needs review</span>
-                  <p>{record.match_notes ?? "Check the listing images and edition identifiers before verifying."}</p>
+                  <p>{record.match_notes ?? "Check the listing images, copyright-page proof and edition identifiers before verifying."}</p>
                 </div>
                 <ReviewDecisionForm observationId={record.observation_id} />
               </article>

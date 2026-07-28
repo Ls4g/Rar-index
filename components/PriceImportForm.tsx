@@ -24,6 +24,7 @@ type ReportRow = {
   soldDate: string;
   price: string;
   currency: string;
+  evidenceImageUrl: string;
 };
 
 type Preflight = {
@@ -183,7 +184,7 @@ export default function PriceImportForm() {
                   <tr key={row.rowNumber}>
                     <td>{row.rowNumber}</td>
                     <td><span className={`import-status ${row.status}`}>{row.status}</span></td>
-                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small></td>
+                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.evidenceImageUrl ? "Copyright-page reference supplied" : "No copyright-page reference yet — this sale cannot be verified."}</small></td>
                     <td>{row.price && row.currency ? `${row.currency} ${row.price}` : "Not usable"}<small>{row.soldDate || "No sale date"}</small></td>
                     <td>{row.issues.length ? row.issues.join("; ") : "Ready for staff review"}</td>
                   </tr>

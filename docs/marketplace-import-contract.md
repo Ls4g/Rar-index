@@ -15,6 +15,7 @@ Required capture fields:
 | `source_listing_url` | Direct link to the original listing or result page. |
 | `listing_title` | The title exactly as captured. Never rewrite it as an edition title. |
 | `raw_payload` | Original machine-readable capture or a faithful structured snapshot. |
+| `evidence_image_url` | Optional direct URL for a clear copyright/colophon or printing-page image from the specific listing. Its presence does not verify the sale automatically. |
 | `candidate_title` | The imported item title used for matching. |
 | `candidate_language` | Language stated by the source or derived from reliable evidence. |
 
@@ -51,7 +52,7 @@ Strong match evidence is, in order:
 1. ISBN for the physical edition.
 2. Printing statement or number visible in the listing/photos.
 3. Language, publisher/imprint, format and cover/variant.
-4. Publication page, copyright page, or other identifying image.
+4. A copyright/colophon or other identifying image from the specific listing or physical copy. Save its direct image URL in `evidence_image_url`.
 
 Title similarity alone is never enough. A Gold Foil 9th printing is not interchangeable with a generic English volume; a Japanese first printing is not interchangeable with an English edition.
 
@@ -71,7 +72,7 @@ Use `apply_price_review(observation_id, decision, notes, reviewer)` to make a de
 2. Capture original listing data and retain the source URL/payload.
 3. Confirm whether it actually sold, then run the CSV preflight.
 4. Repair blocked rows; do not re-import an existing listing.
-5. Queue only safe rows, then check their original listing and edition identifiers.
+5. Queue only safe rows, then check their original listing, copyright-page reference and edition identifiers.
 6. Record `verified_match`, `needs_review`, or `excluded` with a meaningful note.
 7. Re-check the edition page: only verified matches may change its market value or chart.
 

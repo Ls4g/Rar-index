@@ -13,6 +13,7 @@ const REQUIRED_HEADERS = [
   "shipping_price",
   "item_condition",
   "is_sealed",
+  "evidence_image_url",
   "raw_payload",
   "candidate_title",
   "candidate_series",
@@ -50,6 +51,7 @@ type ReportRow = {
   soldDate: string;
   price: string;
   currency: string;
+  evidenceImageUrl: string;
 };
 
 type PreparedSale = {
@@ -64,6 +66,7 @@ type PreparedSale = {
   shippingPrice: number | null;
   itemCondition: string | null;
   isSealed: boolean;
+  evidenceImageUrl: string | null;
   rawPayload: Record<string, unknown>;
   candidate: Record<string, string | null>;
 };
@@ -207,6 +210,7 @@ function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status
     soldDate: clean(row.sold_date),
     price: clean(row.sale_price),
     currency: clean(row.currency).toUpperCase(),
+    evidenceImageUrl: clean(row.evidence_image_url),
   };
 }
 
@@ -247,6 +251,7 @@ async function preflight(csv: string, edition: Edition) {
     const shippingPrice = parseMoney(record.shipping_price, false);
     const currency = clean(record.currency).toUpperCase();
     const sealed = clean(record.is_sealed).toLowerCase();
+    const evidenceImageUrl = clean(record.evidence_image_url);
     const candidate = candidateFromRow(record);
     let rawPayload: Record<string, unknown> | null = null;
 
@@ -259,6 +264,14 @@ async function preflight(csv: string, edition: Edition) {
       if (url.protocol !== "http:" && url.protocol !== "https:") issues.push("source_listing_url must use http or https");
     } catch {
       issues.push("source_listing_url must be a valid http or https URL");
+    }
+    if (evidenceImageUrl) {
+      try {
+        const url = new URL(evidenceImageUrl);
+        if (url.protocol !== "http:" && url.protocol !== "https:") issues.push("evidence_image_url must use http or https");
+      } catch {
+        issues.push("evidence_image_url must be a valid http or https URL when supplied");
+      }
     }
     if (saleStatus !== "confirmed") issues.push("sale_status must be confirmed; ended or withdrawn listings cannot enter the queue");
     if (!isIsoDate(soldDate)) issues.push("sold_date must use YYYY-MM-DD");
@@ -300,6 +313,7 @@ async function preflight(csv: string, edition: Edition) {
       shippingPrice: shippingPrice.value,
       itemCondition: clean(record.item_condition) || null,
       isSealed: ["true", "yes", "1"].includes(sealed),
+      evidenceImageUrl: evidenceImageUrl || null,
       rawPayload,
       candidate,
     });
@@ -422,6 +436,7 @@ export async function POST(request: Request) {
           contract_version: "marketplace-csv-v1",
           imported_at: importedAt,
           candidate: sale.candidate,
+          evidence_image_url: sale.evidenceImageUrl,
         },
       },
       is_verified: false,
