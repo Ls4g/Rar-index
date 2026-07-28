@@ -12,8 +12,6 @@ const REQUIRED_HEADERS = [
   "sale_price",
   "currency",
   "shipping_price",
-  "item_condition",
-  "is_sealed",
   "evidence_image_url",
   "raw_payload",
   "candidate_title",
@@ -286,7 +284,9 @@ async function preflight(csv: string, edition: Edition) {
     if (!/^[A-Z]{3}$/.test(currency)) issues.push("currency must be a three-letter code such as GBP, USD, or JPY");
     if (!candidate.title) issues.push("candidate_title is required");
     if (!candidate.language) issues.push("candidate_language is required");
-    if (!["true", "false", "yes", "no", "1", "0"].includes(sealed)) issues.push("is_sealed must be true or false");
+    if (sealed && !["true", "false", "yes", "no", "1", "0"].includes(sealed)) {
+      issues.push("is_sealed must be true or false when supplied");
+    }
     try {
       const parsed = JSON.parse(clean(record.raw_payload));
       if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error();

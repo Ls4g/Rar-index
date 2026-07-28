@@ -26,7 +26,6 @@ type ObservedSale = {
   sold_date: string | null;
   sale_price: number;
   currency: string;
-  item_condition: string | null;
   grading_company: string | null;
   grade_label: string | null;
   match_status: "verified_match" | "needs_review" | "excluded";
@@ -93,7 +92,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .order("is_primary", { ascending: false }),
     supabase
       .from("price_observations")
-      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, item_condition, grading_company, grade_label, match_status")
+      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status")
       .eq("edition_id", id)
       .eq("sale_status", "confirmed")
       .neq("match_status", "excluded")
@@ -265,7 +264,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
                     <div>
                       <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
                       <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
-                      <small>{formatDate(sale.sold_date)}{sale.item_condition ? ` · ${sale.item_condition} condition` : ""}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
+                      <small>{formatDate(sale.sold_date)}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
                     </div>
                     <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
                   </>

@@ -13,8 +13,6 @@ type ReviewRecord = {
   sold_date: string | null;
   sale_price: number | null;
   currency: string | null;
-  item_condition: string | null;
-  is_sealed: boolean | null;
   match_notes: string | null;
   queued_at: string | null;
   edition_id: string | null;
@@ -83,7 +81,7 @@ export default async function ReviewQueuePage() {
 
       <section className="review-steps" aria-label="Price review process">
         <div><span>1</span><strong>Capture</strong><p>Save the completed listing and its sale details.</p></div>
-        <div><span>2</span><strong>Match</strong><p>Compare language, ISBN, printing, variant and condition to one edition.</p></div>
+        <div><span>2</span><strong>Match</strong><p>Compare language, ISBN, printing and variant to one edition.</p></div>
         <div><span>3</span><strong>Decide</strong><p>Verify, keep under review, or exclude with a note.</p></div>
         <div><span>4</span><strong>Publish</strong><p>Only verified matches feed market value and price history.</p></div>
       </section>
@@ -107,7 +105,6 @@ export default async function ReviewQueuePage() {
                   <div>
                     <h3>{record.listing_title ?? "Untitled marketplace listing"}</h3>
                     <strong className="review-price">{formatPrice(record.sale_price, record.currency)}</strong>
-                    <p className="review-condition">{[record.item_condition, record.is_sealed ? "sealed" : null].filter(Boolean).join(" · ") || "Condition not recorded"}</p>
                   </div>
                   {record.source_listing_url ? (
                     <a className="review-source-link" href={record.source_listing_url} target="_blank" rel="noreferrer">Open original listing ↗</a>

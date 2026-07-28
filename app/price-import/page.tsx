@@ -19,7 +19,7 @@ export default function PriceImportPage() {
         <div className="section-intro">
           <p className="eyebrow">Step 1 - capture safely</p>
           <h2>Validate first, then queue</h2>
-          <p className="section-copy">This tool rejects non-sales and malformed records, detects duplicates, and preserves the original listing snapshot. It never verifies a price automatically.</p>
+          <p className="section-copy">This tool rejects non-sales and malformed records, detects duplicates, and preserves the original listing snapshot. Raw condition is not used for RAR valuations; collectors can inspect it at the original source. It never verifies a price automatically.</p>
         </div>
         <PriceImportForm />
         <section className="catalogue-rules" aria-label="Price import rules">

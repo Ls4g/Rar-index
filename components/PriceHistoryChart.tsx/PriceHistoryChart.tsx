@@ -2,7 +2,6 @@ type SalePoint = {
   sold_date: string | null;
   sale_price: number;
   currency: string;
-  item_condition: string | null;
   grading_company: string | null;
   grade_label: string | null;
 };
@@ -26,7 +25,7 @@ function comparison(sale: SalePoint) {
   const grading = sale.grading_company || sale.grade_label
     ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${sale.grade_label ? ` ${sale.grade_label}` : ""}`
     : "Raw";
-  // Raw condition stays visible on the source sale, but does not split RAR's
+  // Raw condition is assessed at the original source and never splits RAR's
   // raw market evidence. Graded copies remain deliberately separate.
   return { currency: sale.currency, grading, key: `${sale.currency}|${grading}` };
 }
