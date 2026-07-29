@@ -237,7 +237,9 @@ export async function POST(request: Request) {
     ? payload.queries.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
     : query ? [query] : [];
   const publisherSource = typeof payload.publisherSource === "string" ? payload.publisherSource as PublisherRecordSource : null;
-  const searchQueries = source === "shueisha" ? [...new Set(suppliedQueries)] : suppliedQueries.slice(0, 1);
+  // These bibliographic sources accept stable identifiers in batches. Other
+  // sources stay one-query-at-a-time to avoid creating a broad, noisy queue.
+  const searchQueries = source === "shueisha" || source === "ndl_search" ? [...new Set(suppliedQueries)] : suppliedQueries.slice(0, 1);
   if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search" && source !== "publisher_record") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 500) || (source === "publisher_record" && (!publisherSource || !publisherRecords[publisherSource]))) {
     return Response.json({ error: "Choose a catalogue source and enter a search of 2–120 characters." }, { status: 400 });
   }

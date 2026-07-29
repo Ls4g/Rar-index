@@ -25,6 +25,7 @@ type ReportRow = {
   price: string;
   currency: string;
   evidenceImageUrl: string;
+  match: { score: number; confidence: "strong" | "partial" | "insufficient" | "conflict"; reasons: string[]; conflicts: string[] } | null;
 };
 
 type Preflight = {
@@ -346,7 +347,7 @@ export default function PriceImportForm({ communityReportId = "" }: { communityR
                     <td><span className={`import-status ${row.status}`}>{row.status}</span></td>
                     <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.evidenceImageUrl ? "Copyright-page reference supplied" : "No copyright-page reference yet — this sale cannot be verified."}</small></td>
                     <td>{row.price && row.currency ? `${row.currency} ${row.price}` : "Not usable"}<small>{row.soldDate || "No sale date"}</small></td>
-                    <td>{row.issues.length ? row.issues.join("; ") : "Ready for staff review"}</td>
+                    <td>{row.issues.length ? row.issues.join("; ") : <><strong>{row.match ? `${row.match.confidence} match signal (${row.match.score}/100)` : "Ready for staff review"}</strong><small>{row.match?.reasons.join("; ") || "No match signal recorded"}</small></>}</td>
                   </tr>
                 ))}
               </tbody>

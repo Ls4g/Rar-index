@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { assessEditionMatch, type EditionMatchAssessment } from "@/lib/editionMatch";
 
 const REQUIRED_HEADERS = [
   "source_id",
@@ -34,6 +35,7 @@ type Edition = {
   volume_number: string | number | null;
   language: string | null;
   isbn_13: string | null;
+  publisher: string | null;
   printing_number: number | null;
   edition_statement: string | null;
   variant_name: string | null;
@@ -53,6 +55,7 @@ type ReportRow = {
   price: string;
   currency: string;
   evidenceImageUrl: string;
+  match: EditionMatchAssessment | null;
 };
 
 type PreparedSale = {
@@ -71,6 +74,7 @@ type PreparedSale = {
   evidenceImageUrl: string | null;
   rawPayload: Record<string, unknown>;
   candidate: Record<string, string | null>;
+  match: EditionMatchAssessment;
 };
 
 function isStaffRequest(request: Request) {
@@ -201,7 +205,7 @@ function candidateFromRow(row: CsvRow) {
   };
 }
 
-function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status"], issues: string[]): ReportRow {
+function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status"], issues: string[], match: EditionMatchAssessment | null = null): ReportRow {
   return {
     rowNumber,
     status,
@@ -213,6 +217,7 @@ function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status
     price: clean(row.sale_price),
     currency: clean(row.currency).toUpperCase(),
     evidenceImageUrl: clean(row.evidence_image_url),
+    match,
   };
 }
 
@@ -220,7 +225,7 @@ async function loadEdition(editionId: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("manga_editions")
-    .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name")
+    .select("id,title,series,volume_number,language,isbn_13,publisher,printing_number,edition_statement,variant_name")
     .eq("id", editionId)
     .eq("is_verified", true)
     .maybeSingle();
@@ -277,6 +282,7 @@ async function preflight(csv: string, edition: Edition) {
     const sealed = clean(record.is_sealed).toLowerCase();
     const evidenceImageUrl = clean(record.evidence_image_url);
     const candidate = candidateFromRow(record);
+    const match = assessEditionMatch(edition, candidate);
     let rawPayload: Record<string, unknown> | null = null;
 
     if (hasExtraValues) issues.push("contains more values than the header row");
@@ -307,6 +313,7 @@ async function preflight(csv: string, edition: Edition) {
     if (!/^[A-Z]{3}$/.test(currency)) issues.push("currency must be a three-letter code such as GBP, USD, or JPY");
     if (!candidate.title) issues.push("candidate_title is required");
     if (!candidate.language) issues.push("candidate_language is required");
+    if (match.conflicts.length) issues.push(...match.conflicts);
     if (sealed && !["true", "false", "yes", "no", "1", "0"].includes(sealed)) {
       issues.push("is_sealed must be true or false when supplied");
     }
@@ -324,7 +331,7 @@ async function preflight(csv: string, edition: Edition) {
     if (fileKey) seenFileKeys.add(fileKey);
 
     if (issues.length || !source || !rawPayload || salePrice.value === null) {
-      reports.push(reportFromRow(rowNumber, record, "blocked", issues));
+      reports.push(reportFromRow(rowNumber, record, "blocked", issues, match));
       continue;
     }
 
@@ -346,6 +353,7 @@ async function preflight(csv: string, edition: Edition) {
       evidenceImageUrl: evidenceImageUrl || null,
       rawPayload,
       candidate,
+      match,
     });
   }
 
@@ -369,10 +377,10 @@ async function preflight(csv: string, edition: Edition) {
     const sourceRow = parsedRows.find((item) => item.rowNumber === sale.rowNumber);
     if (!sourceRow) continue;
     if (existingKeys.has(`${sale.sourceId}:${sale.externalId}`)) {
-      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "duplicate", ["already exists in RAR and will not be overwritten"]));
+      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "duplicate", ["already exists in RAR and will not be overwritten"], sale.match));
     } else {
       ready.push(sale);
-      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "ready", []));
+      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "ready", [], sale.match));
     }
   }
 
@@ -472,12 +480,13 @@ export async function POST(request: Request) {
           imported_at: importedAt,
           candidate: sale.candidate,
           evidence_image_url: sale.evidenceImageUrl,
+          edition_match: sale.match,
         },
       },
       is_verified: false,
       match_status: "needs_review",
       sale_status: "confirmed",
-      notes: "Imported through CSV preflight. Awaiting exact-edition review.",
+      notes: `Imported through CSV preflight. ${sale.match.confidence} match signal (${sale.match.score}/100): ${sale.match.reasons.join(", ") || "listing evidence needs review"}. Awaiting exact-edition review.`,
     }));
 
     const admin = getSupabaseAdmin();
