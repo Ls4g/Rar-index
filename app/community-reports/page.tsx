@@ -65,7 +65,7 @@ export default async function CommunityReportsPage() {
             <div className="review-card-topline"><span>{typeLabel(report.report_type)}</span><time>{formatDate(report.created_at)}</time></div>
             <div className="review-card-main"><div><h3>{report.listing_title ?? "Untitled source"}</h3><strong className="review-price">{price ?? "No price reported"}</strong><p className="review-condition">{[formatDate(report.sold_date), editionLabel].filter(Boolean).join(" · ")}</p></div><a className="review-source-link" href={report.source_listing_url} target="_blank" rel="noreferrer">Open original source ↗</a></div>
             <div className="review-match"><p className="eyebrow">Reported against</p><h4>{editionLabel}</h4><p>{report.reporter_notes}</p></div>
-            {report.status === "pending" ? <CommunityReportDecisionForm reportId={report.id} /> : <div className="review-note"><span>{report.status}</span><p>{report.staff_notes ?? "No staff note was recorded."}{report.reviewed_by ? ` — ${report.reviewed_by}` : ""}</p></div>}
+            {report.status === "pending" ? <CommunityReportDecisionForm reportId={report.id} /> : <div className="review-note"><span>{report.status}</span><p>{report.staff_notes ?? "No staff note was recorded."}{report.reviewed_by ? ` — ${report.reviewed_by}` : ""}{report.status === "converted" && report.report_type === "sale" ? <> <Link href={`/price-import?report=${report.id}`}>Open prefilled import handoff →</Link></> : null}</p></div>}
           </article>;
         })}</div> : <div className="review-empty"><strong>No community reports yet.</strong><p>Reports sent from public edition pages will appear here.</p></div>}
       </section>

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import PriceImportForm from "@/components/PriceImportForm";
 
-export default function PriceImportPage() {
+type PriceImportPageProps = { searchParams: Promise<{ report?: string | string[] }> };
+
+export default async function PriceImportPage({ searchParams }: PriceImportPageProps) {
+  const parameters = await searchParams;
+  const reportValue = parameters.report;
+  const communityReportId = typeof reportValue === "string" ? reportValue : "";
   return (
     <main className="review-page catalogue-page price-import-page">
       <header className="site-header">
@@ -21,7 +26,7 @@ export default function PriceImportPage() {
           <h2>Validate first, then queue</h2>
           <p className="section-copy">This tool rejects non-sales and malformed records, detects duplicates, and preserves the original listing snapshot. Raw condition is not used for RAR valuations; collectors can inspect it at the original source. It never verifies a price automatically.</p>
         </div>
-        <PriceImportForm />
+        <PriceImportForm communityReportId={communityReportId} />
         <section className="catalogue-rules" aria-label="Price import rules">
           <div><span>1</span><strong>Choose one exact edition</strong><p>A CSV batch always links to one verified RAR edition; a similar title is not enough.</p></div>
           <div><span>2</span><strong>Run preflight</strong><p>Fix blocked rows and remove any doubt before creating candidates.</p></div>

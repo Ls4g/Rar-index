@@ -45,6 +45,19 @@ type CollectionRun = {
   notes: string;
 };
 
+type MarketplaceSource = { id: string; name: string | null; base_url: string | null };
+type CommunityReportHandoff = {
+  id: string;
+  sourceListingUrl: string;
+  listingTitle: string | null;
+  reportedPrice: number | null;
+  currency: string | null;
+  soldDate: string | null;
+  reporterNotes: string;
+  externalId: string | null;
+  edition: Edition & { publisher: string | null; format: string | null };
+};
+
 function editionLabel(edition: Edition) {
   return [
     edition.title,
@@ -63,7 +76,12 @@ function collectionRunLabel(run: CollectionRun) {
   return `${checkedAt} · ${run.checked_by} · ${run.candidate_count} candidates`;
 }
 
-export default function PriceImportForm() {
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+export default function PriceImportForm({ communityReportId = "" }: { communityReportId?: string }) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
@@ -76,6 +94,15 @@ export default function PriceImportForm() {
   const [loadingCollectionRuns, setLoadingCollectionRuns] = useState(false);
   const [working, setWorking] = useState(false);
   const visibleSuggestions = !selectedEdition && query.trim().length >= 2 ? suggestions : [];
+  const [communityReport, setCommunityReport] = useState<CommunityReportHandoff | null>(null);
+  const [communitySources, setCommunitySources] = useState<MarketplaceSource[]>([]);
+  const [handoffSourceId, setHandoffSourceId] = useState("");
+  const [handoffExternalId, setHandoffExternalId] = useState("");
+  const [handoffSaleType, setHandoffSaleType] = useState("unknown");
+  const [handoffPrice, setHandoffPrice] = useState("");
+  const [handoffCurrency, setHandoffCurrency] = useState("");
+  const [handoffSoldDate, setHandoffSoldDate] = useState("");
+  const [handoffLoading, setHandoffLoading] = useState(Boolean(communityReportId));
 
   useEffect(() => {
     if (query.trim().length < 2 || selectedEdition) return;
@@ -119,6 +146,32 @@ export default function PriceImportForm() {
     return () => controller.abort();
   }, [selectedEdition]);
 
+  useEffect(() => {
+    if (!communityReportId) return;
+    const controller = new AbortController();
+    fetch(`/api/community-reports?id=${encodeURIComponent(communityReportId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = (await response.json()) as { report?: CommunityReportHandoff; sources?: MarketplaceSource[]; suggestedSourceId?: string | null; error?: string };
+        if (!response.ok || !data.report) throw new Error(data.error ?? "The community report handoff could not be loaded.");
+        setCommunityReport(data.report);
+        setCommunitySources(data.sources ?? []);
+        setHandoffSourceId(data.suggestedSourceId ?? "");
+        setHandoffExternalId(data.report.externalId ?? "");
+        setHandoffPrice(data.report.reportedPrice?.toString() ?? "");
+        setHandoffCurrency(data.report.currency ?? "");
+        setHandoffSoldDate(data.report.soldDate ?? "");
+        setSelectedEdition(data.report.edition);
+        setCollectionRuns([]);
+        setSelectedCollectionRunId("");
+        setLoadingCollectionRuns(true);
+      })
+      .catch((error) => {
+        if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The community report handoff could not be loaded.");
+      })
+      .finally(() => setHandoffLoading(false));
+    return () => controller.abort();
+  }, [communityReportId]);
+
   function selectEdition(edition: Edition) {
     setSelectedEdition(edition);
     setSuggestions([]);
@@ -136,6 +189,31 @@ export default function PriceImportForm() {
     setSelectedCollectionRunId("");
     setLoadingCollectionRuns(false);
     setResult(null);
+  }
+
+  function generateCommunityReportCsv() {
+    if (!communityReport) return;
+    const source = communitySources.find((item) => item.id === handoffSourceId);
+    if (!source || !handoffExternalId.trim()) {
+      setMessage("Choose the marketplace source and add its external listing ID before creating the handoff CSV.");
+      return;
+    }
+    const headers = [
+      "source_id", "external_id", "source_listing_url", "listing_title", "sale_status", "sale_type", "sold_date", "sale_price", "currency", "shipping_price", "evidence_image_url", "raw_payload", "candidate_title", "candidate_series", "candidate_volume_number", "candidate_language", "candidate_isbn_13", "candidate_publisher", "candidate_format",
+    ];
+    const payload = {
+      source: "community_report",
+      community_report_id: communityReport.id,
+      reporter_notes: communityReport.reporterNotes,
+      reported_values: { price: handoffPrice || null, currency: handoffCurrency || null, sold_date: handoffSoldDate || null },
+      handoff_created_at: new Date().toISOString(),
+    };
+    const row = [
+      source.id, handoffExternalId.trim(), communityReport.sourceListingUrl, communityReport.listingTitle ?? "", "confirmed", handoffSaleType, handoffSoldDate, handoffPrice, handoffCurrency.toUpperCase(), "", "", JSON.stringify(payload), communityReport.edition.title ?? "", communityReport.edition.series ?? "", communityReport.edition.volume_number ?? "", communityReport.edition.language ?? "", communityReport.edition.isbn_13 ?? "", communityReport.edition.publisher ?? "", communityReport.edition.format ?? "",
+    ];
+    setCsv(`${headers.join(",")}\n${row.map(csvCell).join(",")}`);
+    setResult(null);
+    setMessage(`Prepared one ${source.name ?? "marketplace"} row from the community report. Choose its recorded collection run, then run preflight.`);
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -183,6 +261,24 @@ export default function PriceImportForm() {
 
   return (
     <div className="price-import-shell">
+      {communityReportId ? (
+        <section className="community-handoff" aria-live="polite">
+          <p className="eyebrow">Community report handoff</p>
+          {handoffLoading ? <p>Loading the approved report…</p> : communityReport ? <>
+            <h3>{communityReport.listingTitle ?? "Reported sale"}</h3>
+            <p>RAR has not accepted this as a sale. Confirm the marketplace source and listing ID, then create a CSV row for normal preflight.</p>
+            <div className="community-handoff-fields">
+              <label>Marketplace source<select value={handoffSourceId} onChange={(event) => setHandoffSourceId(event.target.value)}><option value="">Choose source</option>{communitySources.map((source) => <option key={source.id} value={source.id}>{source.name ?? "Unnamed source"}</option>)}</select></label>
+              <label>External listing ID<input value={handoffExternalId} onChange={(event) => setHandoffExternalId(event.target.value)} placeholder="Marketplace item ID" /></label>
+              <label>Sale type<select value={handoffSaleType} onChange={(event) => setHandoffSaleType(event.target.value)}><option value="unknown">Unknown</option><option value="auction">Auction</option><option value="best_offer">Best offer</option><option value="fixed_price">Fixed price</option></select></label>
+              <label>Price<input inputMode="decimal" value={handoffPrice} onChange={(event) => setHandoffPrice(event.target.value)} placeholder="0.00" /></label>
+              <label>Currency<input value={handoffCurrency} maxLength={3} onChange={(event) => setHandoffCurrency(event.target.value.toUpperCase())} placeholder="USD" /></label>
+              <label>Sale date<input type="date" value={handoffSoldDate} onChange={(event) => setHandoffSoldDate(event.target.value)} /></label>
+            </div>
+            <button type="button" onClick={generateCommunityReportCsv}>Create preflight CSV</button>
+          </> : <p>That report cannot be handed off. It must be a completed-sale report marked for import first.</p>}
+        </section>
+      ) : null}
       <section className="price-import-form" aria-label="Price import preflight form">
         <div className="price-import-field">
           <label htmlFor="edition-search">Exact RAR edition for this batch</label>
