@@ -30,17 +30,6 @@ function comparison(sale: SalePoint) {
   return { currency: sale.currency, grading, key: `${sale.currency}|${grading}` };
 }
 
-function trendLabel(sales: Array<SalePoint & { sold_date: string }>) {
-  const first = sales[0]?.sale_price;
-  const last = sales.at(-1)?.sale_price;
-  if (!first || !last) return "Insufficient history";
-  const change = (last - first) / first;
-  const early = sales.length < 6;
-  if (change >= 0.05) return early ? "Early upward signal" : "Rising";
-  if (change <= -0.05) return early ? "Early downward signal" : "Falling";
-  return early ? "Early stable signal" : "Stable";
-}
-
 function GhostChart({ comparableCount }: { comparableCount: number }) {
   return (
     <div className="ghost-chart" aria-label="Price history is not yet available">
@@ -82,7 +71,7 @@ function ComparableChart({ label, sales }: {
       <div className="price-history-heading">
         <div>
           <p className="eyebrow">Comparable verified sales</p>
-          <h2>{trendLabel(sales)}</h2>
+          <h2>Verified sales</h2>
         </div>
         <span className="chart-status">{sales.length} sales</span>
       </div>
@@ -149,7 +138,7 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
       <div className="price-history-grid">
         {chartGroups.map((group) => <ComparableChart key={group.label.key} label={group.label} sales={group.sales} />)}
       </div>
-      <p className="chart-note">Each trend keeps currency and raw/graded state separate. Sale condition stays available on the original source listing. RAR uses early signals from {MIN_COMPARABLE_SALES} verified comparable sales, and only presents a firm direction after 6 or more.</p>
+      <p className="chart-note">Each chart keeps currency and raw/graded state separate. Sale condition remains available on the original source listing, so collectors can judge each sale for themselves.</p>
     </div>
   );
 }
