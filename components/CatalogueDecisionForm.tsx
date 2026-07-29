@@ -37,7 +37,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   const [metadata, setMetadata] = useState<CandidateMetadata>(candidate);
 
   useEffect(() => {
-    if (decision !== "link_existing" || candidateTitle.trim().length < 2) return setSuggestions([]);
+    if (decision !== "link_existing" || candidateTitle.trim().length < 2) return;
     const controller = new AbortController();
     fetch(`/api/price-import?q=${encodeURIComponent(candidateTitle.trim())}`, { signal: controller.signal })
       .then((response) => response.json())

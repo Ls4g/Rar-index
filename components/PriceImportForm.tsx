@@ -75,12 +75,10 @@ export default function PriceImportForm() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [loadingCollectionRuns, setLoadingCollectionRuns] = useState(false);
   const [working, setWorking] = useState(false);
+  const visibleSuggestions = !selectedEdition && query.trim().length >= 2 ? suggestions : [];
 
   useEffect(() => {
-    if (query.trim().length < 2 || selectedEdition) {
-      setSuggestions([]);
-      return;
-    }
+    if (query.trim().length < 2 || selectedEdition) return;
 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -104,15 +102,9 @@ export default function PriceImportForm() {
   }, [query, selectedEdition]);
 
   useEffect(() => {
-    if (!selectedEdition) {
-      setCollectionRuns([]);
-      setSelectedCollectionRunId("");
-      return;
-    }
+    if (!selectedEdition) return;
 
     const controller = new AbortController();
-    setLoadingCollectionRuns(true);
-    setSelectedCollectionRunId("");
     fetch(`/api/collection-runs?editionId=${encodeURIComponent(selectedEdition.id)}`, { signal: controller.signal })
       .then(async (response) => {
         const data = (await response.json()) as { runs?: CollectionRun[]; error?: string };
@@ -126,6 +118,25 @@ export default function PriceImportForm() {
 
     return () => controller.abort();
   }, [selectedEdition]);
+
+  function selectEdition(edition: Edition) {
+    setSelectedEdition(edition);
+    setSuggestions([]);
+    setCollectionRuns([]);
+    setSelectedCollectionRunId("");
+    setLoadingCollectionRuns(true);
+    setResult(null);
+  }
+
+  function clearSelectedEdition() {
+    setSelectedEdition(null);
+    setQuery("");
+    setSuggestions([]);
+    setCollectionRuns([]);
+    setSelectedCollectionRunId("");
+    setLoadingCollectionRuns(false);
+    setResult(null);
+  }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -178,15 +189,15 @@ export default function PriceImportForm() {
           {selectedEdition ? (
             <div className="selected-edition">
               <strong>{editionLabel(selectedEdition)}</strong>
-              <button type="button" onClick={() => { setSelectedEdition(null); setQuery(""); setResult(null); }}>Change edition</button>
+              <button type="button" onClick={clearSelectedEdition}>Change edition</button>
             </div>
           ) : (
             <>
               <input id="edition-search" value={query} onChange={(event) => { setQuery(event.target.value); setResult(null); }} placeholder="Start typing a verified edition title" autoComplete="off" />
               {loadingSuggestions ? <p className="field-help">Looking for verified editions...</p> : null}
-              {suggestions.length ? (
+              {visibleSuggestions.length ? (
                 <div className="edition-suggestions">
-                  {suggestions.map((edition) => <button type="button" key={edition.id} onClick={() => { setSelectedEdition(edition); setSuggestions([]); setResult(null); }}>{editionLabel(edition)}</button>)}
+                  {visibleSuggestions.map((edition) => <button type="button" key={edition.id} onClick={() => selectEdition(edition)}>{editionLabel(edition)}</button>)}
                 </div>
               ) : null}
             </>

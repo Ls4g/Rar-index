@@ -7,7 +7,7 @@ type Decision = "reviewed" | "rejected" | "converted";
 
 const decisions: Array<{ value: Decision; label: string; hint: string }> = [
   { value: "reviewed", label: "Keep as reviewed", hint: "Useful evidence, but not ready to enter as a sale candidate." },
-  { value: "converted", label: "Convert to candidate", hint: "Send it into the normal evidence and price-import process." },
+  { value: "converted", label: "Mark for import", hint: "Preserve this lead for the normal evidence and price-import process." },
   { value: "rejected", label: "Reject report", hint: "Wrong edition, bad source, duplicate, or insufficient evidence." },
 ];
 

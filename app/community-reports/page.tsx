@@ -56,7 +56,7 @@ export default async function CommunityReportsPage() {
         <div className="queue-total"><strong>{pendingCount}</strong><span>reports awaiting review</span></div>
       </section>
       <section className="review-list-section">
-        <div className="section-intro"><p className="eyebrow">Reported by collectors</p><h2>Check the original evidence</h2><p className="section-copy">Converting a report creates no price observation. It simply marks the lead for the existing evidence-led import workflow.</p></div>
+        <div className="section-intro"><p className="eyebrow">Reported by collectors</p><h2>Check the original evidence</h2><p className="section-copy">Marking a report for import creates no price observation. It preserves the lead for the existing evidence-led import workflow.</p></div>
         {reports.length ? <div className="review-list">{reports.map((report) => {
           const edition = report.manga_editions;
           const editionLabel = [edition?.title, edition?.volume_number ? `Vol. ${edition.volume_number}` : null, edition?.language].filter(Boolean).join(" · ") || "Edition record unavailable";

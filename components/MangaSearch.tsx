@@ -73,10 +73,6 @@ export default function MangaSearch() {
 
     if (!term) {
       searchVersion.current += 1;
-      setResults([]);
-      setSearched(false);
-      setMessage("");
-      setIsLoading(false);
       return;
     }
 
@@ -92,6 +88,17 @@ export default function MangaSearch() {
     await searchEditions(query);
   }
 
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    if (!value.trim()) {
+      searchVersion.current += 1;
+      setResults([]);
+      setSearched(false);
+      setMessage("");
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="search-panel">
       <form onSubmit={handleSearch} className="search-form">
@@ -102,7 +109,7 @@ export default function MangaSearch() {
           id="manga-search"
           name="manga-search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => handleQueryChange(event.target.value)}
           placeholder="Search title, edition, language or ISBN"
           autoComplete="off"
         />
