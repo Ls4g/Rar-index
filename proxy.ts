@@ -30,11 +30,13 @@ export const config = {
     "/price-import/:path*",
     "/collection-profiles/:path*",
     "/community-reports/:path*",
+    "/scout/:path*",
     "/api/review/:path*",
     "/api/catalogue-import/:path*",
     "/api/catalogue-review/:path*",
     "/api/price-import/:path*",
     "/api/collection-runs/:path*",
     "/api/community-reports/:path*",
+    "/api/scout/:path*",
   ],
 };

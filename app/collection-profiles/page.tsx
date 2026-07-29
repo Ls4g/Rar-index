@@ -117,6 +117,7 @@ export default async function CollectionProfilesPage() {
     <main className="review-page catalogue-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
+        <Link className="header-note" href="/scout">RAR Scout →</Link>
         <Link className="header-note" href="/price-import">Price import -&gt;</Link>
       </header>
       <section className="review-hero catalogue-hero">
