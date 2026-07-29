@@ -9,6 +9,7 @@ export default async function Home() {
   const { data, error } = await supabase
     .from("manga_editions")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
+    .order("created_at", { ascending: false })
     .limit(12);
 
   const manga = (data ?? []) as Manga[];
