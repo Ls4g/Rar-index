@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ScoutRunButton from "@/components/ScoutRunButton";
+import ScoutLeadDecisionForm from "@/components/ScoutLeadDecisionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ type Lead = {
   item_end_at: string | null;
   last_seen_at: string;
   match_assessment: { confidence?: string; score?: number } | null;
+  review_status: "new" | "watching" | "dismissed";
+  review_notes: string | null;
+  reviewed_by: string | null;
 };
 
 function formatPrice(value: number | null, currency: string | null) {
@@ -44,7 +48,7 @@ export default async function ScoutPage() {
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const { data: leadData } = profileIds.length
-    ? await admin.from("scout_listing_leads").select("id,profile_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,last_seen_at,match_assessment").in("profile_id", profileIds).order("last_seen_at", { ascending: false }).limit(100)
+    ? await admin.from("scout_listing_leads").select("id,profile_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,last_seen_at,match_assessment,review_status,review_notes,reviewed_by").in("profile_id", profileIds).neq("review_status", "dismissed").order("last_seen_at", { ascending: false }).limit(100)
     : { data: [] };
   const leadsByProfile = new Map<string, Lead[]>();
   for (const lead of (leadData ?? []) as Lead[]) {
@@ -71,7 +75,7 @@ export default async function ScoutPage() {
           <div className="review-card-main"><div><h3>{profile.edition?.title ?? "Edition"}</h3><p className="review-condition">{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null].filter(Boolean).join(" · ")}</p></div></div>
           <div className="review-note"><span>Scout query</span><p>{profile.search_query}</p></div>
           <ScoutRunButton profileId={profile.id} />
-          <div className="review-note"><span>Latest active leads</span>{leads.length ? <ul>{leads.slice(0, 10).map((lead) => <li key={lead.id}><a href={lead.source_listing_url} target="_blank" rel="noreferrer">{lead.listing_title}</a> — {formatPrice(lead.listing_price, lead.currency)} · {lead.listing_condition ?? "Condition not supplied"} · ends {formatDate(lead.item_end_at)}{lead.match_assessment?.score !== undefined ? ` · ${lead.match_assessment.confidence ?? "unknown"} signal (${lead.match_assessment.score}/100)` : ""}</li>)}</ul> : <p>No active leads stored yet. Configure eBay Scout in Vercel, then run a scan.</p>}</div>
+          <div className="review-note"><span>Latest active leads</span>{leads.length ? <div className="review-list">{leads.slice(0, 10).map((lead) => <article className="review-card" key={lead.id}><div className="review-card-main"><div><h4><a href={lead.source_listing_url} target="_blank" rel="noreferrer">{lead.listing_title}</a></h4><p>{formatPrice(lead.listing_price, lead.currency)} · {lead.listing_condition ?? "Condition not supplied"} · ends {formatDate(lead.item_end_at)}</p></div><span className={`sale-status ${lead.review_status}`}>{lead.review_status}</span></div><p>{lead.match_assessment?.score !== undefined ? `${lead.match_assessment.confidence ?? "unknown"} match signal (${lead.match_assessment.score}/100)` : "No match signal recorded"}</p>{lead.review_status === "new" ? <ScoutLeadDecisionForm leadId={lead.id} /> : <p>{lead.review_notes ?? "No review note recorded."}{lead.reviewed_by ? ` — ${lead.reviewed_by}` : ""}</p>}</article>)}</div> : <p>No active leads stored yet. Configure eBay Scout in Vercel, then run a scan.</p>}</div>
         </article>;
       })}</div> : <div className="review-empty"><strong>No active profiles yet.</strong><p>Create an exact-edition eBay profile before Scout can run.</p></div>}
     </section>

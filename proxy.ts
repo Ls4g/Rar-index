@@ -38,5 +38,6 @@ export const config = {
     "/api/collection-runs/:path*",
     "/api/community-reports/:path*",
     "/api/scout/:path*",
+    "/api/scout-leads/:path*",
   ],
 };
