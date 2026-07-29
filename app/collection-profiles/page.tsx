@@ -142,6 +142,7 @@ export default async function CollectionProfilesPage() {
             <article className="review-card catalogue-card" key={profile.id}>
               <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><time>{profile.is_active ? nextCheck(profile).label : "Paused"}</time></div>
               <div className="review-card-main"><div><h3>{profile.edition?.title ?? "Edition"}</h3><p className="review-condition">{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null].filter(Boolean).join(" · ")}</p></div>{searchUrl ? <a className="review-source-link" href={searchUrl} target="_blank" rel="noreferrer">Open completed search ↗</a> : null}</div>
+              <p><Link className="review-source-link" href={`/collection-profiles/${profile.id}`}>Open research workbench -&gt;</Link></p>
               <dl className="catalogue-details"><div><dt>Search query</dt><dd>{profile.search_query}</dd></div><div><dt>Cadence</dt><dd>{cadenceLabel(profile.collection_interval_days)}</dd></div><div><dt>Last checked</dt><dd>{formatDate(profile.last_checked_at)}{profile.last_checked_result_count !== null ? ` · ${profile.last_checked_result_count} results` : ""}</dd></div></dl>
               <div className="review-note"><span>Chart evidence</span><p><strong>{chartEvidence.label}</strong><br />{chartEvidence.detail}</p></div>
               <div className="review-note"><span>Exact-edition rules</span><p>{profile.scope_notes}</p></div>

@@ -271,6 +271,9 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-details div { display: flex; gap: .35rem; }
 .catalogue-details dt, .catalogue-details dd { font-size: .7rem; }
 .catalogue-details dd { margin: 0; color: var(--ink); }
+.workbench-section { max-width: 100%; padding-left: 0; padding-right: 0; }
+.workbench-actions { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
+.workbench-actions .review-source-link { padding: .75rem .85rem; border: 1px solid var(--line); background: #fbf9f3; }
 .identity-checklist { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--line); background: #f7f1e6; }
 .identity-checklist .eyebrow { margin-bottom: .7rem; }
 .identity-checklist-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }

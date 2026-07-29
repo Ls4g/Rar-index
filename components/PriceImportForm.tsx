@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
+import Link from "next/link";
 
 type Edition = {
   id: string;
@@ -305,7 +306,7 @@ export default function PriceImportForm({ communityReportId = "" }: { communityR
           <div className="price-import-field">
             <label htmlFor="collection-run">Recorded collection run</label>
             {loadingCollectionRuns ? <p className="field-help">Loading runs for this exact edition...</p> : null}
-            {!loadingCollectionRuns && !collectionRuns.length ? <p className="field-help">No run recorded yet. <a href="/collection-profiles">Record the completed-listings check first.</a></p> : null}
+            {!loadingCollectionRuns && !collectionRuns.length ? <p className="field-help">No run recorded yet. <Link href="/collection-profiles">Record the completed-listings check first.</Link></p> : null}
             {collectionRuns.length ? <select id="collection-run" value={selectedCollectionRunId} onChange={(event) => { setSelectedCollectionRunId(event.target.value); setResult(null); }}><option value="">Choose the run that found this batch</option>{collectionRuns.map((run) => <option key={run.id} value={run.id}>{collectionRunLabel(run)}</option>)}</select> : null}
           </div>
         ) : null}
