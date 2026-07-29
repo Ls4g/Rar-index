@@ -47,6 +47,19 @@ function GhostChart({ comparableCount }: { comparableCount: number }) {
   );
 }
 
+function ThingsToKnow() {
+  return (
+    <aside className="price-things-to-know">
+      <p className="eyebrow">Things to know about a sale</p>
+      <ul>
+        <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
+        <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
+        <li>RAR records a sale only when it matches the exact edition; it does not promise a future sale price.</li>
+      </ul>
+    </aside>
+  );
+}
+
 function ComparableChart({ label, sales }: {
   label: ReturnType<typeof comparison>;
   sales: Array<SalePoint & { sold_date: string }>;
@@ -122,6 +135,7 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
           <span className="chart-status">Illiquid / early data</span>
         </div>
         <GhostChart comparableCount={bestGroupCount} />
+        <ThingsToKnow />
       </div>
     );
   }
@@ -139,6 +153,7 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
         {chartGroups.map((group) => <ComparableChart key={group.label.key} label={group.label} sales={group.sales} />)}
       </div>
       <p className="chart-note">Each chart keeps currency and raw/graded state separate. Sale condition remains available on the original source listing, so collectors can judge each sale for themselves.</p>
+      <ThingsToKnow />
     </div>
   );
 }

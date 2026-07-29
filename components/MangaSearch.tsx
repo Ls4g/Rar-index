@@ -17,6 +17,7 @@ export type Manga = {
   edition_statement: string | null;
   printing_number: number | null;
   variant_name: string | null;
+  collectible_type: string | null;
 };
 
 function editionLabel(item: Manga) {
@@ -50,7 +51,7 @@ export default function MangaSearch() {
 
     const { data, error } = await supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name")
+      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
       .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
       .eq("is_verified", true)
       .limit(8);
@@ -132,7 +133,7 @@ export default function MangaSearch() {
               <div>
                 <strong>{item.title || "Untitled manga"}</strong>
                 <span>
-                  {[item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.language, item.publisher]
+                  {[item.collectible_type?.replaceAll("_", " "), item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.language, item.publisher]
                     .filter(Boolean)
                     .join(" · ") || "Edition details not recorded"}
                 </span>

@@ -70,6 +70,17 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
   return "Early evidence";
 }
 
+function readableType(value: string | null) {
+  if (!value || value === "tankobon") return "Tankōbon / volume";
+  return value.replaceAll("_", " ");
+}
+
+function readableTag(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function copyrightProofUrl(payload: unknown) {
   if (!payload || typeof payload !== "object") return null;
   const metadata = (payload as { rar_import_metadata?: unknown }).rar_import_metadata;
@@ -83,7 +94,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type"
     )
     .eq("id", id)
     .maybeSingle();
@@ -132,6 +143,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   const details = [
     ["Series", edition.series],
+    ["Collectible type", readableType(edition.collectible_type)],
     ["Volume", edition.volume_number ? `Vol. ${edition.volume_number}` : null],
     ["Language", edition.language],
     ["Country", edition.country],
@@ -154,7 +166,11 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <span>RAR</span>
           <em>Index</em>
         </Link>
-        <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+        <nav className="header-links" aria-label="Main navigation">
+          <Link className="header-note" href="/identify">Identify a copy</Link>
+          <Link className="header-note" href="/browse">Browse editions</Link>
+          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+        </nav>
       </header>
 
       <section className="edition-hero">
@@ -199,7 +215,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
             {edition.importance_tags?.length ? (
               <div className="tag-list" aria-label="Edition tags">
                 {edition.importance_tags.map((tag: string) => (
-                  <span key={tag}>{tag.replaceAll("_", " ")}</span>
+                  <span key={tag}>{readableTag(tag)}</span>
                 ))}
               </div>
             ) : null}
@@ -276,7 +292,63 @@ export default async function EditionPage({ params }: EditionPageProps) {
             <div><span>Copyright-page proof</span><strong>{copyrightProofUrls.length ? `${copyrightProofUrls.length} linked reference${copyrightProofUrls.length === 1 ? "" : "s"}` : "No linked reference yet"}</strong><small>{copyrightProofUrls.length ? "Recorded from a specific marketplace listing or physical copy." : "Add a direct proof image when reviewing a sale or edition."}</small></div>
           </div>
           {copyrightProofUrls.length ? <div className="evidence-proof-links">{copyrightProofUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer">Open copyright-page proof {index + 1} ↗</a>)}</div> : null}
+          <div className="evidence-checklist" aria-label="RAR evidence checklist">
+            <p className="eyebrow">RAR evidence checklist</p>
+            <div>
+              <span className={edition.is_verified ? "checked" : "needed"}>{edition.is_verified ? "✓" : "-"}</span>
+              <strong>Edition record</strong>
+              <small>{edition.is_verified ? "Catalogue record reviewed" : "Still awaiting catalogue review"}</small>
+            </div>
+            <div>
+              <span className={edition.isbn_13 || edition.isbn_10 ? "checked" : "needed"}>{edition.isbn_13 || edition.isbn_10 ? "✓" : "-"}</span>
+              <strong>Identifier</strong>
+              <small>{edition.isbn_13 || edition.isbn_10 ? "ISBN recorded" : "ISBN still needed"}</small>
+            </div>
+            <div>
+              <span className={edition.release_date ? "checked" : "needed"}>{edition.release_date ? "✓" : "-"}</span>
+              <strong>Publication date</strong>
+              <small>{edition.release_date ? "Date recorded" : "Date still needed"}</small>
+            </div>
+            <div>
+              <span className={edition.printing_number && copyrightProofUrls.length ? "checked" : "needed"}>{edition.printing_number && copyrightProofUrls.length ? "✓" : "-"}</span>
+              <strong>Printing proof</strong>
+              <small>{edition.printing_number && copyrightProofUrls.length ? "Copyright page linked" : "Do not infer from a listing title"}</small>
+            </div>
+            <div>
+              <span className={verifiedSales.length ? "checked" : "needed"}>{verifiedSales.length ? "✓" : "-"}</span>
+              <strong>Market evidence</strong>
+              <small>{verifiedSales.length ? `${verifiedSales.length} verified sale${verifiedSales.length === 1 ? "" : "s"}` : "No verified sale yet"}</small>
+            </div>
+          </div>
         </section>
+
+        {edition.historical_notes || edition.importance_tags?.length ? (
+          <section className="collector-context-section">
+            <div className="section-intro">
+              <p className="eyebrow">Collector context</p>
+              <h2>Why collectors care</h2>
+              <p className="section-copy">RAR records why a specific edition may matter, without treating a historical note as a prediction of future value.</p>
+            </div>
+            <div className="collector-context-card">
+              <div>
+                <span>Collectible type</span>
+                <strong>{readableType(edition.collectible_type)}</strong>
+              </div>
+              {edition.importance_tags?.length ? (
+                <div>
+                  <span>Research tags</span>
+                  <p className="collector-context-tags">{edition.importance_tags.map((tag: string) => readableTag(tag)).join(" · ")}</p>
+                </div>
+              ) : null}
+              {edition.historical_notes ? (
+                <div>
+                  <span>RAR note</span>
+                  <p>{edition.historical_notes}</p>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         <section className="observed-sales-section">
           <div className="section-intro">

@@ -9,7 +9,7 @@ export default async function Home() {
   const [{ data, error }, { count }] = await Promise.all([
     supabase
     .from("manga_editions")
-    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
+    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
     .eq("is_verified", true)
     .order("created_at", { ascending: false })
     .limit(12),
@@ -27,6 +27,7 @@ export default async function Home() {
           <em>Index</em>
         </a>
         <nav className="header-links" aria-label="Main navigation">
+          <Link className="header-note" href="/identify">Identify a copy</Link>
           <Link className="header-note" href="/browse">Browse editions</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
         </nav>
@@ -70,7 +71,7 @@ export default async function Home() {
                   <i>RAR</i>
                 </div>
                 <div className="card-body">
-                  <p className="card-kicker">{[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
+                  <p className="card-kicker">{[item.collectible_type?.replaceAll("_", " "), item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
                   <h3>{item.title || "Untitled manga"}</h3>
                   <dl>
                     <div>
@@ -95,6 +96,31 @@ export default async function Home() {
             The index is ready for its first manga entries.
           </div>
         )}
+      </section>
+
+      <section className="collector-pathways" aria-labelledby="collector-pathways-heading">
+        <div className="section-intro">
+          <p className="eyebrow">Start with the question</p>
+          <h2 id="collector-pathways-heading">Research with RAR</h2>
+          <p className="section-copy">A collector should be able to identify an item, understand the evidence, then decide what a recorded sale actually means.</p>
+        </div>
+        <div className="collector-pathway-list">
+          <Link href="/identify">
+            <span>01</span>
+            <div><strong>Identify a copy</strong><p>Use the copyright page and identifiers before calling something a first print.</p></div>
+            <b>→</b>
+          </Link>
+          <Link href="/browse">
+            <span>02</span>
+            <div><strong>Browse verified editions</strong><p>Search the growing catalogue by title, language, publisher, ISBN, or collectible type.</p></div>
+            <b>→</b>
+          </Link>
+          <Link href="/request-edition">
+            <span>03</span>
+            <div><strong>Request a missing edition</strong><p>Send RAR a sourced lead for review. A request never becomes a record automatically.</p></div>
+            <b>→</b>
+          </Link>
+        </div>
       </section>
 
       <section className="principle-section">
