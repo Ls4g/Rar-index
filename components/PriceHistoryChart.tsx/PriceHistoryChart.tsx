@@ -35,9 +35,10 @@ function trendLabel(sales: Array<SalePoint & { sold_date: string }>) {
   const last = sales.at(-1)?.sale_price;
   if (!first || !last) return "Insufficient history";
   const change = (last - first) / first;
-  if (change >= 0.05) return "Rising";
-  if (change <= -0.05) return "Falling";
-  return "Stable";
+  const early = sales.length < 6;
+  if (change >= 0.05) return early ? "Early upward signal" : "Rising";
+  if (change <= -0.05) return early ? "Early downward signal" : "Falling";
+  return early ? "Early stable signal" : "Stable";
 }
 
 function GhostChart({ comparableCount }: { comparableCount: number }) {
@@ -148,7 +149,7 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
       <div className="price-history-grid">
         {chartGroups.map((group) => <ComparableChart key={group.label.key} label={group.label} sales={group.sales} />)}
       </div>
-      <p className="chart-note">Each trend keeps currency and raw/graded state separate. Sale condition stays available on the original source listing. RAR labels a group as rising or falling only after it has at least {MIN_COMPARABLE_SALES} verified comparable sales.</p>
+      <p className="chart-note">Each trend keeps currency and raw/graded state separate. Sale condition stays available on the original source listing. RAR uses early signals from {MIN_COMPARABLE_SALES} verified comparable sales, and only presents a firm direction after 6 or more.</p>
     </div>
   );
 }

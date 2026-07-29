@@ -6,11 +6,15 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { data, error } = await supabase
+  const [{ data, error }, { count }] = await Promise.all([
+    supabase
     .from("manga_editions")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name")
+    .eq("is_verified", true)
     .order("created_at", { ascending: false })
-    .limit(12);
+    .limit(12),
+    supabase.from("manga_editions").select("id", { count: "exact", head: true }).eq("is_verified", true),
+  ]);
 
   const manga = (data ?? []) as Manga[];
 
@@ -22,7 +26,10 @@ export default async function Home() {
           <span>RAR</span>
           <em>Index</em>
         </a>
-        <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+        <nav className="header-links" aria-label="Main navigation">
+          <Link className="header-note" href="/browse">Browse editions</Link>
+          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+        </nav>
       </header>
 
       <section id="top" className="hero">
@@ -47,7 +54,7 @@ export default async function Home() {
             <p className="eyebrow">The RAR Index</p>
             <h2 id="new-additions-heading">New additions</h2>
           </div>
-          <span>{manga.length} edition{manga.length === 1 ? "" : "s"} indexed</span>
+          <span>{count ?? manga.length} verified edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
         </div>
 
         {error ? (
@@ -63,7 +70,7 @@ export default async function Home() {
                   <i>RAR</i>
                 </div>
                 <div className="card-body">
-                  <p className="card-kicker">Manga edition</p>
+                  <p className="card-kicker">{[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
                   <h3>{item.title || "Untitled manga"}</h3>
                   <dl>
                     <div>
@@ -71,12 +78,12 @@ export default async function Home() {
                       <dd>{item.series || "Not yet recorded"}</dd>
                     </div>
                     <div>
-                      <dt>Publisher</dt>
-                      <dd>{item.publisher || "Not yet recorded"}</dd>
+                      <dt>Edition</dt>
+                      <dd>{item.variant_name || (item.printing_number ? `${item.printing_number}${item.printing_number === 1 ? "st" : "th"} printing` : item.edition_statement || "Edition details pending")}</dd>
                     </div>
                     <div>
-                      <dt>ISBN</dt>
-                      <dd>{item.isbn_13 || "Not yet recorded"}</dd>
+                      <dt>Publisher</dt>
+                      <dd>{item.publisher || "Not yet recorded"}</dd>
                     </div>
                   </dl>
                 </div>

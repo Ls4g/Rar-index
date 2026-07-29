@@ -241,9 +241,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
                   <strong>{pendingSales.length}</strong>
                 </div>
                 <div className="confidence-signal">
-                  <span>Source coverage</span>
+                  <span>Marketplace verification</span>
                   <strong>{verifiedSourceIds.size} / {observedSourceIds.size || 0}</strong>
-                  <small>verified / observed sources</small>
+                  <small>sources verified / observed</small>
                 </div>
                 <div className="confidence-signal">
                   <span>Latest verified sale</span>
@@ -251,6 +251,10 @@ export default async function EditionPage({ params }: EditionPageProps) {
                   <small>{latestVerifiedSale ? formatDate(latestVerifiedSale.sold_date) : "No verified sale yet"}</small>
                 </div>
               </div>
+              <details className="valuation-explainer">
+                <summary>How RAR values this edition</summary>
+                <p>RAR uses only completed sales that match this exact edition. Values are kept separate by currency and raw/graded status, and are shown as a median rather than a promise of resale value.</p>
+              </details>
             </div>
             <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio -&gt;</Link>
           </aside>

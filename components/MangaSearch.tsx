@@ -52,6 +52,7 @@ export default function MangaSearch() {
       .from("manga_editions")
       .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name")
       .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
+      .eq("is_verified", true)
       .limit(8);
 
     if (requestId !== searchVersion.current) return;
@@ -119,7 +120,7 @@ export default function MangaSearch() {
       </form>
 
       {(isLoading || message || results.length > 0 || searched) ? (
-        <div className="search-results" aria-live="polite">
+        <div className="search-results" aria-live="polite" aria-label="Edition suggestions">
           {isLoading ? <p className="search-message">Searching editions…</p> : null}
           {message ? <p className="search-message">{message}</p> : null}
           {!isLoading && !message && results.length === 0 && searched ? (
