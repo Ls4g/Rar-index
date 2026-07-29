@@ -22,6 +22,13 @@ function validDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+async function anonymousFingerprint(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const address = forwarded || request.headers.get("x-real-ip") || "unknown";
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address));
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
   try {
@@ -61,6 +68,20 @@ export async function POST(request: Request) {
       .eq("is_verified", true)
       .maybeSingle();
     if (editionError || !edition) return Response.json({ error: "This edition is no longer available for reports." }, { status: 404 });
+
+    const { data: duplicate, error: duplicateError } = await admin
+      .from("community_sale_reports")
+      .select("id")
+      .eq("edition_id", editionId)
+      .eq("source_listing_url", sourceUrl)
+      .limit(1)
+      .maybeSingle();
+    if (duplicateError) return Response.json({ error: "RAR could not check duplicate reports right now." }, { status: 500 });
+    if (duplicate) return Response.json({ error: "RAR already has this source recorded for this edition." }, { status: 409 });
+
+    const { data: accepted, error: limitError } = await admin.rpc("register_community_report_submission", { p_fingerprint: await anonymousFingerprint(request) });
+    if (limitError) return Response.json({ error: "RAR report protection is temporarily unavailable." }, { status: 503 });
+    if (!accepted) return Response.json({ error: "Too many reports from this connection. Please try again in an hour." }, { status: 429 });
 
     const { error } = await admin.from("community_sale_reports").insert({
       edition_id: editionId,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
+import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,10 @@ export default async function CatalogueReviewPage() {
               {record.candidate_isbn_13 ? <div><dt>ISBN-13</dt><dd>{record.candidate_isbn_13}</dd></div> : null}
               {record.candidate_release_date ? <div><dt>Release date</dt><dd>{record.candidate_release_date}</dd></div> : null}
             </dl>
+            <EditionIdentityChecklist
+              isEditionCandidate={record.candidate_kind === "edition_candidate"}
+              candidate={{ title: record.candidate_title, language: record.candidate_language, isbn13: record.candidate_isbn_13, publisher: record.candidate_publisher, releaseDate: record.candidate_release_date }}
+            />
             {record.candidate_kind === "series_reference" ? <div className="review-note"><span>Physical-edition safeguard</span><p>A MangaDex series reference can support research, but it cannot create a physical RAR edition. Link it to an exact existing edition or keep it in review.</p></div> : null}
             <CatalogueDecisionForm
               catalogueImportId={record.id}
