@@ -22,7 +22,7 @@ export default async function Home() {
           <span>RAR</span>
           <em>Index</em>
         </a>
-        <span className="header-note">Manga market intelligence</span>
+        <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
       </header>
 
       <section id="top" className="hero">

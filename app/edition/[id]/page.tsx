@@ -154,7 +154,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <span>RAR</span>
           <em>Index</em>
         </Link>
-        <span className="header-note">Edition record</span>
+        <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
       </header>
 
       <section className="edition-hero">
