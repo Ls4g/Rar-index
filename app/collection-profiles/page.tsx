@@ -12,7 +12,7 @@ type CollectionProfile = {
   last_checked_at: string | null;
   last_checked_result_count: number | null;
   collection_interval_days: number;
-  edition: { title: string | null; language: string | null; isbn_13: string | null } | null;
+  edition: { id: string; title: string | null; language: string | null; isbn_13: string | null } | null;
   source: { name: string | null } | null;
 };
 
@@ -23,6 +23,13 @@ type CollectionRun = {
   checked_by: string;
   candidate_count: number;
   notes: string;
+};
+
+type VerifiedSale = {
+  edition_id: string;
+  currency: string;
+  grading_company: string | null;
+  grade_label: string | null;
 };
 
 function formatDate(value: string | null) {
@@ -52,11 +59,26 @@ function cadenceLabel(days: number) {
   return `Every ${days} days`;
 }
 
+function chartEvidenceLabel(sales: VerifiedSale[]) {
+  const groups = new Map<string, number>();
+  for (const sale of sales) {
+    const state = sale.grading_company || sale.grade_label ? "graded" : "raw";
+    const key = `${sale.currency}|${state}`;
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  }
+  const best = [...groups.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!best) return { label: "No verified comparable sales", detail: "A chart needs 3 verified sales in one currency and raw/graded group." };
+  const [currency, state] = best[0].split("|");
+  if (best[1] >= 3) return { label: "Chart evidence ready", detail: `${best[1]} verified ${currency} ${state} sales.` };
+  const missing = 3 - best[1];
+  return { label: `${best[1]} of 3 comparable sales`, detail: `${currency} ${state}; collect ${missing} more verified sale${missing === 1 ? "" : "s"} for a chart.` };
+}
+
 export default async function CollectionProfilesPage() {
   const admin = getSupabaseAdmin();
   const { data } = await admin
     .from("marketplace_search_profiles")
-    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, collection_interval_days, edition:manga_editions(title, language, isbn_13), source:sources(name)")
+    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, collection_interval_days, edition:manga_editions(id, title, language, isbn_13), source:sources(name)")
     .order("created_at", { ascending: false });
   const profiles = (data ?? []) as unknown as CollectionProfile[];
   const profileIds = profiles.map((profile) => profile.id);
@@ -73,6 +95,22 @@ export default async function CollectionProfilesPage() {
     const runs = runsByProfile.get(run.profile_id) ?? [];
     runs.push(run);
     runsByProfile.set(run.profile_id, runs);
+  }
+  const editionIds = profiles.flatMap((profile) => profile.edition?.id ? [profile.edition.id] : []);
+  const { data: saleData } = editionIds.length
+    ? await admin
+      .from("price_observations")
+      .select("edition_id, currency, grading_company, grade_label")
+      .in("edition_id", editionIds)
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .limit(1000)
+    : { data: [] };
+  const salesByEdition = new Map<string, VerifiedSale[]>();
+  for (const sale of (saleData ?? []) as VerifiedSale[]) {
+    const sales = salesByEdition.get(sale.edition_id) ?? [];
+    sales.push(sale);
+    salesByEdition.set(sale.edition_id, sales);
   }
 
   return (
@@ -98,11 +136,13 @@ export default async function CollectionProfilesPage() {
         {profiles.length ? <div className="review-list">{profiles.map((profile) => {
           const searchUrl = sourceSearchUrl(profile.source?.name ?? null, profile.search_query);
           const runs = runsByProfile.get(profile.id) ?? [];
+          const chartEvidence = chartEvidenceLabel(profile.edition ? salesByEdition.get(profile.edition.id) ?? [] : []);
           return (
             <article className="review-card catalogue-card" key={profile.id}>
               <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><time>{profile.is_active ? nextCheck(profile).label : "Paused"}</time></div>
               <div className="review-card-main"><div><h3>{profile.edition?.title ?? "Edition"}</h3><p className="review-condition">{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null].filter(Boolean).join(" · ")}</p></div>{searchUrl ? <a className="review-source-link" href={searchUrl} target="_blank" rel="noreferrer">Open completed search ↗</a> : null}</div>
               <dl className="catalogue-details"><div><dt>Search query</dt><dd>{profile.search_query}</dd></div><div><dt>Cadence</dt><dd>{cadenceLabel(profile.collection_interval_days)}</dd></div><div><dt>Last checked</dt><dd>{formatDate(profile.last_checked_at)}{profile.last_checked_result_count !== null ? ` · ${profile.last_checked_result_count} results` : ""}</dd></div></dl>
+              <div className="review-note"><span>Chart evidence</span><p><strong>{chartEvidence.label}</strong><br />{chartEvidence.detail}</p></div>
               <div className="review-note"><span>Exact-edition rules</span><p>{profile.scope_notes}</p></div>
               <CollectionRunForm profileId={profile.id} />
               <div className="review-note"><span>Recent collection runs</span>{runs.length ? <ul>{runs.slice(0, 3).map((run) => <li key={run.id}>{formatDate(run.checked_at)} · {run.checked_by} · {run.candidate_count} candidates — {run.notes}</li>)}</ul> : <p>No run has been recorded yet.</p>}</div>
