@@ -1,0 +1,73 @@
+import Link from "next/link";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const dynamic = "force-dynamic";
+
+type Readiness = {
+  edition_id: string;
+  title: string | null;
+  series: string | null;
+  volume_number: string | null;
+  language: string | null;
+  isbn_13: string | null;
+  evidence_count: number;
+  active_profile_count: number;
+  collection_run_count: number;
+  verified_sale_count: number;
+  review_sale_count: number;
+  readiness_status: "needs_catalogue_review" | "catalogue_incomplete" | "evidence_needed" | "profile_needed" | "search_ready" | "under_review" | "valuation_ready" | "collecting";
+};
+
+const labels: Record<Readiness["readiness_status"], string> = {
+  needs_catalogue_review: "Needs catalogue review",
+  catalogue_incomplete: "Catalogue incomplete",
+  evidence_needed: "Evidence needed",
+  profile_needed: "Profile needed",
+  search_ready: "Search ready",
+  under_review: "Under review",
+  valuation_ready: "Valuation ready",
+  collecting: "Collecting",
+};
+
+const orderedStatuses: Readiness["readiness_status"][] = ["needs_catalogue_review", "catalogue_incomplete", "evidence_needed", "profile_needed", "search_ready", "collecting", "under_review", "valuation_ready"];
+
+export default async function DataReadinessPage() {
+  const admin = getSupabaseAdmin();
+  const { data } = await admin
+    .from("edition_readiness")
+    .select("edition_id,title,series,volume_number,language,isbn_13,evidence_count,active_profile_count,collection_run_count,verified_sale_count,review_sale_count,readiness_status")
+    .order("series", { ascending: true })
+    .order("title", { ascending: true });
+  const rows = (data ?? []) as unknown as Readiness[];
+  const counts = rows.reduce<Record<string, number>>((total, row) => {
+    total[row.readiness_status] = (total[row.readiness_status] ?? 0) + 1;
+    return total;
+  }, {});
+  const actionRows = rows.filter((row) => !["valuation_ready", "collecting"].includes(row.readiness_status));
+
+  return (
+    <main className="review-page catalogue-page">
+      <header className="site-header">
+        <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
+        <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>
+      </header>
+      <section className="review-hero catalogue-hero">
+        <div>
+          <p className="eyebrow">Internal data operations</p>
+          <h1>Edition readiness</h1>
+          <p>Every status is calculated from actual catalogue fields, source evidence, profiles, collection runs, and reviewed sales. It is a work queue, not a manual label.</p>
+        </div>
+        <div className="queue-total"><strong>{rows.length}</strong><span>catalogue records tracked</span></div>
+      </section>
+      <section className="catalogue-content">
+        <div className="catalogue-rules readiness-summary">
+          {orderedStatuses.filter((status) => counts[status]).map((status) => <div key={status}><span>{counts[status]}</span><strong>{labels[status]}</strong><p>{status === "search_ready" ? "Can be checked with its exact saved marketplace profile." : status === "valuation_ready" ? "Has at least one verified sale." : "Requires the next controlled workflow step."}</p></div>)}
+        </div>
+        <section className="review-list-section workbench-section">
+          <div className="section-intro"><p className="eyebrow">Next actions</p><h2>Work only on what is blocked</h2><p className="section-copy">This list excludes records already collecting or valuation-ready. The goal is to remove a real data constraint, not add activity for its own sake.</p></div>
+          <div className="readiness-table-wrap"><table><thead><tr><th>Edition</th><th>Status</th><th>Evidence</th><th>Profile</th><th>Collection</th><th>Sales</th></tr></thead><tbody>{actionRows.map((row) => <tr key={row.edition_id}><td><Link href={`/edition/${row.edition_id}`}><strong>{row.title ?? "Untitled edition"}</strong></Link><small>{[row.series, row.volume_number ? `Vol. ${row.volume_number}` : null, row.language, row.isbn_13 ? `ISBN ${row.isbn_13}` : null].filter(Boolean).join(" | ")}</small></td><td><span className={`import-status ${row.readiness_status}`}>{labels[row.readiness_status]}</span></td><td>{row.evidence_count}</td><td>{row.active_profile_count}</td><td>{row.collection_run_count}</td><td>{row.verified_sale_count} verified / {row.review_sale_count} review</td></tr>)}</tbody></table></div>
+        </section>
+      </section>
+    </main>
+  );
+}

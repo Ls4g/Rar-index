@@ -29,6 +29,7 @@ export const config = {
     "/catalogue-review/:path*",
     "/price-import/:path*",
     "/collection-profiles/:path*",
+    "/data-readiness/:path*",
     "/community-reports/:path*",
     "/scout/:path*",
     "/api/review/:path*",

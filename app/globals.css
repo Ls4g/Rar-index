@@ -274,6 +274,17 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .workbench-section { max-width: 100%; padding-left: 0; padding-right: 0; }
 .workbench-actions { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
 .workbench-actions .review-source-link { padding: .75rem .85rem; border: 1px solid var(--line); background: #fbf9f3; }
+.readiness-summary { margin-bottom: 3.5rem; }
+.readiness-table-wrap { overflow-x: auto; border: 1px solid var(--line); background: #fbf9f3; }
+.readiness-table-wrap table { width: 100%; min-width: 840px; border-collapse: collapse; font-size: .78rem; }
+.readiness-table-wrap th { padding: .75rem 1rem; background: #eee6d7; color: var(--muted); font-size: .61rem; letter-spacing: .09em; text-align: left; text-transform: uppercase; }
+.readiness-table-wrap td { padding: .9rem 1rem; border-top: 1px solid var(--line); color: #5c554a; vertical-align: top; }
+.readiness-table-wrap td strong, .readiness-table-wrap td small { display: block; }
+.readiness-table-wrap td strong { color: var(--ink); font-size: .84rem; }
+.readiness-table-wrap td small { margin-top: .25rem; color: var(--muted); font-size: .69rem; line-height: 1.45; }
+.import-status.needs_catalogue_review, .import-status.catalogue_incomplete, .import-status.evidence_needed, .import-status.profile_needed { border-color: rgba(154,60,49,.45); color: #9a3c31; }
+.import-status.search_ready, .import-status.collecting, .import-status.under_review { border-color: rgba(170,129,44,.55); color: #84621c; }
+.import-status.valuation_ready { border-color: rgba(62,113,68,.45); color: #32623a; }
 .identity-checklist { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--line); background: #f7f1e6; }
 .identity-checklist .eyebrow { margin-bottom: .7rem; }
 .identity-checklist-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
