@@ -252,6 +252,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 </div>
               </div>
             </div>
+            <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio -&gt;</Link>
           </aside>
         </div>
 

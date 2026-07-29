@@ -118,6 +118,8 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .confidence-panel { margin-top: 1.5rem; padding-top: 1.35rem; border-top: 1px solid rgba(13,13,11,.18); }
 .confidence-label { display: block; margin: .25rem 0 1rem; font-family: var(--font-cormorant), Georgia, serif; font-size: 1.55rem; font-weight: 600; line-height: 1; }
 .confidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; border: 1px solid rgba(13,13,11,.16); background: rgba(13,13,11,.16); }
+.portfolio-add-button { display: block; margin-top: 1.35rem; padding: .9rem 1rem; background: var(--ink); color: var(--paper); font-size: .69rem; font-weight: 700; letter-spacing: .09em; text-align: center; text-transform: uppercase; }
+.portfolio-add-button:hover { background: #28251e; }
 .confidence-signal { min-height: 86px; padding: .8rem; background: #eadfcd; }
 .confidence-signal span, .confidence-signal small { display: block; color: var(--muted); font-size: .61rem; font-weight: 700; letter-spacing: .08em; line-height: 1.35; text-transform: uppercase; }
 .confidence-signal strong { display: block; margin: .38rem 0 .2rem; font-family: var(--font-cormorant), Georgia, serif; font-size: 1.55rem; font-weight: 600; line-height: .9; }

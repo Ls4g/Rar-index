@@ -49,7 +49,7 @@ function MoneySummary({ totals, empty }: { totals: Map<string, number>; empty: s
   return <strong className="portfolio-total-values">{[...totals.entries()].map(([currency, value]) => <span key={currency}>{formatMoney(value, currency)}</span>)}</strong>;
 }
 
-export default function PortfolioClient() {
+export default function PortfolioClient({ initialEditionId = "" }: { initialEditionId?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
@@ -129,6 +129,20 @@ export default function PortfolioClient() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query, selectedEdition, userEmail]);
+
+  useEffect(() => {
+    if (!userEmail || !initialEditionId || selectedEdition || editingId) return;
+    const loadRequestedEdition = async () => {
+      const { data } = await supabase
+        .from("manga_editions")
+        .select("id,title,series,volume_number,language,isbn_13,edition_statement,printing_number,variant_name")
+        .eq("id", initialEditionId)
+        .eq("is_verified", true)
+        .maybeSingle();
+      if (data) setSelectedEdition(data as Edition);
+    };
+    void loadRequestedEdition();
+  }, [editingId, initialEditionId, selectedEdition, userEmail]);
 
   const metricsByEdition = useMemo(() => {
     const mapped = new Map<string, Metric[]>();
