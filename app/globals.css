@@ -545,3 +545,55 @@ a.observed-sale:hover, .source-card:hover { border-color: #c9c4ff; background: #
 
 @media (max-width: 850px) { .manga-grid, .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .edition-hero, .browse-hero, .portfolio-hero { margin-left: 1rem; margin-right: 1rem; } }
 @media (max-width: 600px) { .site-header { min-height: 64px; padding: .9rem 1rem; } .header-links { gap: .55rem; } .header-note:last-child { padding: .5rem .6rem; } .hero-content { padding: 5.6rem 1.25rem 4rem; } h1 { font-size: clamp(3.1rem, 15vw, 4.5rem); } .index-section { padding: 4rem 1rem; } .manga-grid, .browse-grid { grid-template-columns: 1fr; gap: .75rem; } .manga-card { grid-template-columns: 84px minmax(0, 1fr); } .principle-section { margin: 0 1rem 4rem; padding: 2rem 1.25rem; } .edition-hero, .browse-hero, .portfolio-hero { margin-left: .75rem; margin-right: .75rem; border-radius: 1rem; } .edition-content { padding-top: 3rem; } .valuation-panel { padding: 1.35rem; } .browse-controls { padding: 1rem; } }
+
+/* Collector re-skin: retain the modern product layout, restore RAR's warm physical-collecting character. */
+:root { --ink: #15130f; --paper: #f4f0e8; --stone: #e3dbcc; --muted: #756e62; --gold: #a77d2d; --gold-light: #dec77e; --line: #dfd6c6; }
+body { background: var(--paper); }
+h1, h2 { font-family: var(--font-cormorant), Georgia, serif; font-weight: 600; letter-spacing: -.045em; }
+h3, .metric-card > strong, .confidence-label, .portfolio-summary > div > strong, .portfolio-holding-value > strong, .browse-result-count strong { font-family: var(--font-cormorant), Georgia, serif; }
+.site-header { background: var(--paper); }
+.brand-mark { background: linear-gradient(135deg, #c2a24d, #886420); box-shadow: 0 6px 16px rgba(121,87,22,.18); }
+.brand em { color: #8b6a25; font-family: var(--font-cormorant), Georgia, serif; font-size: 1.3rem; font-style: italic; }
+.header-note { color: #716a5e; }
+.header-note:last-child { background: #e9e1d3; color: #4d4538; }
+.hero { background: radial-gradient(circle at 74% 22%, rgba(173,132,46,.25), transparent 27%), radial-gradient(circle at 28% 88%, rgba(86,115,95,.16), transparent 24%), linear-gradient(135deg, #11100d 0%, #201c15 100%); }
+.hero::after { background: radial-gradient(ellipse, rgba(177,132,38,.38), transparent 68%); }
+.eyebrow { color: #bb994b; }
+h1 span { color: var(--gold-light); font-style: italic; }
+.search-form button { background: #a77d2d; }
+.search-form button:hover:not(:disabled) { background: #87621c; }
+.search-results { background: #29251e; }
+.result-marker { background: var(--gold-light); }
+.section-heading > span { background: #e8e0d3; color: #70695d; }
+.manga-card { border-color: #e0d8ca; background: #fbf9f3; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
+.manga-card:hover { border-color: #ccb979; background: #fffdf8; box-shadow: 0 15px 30px rgba(105,76,25,.12); }
+.card-cover { background: linear-gradient(150deg, #302719, #80652e); }
+.manga-card:nth-child(3n+2) .card-cover { background: linear-gradient(150deg, #25362f, #718775); }
+.manga-card:nth-child(3n) .card-cover { background: linear-gradient(150deg, #3b2921, #a45f3b); }
+.card-cover span { font-family: var(--font-cormorant), Georgia, serif; }
+.card-kicker, dt { color: #99732b; }
+.principle-section { background: linear-gradient(120deg, #eee6d6, #f6f0e3); }
+.principle-section > p:last-child { color: #484135; font-family: var(--font-cormorant), Georgia, serif; font-weight: 600; }
+footer { border-color: #dfd7c8; }
+
+.edition-hero, .browse-hero, .portfolio-hero { background: radial-gradient(circle at 84% 20%, rgba(177,132,38,.3), transparent 30%), linear-gradient(130deg, #15130f, #282319); }
+.edition-subtitle { color: var(--gold-light); }
+.edition-details > div, .valuation-panel, .community-report-form, .portfolio-auth-form, .portfolio-form-panel, .portfolio-summary > div, .portfolio-holding, .browse-card, .browse-controls, .observed-sale, .source-card, .edition-evidence-grid > div { border-color: #e0d8ca; background: #fbf9f3; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
+.edition-details > div { background: #fffdf8; }
+.valuation-panel { background: #f7f2e8; }
+.confidence-signal { background: #f0e9dc; }
+.portfolio-add-button, .community-report-actions button, .portfolio-auth-form button[type="submit"], .portfolio-form-actions button[type="submit"] { background: #a77d2d; }
+.portfolio-add-button:hover, .community-report-actions button:hover, .portfolio-auth-form button[type="submit"]:hover, .portfolio-form-actions button[type="submit"]:hover { background: #87621c; }
+.valuation-explainer summary { color: #886520; }
+.price-chart-wrap, .ghost-chart { border-color: #e0d8ca; background: #fbf9f3; }
+.price-chart polyline { stroke: #a77d2d; }
+.price-chart circle { stroke: #a77d2d; }
+.chart-status { background: #eee4c9; color: #80601e; }
+a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #fffdf8; }
+.sale-source, .edition-evidence-grid span { color: #98722a; }
+.browse-card:hover { border-color: #cfbd84; background: #fffdf8; box-shadow: 0 15px 30px rgba(105,76,25,.12); }
+.browse-card p, .browse-card > strong { color: #8d6923; }
+.browse-controls input:not([type="checkbox"]), .browse-controls select { border-color: #ded6c7; background: #fffdf8; }
+.browse-checkbox input { accent-color: #a77d2d; }
+.portfolio-page { background: var(--paper); }
+.portfolio-add-context { border-left-color: #a77d2d; background: #eee5d5; color: #5d564a !important; }
