@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
+type CandidateMetadata = {
+  title: string;
+  series: string | null;
+  volumeNumber: string | null;
+  author: string | null;
+  publisher: string | null;
+  language: string | null;
+  isbn13: string | null;
+  releaseDate: string | null;
+};
 
 const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }> = [
   { value: "approve_new", label: "Create verified edition", hint: "Only where the source proves a physical edition." },
@@ -15,7 +25,7 @@ const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }
 
 type EditionSuggestion = { id: string; title: string | null; language: string | null; isbn_13: string | null; printing_number: number | null };
 
-export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string }) {
+export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle, candidate }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string; candidate: CandidateMetadata }) {
   const router = useRouter();
   const [decision, setDecision] = useState<CatalogueDecision>("needs_review");
   const [reviewer, setReviewer] = useState("");
@@ -24,6 +34,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<EditionSuggestion[]>([]);
+  const [metadata, setMetadata] = useState<CandidateMetadata>(candidate);
 
   useEffect(() => {
     if (decision !== "link_existing" || candidateTitle.trim().length < 2) return setSuggestions([]);
@@ -45,7 +56,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
       const response = await fetch("/api/catalogue-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalogueImportId, decision, reviewer, notes, existingEditionId }),
+        body: JSON.stringify({ catalogueImportId, decision, reviewer, notes, existingEditionId, metadata }),
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -75,6 +86,20 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
         {decision === "link_existing" ? <label>Existing RAR edition ID<input onChange={(event) => setExistingEditionId(event.target.value)} placeholder="UUID from the exact edition page" required value={existingEditionId} /></label> : null}
         <label className={decision === "link_existing" ? "catalogue-notes" : "catalogue-notes-wide"}>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What does this source prove about the edition, or why is it not acceptable?" required value={notes} /></label>
       </div>
+      {decision === "approve_new" ? <fieldset className="catalogue-metadata">
+        <legend>Verified edition details</legend>
+        <p>Clean these before publishing. RAR records the standard Volume 1 here; a specific printing is added separately later.</p>
+        <div className="review-form-fields">
+          <label>Title<input onChange={(event) => setMetadata({ ...metadata, title: event.target.value })} required value={metadata.title} /></label>
+          <label>Series<input onChange={(event) => setMetadata({ ...metadata, series: event.target.value || null })} value={metadata.series ?? ""} /></label>
+          <label>Volume number<input inputMode="numeric" onChange={(event) => setMetadata({ ...metadata, volumeNumber: event.target.value || null })} placeholder="1" value={metadata.volumeNumber ?? ""} /></label>
+          <label>Language<input onChange={(event) => setMetadata({ ...metadata, language: event.target.value || null })} required value={metadata.language ?? ""} /></label>
+          <label>Author<input onChange={(event) => setMetadata({ ...metadata, author: event.target.value || null })} value={metadata.author ?? ""} /></label>
+          <label>Publisher<input onChange={(event) => setMetadata({ ...metadata, publisher: event.target.value || null })} value={metadata.publisher ?? ""} /></label>
+          <label>ISBN-13<input inputMode="numeric" onChange={(event) => setMetadata({ ...metadata, isbn13: event.target.value || null })} value={metadata.isbn13 ?? ""} /></label>
+          <label>Release date<input onChange={(event) => setMetadata({ ...metadata, releaseDate: event.target.value || null })} type="date" value={metadata.releaseDate ?? ""} /></label>
+        </div>
+      </fieldset> : null}
       {decision === "link_existing" && suggestions.length ? <div className="edition-suggestions">{suggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setExistingEditionId(edition.id)}>{[edition.title, edition.language, edition.printing_number ? `Printing ${edition.printing_number}` : null, edition.isbn_13 ? `ISBN ${edition.isbn_13}` : null].filter(Boolean).join(" | ")}</button>)}</div> : null}
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save catalogue decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </form>

@@ -1,6 +1,31 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
+type ApprovedMetadata = {
+  title?: unknown;
+  series?: unknown;
+  volumeNumber?: unknown;
+  author?: unknown;
+  publisher?: unknown;
+  language?: unknown;
+  isbn13?: unknown;
+  releaseDate?: unknown;
+};
+
+function cleanMetadata(value: unknown) {
+  const input = value && typeof value === "object" ? value as ApprovedMetadata : {};
+  const text = (field: unknown) => typeof field === "string" ? field.trim() || null : null;
+  return {
+    title: text(input.title),
+    series: text(input.series),
+    volume_number: text(input.volumeNumber),
+    author: text(input.author),
+    publisher: text(input.publisher),
+    language: text(input.language),
+    isbn_13: text(input.isbn13)?.replace(/[^0-9Xx]/g, "").toUpperCase() ?? null,
+    release_date: text(input.releaseDate),
+  };
+}
 
 function isStaffRequest(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -18,7 +43,7 @@ function isStaffRequest(request: Request) {
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { catalogueImportId?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown };
+  let payload: { catalogueImportId?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -31,12 +56,16 @@ export async function POST(request: Request) {
   const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   const existingEditionId = typeof payload.existingEditionId === "string" && payload.existingEditionId.trim() ? payload.existingEditionId.trim() : null;
+  const metadata = cleanMetadata(payload.metadata);
 
   if (!catalogueImportId || !decisions.includes(decision as CatalogueDecision) || notes.length < 12 || !reviewer) {
     return Response.json({ error: "Choose a decision, add at least 12 characters of evidence, and identify the reviewer." }, { status: 400 });
   }
   if (decision === "link_existing" && !existingEditionId) {
     return Response.json({ error: "Linking requires the exact existing edition ID." }, { status: 400 });
+  }
+  if (decision === "approve_new" && (!metadata.title || !metadata.language || (metadata.isbn_13 && !/^97[89]\d{10}$/.test(metadata.isbn_13)))) {
+    return Response.json({ error: "Approval needs a clean title, language, and a valid ISBN-13 when one is supplied." }, { status: 400 });
   }
 
   const admin = getSupabaseAdmin();
@@ -46,6 +75,7 @@ export async function POST(request: Request) {
     p_decision_notes: notes,
     p_reviewed_by: reviewer,
     p_existing_edition_id: existingEditionId,
+    p_metadata: decision === "approve_new" ? metadata : null,
   });
   if (error) return Response.json({ error: "The catalogue decision could not be saved. Check the edition evidence and try again." }, { status: 500 });
   return Response.json({ ok: true });
