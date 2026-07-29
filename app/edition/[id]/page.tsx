@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
+import CommunityReportForm from "@/components/CommunityReportForm";
 import { supabase } from "@/lib/supabase";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -309,6 +310,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
             <p className="status-message">No completed sales have been recorded for this edition yet.</p>
           )}
         </section>
+
+        <CommunityReportForm editionId={edition.id} editionTitle={edition.title} />
 
         <section className="sources-section">
           <div className="section-intro">
