@@ -41,3 +41,5 @@ where edition.is_verified
   and edition.publisher is not null
   and edition.release_date is not null
 group by edition.id;
+
+grant select on public.alpha_catalogue_v1 to anon, authenticated;
