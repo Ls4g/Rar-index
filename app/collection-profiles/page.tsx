@@ -63,15 +63,14 @@ function chartEvidenceLabel(sales: VerifiedSale[]) {
   const groups = new Map<string, number>();
   for (const sale of sales) {
     const state = sale.grading_company || sale.grade_label ? "graded" : "raw";
-    const key = `${sale.currency}|${state}`;
-    groups.set(key, (groups.get(key) ?? 0) + 1);
+    groups.set(state, (groups.get(state) ?? 0) + 1);
   }
   const best = [...groups.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!best) return { label: "No verified comparable sales", detail: "A chart needs 3 verified sales in one currency and raw/graded group." };
-  const [currency, state] = best[0].split("|");
-  if (best[1] >= 3) return { label: "Chart evidence ready", detail: `${best[1]} verified ${currency} ${state} sales.` };
+  if (!best) return { label: "No verified comparable sales", detail: "A chart needs 3 verified sales in the same raw/graded group." };
+  const [state] = best;
+  if (best[1] >= 3) return { label: "Chart evidence ready", detail: `${best[1]} verified ${state} sales; RAR converts each at its sale-date rate.` };
   const missing = 3 - best[1];
-  return { label: `${best[1]} of 3 comparable sales`, detail: `${currency} ${state}; collect ${missing} more verified sale${missing === 1 ? "" : "s"} for a chart.` };
+  return { label: `${best[1]} of 3 comparable sales`, detail: `${state}; collect ${missing} more verified sale${missing === 1 ? "" : "s"} for a chart.` };
 }
 
 export default async function CollectionProfilesPage() {

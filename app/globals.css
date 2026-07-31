@@ -581,6 +581,13 @@ footer { border-color: #dfd7c8; }
 .edition-details > div, .valuation-panel, .community-report-form, .portfolio-auth-form, .portfolio-form-panel, .portfolio-summary > div, .portfolio-holding, .browse-card, .browse-controls, .observed-sale, .source-card, .edition-evidence-grid > div { border-color: #e0d8ca; background: #fbf9f3; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
 .edition-details > div { background: #fffdf8; }
 .valuation-panel { background: #f7f2e8; }
+.market-currency-control { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 1.15rem; padding: .75rem .85rem; border: 1px solid #dfd6c6; border-radius: .7rem; background: #fffdf8; }
+.market-currency-control label { color: #6f6658; font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.market-currency-control select { border: 1px solid #d8cdbb; border-radius: .45rem; padding: .4rem .55rem; background: #f7f1e6; color: var(--ink); font: inherit; font-size: .78rem; font-weight: 700; }
+/* The old native-currency markup remains behind the new panel during this
+   transition, but must never render a duplicate empty state. */
+.market-currency-control + .metric-stack + .empty-valuation,
+.market-currency-control + .empty-valuation + .empty-valuation { display: none; }
 .confidence-signal { background: #f0e9dc; }
 .portfolio-add-button, .community-report-actions button, .portfolio-auth-form button[type="submit"], .portfolio-form-actions button[type="submit"] { background: #a77d2d; }
 .portfolio-add-button:hover, .community-report-actions button:hover, .portfolio-auth-form button[type="submit"]:hover, .portfolio-form-actions button[type="submit"]:hover { background: #87621c; }

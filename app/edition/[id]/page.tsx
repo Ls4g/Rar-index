@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
 import CommunityReportForm from "@/components/CommunityReportForm";
+import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
+import MarketValuePanel from "@/components/MarketValuePanel";
+import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -101,11 +104,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   if (!edition) notFound();
 
-  const [metricsResult, sourceLinksResult, observedSalesResult] = await Promise.all([
-    supabase
-      .from("edition_market_metrics")
-      .select("currency, verified_sale_count, lowest_verified_sale, market_value_median, highest_verified_sale, latest_sale_date")
-      .eq("edition_id", id),
+  const [sourceLinksResult, observedSalesResult] = await Promise.all([
     supabase
       .from("edition_sources")
       .select("source_id, source_record_url, verification_notes, fields_verified")
@@ -125,6 +124,16 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const observedSales = (observedSalesResult.data ?? []) as ObservedSale[];
   const verifiedSales = observedSales.filter((sale) => sale.match_status === "verified_match");
   const pendingSales = observedSales.filter((sale) => sale.match_status === "needs_review");
+  const rateCurrencies = [...new Set(["GBP", "USD", ...verifiedSales.map((sale) => sale.currency)])];
+  const fxRatesResult = rateCurrencies.length
+    ? await supabase
+      .from("exchange_rates")
+      .select("rate_date, currency, rate_per_eur, source_name, source_url")
+      .in("currency", rateCurrencies)
+      .order("rate_date", { ascending: true })
+      .limit(1000)
+    : { data: [] };
+  const fxRates = (fxRatesResult.data ?? []) as FxRate[];
   const verifiedSourceIds = new Set(verifiedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
   const observedSourceIds = new Set(observedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
   const latestVerifiedSale = [...verifiedSales].sort((a, b) => (b.sold_date ?? "").localeCompare(a.sold_date ?? ""))[0];
@@ -138,7 +147,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
     ? await supabase.from("sources").select("id, name").in("id", sourceIds)
     : { data: [] as Source[] };
   const sourceNames = new Map((sourcesResult.data ?? []).map((source) => [source.id, source.name]));
-  const metrics = (metricsResult.data ?? []) as Metric[];
+  // Kept only to avoid changing the old metric markup in the same release.
+  // The rendered valuation now comes from historical conversions below.
+  const metrics: Metric[] = [];
   const copyrightProofUrls = [...new Set(observedSales.map((sale) => copyrightProofUrl(sale.raw_payload)).filter((url): url is string => Boolean(url)))];
 
   const details = [
@@ -189,6 +200,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
         </div>
       </section>
 
+      <MarketCurrencyProvider>
       <section className="edition-content">
         <div className="edition-layout">
           <div>
@@ -223,6 +235,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
           <aside className="valuation-panel">
             <p className="eyebrow">RAR market value</p>
+            <MarketValuePanel sales={verifiedSales} rates={fxRates} />
             {metrics.length ? (
               <div className="metric-stack">
                 {metrics.map((metric) => (
@@ -269,7 +282,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               </div>
               <details className="valuation-explainer">
                 <summary>How RAR values this edition</summary>
-                <p>RAR uses only completed sales that match this exact edition. Values are kept separate by currency and raw/graded status, and are shown as a median rather than a promise of resale value.</p>
+                <p>RAR uses only completed sales that match this exact edition. Raw and graded results stay separate. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. The median is market evidence, not a promise of resale value.</p>
               </details>
             </div>
             <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio -&gt;</Link>
@@ -277,7 +290,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
         </div>
 
         <section className="price-history-section">
-          <PriceHistoryChart sales={verifiedSales} />
+          <PriceHistoryChart sales={verifiedSales} rates={fxRates} />
         </section>
 
         <section className="edition-evidence-section">
@@ -410,6 +423,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           )}
         </section>
       </section>
+      </MarketCurrencyProvider>
     </main>
   );
 }

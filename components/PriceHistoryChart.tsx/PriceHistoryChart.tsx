@@ -1,13 +1,13 @@
-type SalePoint = {
-  sold_date: string | null;
-  sale_price: number;
-  currency: string;
-  grading_company: string | null;
-  grade_label: string | null;
-};
+"use client";
+
+import { comparisonGroup, convertSale, formatPrice, type FxRate, type MarketSale } from "@/lib/fx";
+import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
+
+type SalePoint = MarketSale;
 
 type PriceHistoryChartProps = {
   sales: SalePoint[];
+  rates: FxRate[];
 };
 
 const WIDTH = 720;
@@ -21,16 +21,7 @@ function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
 }
 
-function comparison(sale: SalePoint) {
-  const grading = sale.grading_company || sale.grade_label
-    ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${sale.grade_label ? ` ${sale.grade_label}` : ""}`
-    : "Raw";
-  // Raw condition is assessed at the original source and never splits RAR's
-  // raw market evidence. Graded copies remain deliberately separate.
-  return { currency: sale.currency, grading, key: `${sale.currency}|${grading}` };
-}
-
-function GhostChart({ comparableCount }: { comparableCount: number }) {
+function GhostChart({ comparableCount, missingRates }: { comparableCount: number; missingRates: number }) {
   return (
     <div className="ghost-chart" aria-label="Price history is not yet available">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
@@ -41,7 +32,7 @@ function GhostChart({ comparableCount }: { comparableCount: number }) {
       </svg>
       <div className="ghost-chart-message">
         <strong>Not enough comparable verified sales yet</strong>
-        <p>RAR needs {MIN_COMPARABLE_SALES} verified sales in the same currency and raw/graded state.{comparableCount ? ` This group currently has ${comparableCount}.` : ""}</p>
+        <p>RAR needs {MIN_COMPARABLE_SALES} verified sales in the same raw/graded group. Sales may be in different currencies; each is converted at its sale-date rate.{comparableCount ? ` This group currently has ${comparableCount}.` : ""}{missingRates ? ` ${missingRates} sale${missingRates === 1 ? " is" : "s are"} waiting for an exchange-rate record.` : ""}</p>
       </div>
     </div>
   );
@@ -54,17 +45,18 @@ function ThingsToKnow() {
       <ul>
         <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
         <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
-        <li>RAR records a sale only when it matches the exact edition; it does not promise a future sale price.</li>
+        <li>RAR records the original price and currency, then converts it at the reference rate on the sale date for the selected display currency.</li>
       </ul>
     </aside>
   );
 }
 
 function ComparableChart({ label, sales }: {
-  label: ReturnType<typeof comparison>;
-  sales: Array<SalePoint & { sold_date: string }>;
+  label: string;
+  sales: Array<NonNullable<ReturnType<typeof convertSale<SalePoint>>>>;
 }) {
-  const values = sales.map((sale) => sale.sale_price);
+  const { currency } = useMarketCurrency();
+  const values = sales.map((sale) => sale.converted_price);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || Math.max(max * 0.1, 1);
@@ -72,11 +64,11 @@ function ComparableChart({ label, sales }: {
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const points = sales.map((sale, index) => ({
     x: PADDING_X + (index / (sales.length - 1)) * plotWidth,
-    y: PADDING_TOP + ((max - sale.sale_price) / range) * plotHeight,
+    y: PADDING_TOP + ((max - sale.converted_price) / range) * plotHeight,
     sale,
   }));
   const pointString = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const firstDate = sales[0].sold_date;
+  const firstDate = sales[0].sold_date!;
   const lastDate = sales.at(-1)?.sold_date;
 
   return (
@@ -88,41 +80,54 @@ function ComparableChart({ label, sales }: {
         </div>
         <span className="chart-status">{sales.length} sales</span>
       </div>
-      <p className="chart-comparable-label">{label.currency} · {label.grading}</p>
+      <p className="chart-comparable-label">{label} · shown in {currency}</p>
       <div className="price-chart-wrap">
-        <svg className="price-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Price history from ${formatShortDate(firstDate)} to ${formatShortDate(lastDate ?? firstDate)}`}>
+        <svg className="price-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Price history from ${formatShortDate(firstDate)} to ${formatShortDate(lastDate ?? firstDate)} in ${currency}`}>
           <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
           <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP + plotHeight / 2} y2={PADDING_TOP + plotHeight / 2} />
           <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP + plotHeight} y2={PADDING_TOP + plotHeight} />
           <polyline points={pointString} />
-          {points.map((point) => <circle cx={point.x} cy={point.y} r="5" key={`${point.sale.sold_date}-${point.sale.sale_price}`} />)}
+          {points.map((point) => (
+            <circle cx={point.x} cy={point.y} r="5" key={`${point.sale.sold_date}-${point.sale.sale_price}-${point.sale.currency}`}>
+              <title>{`${formatShortDate(point.sale.sold_date!)}: ${formatPrice(point.sale.sale_price, point.sale.currency)} → ${formatPrice(point.sale.converted_price, currency)}`}</title>
+            </circle>
+          ))}
           <text x={PADDING_X} y={HEIGHT - 8}>{formatShortDate(firstDate)}</text>
           <text x={WIDTH - PADDING_X} y={HEIGHT - 8} textAnchor="end">{formatShortDate(lastDate ?? firstDate)}</text>
         </svg>
         <div className="chart-range" aria-hidden="true">
-          <span>{label.currency} {max.toLocaleString("en-GB")}</span>
-          <span>{label.currency} {min.toLocaleString("en-GB")}</span>
+          <span>{formatPrice(max, currency)}</span>
+          <span>{formatPrice(min, currency)}</span>
         </div>
       </div>
     </article>
   );
 }
 
-export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
-  const groups = new Map<string, { label: ReturnType<typeof comparison>; sales: Array<SalePoint & { sold_date: string }> }>();
+export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartProps) {
+  const { currency } = useMarketCurrency();
+  const groups = new Map<string, { label: string; sales: SalePoint[] }>();
 
   sales.filter((sale): sale is SalePoint & { sold_date: string } => Boolean(sale.sold_date)).forEach((sale) => {
-    const label = comparison(sale);
-    const group = groups.get(label.key) ?? { label, sales: [] };
-    group.sales.push(sale);
-    groups.set(label.key, group);
+    const group = comparisonGroup(sale);
+    const current = groups.get(group.key) ?? { label: group.grading, sales: [] };
+    current.sales.push(sale);
+    groups.set(group.key, current);
   });
 
   const comparableGroups = [...groups.values()]
-    .map((group) => ({ ...group, sales: group.sales.sort((a, b) => a.sold_date.localeCompare(b.sold_date)) }))
+    .map((group) => ({
+      ...group,
+      sales: group.sales.sort((a, b) => a.sold_date!.localeCompare(b.sold_date!)),
+    }))
     .sort((a, b) => b.sales.length - a.sales.length);
-  const chartGroups = comparableGroups.filter((group) => group.sales.length >= MIN_COMPARABLE_SALES);
+  const convertedGroups = comparableGroups.map((group) => ({
+    ...group,
+    convertedSales: group.sales.map((sale) => convertSale(sale, currency, rates)).filter((sale): sale is NonNullable<typeof sale> => Boolean(sale)),
+  }));
+  const chartGroups = convertedGroups.filter((group) => group.convertedSales.length >= MIN_COMPARABLE_SALES);
   const bestGroupCount = comparableGroups[0]?.sales.length ?? 0;
+  const missingRates = comparableGroups.reduce((count, group) => count + group.sales.filter((sale) => !convertSale(sale, currency, rates)).length, 0);
 
   if (!chartGroups.length) {
     return (
@@ -132,9 +137,9 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
             <p className="eyebrow">RAR market history</p>
             <h2>Price history</h2>
           </div>
-          <span className="chart-status">Illiquid / early data</span>
+          <span className="chart-status">Evidence building</span>
         </div>
-        <GhostChart comparableCount={bestGroupCount} />
+        <GhostChart comparableCount={bestGroupCount} missingRates={missingRates} />
         <ThingsToKnow />
       </div>
     );
@@ -150,9 +155,9 @@ export default function PriceHistoryChart({ sales }: PriceHistoryChartProps) {
         <span className="chart-status">Comparable groups only</span>
       </div>
       <div className="price-history-grid">
-        {chartGroups.map((group) => <ComparableChart key={group.label.key} label={group.label} sales={group.sales} />)}
+        {chartGroups.map((group) => <ComparableChart key={group.label} label={group.label} sales={group.convertedSales} />)}
       </div>
-      <p className="chart-note">Each chart keeps currency and raw/graded state separate. Sale condition remains available on the original source listing, so collectors can judge each sale for themselves.</p>
+      <p className="chart-note">Each chart keeps raw and graded sales separate. Amounts are converted into {currency} using European Central Bank reference rates from each sale date; the original price and currency remain visible in the sale record below.</p>
       <ThingsToKnow />
     </div>
   );
