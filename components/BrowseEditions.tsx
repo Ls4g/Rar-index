@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import EditionCover from "@/components/EditionCover";
 
 export type BrowseEdition = {
   id: string;
@@ -15,6 +16,8 @@ export type BrowseEdition = {
   printing_number: number | null;
   variant_name: string | null;
   collectible_type: string | null;
+  cover_image_url: string | null;
+  cover_verification_status: string | null;
 };
 
 function editionLabel(edition: BrowseEdition) {
@@ -48,11 +51,14 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
     </div>
     <div className="browse-result-count"><strong>{results.length}</strong> matching verified edition{results.length === 1 ? "" : "s"}</div>
     {results.length ? <div className="browse-grid">{results.map((edition) => <Link href={`/edition/${edition.id}`} className="browse-card" key={edition.id}>
-      <p>{[edition.collectible_type?.replaceAll("_", " "), edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
-      <h2>{edition.title || "Untitled manga"}</h2>
-      <strong>{editionLabel(edition)}</strong>
-      <span>{edition.publisher || "Publisher pending"}</span>
-      <small>{edition.isbn_13 || "ISBN pending"}</small>
+      <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
+      <div className="browse-card-body">
+        <p>{[edition.collectible_type?.replaceAll("_", " "), edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
+        <h2>{edition.title || "Untitled manga"}</h2>
+        <strong>{editionLabel(edition)}</strong>
+        <span>{edition.publisher || "Publisher pending"}</span>
+        <small>{edition.isbn_13 || "ISBN pending"}</small>
+      </div>
     </Link>)}</div> : <p className="status-message">No verified editions match those filters. Try removing a filter or searching by ISBN.</p>}
   </>;
 }

@@ -4,6 +4,7 @@ import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryCh
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import MarketValuePanel from "@/components/MarketValuePanel";
+import EditionCover from "@/components/EditionCover";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 
@@ -97,7 +98,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status"
     )
     .eq("id", id)
     .maybeSingle();
@@ -185,7 +186,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
       </header>
 
       <section className="edition-hero">
-        <div className="edition-hero-inner">
+        <div className="edition-hero-inner edition-hero-with-cover">
+          <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
+          <div>
           <Link href="/" className="back-link">← Back to the index</Link>
           <p className="eyebrow">Verified manga edition</p>
           <h1>{edition.title}</h1>
@@ -197,6 +200,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           {edition.variant_name || edition.edition_statement ? (
             <p className="edition-variant">{edition.variant_name || edition.edition_statement}</p>
           ) : null}
+          </div>
         </div>
       </section>
 
@@ -216,6 +220,12 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 </div>
               ))}
             </dl>
+            <div className="cover-provenance">
+              <span>Edition cover</span>
+              {edition.cover_verification_status === "verified" ? (
+                <p>Verified from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this catalogue record; sale photos remain linked with their individual sales.</p>
+              ) : <p>RAR has not yet verified an exact-edition cover from a publisher or licensed catalogue record.</p>}
+            </div>
 
             {edition.historical_notes ? (
               <div className="record-note">

@@ -1,6 +1,7 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import EditionCover from "@/components/EditionCover";
 
 // Catalogue updates should appear without waiting for the next deployment.
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export default async function Home() {
   const [{ data, error }, { count }] = await Promise.all([
     supabase
     .from("manga_editions")
-    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
+    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
     .eq("is_verified", true)
     .not("isbn_13", "is", null)
     .not("publisher", "is", null)
@@ -75,10 +76,7 @@ export default async function Home() {
           <div className="manga-grid">
             {manga.map((item, index) => (
               <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
-                <div className="card-cover" aria-hidden="true">
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <i>RAR</i>
-                </div>
+                <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
                 <div className="card-body">
                   <p className="card-kicker">{[item.collectible_type?.replaceAll("_", " "), item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
                   <h3>{item.title || "Untitled manga"}</h3>

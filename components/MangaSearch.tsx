@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import EditionCover from "@/components/EditionCover";
 
 export type Manga = {
   id: string | number;
@@ -18,6 +19,8 @@ export type Manga = {
   printing_number: number | null;
   variant_name: string | null;
   collectible_type: string | null;
+  cover_image_url: string | null;
+  cover_verification_status: string | null;
 };
 
 function editionLabel(item: Manga) {
@@ -51,7 +54,7 @@ export default function MangaSearch() {
 
     const { data, error } = await supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
+      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
       .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
       .eq("is_verified", true)
       .limit(8);
@@ -129,7 +132,7 @@ export default function MangaSearch() {
           ) : null}
           {results.map((item) => (
             <Link className="search-result" href={`/edition/${item.id}`} key={item.id}>
-              <span className="result-marker" aria-hidden="true" />
+              <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="search-result-cover" />
               <div>
                 <strong>{item.title || "Untitled manga"}</strong>
                 <span>

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function BrowsePage() {
   const { data, error } = await supabase
     .from("manga_editions")
-    .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type")
+    .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status")
     .eq("is_verified", true)
     .not("isbn_13", "is", null)
     .not("publisher", "is", null)
