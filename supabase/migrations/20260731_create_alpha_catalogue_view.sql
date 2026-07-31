@@ -1,9 +1,10 @@
 -- The public alpha catalogue is evidence-gated. A record must be a reviewed
 -- edition with core identity fields and at least one linked source record.
 -- Market history remains optional: price evidence is deliberately a smaller,
--- separate subset of the catalogue.
+-- separate subset of the catalogue. This is a deliberately narrow public
+-- projection; it does not expose source payloads or internal review notes.
 create or replace view public.alpha_catalogue_v1
-with (security_invoker = true)
+with (security_invoker = false)
 as
 select
   edition.id,
