@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [{ data, error }, { count }] = await Promise.all([
     supabase
-    .from("manga_editions")
+    .from("alpha_catalogue_v1")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
     .eq("is_verified", true)
     .order("created_at", { ascending: false })
     .limit(12),
-    supabase.from("manga_editions").select("id", { count: "exact", head: true }).eq("is_verified", true),
+    supabase.from("alpha_catalogue_v1").select("id", { count: "exact", head: true }),
   ]);
 
   const manga = (data ?? []) as Manga[];
@@ -55,7 +55,7 @@ export default async function Home() {
             <p className="eyebrow">The RAR Index</p>
             <h2 id="new-additions-heading">New additions</h2>
           </div>
-          <span>{count ?? manga.length} verified edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
+          <span>{count ?? manga.length} alpha-ready edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
         </div>
 
         {error ? (

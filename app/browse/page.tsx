@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BrowsePage() {
   const { data, error } = await supabase
-    .from("manga_editions")
+    .from("alpha_catalogue_v1")
     .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type")
     .eq("is_verified", true)
     .order("series", { ascending: true })
@@ -24,9 +24,9 @@ export default async function BrowsePage() {
       </header>
       <section className="browse-hero">
         <div>
-          <p className="eyebrow">RAR catalogue</p>
+          <p className="eyebrow">RAR alpha catalogue</p>
           <h1>Browse editions.</h1>
-          <p>Find the exact record before you research prices or add it to your collection.</p>
+          <p>Every record here has a reviewed identity, ISBN, publisher, release date and linked source evidence.</p>
         </div>
       </section>
       <section className="browse-content">
