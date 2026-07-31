@@ -8,12 +8,21 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [{ data, error }, { count }] = await Promise.all([
     supabase
-    .from("alpha_catalogue_v1")
+    .from("manga_editions")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type")
     .eq("is_verified", true)
+    .not("isbn_13", "is", null)
+    .not("publisher", "is", null)
+    .not("release_date", "is", null)
     .order("created_at", { ascending: false })
     .limit(12),
-    supabase.from("alpha_catalogue_v1").select("id", { count: "exact", head: true }),
+    supabase
+      .from("manga_editions")
+      .select("id", { count: "exact", head: true })
+      .eq("is_verified", true)
+      .not("isbn_13", "is", null)
+      .not("publisher", "is", null)
+      .not("release_date", "is", null),
   ]);
 
   const manga = (data ?? []) as Manga[];

@@ -43,3 +43,5 @@ where edition.is_verified
 group by edition.id;
 
 grant select on public.alpha_catalogue_v1 to anon, authenticated;
+
+notify pgrst, 'reload schema';
