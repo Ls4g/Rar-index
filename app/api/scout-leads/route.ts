@@ -17,8 +17,8 @@ export async function POST(request: Request) {
   const decision = clean(payload.decision);
   const reviewer = clean(payload.reviewer);
   const notes = clean(payload.notes);
-  if (!leadId || !["watching", "dismissed"].includes(decision) || !reviewer || notes.length < 12) {
-    return Response.json({ error: "Choose watch or dismiss, identify the reviewer, and add at least 12 characters of evidence." }, { status: 400 });
+  if (!leadId || !["watching", "dismissed"].includes(decision) || !reviewer) {
+    return Response.json({ error: "Choose watch or dismiss, then identify the reviewer." }, { status: 400 });
   }
   const admin = getSupabaseAdmin();
   const { error } = await admin.rpc("apply_scout_lead_decision", {

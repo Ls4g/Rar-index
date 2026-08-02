@@ -33,7 +33,7 @@ export default function ScoutLeadDecisionForm({ leadId }: { leadId: string }) {
     </div>
     <div className="review-form-fields">
       <label>Reviewer<input required value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" /></label>
-      <label>Evidence note<textarea required minLength={12} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="For example: cover and ISBN fit the target; watch for a completed sale." /></label>
+      <label>Evidence note (optional)<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional: for example, cover and ISBN fit the target; watch for a completed sale." /></label>
     </div>
     <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving..." : "Save lead decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
   </form>;
