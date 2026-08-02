@@ -5,6 +5,7 @@ import { useState } from "react";
 type ReportType = "sale" | "pricing_issue" | "edition_issue";
 
 export default function CommunityReportForm({ editionId, editionTitle }: { editionId: string; editionTitle: string }) {
+  const [isOpen, setIsOpen] = useState(false);
   const [reportType, setReportType] = useState<ReportType>("sale");
   const [sourceUrl, setSourceUrl] = useState("");
   const [listingTitle, setListingTitle] = useState("");
@@ -49,7 +50,9 @@ export default function CommunityReportForm({ editionId, editionTitle }: { editi
         <h2 id="community-report-heading">Spot something RAR should review?</h2>
         <p className="section-copy">Send the original listing or source. Reports are reviewed by RAR before any catalogue record or market value changes.</p>
       </div>
-      <form className="community-report-form" onSubmit={submit}>
+      <button className="community-report-toggle" type="button" aria-expanded={isOpen} aria-controls="community-report-form" onClick={() => setIsOpen(!isOpen)}>{isOpen ? "Close report form" : "Report a sale or issue"}</button>
+      {!isOpen ? <p className="community-report-note">A report creates a review item only. It never changes an edition or price automatically.</p> : null}
+      {isOpen ? <form id="community-report-form" className="community-report-form" onSubmit={submit}>
         <p className="community-report-edition">Reporting on <strong>{editionTitle}</strong></p>
         <label>What did you find?
           <select value={reportType} onChange={(event) => setReportType(event.target.value as ReportType)}>
@@ -80,7 +83,7 @@ export default function CommunityReportForm({ editionId, editionTitle }: { editi
         </label>
         <label className="report-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} /></label>
         <div className="community-report-actions"><button disabled={saving} type="submit">{saving ? "Sending…" : "Send for review"}</button>{message ? <p role="status">{message}</p> : null}</div>
-      </form>
+      </form> : null}
     </section>
   );
 }

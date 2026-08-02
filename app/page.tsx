@@ -8,7 +8,7 @@ import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [{ data, error }, { count }] = await Promise.all([
+  const [{ data, error }, { count }, { count: evidenceCount }, { count: firstPrintCount }] = await Promise.all([
     supabase
     .from("manga_editions")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
@@ -25,6 +25,14 @@ export default async function Home() {
       .not("isbn_13", "is", null)
       .not("publisher", "is", null)
       .not("release_date", "is", null),
+    supabase
+      .from("alpha_catalogue_v1")
+      .select("id", { count: "exact", head: true })
+      .gt("verified_sale_count", 0),
+    supabase
+      .from("alpha_catalogue_v1")
+      .select("id", { count: "exact", head: true })
+      .eq("printing_number", 1),
   ]);
 
   const manga = (data ?? []) as Manga[];
@@ -107,6 +115,20 @@ export default async function Home() {
             The index is ready for its first manga entries.
           </div>
         )}
+      </section>
+
+      <section className="index-explore" aria-labelledby="explore-index-heading">
+        <div className="section-intro">
+          <p className="eyebrow">Start with what you need</p>
+          <h2 id="explore-index-heading">Explore the index</h2>
+          <p className="section-copy">Choose a useful starting point, then follow the original evidence behind every record.</p>
+        </div>
+        <div className="index-explore-grid">
+          <Link href="/browse"><span>Catalogue</span><strong>Browse all {count ?? manga.length} editions</strong><small>Search by title, publisher, language or ISBN.</small></Link>
+          <Link href="/browse?evidence=verified-sales"><span>Market evidence</span><strong>{evidenceCount ?? 0} editions with verified sales</strong><small>See only editions with confirmed matching sale evidence.</small></Link>
+          <Link href="/browse?printing=first"><span>Printing research</span><strong>{firstPrintCount ?? 0} first-print records</strong><small>Check the record and its linked source before relying on a printing claim.</small></Link>
+          <a href="#new-additions-heading"><span>New research</span><strong>Recently documented editions</strong><small>See the newest records added to the growing catalogue.</small></a>
+        </div>
       </section>
 
       <section className="collector-pathways" aria-labelledby="collector-pathways-heading">

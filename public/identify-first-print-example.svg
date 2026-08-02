@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="430" viewBox="0 0 720 430" role="img" aria-labelledby="title description">
+  <title id="title">Illustrative Japanese manga copyright page</title>
+  <desc id="description">A simplified copyright page with the first-printing notation 第1刷発行 highlighted in gold.</desc>
+  <rect width="720" height="430" rx="24" fill="#f3ead6"/>
+  <rect x="54" y="34" width="430" height="360" rx="6" fill="#fffdf7" stroke="#cdbd99" stroke-width="2"/>
+  <text x="88" y="85" fill="#3e3629" font-family="Georgia, serif" font-size="24" font-weight="700">作品タイトル　第一巻</text>
+  <line x1="88" x2="447" y1="111" y2="111" stroke="#bcae93"/>
+  <text x="88" y="152" fill="#5d5140" font-family="Georgia, serif" font-size="19">著者　作者名</text>
+  <text x="88" y="192" fill="#5d5140" font-family="Georgia, serif" font-size="19">発行所　出版社名</text>
+  <rect x="77" y="220" width="302" height="52" rx="5" fill="#eadba9" stroke="#9e7522" stroke-width="3"/>
+  <text x="97" y="254" fill="#3e2a08" font-family="Georgia, serif" font-size="26" font-weight="700">1997年12月29日　第1刷発行</text>
+  <text x="88" y="318" fill="#5d5140" font-family="Georgia, serif" font-size="18">ISBN 4-08-000000-0</text>
+  <path d="M384 244 C472 244 496 215 535 184" fill="none" stroke="#a77d2d" stroke-width="4"/>
+  <circle cx="385" cy="244" r="7" fill="#a77d2d"/>
+  <rect x="500" y="115" width="170" height="137" rx="14" fill="#4e3a19"/>
+  <text x="522" y="153" fill="#f8edcf" font-family="Arial, sans-serif" font-size="15" font-weight="700">WHAT TO FIND</text>
+  <text x="522" y="187" fill="#fffdf7" font-family="Georgia, serif" font-size="25" font-weight="700">第1刷発行</text>
+  <text x="522" y="218" fill="#eadba9" font-family="Arial, sans-serif" font-size="14">"first printing issued"</text>
+  <text x="54" y="414" fill="#7a6c55" font-family="Arial, sans-serif" font-size="13">Illustrative layout only — compare the physical copy and publisher evidence.</text>
+</svg>
