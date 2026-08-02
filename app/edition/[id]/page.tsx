@@ -46,6 +46,17 @@ type Metric = {
   latest_sale_date: string;
 };
 
+type RelatedEdition = {
+  id: string;
+  title: string | null;
+  language: string | null;
+  publisher: string | null;
+  isbn_13: string | null;
+  edition_statement: string | null;
+  printing_number: number | null;
+  variant_name: string | null;
+};
+
 function formatPrice(value: number, code: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -85,6 +96,16 @@ function readableTag(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function relatedEditionLabel(edition: RelatedEdition) {
+  if (edition.variant_name) return edition.variant_name;
+  if (edition.printing_number) {
+    const finalTwo = edition.printing_number % 100;
+    const suffix = finalTwo >= 11 && finalTwo <= 13 ? "th" : edition.printing_number % 10 === 1 ? "st" : edition.printing_number % 10 === 2 ? "nd" : edition.printing_number % 10 === 3 ? "rd" : "th";
+    return `${edition.printing_number}${suffix} printing`;
+  }
+  return edition.edition_statement || "Standard edition record";
+}
+
 function copyrightProofUrl(payload: unknown) {
   if (!payload || typeof payload !== "object") return null;
   const metadata = (payload as { rar_import_metadata?: unknown }).rar_import_metadata;
@@ -104,6 +125,18 @@ export default async function EditionPage({ params }: EditionPageProps) {
     .maybeSingle();
 
   if (!edition) notFound();
+
+  const relatedEditionsResult = edition.series && edition.volume_number
+    ? await supabase
+      .from("manga_editions")
+      .select("id,title,language,publisher,isbn_13,edition_statement,printing_number,variant_name")
+      .eq("series", edition.series)
+      .eq("volume_number", edition.volume_number)
+      .eq("is_verified", true)
+      .neq("id", id)
+      .order("language", { ascending: true })
+      .limit(6)
+    : { data: [] };
 
   const [sourceLinksResult, observedSalesResult] = await Promise.all([
     supabase
@@ -148,6 +181,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
     ? await supabase.from("sources").select("id, name").in("id", sourceIds)
     : { data: [] as Source[] };
   const sourceNames = new Map((sourcesResult.data ?? []).map((source) => [source.id, source.name]));
+  const observedSourceNames = [...new Set([...observedSourceIds].map((sourceId) => sourceNames.get(sourceId) ?? "Marketplace").filter(Boolean))];
+  const relatedEditions = (relatedEditionsResult.data ?? []) as RelatedEdition[];
   // Kept only to avoid changing the old metric markup in the same release.
   // The rendered valuation now comes from historical conversions below.
   const metrics: Metric[] = [];
@@ -190,7 +225,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           <div>
           <Link href="/" className="back-link">← Back to the index</Link>
-          <p className="eyebrow">Verified manga edition</p>
+          <p className="eyebrow">Catalogue edition record</p>
           <h1>{edition.title}</h1>
           <p className="edition-subtitle">
             {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
@@ -223,7 +258,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
             <div className="cover-provenance">
               <span>Edition cover</span>
               {edition.cover_verification_status === "verified" ? (
-                <p>Verified from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this catalogue record; sale photos remain linked with their individual sales.</p>
+                <p>Catalogue cover sourced from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this catalogue record; sale photos remain linked with their individual sales.</p>
               ) : <p>RAR has not yet verified an exact-edition cover from a publisher or licensed catalogue record.</p>}
             </div>
 
@@ -244,7 +279,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </div>
 
           <aside className="valuation-panel">
-            <p className="eyebrow">RAR market value</p>
+            <p className="eyebrow">RAR market evidence</p>
             <MarketValuePanel sales={verifiedSales} rates={fxRates} />
             {metrics.length ? (
               <div className="metric-stack">
@@ -262,7 +297,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               </div>
             ) : (
               <div className="empty-valuation">
-                <strong>Price data is being verified.</strong>
+                <strong>Market evidence is being verified.</strong>
                 <p>RAR will show a market value only after it has sales proven to match this exact edition.</p>
               </div>
             )}
@@ -280,9 +315,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
                   <strong>{pendingSales.length}</strong>
                 </div>
                 <div className="confidence-signal">
-                  <span>Marketplace verification</span>
-                  <strong>{verifiedSourceIds.size} / {observedSourceIds.size || 0}</strong>
-                  <small>sources verified / observed</small>
+                  <span>Sources observed</span>
+                  <strong>{observedSourceNames.length || "—"}</strong>
+                  <small>{observedSourceNames.length ? observedSourceNames.join(" · ") : "No completed sale source yet"}</small>
                 </div>
                 <div className="confidence-signal">
                   <span>Latest verified sale</span>
@@ -295,7 +330,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 <p>RAR uses only completed sales that match this exact edition. Raw and graded results stay separate. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. The median is market evidence, not a promise of resale value.</p>
               </details>
             </div>
-            <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio -&gt;</Link>
+            <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio — free account →</Link>
           </aside>
         </div>
 
@@ -345,6 +380,25 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </div>
         </section>
 
+        {relatedEditions.length ? (
+          <section className="related-editions-section">
+            <div className="section-intro">
+              <p className="eyebrow">Compare before you buy</p>
+              <h2>Other records for this volume</h2>
+              <p className="section-copy">These are separate RAR catalogue records for the same series and volume. A standard edition is not proof of a specific printing.</p>
+            </div>
+            <div className="related-editions-list">
+              {relatedEditions.map((related) => (
+                <Link href={`/edition/${related.id}`} key={related.id}>
+                  <span>{related.language || "Language pending"}</span>
+                  <strong>{relatedEditionLabel(related)}</strong>
+                  <small>{[related.publisher, related.isbn_13 ? `ISBN ${related.isbn_13}` : null].filter(Boolean).join(" · ")}</small>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {edition.historical_notes || edition.importance_tags?.length ? (
           <section className="collector-context-section">
             <div className="section-intro">
@@ -376,9 +430,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
         <section className="observed-sales-section">
           <div className="section-intro">
             <p className="eyebrow">Recent market evidence</p>
-            <h2>Confirmed sales</h2>
+            <h2>Observed completed sales</h2>
             <p className="section-copy">
-              These are completed marketplace sales. RAR only uses a sale in the market value once the listing is proven to match this exact edition.
+              These are marketplace listings that completed. RAR uses a sale in market evidence only after the listing is proven to match this exact edition.
             </p>
           </div>
           {observedSales.length ? (

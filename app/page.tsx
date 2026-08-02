@@ -2,6 +2,7 @@ import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
+import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 
 // Catalogue updates should appear without waiting for the next deployment.
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default async function Home() {
     .not("publisher", "is", null)
     .not("release_date", "is", null)
     .order("created_at", { ascending: false })
-    .limit(12),
+    .limit(6),
     supabase
       .from("manga_editions")
       .select("id", { count: "exact", head: true })
@@ -65,7 +66,7 @@ export default async function Home() {
             <p className="eyebrow">The RAR Index</p>
             <h2 id="new-additions-heading">New additions</h2>
           </div>
-          <span>{count ?? manga.length} alpha-ready edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
+          <span>{count ?? manga.length} catalogue-ready edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
         </div>
 
         {error ? (
@@ -73,31 +74,34 @@ export default async function Home() {
             We could not load the manga index right now. Please try again shortly.
           </div>
         ) : manga.length > 0 ? (
-          <div className="manga-grid">
-            {manga.map((item, index) => (
-              <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
-                <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
-                <div className="card-body">
-                  <p className="card-kicker">{[item.collectible_type?.replaceAll("_", " "), item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
-                  <h3>{item.title || "Untitled manga"}</h3>
-                  <dl>
-                    <div>
-                      <dt>Series</dt>
-                      <dd>{item.series || "Not yet recorded"}</dd>
-                    </div>
-                    <div>
-                      <dt>Edition</dt>
-                      <dd>{item.variant_name || (item.printing_number ? `${item.printing_number}${item.printing_number === 1 ? "st" : "th"} printing` : item.edition_statement || "Edition details pending")}</dd>
-                    </div>
-                    <div>
-                      <dt>Publisher</dt>
-                      <dd>{item.publisher || "Not yet recorded"}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <>
+            <div className="manga-grid">
+              {manga.map((item, index) => (
+                <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
+                  <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
+                  <div className="card-body">
+                    <p className="card-kicker">{[item.collectible_type?.replaceAll("_", " "), item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
+                    <h3>{item.title || "Untitled manga"}</h3>
+                    <dl>
+                      <div>
+                        <dt>Series</dt>
+                        <dd>{item.series || "Not yet recorded"}</dd>
+                      </div>
+                      <div>
+                        <dt>Edition</dt>
+                        <dd>{editionDescriptor(item)}</dd>
+                      </div>
+                      <div>
+                        <dt>Publisher</dt>
+                        <dd>{publisherDisplayName(item.publisher)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="index-section-action"><Link href="/browse">Browse all catalogue-ready editions →</Link></div>
+          </>
         ) : (
           <div className="status-message">
             The index is ready for its first manga entries.

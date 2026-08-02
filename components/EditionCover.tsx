@@ -26,11 +26,11 @@ export default function EditionCover({
       {hasVerifiedCover ? (
         <img src={imageUrl!} alt={`Cover of ${title || series || "this manga edition"}`} loading={priority ? "eager" : "lazy"} referrerPolicy="no-referrer" />
       ) : (
-        <div className="edition-cover-fallback" aria-label={`${title || series || "Manga"} cover awaiting verification`}>
+        <div className="edition-cover-fallback" aria-label={`${title || series || "Manga"} cover not yet sourced`}>
           <span>{fallbackLabel(title, series)}</span><small>{label || "RAR catalogue"}</small>
         </div>
       )}
-      {hasVerifiedCover ? <span className="edition-cover-badge">Verified cover</span> : null}
+      {hasVerifiedCover ? <span className="edition-cover-badge">Catalogue cover</span> : null}
     </div>
   );
 }

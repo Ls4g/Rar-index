@@ -60,7 +60,7 @@ export default function MarketValuePanel({ sales, rates }: MarketValuePanelProps
         </div>
       ) : (
         <div className="empty-valuation">
-          <strong>Price data is being verified.</strong>
+          <strong>Market evidence is being verified.</strong>
           <p>RAR will show a market value once it has verified sales and a historical exchange rate for each sale date.</p>
         </div>
       )}
