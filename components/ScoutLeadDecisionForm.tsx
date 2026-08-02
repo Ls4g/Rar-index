@@ -28,8 +28,8 @@ export default function ScoutLeadDecisionForm({ leadId }: { leadId: string }) {
   return <form className="review-decision" onSubmit={submit}>
     <div className="review-decision-heading"><span>Scout lead decision</span><small>Active listings remain research leads, never sales.</small></div>
     <div className="review-options" role="radiogroup" aria-label="Scout lead decision">
-      <label><input checked={decision === "watching"} onChange={() => setDecision("watching")} type="radio" name={`scout-${leadId}`} /> Watch listing</label>
-      <label><input checked={decision === "dismissed"} onChange={() => setDecision("dismissed")} type="radio" name={`scout-${leadId}`} /> Dismiss lead</label>
+      <label className={decision === "watching" ? "selected" : undefined}><input checked={decision === "watching"} onChange={() => setDecision("watching")} type="radio" name={`scout-${leadId}`} /> Watch listing</label>
+      <label className={decision === "dismissed" ? "selected" : undefined}><input checked={decision === "dismissed"} onChange={() => setDecision("dismissed")} type="radio" name={`scout-${leadId}`} /> Dismiss lead</label>
     </div>
     <div className="review-form-fields">
       <label>Reviewer<input required value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" /></label>
