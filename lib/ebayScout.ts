@@ -9,7 +9,7 @@ type EBayItem = {
 
 type EBaySearchResponse = { itemSummaries?: EBayItem[] };
 
-async function applicationToken() {
+export async function getEbayApplicationToken() {
   const clientId = process.env.EBAY_CLIENT_ID;
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("eBay Scout is not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in Vercel first.");
@@ -33,8 +33,8 @@ async function applicationToken() {
   return payload.access_token;
 }
 
-export async function findActiveEbayListings(query: string) {
-  const token = await applicationToken();
+export async function findActiveEbayListings(query: string, applicationToken?: string) {
+  const token = applicationToken ?? await getEbayApplicationToken();
   const marketplaceId = process.env.EBAY_MARKETPLACE_ID || "EBAY_US";
   const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
   url.searchParams.set("q", query);
