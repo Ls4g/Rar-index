@@ -4,12 +4,6 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_ENDPOINT = "https://rar-index.vercel.app/api/ebay/account-deletion";
-
-function configuredEndpoint() {
-  return process.env.EBAY_DELETION_ENDPOINT || DEFAULT_ENDPOINT;
-}
-
 function responseHeaders() {
   return { "Cache-Control": "no-store" };
 }
@@ -31,7 +25,10 @@ export async function GET(request: NextRequest) {
   const challengeResponse = createHash("sha256")
     .update(challengeCode)
     .update(verificationToken)
-    .update(configuredEndpoint())
+    // eBay sends the challenge to the exact HTTPS endpoint it has recorded.
+    // Reconstructing it from the request avoids a second URL setting drifting
+    // out of sync with the portal field.
+    .update(`${request.nextUrl.origin}${request.nextUrl.pathname}`)
     .digest("hex");
 
   return Response.json({ challengeResponse }, { headers: responseHeaders() });

@@ -6,11 +6,10 @@ RAR's production endpoint is:
 
 ## Before entering anything in eBay
 
-In Vercel, add these **Production** environment variables to the `rar-index` project:
+In Vercel, add this **Production** environment variable to the `rar-index` project:
 
 | Name | Value |
 | --- | --- |
-| `EBAY_DELETION_ENDPOINT` | `https://rar-index.vercel.app/api/ebay/account-deletion` |
 | `EBAY_DELETION_VERIFICATION_TOKEN` | A unique 32–80 character secret using letters, numbers, `_`, or `-` only. |
 
 Redeploy after saving the variables. Never commit or paste the verification token into GitHub, source code, or chat.
