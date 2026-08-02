@@ -688,6 +688,11 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .index-section-action { margin-top: 1.5rem; text-align: right; }
 .index-section-action a { display: inline-block; padding: .7rem .95rem; border: 1px solid #d5c7a9; border-radius: .55rem; color: #705019; background: #f7f0e2; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
 .index-section-action a:hover { border-color: #a77d2d; background: #fffaf0; }
+.market-evidence-section { padding-bottom: 3.5rem; }
+.market-evidence-copy { margin: -0.45rem 0 1.45rem; }
+.priced-edition-card { position: relative; }
+.priced-edition-card::after { content: "Verified source"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid #d8c494; border-radius: 999px; background: #fff9eb; color: #72531a; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.priced-edition-card .card-kicker { padding-right: 4.9rem; line-height: 1.35; }
 .index-explore { width: min(100% - 4rem, 1320px); margin: 0 auto 5.5rem; padding-top: 3.5rem; border-top: 1px solid #dfd6c6; }
 .index-explore-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-top: 1.5rem; }
 .index-explore-grid a { display: grid; gap: .48rem; min-height: 158px; padding: 1.2rem; border: 1px solid #dfd6c6; border-radius: .85rem; background: #fffdf8; color: var(--ink); text-decoration: none; transition: transform .18s ease, border-color .18s ease; }

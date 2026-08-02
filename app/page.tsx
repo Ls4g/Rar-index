@@ -8,7 +8,7 @@ import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [{ data, error }, { count }, { count: evidenceCount }, { count: firstPrintCount }] = await Promise.all([
+  const [{ data, error }, { count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: verifiedSales }] = await Promise.all([
     supabase
     .from("manga_editions")
     .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
@@ -33,9 +33,31 @@ export default async function Home() {
       .from("alpha_catalogue_v1")
       .select("id", { count: "exact", head: true })
       .eq("printing_number", 1),
+    supabase
+      .from("manga_editions")
+      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
+      .eq("is_verified", true)
+      .not("isbn_13", "is", null)
+      .not("publisher", "is", null)
+      .not("release_date", "is", null)
+      .limit(500),
+    supabase
+      .from("price_observations")
+      .select("edition_id")
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .limit(1000),
   ]);
 
   const manga = (data ?? []) as Manga[];
+  const saleCounts = new Map<string, number>();
+  for (const sale of verifiedSales ?? []) {
+    saleCounts.set(sale.edition_id, (saleCounts.get(sale.edition_id) ?? 0) + 1);
+  }
+  const pricedEditions = ((allCatalogue ?? []) as Manga[])
+    .filter((edition) => saleCounts.has(String(edition.id)))
+    .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0))
+    .slice(0, 6);
 
   return (
     <main>
@@ -68,11 +90,54 @@ export default async function Home() {
         </div>
       </section>
 
+      <section className="index-section market-evidence-section" aria-labelledby="market-evidence-heading">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Start with evidence</p>
+            <h2 id="market-evidence-heading">Editions with verified prices</h2>
+          </div>
+          <span>{evidenceCount ?? pricedEditions.length} edition{(evidenceCount ?? pricedEditions.length) === 1 ? "" : "s"} with confirmed sale evidence</span>
+        </div>
+
+        {pricedEditions.length > 0 ? (
+          <>
+            <p className="section-copy market-evidence-copy">Every sale links back to its original source. RAR only uses a sale in a valuation after its edition match has been verified.</p>
+            <div className="manga-grid">
+              {pricedEditions.map((item, index) => {
+                const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
+                return (
+                  <Link className="manga-card priced-edition-card" href={`/edition/${item.id}`} key={item.id}>
+                    <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
+                    <div className="card-body">
+                      <p className="card-kicker">{verifiedSaleCount} verified sale{verifiedSaleCount === 1 ? "" : "s"} · {[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ")}</p>
+                      <h3>{item.title || "Untitled manga"}</h3>
+                      <dl>
+                        <div>
+                          <dt>Series</dt>
+                          <dd>{item.series || "Not yet recorded"}</dd>
+                        </div>
+                        <div>
+                          <dt>Edition</dt>
+                          <dd>{editionDescriptor(item)}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="index-section-action"><Link href="/browse?evidence=verified-sales">Browse editions with verified prices →</Link></div>
+          </>
+        ) : (
+          <div className="status-message">RAR is reviewing its first sale sources. Catalogue entries never receive a price until the source and edition match are confirmed.</div>
+        )}
+      </section>
+
       <section className="index-section" aria-labelledby="new-additions-heading">
         <div className="section-heading">
           <div>
             <p className="eyebrow">The RAR Index</p>
-            <h2 id="new-additions-heading">New additions</h2>
+            <h2 id="new-additions-heading">Recently documented editions</h2>
           </div>
           <span>{count ?? manga.length} catalogue-ready edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
         </div>
@@ -84,7 +149,7 @@ export default async function Home() {
         ) : manga.length > 0 ? (
           <>
             <div className="manga-grid">
-              {manga.map((item, index) => (
+              {manga.slice(0, 3).map((item, index) => (
                 <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
                   <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
                   <div className="card-body">
