@@ -104,13 +104,15 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
 }
 
 function formatListingEnd(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "End time unavailable";
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function listingType(payload: unknown) {
