@@ -50,7 +50,7 @@ export default async function ScoutPage() {
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const { data: leadData } = profileIds.length
-    ? await admin.from("scout_listing_leads").select("id,profile_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,last_seen_at,match_assessment,review_status,review_notes,reviewed_by").in("profile_id", profileIds).neq("review_status", "dismissed").order("last_seen_at", { ascending: false }).limit(100)
+    ? await admin.from("scout_listing_leads").select("id,profile_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,last_seen_at,match_assessment,review_status,review_notes,reviewed_by").in("profile_id", profileIds).neq("review_status", "dismissed").order("last_seen_at", { ascending: false }).limit(2_000)
     : { data: [] };
   const leadsByProfile = new Map<string, Lead[]>();
   for (const lead of (leadData ?? []) as Lead[]) {
