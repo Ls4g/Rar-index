@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Edition = { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; isbn_13: string | null; printing_number: number | null; edition_statement: string | null; variant_name: string | null };
 type Source = { id: string; name: string | null };
@@ -18,6 +19,7 @@ function runLabel(run: CollectionRun, profiles: Profile[]) {
 }
 
 export default function QuickSaleForm() {
+  const params = useSearchParams(); const initialEditionId = params.get("editionId") ?? "";
   const [query, setQuery] = useState(""); const [suggestions, setSuggestions] = useState<Edition[]>([]); const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
   const [sources, setSources] = useState<Source[]>([]); const [profiles, setProfiles] = useState<Profile[]>([]); const [runs, setRuns] = useState<CollectionRun[]>([]);
   const [collectionRunId, setCollectionRunId] = useState(""); const [sourceId, setSourceId] = useState(""); const [sourceListingUrl, setSourceListingUrl] = useState(""); const [externalId, setExternalId] = useState("");
@@ -25,6 +27,19 @@ export default function QuickSaleForm() {
   const [evidenceImageUrl, setEvidenceImageUrl] = useState(""); const [intakeNotes, setIntakeNotes] = useState(""); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(false);
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
   const hasRun = useMemo(() => runs.length > 0, [runs]);
+
+  useEffect(() => {
+    if (!initialEditionId || selectedEdition) return;
+    const controller = new AbortController();
+    fetch(`/api/add-sale?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json() as { edition?: Edition; profiles?: Profile[]; runs?: CollectionRun[]; sources?: Source[]; error?: string };
+        if (!response.ok || !data.edition) throw new Error(data.error ?? "The selected edition could not be loaded.");
+        setSelectedEdition(data.edition); setProfiles(data.profiles ?? []); setRuns(data.runs ?? []); setSources(data.sources ?? []);
+      })
+      .catch((error) => { if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The selected edition could not be loaded."); });
+    return () => controller.abort();
+  }, [initialEditionId, selectedEdition]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,9 +60,9 @@ export default function QuickSaleForm() {
     const controller = new AbortController();
     fetch(`/api/add-sale?editionId=${encodeURIComponent(selectedEdition.id)}`, { signal: controller.signal })
       .then(async (response) => {
-        const data = await response.json() as { profiles?: Profile[]; runs?: CollectionRun[]; error?: string };
+        const data = await response.json() as { profiles?: Profile[]; runs?: CollectionRun[]; sources?: Source[]; error?: string };
         if (!response.ok) throw new Error(data.error ?? "Collection runs could not be loaded.");
-        setProfiles(data.profiles ?? []); setRuns(data.runs ?? []);
+        setProfiles(data.profiles ?? []); setRuns(data.runs ?? []); setSources(data.sources ?? []);
       })
       .catch((error) => { if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "Collection runs could not be loaded."); });
     return () => controller.abort();

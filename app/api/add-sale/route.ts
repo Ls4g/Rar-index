@@ -54,16 +54,21 @@ export async function GET(request: NextRequest) {
   const admin = getSupabaseAdmin();
 
   if (editionId) {
-    const { data: profiles, error: profileError } = await admin.from("marketplace_search_profiles").select("id, source:sources(name)")
-      .eq("edition_id", editionId).eq("is_active", true);
-    if (profileError) return Response.json({ error: "Marketplace profiles could not be loaded." }, { status: 500 });
+    const [edition, profileResult, sourceResult] = await Promise.all([
+      exactEdition(editionId),
+      admin.from("marketplace_search_profiles").select("id, source:sources(name)").eq("edition_id", editionId).eq("is_active", true),
+      admin.from("sources").select("id,name").eq("is_active", true).order("name"),
+    ]);
+    const { data: profiles, error: profileError } = profileResult;
+    if (!edition) return Response.json({ error: "Choose a verified RAR edition before adding a sale." }, { status: 404 });
+    if (profileError || sourceResult.error) return Response.json({ error: "Marketplace profiles could not be loaded." }, { status: 500 });
     const profileIds = (profiles ?? []).map((profile) => profile.id);
     const { data: runs, error: runError } = profileIds.length
       ? await admin.from("marketplace_collection_runs").select("id,profile_id,checked_at,checked_by,candidate_count,notes")
         .in("profile_id", profileIds).order("checked_at", { ascending: false }).limit(30)
       : { data: [], error: null };
     if (runError) return Response.json({ error: "Collection runs could not be loaded." }, { status: 500 });
-    return Response.json({ profiles: profiles ?? [], runs: runs ?? [] });
+    return Response.json({ edition, profiles: profiles ?? [], runs: runs ?? [], sources: sourceResult.data ?? [] });
   }
 
   const [{ data: sources, error: sourceError }, editionResult] = await Promise.all([

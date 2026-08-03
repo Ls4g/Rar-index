@@ -40,6 +40,7 @@ export const config = {
     "/api/price-import/:path*",
     "/api/add-sale/:path*",
     "/api/collection-runs/:path*",
+    "/api/collection-profiles/:path*",
     "/api/community-reports/:path*",
     "/api/catalogue-requests/:path*",
     "/api/scout/:path*",

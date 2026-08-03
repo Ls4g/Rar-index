@@ -17,6 +17,7 @@ type Readiness = {
   review_sale_count: number;
   readiness_status: "needs_catalogue_review" | "catalogue_incomplete" | "evidence_needed" | "profile_needed" | "search_ready" | "under_review" | "valuation_ready" | "collecting";
 };
+type ProfileLink = { id: string; edition_id: string };
 
 const labels: Record<Readiness["readiness_status"], string> = {
   needs_catalogue_review: "Needs catalogue review",
@@ -31,14 +32,28 @@ const labels: Record<Readiness["readiness_status"], string> = {
 
 const orderedStatuses: Readiness["readiness_status"][] = ["needs_catalogue_review", "catalogue_incomplete", "evidence_needed", "profile_needed", "search_ready", "collecting", "under_review", "valuation_ready"];
 
+function nextAction(row: Readiness, profileId?: string) {
+  if (row.readiness_status === "search_ready" || row.readiness_status === "collecting") {
+    return profileId ? { href: `/collection-profiles/${profileId}`, label: "Open workbench" } : { href: `/collection-profiles/new?editionId=${row.edition_id}`, label: "Create profile" };
+  }
+  if (row.readiness_status === "under_review") return { href: "/review", label: "Review sales" };
+  if (row.readiness_status === "profile_needed") return { href: `/collection-profiles/new?editionId=${row.edition_id}`, label: "Create profile" };
+  return { href: "/catalogue-review", label: "Review catalogue" };
+}
+
 export default async function DataReadinessPage() {
   const admin = getSupabaseAdmin();
-  const { data } = await admin
-    .from("edition_readiness")
-    .select("edition_id,title,series,volume_number,language,isbn_13,evidence_count,active_profile_count,collection_run_count,verified_sale_count,review_sale_count,readiness_status")
-    .order("series", { ascending: true })
-    .order("title", { ascending: true });
+  const [{ data }, { data: profileData }] = await Promise.all([
+    admin
+      .from("edition_readiness")
+      .select("edition_id,title,series,volume_number,language,isbn_13,evidence_count,active_profile_count,collection_run_count,verified_sale_count,review_sale_count,readiness_status")
+      .order("series", { ascending: true })
+      .order("title", { ascending: true }),
+    admin.from("marketplace_search_profiles").select("id,edition_id").eq("is_active", true),
+  ]);
   const rows = (data ?? []) as unknown as Readiness[];
+  const profileByEdition = new Map<string, string>();
+  for (const profile of (profileData ?? []) as ProfileLink[]) if (!profileByEdition.has(profile.edition_id)) profileByEdition.set(profile.edition_id, profile.id);
   const counts = rows.reduce<Record<string, number>>((total, row) => {
     total[row.readiness_status] = (total[row.readiness_status] ?? 0) + 1;
     return total;
@@ -53,6 +68,8 @@ export default async function DataReadinessPage() {
     <main className="review-page catalogue-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
+        <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
+        <Link className="header-note" href="/review">Review queue -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>
       </header>
       <section className="review-hero catalogue-hero">
@@ -73,7 +90,7 @@ export default async function DataReadinessPage() {
         </div>
         <section className="review-list-section workbench-section">
           <div className="section-intro"><p className="eyebrow">Next actions</p><h2>Work only on what is blocked</h2><p className="section-copy">This list excludes records already collecting or valuation-ready. The goal is to remove a real data constraint, not add activity for its own sake.</p></div>
-          <div className="readiness-table-wrap"><table><thead><tr><th>Edition</th><th>Status</th><th>Evidence</th><th>Profile</th><th>Collection</th><th>Sales</th></tr></thead><tbody>{actionRows.map((row) => <tr key={row.edition_id}><td><Link href={`/edition/${row.edition_id}`}><strong>{row.title ?? "Untitled edition"}</strong></Link><small>{[row.series, row.volume_number ? `Vol. ${row.volume_number}` : null, row.language, row.isbn_13 ? `ISBN ${row.isbn_13}` : null].filter(Boolean).join(" | ")}</small></td><td><span className={`import-status ${row.readiness_status}`}>{labels[row.readiness_status]}</span></td><td>{row.evidence_count}</td><td>{row.active_profile_count}</td><td>{row.collection_run_count}</td><td>{row.verified_sale_count} verified / {row.review_sale_count} review</td></tr>)}</tbody></table></div>
+          <div className="readiness-table-wrap"><table><thead><tr><th>Edition</th><th>Status</th><th>Evidence</th><th>Profile</th><th>Collection</th><th>Sales</th><th>Do next</th></tr></thead><tbody>{actionRows.map((row) => { const action = nextAction(row, profileByEdition.get(row.edition_id)); return <tr key={row.edition_id}><td><Link href={`/edition/${row.edition_id}`}><strong>{row.title ?? "Untitled edition"}</strong></Link><small>{[row.series, row.volume_number ? `Vol. ${row.volume_number}` : null, row.language, row.isbn_13 ? `ISBN ${row.isbn_13}` : null].filter(Boolean).join(" | ")}</small></td><td><span className={`import-status ${row.readiness_status}`}>{labels[row.readiness_status]}</span></td><td>{row.evidence_count}</td><td>{row.active_profile_count}</td><td>{row.collection_run_count}</td><td>{row.verified_sale_count} verified / {row.review_sale_count} review</td><td><Link className="staff-action-link" href={action.href}>{action.label} -&gt;</Link></td></tr>; })}</tbody></table></div>
         </section>
       </section>
     </main>

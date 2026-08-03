@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import CollectionRunForm from "@/components/CollectionRunForm";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/collection-profiles">All profiles -&gt;</Link>
+        <Link className="header-note" href={`/add-sale?editionId=${profile.edition.id}`}>Add a sale -&gt;</Link>
       </header>
       <section className="review-hero catalogue-hero">
         <div>
@@ -99,10 +101,10 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
           <div className="review-note"><span>Edition boundary</span><p>{profile.scope_notes}</p></div>
           <div className="workbench-actions">
             {sourceUrl ? <a className="review-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Open completed-listings search -&gt;</a> : null}
-            <Link className="review-source-link" href="/collection-profiles">Record collection run -&gt;</Link>
-            <Link className="review-source-link" href="/price-import">Preflight sale candidates -&gt;</Link>
+            <Link className="review-source-link" href={`/add-sale?editionId=${profile.edition.id}`}>Add a sale -&gt;</Link>
             <Link className="review-source-link" href="/scout">Check active-listing Scout -&gt;</Link>
           </div>
+          <CollectionRunForm profileId={profile.id} />
         </section>
 
         <section className="review-list-section workbench-section">
