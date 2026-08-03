@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       }));
 
       if (rows.length) {
-        const { error: upsertError } = await admin.from("scout_listing_leads").upsert(rows, { onConflict: "source_id,external_id" });
+        const { error: upsertError } = await admin.from("scout_listing_leads").upsert(rows, { onConflict: "profile_id,source_id,external_id" });
         if (upsertError) throw new Error("RAR could not store the active-listing leads.");
       }
 
