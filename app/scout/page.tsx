@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 type Profile = {
   id: string;
   search_query: string;
+  last_checked_at: string | null;
   edition: { title: string | null; language: string | null; isbn_13: string | null } | null;
   source: { name: string | null } | null;
 };
@@ -43,9 +44,9 @@ export default async function ScoutPage() {
   const admin = getSupabaseAdmin();
   const { data: profileData } = await admin
     .from("marketplace_search_profiles")
-    .select("id,search_query,edition:manga_editions(title,language,isbn_13),source:sources(name)")
+    .select("id,search_query,last_checked_at,edition:manga_editions(title,language,isbn_13),source:sources(name)")
     .eq("is_active", true)
-    .order("created_at", { ascending: false });
+    .order("last_checked_at", { ascending: false, nullsFirst: false });
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const { data: leadData } = profileIds.length
@@ -72,7 +73,7 @@ export default async function ScoutPage() {
       {profiles.length ? <div className="review-list">{profiles.map((profile) => {
         const leads = leadsByProfile.get(profile.id) ?? [];
         return <article className="review-card catalogue-card" key={profile.id}>
-          <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><span>{leads.length} stored active leads</span></div>
+          <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><span>{leads.length} stored active leads{profile.last_checked_at ? " · checked " + formatDate(profile.last_checked_at) : ""}</span></div>
           <div className="review-card-main"><div><h3>{profile.edition?.title ?? "Edition"}</h3><p className="review-condition">{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null].filter(Boolean).join(" · ")}</p></div></div>
           <div className="review-note"><span>Scout query</span><p>{profile.search_query}</p></div>
           <ScoutRunButton profileId={profile.id} />
