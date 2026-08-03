@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CollectionRunForm from "@/components/CollectionRunForm";
+import CollectionProfileEditForm from "@/components/CollectionProfileEditForm";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ type Profile = {
 type CollectionRun = { id: string; checked_at: string; checked_by: string; candidate_count: number; notes: string };
 type SaleStatus = { match_status: "verified_match" | "needs_review" | "excluded"; sale_status: string };
 type ScoutLead = { review_status: "new" | "watching" | "dismissed" };
+type ProfileRevision = { id: string; changed_at: string; changed_by: string; change_note: string; previous_search_query: string; next_search_query: string; previous_interval_days: number; next_interval_days: number; previous_is_active: boolean; next_is_active: boolean };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
@@ -49,14 +51,16 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
   const profile = data as unknown as Profile | null;
   if (!profile?.edition) notFound();
 
-  const [{ data: runData }, { data: saleData }, { data: leadData }] = await Promise.all([
+  const [{ data: runData }, { data: saleData }, { data: leadData }, { data: revisionData }] = await Promise.all([
     admin.from("marketplace_collection_runs").select("id,checked_at,checked_by,candidate_count,notes").eq("profile_id", profile.id).order("checked_at", { ascending: false }).limit(12),
     admin.from("price_observations").select("match_status,sale_status").eq("edition_id", profile.edition.id).limit(1000),
     admin.from("scout_listing_leads").select("review_status").eq("profile_id", profile.id).limit(1000),
+    admin.from("marketplace_profile_revisions").select("id,changed_at,changed_by,change_note,previous_search_query,next_search_query,previous_interval_days,next_interval_days,previous_is_active,next_is_active").eq("profile_id", profile.id).order("changed_at", { ascending: false }).limit(8),
   ]);
   const runs = (runData ?? []) as CollectionRun[];
   const sales = (saleData ?? []) as SaleStatus[];
   const leads = (leadData ?? []) as ScoutLead[];
+  const revisions = (revisionData ?? []) as ProfileRevision[];
   const saleCounts = countBy(sales, "match_status");
   const leadCounts = countBy(leads, "review_status");
   const sourceUrl = completedSearchUrl(profile.source?.name ?? null, profile.search_query);
@@ -99,6 +103,7 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
             <div><span>4</span><strong>Verify or exclude</strong><p>Only a human decision makes a candidate visible in valuation and charts.</p></div>
           </div>
           <div className="review-note"><span>Edition boundary</span><p>{profile.scope_notes}</p></div>
+          <CollectionProfileEditForm profileId={profile.id} searchQuery={profile.search_query} scopeNotes={profile.scope_notes} collectionIntervalDays={profile.collection_interval_days} isActive={profile.is_active} />
           <div className="workbench-actions">
             {sourceUrl ? <a className="review-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Open completed-listings search -&gt;</a> : null}
             <Link className="review-source-link" href={`/add-sale?editionId=${profile.edition.id}`}>Add a sale -&gt;</Link>
@@ -110,6 +115,11 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
         <section className="review-list-section workbench-section">
           <div className="section-intro"><p className="eyebrow">Run history</p><h2>Traceable collection activity</h2></div>
           {runs.length ? <div className="review-list">{runs.map((run) => <article className="review-card" key={run.id}><div className="review-card-topline"><span>{formatDate(run.checked_at)}</span><span>{run.candidate_count} candidates</span></div><p className="review-condition">Checked by {run.checked_by}</p><div className="review-note"><span>Run note</span><p>{run.notes}</p></div></article>)}</div> : <div className="review-empty"><strong>No completed-listings run recorded.</strong><p>Start with the exact saved search, then record the collection run before importing candidates.</p></div>}
+        </section>
+
+        <section className="review-list-section workbench-section">
+          <div className="section-intro"><p className="eyebrow">Profile history</p><h2>Search changes stay traceable</h2></div>
+          {revisions.length ? <div className="review-list">{revisions.map((revision) => <article className="review-card" key={revision.id}><div className="review-card-topline"><span>{formatDate(revision.changed_at)}</span><span>Updated by {revision.changed_by}</span></div><div className="review-note"><span>Reason</span><p>{revision.change_note}</p></div><dl className="catalogue-details"><div><dt>Previous query</dt><dd>{revision.previous_search_query}</dd></div><div><dt>New query</dt><dd>{revision.next_search_query}</dd></div><div><dt>Cadence</dt><dd>{revision.previous_interval_days} days → {revision.next_interval_days} days</dd></div><div><dt>State</dt><dd>{revision.previous_is_active ? "Active" : "Paused"} → {revision.next_is_active ? "Active" : "Paused"}</dd></div></dl></article>)}</div> : <div className="review-empty"><strong>No profile changes yet.</strong><p>The first saved edit will appear here. Existing collection runs remain separate evidence of what was checked.</p></div>}
         </section>
       </section>
     </main>

@@ -770,6 +770,13 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .collection-priority-grid b { align-self: end; color: #72531a; }
 .staff-action-link { display: inline-block; white-space: nowrap; padding: .5rem .65rem; border: 1px solid #d5c7a9; border-radius: .48rem; background: #f7f0e2; color: #705019; font-size: .67rem; font-weight: 700; letter-spacing: .03em; text-decoration: none; }
 .staff-action-link:hover { border-color: #a77d2d; background: #fffaf0; }
+.profile-editor { margin: 1.25rem 0; border-top: 1px solid #dfd6c6; border-bottom: 1px solid #dfd6c6; }
+.profile-editor summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; color: #72531a; cursor: pointer; font-size: .75rem; font-weight: 700; letter-spacing: .04em; }
+.profile-editor summary small { color: var(--muted); font-size: .67rem; font-weight: 600; letter-spacing: .02em; }
+.profile-editor-form { margin: 0 0 1.2rem; }
+.profile-editor-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.profile-active-field span { display: flex; align-items: center; gap: .55rem; min-height: 2.65rem; color: var(--ink); font-size: .82rem; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.profile-active-field input { width: 1rem; min-height: 1rem; accent-color: #a77d2d; }
 
 .price-things-to-know { margin-top: 1.5rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .price-things-to-know summary { padding: 1rem 0; color: #886520; cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .06em; }

@@ -58,3 +58,26 @@ export async function POST(request: Request) {
     return Response.json({ profileId: profile.id });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "The marketplace profile could not be created." }, { status: 400 }); }
 }
+
+export async function PATCH(request: Request) {
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  let payload: Record<string, unknown>;
+  try { payload = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "Send a valid profile update." }, { status: 400 }); }
+  const profileId = clean(payload.profileId); const searchQuery = clean(payload.searchQuery); const scopeNotes = clean(payload.scopeNotes); const changedBy = clean(payload.changedBy); const changeNote = clean(payload.changeNote);
+  const interval = Number(payload.collectionIntervalDays); const isActive = typeof payload.isActive === "boolean" ? payload.isActive : null;
+  if (!profileId || !searchQuery || scopeNotes.length < 20 || !changedBy || changeNote.length < 8 || !Number.isInteger(interval) || interval < 1 || interval > 365 || isActive === null) {
+    return Response.json({ error: "Add the updated query, a clear boundary note, interval, editor, and a short reason for the change." }, { status: 400 });
+  }
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.rpc("update_marketplace_search_profile", {
+    p_profile_id: profileId,
+    p_search_query: searchQuery,
+    p_scope_notes: scopeNotes,
+    p_collection_interval_days: interval,
+    p_is_active: isActive,
+    p_changed_by: changedBy,
+    p_change_note: changeNote,
+  });
+  if (error) return Response.json({ error: "The profile could not be updated. RAR did not change the saved search." }, { status: 500 });
+  return Response.json({ ok: true });
+}
