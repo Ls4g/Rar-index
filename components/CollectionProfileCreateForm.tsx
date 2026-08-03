@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 type Edition = { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; isbn_13: string | null; printing_number: number | null; edition_statement: string | null; variant_name: string | null };
 type Source = { id: string; name: string | null };
@@ -9,8 +9,8 @@ function label(edition: Edition) { return [edition.title, edition.series, editio
 function defaultQuery(edition: Edition) { return [edition.isbn_13 ? `"${edition.isbn_13}"` : null, edition.series ? `"${edition.series}"` : edition.title ? `"${edition.title}"` : null, edition.printing_number === 1 ? "first print" : null].filter(Boolean).join(" "); }
 function defaultScope(edition: Edition) { return `Completed listings only. Match ${[edition.title, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.isbn_13 ? `ISBN ${edition.isbn_13}` : null, edition.printing_number === 1 ? "first printing" : null].filter(Boolean).join(", ")}. Exclude ended listings and records that conflict with these identifiers.`; }
 
-export default function CollectionProfileCreateForm() {
-  const router = useRouter(); const params = useSearchParams(); const initialEditionId = params.get("editionId") ?? "";
+export default function CollectionProfileCreateForm({ initialEditionId = "" }: { initialEditionId?: string }) {
+  const router = useRouter();
   const [query, setQuery] = useState(""); const [suggestions, setSuggestions] = useState<Edition[]>([]); const [edition, setEdition] = useState<Edition | null>(null); const [sources, setSources] = useState<Source[]>([]);
   const [sourceId, setSourceId] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [scopeNotes, setScopeNotes] = useState(""); const [interval, setInterval] = useState("7"); const [message, setMessage] = useState(""); const [saving, setSaving] = useState(false);
   useEffect(() => {

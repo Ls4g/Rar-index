@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 type Edition = { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; isbn_13: string | null; printing_number: number | null; edition_statement: string | null; variant_name: string | null };
 type Source = { id: string; name: string | null };
@@ -18,8 +17,7 @@ function runLabel(run: CollectionRun, profiles: Profile[]) {
   return `${date} · ${source} · ${run.checked_by} · ${run.candidate_count} candidates`;
 }
 
-export default function QuickSaleForm() {
-  const params = useSearchParams(); const initialEditionId = params.get("editionId") ?? "";
+export default function QuickSaleForm({ initialEditionId = "" }: { initialEditionId?: string }) {
   const [query, setQuery] = useState(""); const [suggestions, setSuggestions] = useState<Edition[]>([]); const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
   const [sources, setSources] = useState<Source[]>([]); const [profiles, setProfiles] = useState<Profile[]>([]); const [runs, setRuns] = useState<CollectionRun[]>([]);
   const [collectionRunId, setCollectionRunId] = useState(""); const [sourceId, setSourceId] = useState(""); const [sourceListingUrl, setSourceListingUrl] = useState(""); const [externalId, setExternalId] = useState("");
