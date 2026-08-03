@@ -415,7 +415,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               <p className="eyebrow">RAR Scout</p>
               <h2 id="live-listings-heading">Live eBay listings</h2>
             </div>
-            <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : "Not monitored yet"}</span>
+            <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
           <p className="section-copy">Current listings are buying opportunities, not completed sales. They never affect RAR&apos;s market value, verified-sale count, or chart.</p>
           {liveListings.length ? (
