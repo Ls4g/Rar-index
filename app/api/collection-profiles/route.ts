@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
+import { normalizeMarketplaceQuery } from "@/lib/marketplaceQuery";
 
 type Edition = { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; isbn_13: string | null; printing_number: number | null; edition_statement: string | null; variant_name: string | null };
 
@@ -39,14 +40,15 @@ export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   let payload: Record<string, unknown>;
   try { payload = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "Send a valid search profile." }, { status: 400 }); }
-  const editionId = clean(payload.editionId); const sourceId = clean(payload.sourceId); const searchQuery = clean(payload.searchQuery); const scopeNotes = clean(payload.scopeNotes);
+  const editionId = clean(payload.editionId); const sourceId = clean(payload.sourceId); const requestedSearchQuery = clean(payload.searchQuery); const scopeNotes = clean(payload.scopeNotes);
   const interval = Number(payload.collectionIntervalDays);
-  if (!editionId || !sourceId || !searchQuery || scopeNotes.length < 20 || !Number.isInteger(interval) || interval < 1 || interval > 365) {
+  if (!editionId || !sourceId || !requestedSearchQuery || scopeNotes.length < 20 || !Number.isInteger(interval) || interval < 1 || interval > 365) {
     return Response.json({ error: "Choose an edition and source, add the exact search query, a clear boundary note, and a collection interval from 1–365 days." }, { status: 400 });
   }
   try {
     const edition = await editionForId(editionId);
     if (!edition) return Response.json({ error: "Choose a verified RAR edition before creating a profile." }, { status: 400 });
+    const searchQuery = normalizeMarketplaceQuery(requestedSearchQuery, edition);
     const admin = getSupabaseAdmin();
     const { data: source, error: sourceError } = await admin.from("sources").select("id").eq("id", sourceId).eq("is_active", true).maybeSingle();
     if (sourceError || !source) return Response.json({ error: "Choose an active RAR marketplace source." }, { status: 400 });
