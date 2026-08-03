@@ -666,7 +666,7 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .evidence-checklist .needed { background: #f2e7d1; color: #8b641f; }
 .evidence-checklist strong { font-size: .74rem; line-height: 1.25; }
 .evidence-checklist small { margin-top: .25rem; color: var(--muted); font-size: .66rem; line-height: 1.35; }
-.collector-context-section { margin-top: 5rem; padding-top: 3.4rem; border-top: 1px solid #dfd6c6; }
+.collector-context-section:not(.edition-disclosure) { margin-top: 5rem; padding-top: 3.4rem; border-top: 1px solid #dfd6c6; }
 .collector-context-card { display: grid; grid-template-columns: .55fr 1fr 1.45fr; gap: 1px; overflow: hidden; border: 1px solid #dfd6c6; border-radius: .95rem; background: #dfd6c6; }
 .collector-context-card > div { min-height: 145px; padding: 1.15rem; background: #fffdf8; }
 .collector-context-card span { display: block; margin-bottom: .6rem; color: #99732b; font-size: .63rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
@@ -709,7 +709,43 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .community-report-toggle:hover { border-color: #a77d2d; background: #fffaf0; }
 .community-report-note { margin: .7rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .community-report-toggle + .community-report-form { margin-top: 1.15rem; }
-.related-editions-section { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid #dfd6c6; }
+
+/* Progressive disclosure keeps the edition page collector-friendly: core
+   market evidence stays visible, while reference material remains one click away. */
+.edition-disclosure { margin-top: 4rem; padding-top: 0; border-top: 1px solid var(--line); }
+.edition-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem 0; cursor: pointer; list-style: none; }
+.edition-disclosure summary::-webkit-details-marker { display: none; }
+.edition-disclosure summary::after { content: "+"; order: 3; color: var(--gold); font-size: 1.45rem; font-weight: 400; line-height: 1; }
+.edition-disclosure[open] summary::after { content: "−"; }
+.edition-disclosure summary > span:first-child { display: grid; gap: .28rem; font-family: var(--font-cormorant), Georgia, serif; font-size: clamp(1.75rem, 3vw, 2.45rem); font-weight: 600; line-height: .95; }
+.edition-disclosure summary small { color: var(--gold); font-family: var(--font-geist), Arial, sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.disclosure-hint { margin-left: auto; color: var(--muted); font-size: .72rem; line-height: 1.4; text-align: right; }
+.edition-disclosure-content { padding: .25rem 0 1.5rem; }
+.catalogue-details-disclosure { margin-top: 0; }
+.catalogue-details-disclosure .edition-disclosure-content { padding-top: .7rem; }
+.catalogue-details-disclosure .edition-details { margin: 0; }
+
+.live-listings-section { margin-top: 4rem; padding: 2rem; border: 1px solid #dfd6c6; border-radius: 1rem; background: #f7f1e6; }
+.live-listings-intro { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: .5rem; }
+.live-listings-intro .eyebrow { margin-bottom: .55rem; }
+.live-listings-intro h2 { font-size: clamp(2.1rem, 4vw, 3.2rem); }
+.live-listings-status { flex: 0 0 auto; color: var(--muted); font-size: .68rem; line-height: 1.4; text-align: right; }
+.live-listings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: .75rem; margin-top: 1.5rem; }
+.live-listing-card { display: grid; gap: 1.25rem; min-height: 190px; padding: 1.15rem; border: 1px solid #ded1bb; border-radius: .75rem; background: #fffdf8; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.live-listing-card:hover { border-color: #b99b5b; box-shadow: 0 10px 24px rgba(57,43,23,.09); transform: translateY(-2px); }
+.live-listing-card span { color: #886520; font-size: .63rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.live-listing-card h3 { display: -webkit-box; margin: .65rem 0 0; overflow: hidden; font-size: 1.35rem; line-height: 1.02; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.live-listing-meta { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.live-listing-meta strong { font-family: var(--font-cormorant), Georgia, serif; font-size: 2rem; font-weight: 600; line-height: .9; }
+.live-listing-meta small { max-width: 10rem; color: var(--muted); font-size: .69rem; line-height: 1.4; text-align: right; }
+.live-listings-empty { max-width: 620px; margin-top: 1.4rem; padding: 1rem 0 0; border-top: 1px solid #ded1bb; }
+.live-listings-empty strong { display: block; font-family: var(--font-cormorant), Georgia, serif; font-size: 1.5rem; font-weight: 600; }
+.live-listings-empty p { margin: .45rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+
+.price-things-to-know { margin-top: 1.5rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.price-things-to-know summary { padding: 1rem 0; color: #886520; cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .06em; }
+.price-things-to-know ul { display: grid; gap: .65rem; margin: 0 0 1.1rem; padding-left: 1.15rem; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.related-editions-section:not(.edition-disclosure) { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid #dfd6c6; }
 .related-editions-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
 .related-editions-list a { display: grid; gap: .42rem; min-height: 128px; padding: 1rem; border: 1px solid #e0d8ca; border-radius: .8rem; background: #fffdf8; box-shadow: 0 8px 22px rgba(57,43,23,.04); transition: transform .18s ease, border-color .18s ease; }
 .related-editions-list a:hover { transform: translateY(-2px); border-color: #c7b171; }

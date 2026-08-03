@@ -40,14 +40,14 @@ function GhostChart({ comparableCount, missingRates }: { comparableCount: number
 
 function ThingsToKnow() {
   return (
-    <aside className="price-things-to-know">
-      <p className="eyebrow">Things to know about a sale</p>
+    <details className="price-things-to-know">
+      <summary>Things to know about a sale</summary>
       <ul>
         <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
         <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
         <li>RAR records the original price and currency, then converts it at the reference rate on the sale date for the selected display currency.</li>
       </ul>
-    </aside>
+    </details>
   );
 }
 

@@ -7,6 +7,7 @@ import MarketValuePanel from "@/components/MarketValuePanel";
 import EditionCover from "@/components/EditionCover";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Valuations are live market intelligence, not deployment-time content.
 export const dynamic = "force-dynamic";
@@ -57,6 +58,23 @@ type RelatedEdition = {
   variant_name: string | null;
 };
 
+type LiveListingProfile = {
+  id: string;
+  last_checked_at: string | null;
+};
+
+type LiveListing = {
+  id: string;
+  profile_id: string;
+  source_listing_url: string;
+  listing_title: string;
+  listing_price: number | null;
+  currency: string | null;
+  item_end_at: string | null;
+  last_seen_at: string;
+  raw_payload: unknown;
+};
+
 function formatPrice(value: number, code: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -83,6 +101,27 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
   if (verifiedSales >= 6 && verifiedSources >= 3) return "Established evidence";
   if (verifiedSales >= 3 && verifiedSources >= 2) return "Developing evidence";
   return "Early evidence";
+}
+
+function formatListingEnd(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(value));
+}
+
+function listingType(payload: unknown) {
+  if (!payload || typeof payload !== "object") return "Live listing";
+  const item = (payload as { item?: unknown }).item;
+  if (!item || typeof item !== "object") return "Live listing";
+  const options = (item as { buyingOptions?: unknown }).buyingOptions;
+  if (!Array.isArray(options)) return "Live listing";
+  if (options.includes("AUCTION")) return "Auction";
+  if (options.includes("FIXED_PRICE")) return "Buy it now";
+  return "Live listing";
 }
 
 function readableType(value: string | null) {
@@ -188,6 +227,35 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const metrics: Metric[] = [];
   const copyrightProofUrls = [...new Set(observedSales.map((sale) => copyrightProofUrl(sale.raw_payload)).filter((url): url is string => Boolean(url)))];
 
+  // Live Scout leads answer "can I buy one now?" They deliberately use a
+  // server-only read and are never included in verified sales, market value,
+  // or price history.
+  const admin = getSupabaseAdmin();
+  const { data: profileData } = await admin
+    .from("marketplace_search_profiles")
+    .select("id,last_checked_at,source:sources!inner(name)")
+    .eq("edition_id", id)
+    .eq("is_active", true)
+    .eq("source.name", "eBay Sold");
+  const liveProfiles = (profileData ?? []) as unknown as LiveListingProfile[];
+  const liveProfileIds = liveProfiles.map((profile) => profile.id);
+  const { data: liveLeadData } = liveProfileIds.length
+    ? await admin
+      .from("scout_listing_leads")
+      .select("id,profile_id,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
+      .in("profile_id", liveProfileIds)
+      .in("review_status", ["new", "watching"])
+      .gt("item_end_at", new Date().toISOString())
+      .order("item_end_at", { ascending: true, nullsFirst: false })
+      .limit(24)
+    : { data: [] };
+  const liveListings = ((liveLeadData ?? []) as LiveListing[])
+    .slice(0, 6);
+  const latestScoutCheck = liveProfiles
+    .map((profile) => profile.last_checked_at)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0] ?? null;
+
   const details = [
     ["Series", edition.series],
     ["Collectible type", readableType(edition.collectible_type)],
@@ -242,7 +310,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
       <MarketCurrencyProvider>
       <section className="edition-content">
         <div className="edition-layout">
-          <div>
+          <details className="edition-disclosure catalogue-details-disclosure">
+            <summary><span><small>Catalogue record</small>Edition details</span><span className="disclosure-hint">Identifiers, publication and cover source</span></summary>
+            <div className="edition-disclosure-content">
             <div className="section-intro">
               <p className="eyebrow">Catalogue record</p>
               <h2>Edition details</h2>
@@ -276,7 +346,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 ))}
               </div>
             ) : null}
-          </div>
+            </div>
+          </details>
 
           <aside className="valuation-panel">
             <p className="eyebrow">RAR market evidence</p>
@@ -338,12 +409,36 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <PriceHistoryChart sales={verifiedSales} rates={fxRates} />
         </section>
 
-        <section className="edition-evidence-section">
-          <div className="section-intro">
-            <p className="eyebrow">Why this edition is identified this way</p>
-            <h2>Edition evidence</h2>
-            <p className="section-copy">RAR separates the publisher&apos;s edition record from proof of a specific printing. A first-print claim requires copyright-page evidence.</p>
+        <section className="live-listings-section" aria-labelledby="live-listings-heading">
+          <div className="section-intro live-listings-intro">
+            <div>
+              <p className="eyebrow">RAR Scout</p>
+              <h2 id="live-listings-heading">Live eBay listings</h2>
+            </div>
+            <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : "Not monitored yet"}</span>
           </div>
+          <p className="section-copy">Current listings are buying opportunities, not completed sales. They never affect RAR&apos;s market value, verified-sale count, or chart.</p>
+          {liveListings.length ? (
+            <div className="live-listings-grid">
+              {liveListings.map((listing) => (
+                <a className="live-listing-card" href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
+                  <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
+                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>Ends {formatListingEnd(listing.item_end_at!)}</small></div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="live-listings-empty">
+              <strong>{liveProfileIds.length ? "No current listings from RAR Scout" : "Live listings are not being monitored for this edition yet"}</strong>
+              <p>{liveProfileIds.length ? "Scout stores only listings that are still live at the time of viewing. Check again after the next scheduled scan." : "RAR needs an exact-edition eBay search profile before it can surface live buying opportunities."}</p>
+            </div>
+          )}
+        </section>
+
+        <details className="edition-disclosure edition-evidence-section" open={edition.printing_number === 1}>
+          <summary><span><small>Why this edition is identified</small>Edition evidence</span><span className="disclosure-hint">{edition.printing_number === 1 ? "First-print proof included" : "Identifiers and proof"}</span></summary>
+          <div className="edition-disclosure-content">
+            <p className="section-copy">RAR separates the publisher&apos;s edition record from proof of a specific printing. A first-print claim requires copyright-page evidence.</p>
           <div className="edition-evidence-grid">
             <div><span>Edition identifiers</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
             <div><span>Printing status</span><strong>{edition.printing_number === 1 ? "First printing recorded" : edition.printing_number ? `Printing ${edition.printing_number} recorded` : "Printing not yet proven"}</strong><small>{edition.printing_number === 1 ? "Check the copyright-page proof below." : "Do not infer a printing from the release date alone."}</small></div>
@@ -378,15 +473,14 @@ export default async function EditionPage({ params }: EditionPageProps) {
               <small>{verifiedSales.length ? `${verifiedSales.length} verified sale${verifiedSales.length === 1 ? "" : "s"}` : "No verified sale yet"}</small>
             </div>
           </div>
-        </section>
+          </div>
+        </details>
 
         {relatedEditions.length ? (
-          <section className="related-editions-section">
-            <div className="section-intro">
-              <p className="eyebrow">Compare before you buy</p>
-              <h2>Other records for this volume</h2>
+          <details className="edition-disclosure related-editions-section">
+            <summary><span><small>Compare before you buy</small>Other records for this volume</span><span className="disclosure-hint">{relatedEditions.length} record{relatedEditions.length === 1 ? "" : "s"}</span></summary>
+            <div className="edition-disclosure-content">
               <p className="section-copy">These are separate RAR catalogue records for the same series and volume. A standard edition is not proof of a specific printing.</p>
-            </div>
             <div className="related-editions-list">
               {relatedEditions.map((related) => (
                 <Link href={`/edition/${related.id}`} key={related.id}>
@@ -396,16 +490,15 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 </Link>
               ))}
             </div>
-          </section>
+            </div>
+          </details>
         ) : null}
 
         {edition.historical_notes || edition.importance_tags?.length ? (
-          <section className="collector-context-section">
-            <div className="section-intro">
-              <p className="eyebrow">Collector context</p>
-              <h2>Why collectors care</h2>
+          <details className="edition-disclosure collector-context-section">
+            <summary><span><small>Collector context</small>Why collectors care</span><span className="disclosure-hint">Research notes and tags</span></summary>
+            <div className="edition-disclosure-content">
               <p className="section-copy">RAR records why a specific edition may matter, without treating a historical note as a prediction of future value.</p>
-            </div>
             <div className="collector-context-card">
               <div>
                 <span>Collectible type</span>
@@ -424,7 +517,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 </div>
               ) : null}
             </div>
-          </section>
+            </div>
+          </details>
         ) : null}
 
         <section className="observed-sales-section">
@@ -467,11 +561,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
         <CommunityReportForm editionId={edition.id} editionTitle={edition.title} />
 
-        <section className="sources-section">
-          <div className="section-intro">
-            <p className="eyebrow">Provenance</p>
-            <h2>Catalogue sources</h2>
-          </div>
+        <details className="edition-disclosure sources-section">
+          <summary><span><small>Provenance</small>Catalogue sources</span><span className="disclosure-hint">{sourceLinks.length} linked source{sourceLinks.length === 1 ? "" : "s"}</span></summary>
+          <div className="edition-disclosure-content">
           {sourceLinks.length ? (
             <div className="source-list">
               {sourceLinks.map((source) => (
@@ -485,7 +577,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
           ) : (
             <p className="status-message">Source evidence will be attached as this edition is verified.</p>
           )}
-        </section>
+          </div>
+        </details>
       </section>
       </MarketCurrencyProvider>
     </main>
