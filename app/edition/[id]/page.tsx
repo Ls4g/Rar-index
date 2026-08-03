@@ -129,6 +129,33 @@ function listingType(payload: unknown) {
   return "Live listing";
 }
 
+function normaliseListingText(value: string | null | undefined) {
+  return (value ?? "").toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
+  if (!volumeNumber) return true;
+  const volume = String(volumeNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exactVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part|#)\\s*${volume}\\b|\\b${volume}\\s*(?:巻|kan)`, "i");
+  const multiVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part)\\s*\\d+\\s*(?:-|–|to)\\s*\\d+\\b|\\b(?:set|lot|collection|box\\s*set|complete)\\b`, "i");
+  return exactVolume.test(listingTitle) && !multiVolume.test(listingTitle);
+}
+
+function isPlausibleLiveListing(
+  listing: LiveListing,
+  edition: { title: string | null; series: string | null; volume_number: string | number | null },
+) {
+  const listingTitle = listing.listing_title ?? "";
+  const seriesName = normaliseListingText(edition.series || edition.title);
+
+  // A Scout profile casts a deliberately broad net. The public page should
+  // only surface a listing when the title itself makes the series and volume
+  // clear; everything else remains a staff review lead.
+  return seriesName.length >= 3
+    && normaliseListingText(listingTitle).includes(seriesName)
+    && hasMatchingVolume(listingTitle, edition.volume_number);
+}
+
 function readableType(value: string | null) {
   if (!value || value === "tankobon") return "Tankōbon / volume";
   return value.replaceAll("_", " ");
@@ -256,9 +283,10 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .gte("last_seen_at", liveListingFreshnessCutoff)
       .or("item_end_at.gt." + liveListingNow + ",item_end_at.is.null")
       .order("item_end_at", { ascending: true, nullsFirst: false })
-      .limit(24)
+      .limit(50)
     : { data: [] };
   const liveListings = ((liveLeadData ?? []) as LiveListing[])
+    .filter((listing) => isPlausibleLiveListing(listing, edition))
     .slice(0, 6);
   const latestScoutCheck = liveProfiles
     .map((profile) => profile.last_checked_at)
@@ -426,7 +454,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
             </div>
             <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
-          <p className="section-copy">Current listings are buying opportunities, not completed sales. They never affect RAR&apos;s market value, verified-sale count, or chart.</p>
+          <p className="section-copy">Current listings are buying opportunities, not completed sales. RAR only surfaces recent listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart.</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
