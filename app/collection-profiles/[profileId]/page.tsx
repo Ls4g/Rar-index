@@ -70,8 +70,10 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
     <main className="review-page catalogue-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <Link className="header-note" href="/collection-profiles">All profiles -&gt;</Link>
-        <Link className="header-note" href={`/add-sale?editionId=${profile.edition.id}`}>Add a sale -&gt;</Link>
+        <div className="staff-header-actions">
+          <Link className="header-note" href="/collection-profiles">All profiles</Link>
+          <Link className="staff-header-primary" href={`/add-sale?editionId=${profile.edition.id}`}>+ Add a sale</Link>
+        </div>
       </header>
       <section className="review-hero catalogue-hero">
         <div>
@@ -87,6 +89,19 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
           <h2>One profile, one edition</h2>
           <p className="section-copy">{profile.source?.name ?? "Marketplace"} query: <strong>{profile.search_query}</strong>{profile.edition.isbn_13 ? ` | ISBN ${profile.edition.isbn_13}` : ""}</p>
         </div>
+
+        <section className="workbench-action-panel" aria-labelledby="workbench-next-action">
+          <div>
+            <p className="eyebrow">Next action</p>
+            <h2 id="workbench-next-action">Add a completed sale</h2>
+            <p>Record a sourced sale for this exact edition. It will stay under review until it is verified or excluded.</p>
+          </div>
+          <div className="workbench-action-buttons">
+            <Link className="staff-action-primary" href={`/add-sale?editionId=${profile.edition.id}`}>+ Add a sale</Link>
+            {sourceUrl ? <a className="staff-action-secondary" href={sourceUrl} target="_blank" rel="noreferrer">Open completed search</a> : null}
+            <Link className="staff-action-secondary" href="/scout">View Scout leads</Link>
+          </div>
+        </section>
 
         <div className="catalogue-rules" aria-label="Research status">
           <div><span>1</span><strong>Collected</strong><p><b>{runs.length}</b> runs recorded. The latest was {runs[0] ? formatDate(runs[0].checked_at) : "not recorded yet"}.</p></div>
@@ -104,11 +119,6 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
           </div>
           <div className="review-note"><span>Edition boundary</span><p>{profile.scope_notes}</p></div>
           <CollectionProfileEditForm profileId={profile.id} searchQuery={profile.search_query} scopeNotes={profile.scope_notes} collectionIntervalDays={profile.collection_interval_days} isActive={profile.is_active} />
-          <div className="workbench-actions">
-            {sourceUrl ? <a className="review-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Open completed-listings search -&gt;</a> : null}
-            <Link className="review-source-link" href={`/add-sale?editionId=${profile.edition.id}`}>Add a sale -&gt;</Link>
-            <Link className="review-source-link" href="/scout">Check active-listing Scout -&gt;</Link>
-          </div>
           <CollectionRunForm profileId={profile.id} />
         </section>
 
