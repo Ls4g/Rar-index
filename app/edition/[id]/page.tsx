@@ -105,7 +105,8 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
   return "Early evidence";
 }
 
-function formatListingEnd(value: string) {
+function formatListingEnd(value: string | null) {
+  if (!value) return "End time unavailable";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "End time unavailable";
   return new Intl.DateTimeFormat("en-GB", {
@@ -243,13 +244,17 @@ export default async function EditionPage({ params }: EditionPageProps) {
     .eq("source.name", "eBay Sold");
   const liveProfiles = (profileData ?? []) as unknown as LiveListingProfile[];
   const liveProfileIds = liveProfiles.map((profile) => profile.id);
+  const liveListingNowDate = new Date();
+  const liveListingNow = liveListingNowDate.toISOString();
+  const liveListingFreshnessCutoff = new Date(liveListingNowDate.getTime() - 48 * 60 * 60 * 1000).toISOString();
   const { data: liveLeadData } = liveProfileIds.length
     ? await admin
       .from("scout_listing_leads")
       .select("id,profile_id,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
       .in("profile_id", liveProfileIds)
       .in("review_status", ["new", "watching"])
-      .gt("item_end_at", new Date().toISOString())
+      .gte("last_seen_at", liveListingFreshnessCutoff)
+      .or("item_end_at.gt." + liveListingNow + ",item_end_at.is.null")
       .order("item_end_at", { ascending: true, nullsFirst: false })
       .limit(24)
     : { data: [] };
@@ -427,7 +432,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               {liveListings.map((listing) => (
                 <a className="live-listing-card" href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
                   <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
-                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>Ends {formatListingEnd(listing.item_end_at!)}</small></div>
+                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>Ends {formatListingEnd(listing.item_end_at)}</small></div>
                 </a>
               ))}
             </div>
