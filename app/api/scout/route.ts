@@ -72,8 +72,14 @@ export async function POST(request: Request) {
       const { error: upsertError } = await admin.from("scout_listing_leads").upsert(rows, { onConflict: "source_id,external_id" });
       if (upsertError) throw new Error("RAR could not store the active-listing leads.");
     }
+    const checkedAt = new Date().toISOString();
     const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: rows.length });
     if (scanError) throw new Error("RAR could not record the completed Scout scan.");
+    const { error: checkedError } = await admin
+      .from("marketplace_search_profiles")
+      .update({ last_checked_at: checkedAt, last_checked_result_count: rows.length, updated_at: checkedAt })
+      .eq("id", profile.id);
+    if (checkedError) throw new Error("RAR could not record when this profile was checked.");
     return Response.json({ scanned: rows.length });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "Scout could not complete this scan.";

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ScoutRunButton from "@/components/ScoutRunButton";
+import ScoutBatchRunButton from "@/components/ScoutBatchRunButton";
 import ScoutLeadDecisionForm from "@/components/ScoutLeadDecisionForm";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,7 @@ export default async function ScoutPage() {
       <Link className="header-note" href="/collection-profiles">Collection profiles →</Link>
     </header>
     <section className="review-hero catalogue-hero">
-      <div><p className="eyebrow">RAR Scout</p><h1>Active listing leads</h1><p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts.</p></div>
+      <div><p className="eyebrow">RAR Scout</p><h1>Active listing leads</h1><p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts.</p><ScoutBatchRunButton /></div>
       <div className="queue-total"><strong>{profiles.length}</strong><span>active search profiles</span></div>
     </section>
     <section className="review-list-section">
