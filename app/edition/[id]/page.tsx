@@ -86,11 +86,13 @@ function formatPrice(value: number, code: string) {
 
 function formatDate(value: string | null) {
   if (!value) return "Not recorded";
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "Not recorded";
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
+  }).format(date);
 }
 
 function matchStatusLabel(status: ObservedSale["match_status"]) {
