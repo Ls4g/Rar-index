@@ -44,6 +44,10 @@ export default async function DataReadinessPage() {
     return total;
   }, {});
   const actionRows = rows.filter((row) => !["valuation_ready", "collecting"].includes(row.readiness_status));
+  const pricedRows = rows
+    .filter((row) => row.verified_sale_count > 0)
+    .sort((left, right) => left.verified_sale_count - right.verified_sale_count || left.review_sale_count - right.review_sale_count)
+    .slice(0, 12);
 
   return (
     <main className="review-page catalogue-page">
@@ -60,6 +64,10 @@ export default async function DataReadinessPage() {
         <div className="queue-total"><strong>{rows.length}</strong><span>catalogue records tracked</span></div>
       </section>
       <section className="catalogue-content">
+        <section className="review-list-section workbench-section collection-priority-section">
+          <div className="section-intro"><p className="eyebrow">Evidence priorities</p><h2>Where another verified sale matters most</h2><p className="section-copy">This keeps manual work focused on editions that already have evidence, but are still too thin to become useful collector references.</p></div>
+          {pricedRows.length ? <div className="collection-priority-grid">{pricedRows.map((row) => <Link href={`/edition/${row.edition_id}`} key={row.edition_id}><span>{row.verified_sale_count >= 3 ? "Strengthen the sample" : `${Math.max(0, 3 - row.verified_sale_count)} more for a first chart`}</span><strong>{row.title ?? "Untitled edition"}</strong><small>{[row.series, row.volume_number ? `Vol. ${row.volume_number}` : null, row.language].filter(Boolean).join(" | ")}</small><b>{row.verified_sale_count} verified · {row.review_sale_count} in review</b></Link>)}</div> : <div className="review-empty"><strong>No priced editions yet.</strong><p>Once one exact edition has a verified sale, it will appear here as a collection target.</p></div>}
+        </section>
         <div className="catalogue-rules readiness-summary">
           {orderedStatuses.filter((status) => counts[status]).map((status) => <div key={status}><span>{counts[status]}</span><strong>{labels[status]}</strong><p>{status === "search_ready" ? "Can be checked with its exact saved marketplace profile." : status === "valuation_ready" ? "Has at least one verified sale." : "Requires the next controlled workflow step."}</p></div>)}
         </div>
