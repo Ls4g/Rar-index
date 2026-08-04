@@ -38,15 +38,6 @@ type ObservedSale = {
   raw_payload: unknown;
 };
 
-type Metric = {
-  currency: string;
-  verified_sale_count: number;
-  lowest_verified_sale: number;
-  market_value_median: number;
-  highest_verified_sale: number;
-  latest_sale_date: string;
-};
-
 type RelatedEdition = {
   id: string;
   title: string | null;
@@ -277,9 +268,6 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const relatedEditions = ((relatedEditionsResult.data ?? []) as RelatedEdition[]).filter(
     (related) => !printingRelationIds.has(related.id)
   );
-  // Kept only to avoid changing the old metric markup in the same release.
-  // The rendered valuation now comes from historical conversions below.
-  const metrics: Metric[] = [];
   const copyrightProofUrls = [...new Set(observedSales.map((sale) => copyrightProofUrl(sale.raw_payload)).filter((url): url is string => Boolean(url)))];
 
   // Live Scout leads answer "can I buy one now?" They deliberately use a
@@ -315,6 +303,29 @@ export default async function EditionPage({ params }: EditionPageProps) {
     .map((profile) => profile.last_checked_at)
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => right.localeCompare(left))[0] ?? null;
+
+  function renderObservedSale(sale: ObservedSale) {
+    const content = (
+      <>
+        <div>
+          <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
+          <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
+          <small>{formatDate(sale.sold_date)}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
+        </div>
+        <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
+      </>
+    );
+
+    return sale.source_listing_url ? (
+      <a className="observed-sale" href={sale.source_listing_url} target="_blank" rel="noreferrer" key={sale.source_listing_url}>
+        {content}
+      </a>
+    ) : (
+      <div className="observed-sale" key={`${sale.sold_date}-${sale.sale_price}`}>
+        {content}
+      </div>
+    );
+  }
 
   const details = [
     ["Series", edition.series],
@@ -433,26 +444,6 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <aside className="valuation-panel">
             <p className="eyebrow">RAR market evidence</p>
             <MarketValuePanel sales={verifiedSales} rates={fxRates} />
-            {metrics.length ? (
-              <div className="metric-stack">
-                {metrics.map((metric) => (
-                  <div className="metric-card" key={metric.currency}>
-                    <span className="metric-label">Median · {metric.currency}</span>
-                    <strong>{formatPrice(metric.market_value_median, metric.currency)}</strong>
-                    <dl>
-                      <div><dt>Verified sales</dt><dd>{metric.verified_sale_count}</dd></div>
-                      <div><dt>Highest</dt><dd>{formatPrice(metric.highest_verified_sale, metric.currency)}</dd></div>
-                      <div><dt>Latest sale</dt><dd>{formatDate(metric.latest_sale_date)}</dd></div>
-                    </dl>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-valuation">
-                <strong>Market evidence is being verified.</strong>
-                <p>RAR will show a market value only after it has sales proven to match this exact edition.</p>
-              </div>
-            )}
 
             <div className="confidence-panel">
               <p className="eyebrow">RAR confidence</p>
@@ -607,34 +598,32 @@ export default async function EditionPage({ params }: EditionPageProps) {
             <p className="eyebrow">Recent market evidence</p>
             <h2>Observed completed sales</h2>
             <p className="section-copy">
-              These are marketplace listings that completed. RAR uses a sale in market evidence only after the listing is proven to match this exact edition.
+              {verifiedSales.length
+                ? `The ${verifiedSales.length} verified sale${verifiedSales.length === 1 ? "" : "s"} counted in the market value above are listed here, alongside any sale still under review.`
+                : observedSales.length
+                  ? "None of the sales observed for this edition are verified yet, so they are not counted in the market value above."
+                  : "These are marketplace listings that completed. RAR uses a sale in market evidence only after the listing is proven to match this exact edition."}
             </p>
           </div>
           {observedSales.length ? (
-            <div className="observed-sales-list">
-              {observedSales.slice(0, 12).map((sale) => {
-                const content = (
-                  <>
-                    <div>
-                      <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
-                      <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
-                      <small>{formatDate(sale.sold_date)}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
-                    </div>
-                    <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
-                  </>
-                );
-
-                return sale.source_listing_url ? (
-                  <a className="observed-sale" href={sale.source_listing_url} target="_blank" rel="noreferrer" key={sale.source_listing_url}>
-                    {content}
-                  </a>
-                ) : (
-                  <div className="observed-sale" key={`${sale.sold_date}-${sale.sale_price}`}>
-                    {content}
+            <>
+              {verifiedSales.length ? (
+                <div className="observed-sales-group">
+                  <p className="observed-sales-group-label">Verified — counted in the market value above ({verifiedSales.length})</p>
+                  <div className="observed-sales-list">
+                    {verifiedSales.slice(0, 12).map((sale) => renderObservedSale(sale))}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              ) : null}
+              {pendingSales.length ? (
+                <div className="observed-sales-group">
+                  <p className="observed-sales-group-label">Under review — not yet counted ({pendingSales.length})</p>
+                  <div className="observed-sales-list">
+                    {pendingSales.slice(0, 12).map((sale) => renderObservedSale(sale))}
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p className="status-message">No completed sales have been recorded for this edition yet.</p>
           )}

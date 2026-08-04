@@ -120,6 +120,9 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .metric-card dd { color: var(--ink); }
 .observed-sales-section { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .section-copy { max-width: 650px; margin: 1rem 0 0; color: var(--muted); font-size: .93rem; line-height: 1.6; }
+.observed-sales-group { max-width: 760px; }
+.observed-sales-group + .observed-sales-group { margin-top: 2rem; }
+.observed-sales-group-label { margin: 0 0 .75rem; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .observed-sales-list { display: grid; gap: 1px; max-width: 760px; border: 1px solid var(--line); background: var(--line); }
 .observed-sale { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.35rem; background: var(--paper); }
 a.observed-sale { transition: background .2s ease; }
