@@ -64,6 +64,7 @@ export default async function ReviewQueuePage() {
           <span>RAR</span>
           <em>Index</em>
         </Link>
+        <Link className="header-note" href="/coverage-dashboard">Coverage dashboard -&gt;</Link>
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <span className="header-note">Internal review</span>
       </header>

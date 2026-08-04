@@ -39,6 +39,7 @@ export default async function CatalogueReviewPage() {
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/catalogue-import">Import candidates →</Link>
+        <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
       </header>
       <section className="review-hero catalogue-hero">
         <div>

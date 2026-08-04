@@ -83,7 +83,7 @@ function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-export default function PriceImportForm({ communityReportId = "" }: { communityReportId?: string }) {
+export default function PriceImportForm({ communityReportId = "", initialEditionId = "" }: { communityReportId?: string; initialEditionId?: string }) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
@@ -147,6 +147,27 @@ export default function PriceImportForm({ communityReportId = "" }: { communityR
 
     return () => controller.abort();
   }, [selectedEdition]);
+
+  useEffect(() => {
+    if (!initialEditionId || communityReportId) return;
+    const controller = new AbortController();
+    fetch(`/api/price-import?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = (await response.json()) as { edition?: Edition | null; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "The edition could not be loaded.");
+        if (data.edition) {
+          setSelectedEdition(data.edition);
+          setSuggestions([]);
+          setCollectionRuns([]);
+          setSelectedCollectionRunId("");
+          setLoadingCollectionRuns(true);
+        }
+      })
+      .catch((error) => {
+        if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The edition could not be loaded.");
+      });
+    return () => controller.abort();
+  }, [initialEditionId, communityReportId]);
 
   useEffect(() => {
     if (!communityReportId) return;

@@ -412,6 +412,23 @@ export async function GET(request: NextRequest) {
 
   const isbn = (request.nextUrl.searchParams.get("isbn") ?? "").trim();
   const query = (request.nextUrl.searchParams.get("q") ?? "").trim();
+  const editionId = (request.nextUrl.searchParams.get("editionId") ?? "").trim();
+
+  if (editionId) {
+    try {
+      const admin = getSupabaseAdmin();
+      const { data, error } = await admin
+        .from("manga_editions")
+        .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name")
+        .eq("id", editionId)
+        .eq("is_verified", true)
+        .maybeSingle();
+      if (error) return Response.json({ error: "Edition could not be loaded." }, { status: 500 });
+      return Response.json({ edition: data ?? null });
+    } catch {
+      return Response.json({ error: "Edition lookup is unavailable right now." }, { status: 503 });
+    }
+  }
 
   if (isbn) {
     if (!/^97[89][0-9]{10}$/.test(isbn)) return Response.json({ editions: [] });

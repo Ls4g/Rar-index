@@ -62,6 +62,7 @@ export default async function ScoutPage() {
   return <main className="review-page catalogue-page">
     <header className="site-header">
       <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
+      <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
       <Link className="header-note" href="/collection-profiles">Collection profiles →</Link>
     </header>
     <section className="review-hero catalogue-hero">

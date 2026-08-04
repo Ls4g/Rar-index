@@ -31,6 +31,7 @@ export const config = {
     "/add-sale/:path*",
     "/collection-profiles/:path*",
     "/data-readiness/:path*",
+    "/coverage-dashboard/:path*",
     "/community-reports/:path*",
     "/catalogue-requests/:path*",
     "/scout/:path*",
