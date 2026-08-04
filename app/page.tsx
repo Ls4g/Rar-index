@@ -1,11 +1,42 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 
 // Catalogue updates should appear without waiting for the next deployment.
 export const dynamic = "force-dynamic";
+
+function formatSalePrice(value: number, code: string) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: code, currencyDisplay: "narrowSymbol", maximumFractionDigits: 2 }).format(value);
+}
+
+function formatSaleDate(value: string | null) {
+  if (!value) return "Date not recorded";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "Date not recorded";
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+type RecentSale = {
+  edition_id: string;
+  sale_price: number;
+  currency: string;
+  sold_date: string | null;
+};
+
+type LiveLead = {
+  id: string;
+  profile_id: string;
+  source_listing_url: string;
+  listing_title: string;
+  listing_price: number | null;
+  currency: string | null;
+  item_end_at: string | null;
+  raw_payload: unknown;
+};
 
 export default async function Home() {
   const [{ data, error }, { count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: verifiedSales }] = await Promise.all([
@@ -57,6 +88,73 @@ export default async function Home() {
   const pricedEditions = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => saleCounts.has(String(edition.id)))
     .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0))
+    .slice(0, 6);
+
+  // A recent-sales activity feed and live buying opportunities, both drawn
+  // across the whole catalogue rather than one edition at a time.
+  const admin = getSupabaseAdmin();
+  const [{ data: recentSalesData }, { data: liveProfileData }] = await Promise.all([
+    supabase
+      .from("price_observations")
+      .select("edition_id, sale_price, currency, sold_date")
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .order("sold_date", { ascending: false })
+      .limit(8),
+    admin
+      .from("marketplace_search_profiles")
+      .select("id,edition_id,source:sources!inner(name)")
+      .eq("is_active", true)
+      .eq("source.name", "eBay Sold"),
+  ]);
+
+  const recentSales = (recentSalesData ?? []) as RecentSale[];
+  const liveProfiles = (liveProfileData ?? []) as unknown as Array<{ id: string; edition_id: string }>;
+  const editionIdByProfileId = new Map(liveProfiles.map((profile) => [profile.id, profile.edition_id]));
+  const liveProfileIds = liveProfiles.map((profile) => profile.id);
+  const liveListingNowDate = new Date();
+  const liveListingNow = liveListingNowDate.toISOString();
+  const liveListingFreshnessCutoff = new Date(liveListingNowDate.getTime() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: liveLeadData } = liveProfileIds.length
+    ? await admin
+      .from("scout_listing_leads")
+      .select("id,profile_id,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
+      .in("profile_id", liveProfileIds)
+      .in("review_status", ["new", "watching"])
+      .gte("last_seen_at", liveListingFreshnessCutoff)
+      .or("item_end_at.gt." + liveListingNow + ",item_end_at.is.null")
+      .order("item_end_at", { ascending: true, nullsFirst: false })
+      .limit(100)
+    : { data: [] };
+  const liveLeads = (liveLeadData ?? []) as LiveLead[];
+
+  const marketEditionIds = [...new Set([
+    ...recentSales.map((sale) => sale.edition_id),
+    ...liveLeads.flatMap((lead) => {
+      const editionId = editionIdByProfileId.get(lead.profile_id);
+      return editionId ? [editionId] : [];
+    }),
+  ])];
+  const { data: marketEditionsData } = marketEditionIds.length
+    ? await supabase
+      .from("manga_editions")
+      .select("id,title,series,volume_number,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status")
+      .in("id", marketEditionIds)
+    : { data: [] };
+  const marketEditionsById = new Map(((marketEditionsData ?? []) as Manga[]).map((edition) => [String(edition.id), edition]));
+
+  const recentSalesWithEdition = recentSales.flatMap((sale) => {
+    const edition = marketEditionsById.get(sale.edition_id);
+    return edition ? [{ sale, edition }] : [];
+  });
+
+  const liveOpportunities = liveLeads
+    .flatMap((lead) => {
+      const editionId = editionIdByProfileId.get(lead.profile_id);
+      const edition = editionId ? marketEditionsById.get(editionId) : null;
+      if (!edition || !isPlausibleLiveListing(lead, edition)) return [];
+      return [{ lead, edition }];
+    })
     .slice(0, 6);
 
   return (
@@ -133,6 +231,74 @@ export default async function Home() {
         )}
       </section>
 
+      <section className="index-section" aria-labelledby="recent-sales-heading">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Recent activity</p>
+            <h2 id="recent-sales-heading">Recent verified sales</h2>
+          </div>
+          <span>Completed marketplace sales RAR has proven match an exact edition</span>
+        </div>
+
+        {recentSalesWithEdition.length ? (
+          <div className="manga-grid">
+            {recentSalesWithEdition.map(({ sale, edition }, index) => (
+              <Link className="manga-card" href={`/edition/${edition.id}`} key={`${edition.id}-${sale.sold_date}-${sale.sale_price}`}>
+                <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
+                <div className="card-body">
+                  <p className="card-kicker">{formatSalePrice(sale.sale_price, sale.currency)} · {formatSaleDate(sale.sold_date)}</p>
+                  <h3>{edition.title || "Untitled manga"}</h3>
+                  <dl>
+                    <div>
+                      <dt>Series</dt>
+                      <dd>{edition.series || "Not yet recorded"}</dd>
+                    </div>
+                    <div>
+                      <dt>Edition</dt>
+                      <dd>{editionDescriptor(edition)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="status-message">No verified sales have been recorded yet. Sales appear here only once RAR proves a listing matches an exact edition.</div>
+        )}
+      </section>
+
+      <section className="index-section live-listings-section" aria-labelledby="live-opportunities-heading">
+        <div className="section-heading live-listings-intro">
+          <div>
+            <p className="eyebrow">RAR Scout</p>
+            <h2 id="live-opportunities-heading">Live buying opportunities</h2>
+          </div>
+          <span className="live-listings-status">Current listings, not completed sales</span>
+        </div>
+        <p className="section-copy">These are active eBay listings whose title clearly matches a catalogue edition. They are buying opportunities only and never affect RAR&apos;s verified-sale counts or market value.</p>
+        {liveOpportunities.length ? (
+          <div className="live-listings-grid">
+            {liveOpportunities.map(({ lead, edition }) => (
+              <a className="live-listing-card" href={lead.source_listing_url} target="_blank" rel="noreferrer" key={lead.id}>
+                <div>
+                  <span>{listingType(lead.raw_payload)} · eBay · {[edition.series || edition.title, edition.volume_number ? `Vol. ${edition.volume_number}` : null].filter(Boolean).join(" ")}</span>
+                  <h3>{lead.listing_title}</h3>
+                </div>
+                <div className="live-listing-meta">
+                  <strong>{lead.listing_price !== null && lead.currency ? formatSalePrice(lead.listing_price, lead.currency) : "Price not listed"}</strong>
+                  <small>Ends {formatListingEnd(lead.item_end_at)}</small>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="live-listings-empty">
+            <strong>No current listings from RAR Scout</strong>
+            <p>Live opportunities appear here once Scout finds an active listing whose title clearly matches a catalogue edition and volume.</p>
+          </div>
+        )}
+      </section>
+
       <section className="index-section" aria-labelledby="new-additions-heading">
         <div className="section-heading">
           <div>
@@ -192,6 +358,8 @@ export default async function Home() {
           <Link href="/browse"><span>Catalogue</span><strong>Browse all {count ?? manga.length} editions</strong><small>Search by title, publisher, language or ISBN.</small></Link>
           <Link href="/browse?evidence=verified-sales"><span>Market evidence</span><strong>{evidenceCount ?? 0} editions with verified sales</strong><small>See only editions with confirmed matching sale evidence.</small></Link>
           <Link href="/browse?printing=first"><span>Printing research</span><strong>{firstPrintCount ?? 0} first-print records</strong><small>Check the record and its linked source before relying on a printing claim.</small></Link>
+          <a href="#recent-sales-heading"><span>Recent activity</span><strong>{recentSalesWithEdition.length} recent verified sale{recentSalesWithEdition.length === 1 ? "" : "s"}</strong><small>See the latest completed sales RAR has proven match an exact edition.</small></a>
+          <a href="#live-opportunities-heading"><span>RAR Scout</span><strong>{liveOpportunities.length} live buying opportunit{liveOpportunities.length === 1 ? "y" : "ies"}</strong><small>Active listings whose title clearly matches a catalogue edition.</small></a>
           <a href="#new-additions-heading"><span>New research</span><strong>Recently documented editions</strong><small>See the newest records added to the growing catalogue.</small></a>
         </div>
       </section>
