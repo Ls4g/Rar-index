@@ -138,7 +138,7 @@ export default async function Home() {
   const { data: marketEditionsData } = marketEditionIds.length
     ? await supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status")
+      .select("id,title,series,volume_number,language,publisher,format,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status")
       .in("id", marketEditionIds)
     : { data: [] };
   const marketEditionsById = new Map(((marketEditionsData ?? []) as Manga[]).map((edition) => [String(edition.id), edition]));
