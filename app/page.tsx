@@ -148,11 +148,18 @@ export default async function Home() {
     return edition ? [{ sale, edition }] : [];
   });
 
+  // The same real eBay listing can be captured by more than one search
+  // profile (e.g. two catalogue editions of the same volume). Dedupe on the
+  // underlying item so it is never shown twice as separate "opportunities".
+  const seenListings = new Set<string>();
   const liveOpportunities = liveLeads
     .flatMap((lead) => {
       const editionId = editionIdByProfileId.get(lead.profile_id);
       const edition = editionId ? marketEditionsById.get(editionId) : null;
       if (!edition || !isPlausibleLiveListing(lead, edition)) return [];
+      const listingKey = lead.source_listing_url.match(/\/itm\/(\d+)/)?.[1] ?? lead.source_listing_url;
+      if (seenListings.has(listingKey)) return [];
+      seenListings.add(listingKey);
       return [{ lead, edition }];
     })
     .slice(0, 6);
