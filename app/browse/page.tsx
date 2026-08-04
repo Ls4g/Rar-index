@@ -8,7 +8,7 @@ export default async function BrowsePage() {
   const [{ data, error }, { data: verifiedSales }] = await Promise.all([
     supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status,created_at")
+      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status,created_at,printing_of_edition_id")
       .eq("is_verified", true)
       .not("isbn_13", "is", null)
       .not("publisher", "is", null)

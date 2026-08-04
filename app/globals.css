@@ -395,6 +395,11 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .browse-checkbox input { width: 1rem; height: 1rem; accent-color: var(--gold); }
 .browse-result-count { margin: 1.5rem 0; color: var(--muted); font-size: .78rem; }
 .browse-result-count strong { color: var(--ink); font-family: var(--font-cormorant), Georgia, serif; font-size: 2rem; font-weight: 600; line-height: .6; }
+.browse-series-list { display: grid; gap: 3rem; }
+.browse-series-header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.browse-series-header h2 { margin: 0; font-size: 1.5rem; font-weight: 650; letter-spacing: normal; }
+.browse-series-header span { color: var(--muted); font-size: .78rem; letter-spacing: .02em; white-space: nowrap; }
+.browse-card-printing-of { display: block; margin-top: .35rem; color: var(--muted); font-size: .68rem; font-style: italic; }
 .browse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
 .browse-card { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-content: stretch; min-height: 210px; padding: 0; background: #fbf9f3; transition: background .2s ease; overflow: hidden; }
 .browse-card:hover { background: #ece5d8; }
