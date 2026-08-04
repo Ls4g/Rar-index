@@ -118,6 +118,10 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .edition-hero h1 { max-width: 900px; margin-bottom: 1rem; font-size: clamp(3.7rem, 8vw, 6.5rem); }
 .edition-subtitle { margin: 0; color: var(--gold-light); font-size: 1rem; letter-spacing: .08em; }
 .edition-variant { margin: .65rem 0 0; color: rgba(244,240,232,.62); font-size: .9rem; }
+.edition-printing-relation { margin: .65rem 0 0; padding: .6rem .85rem; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; color: rgba(244,240,232,.78); }
+.edition-printing-relation a { color: inherit; text-decoration: underline; }
+.catalogue-isbn-warning { margin: 1rem 0; padding: .85rem 1rem; border: 1px solid #b45309; border-radius: 6px; background: rgba(180,83,9,.08); }
+.catalogue-isbn-warning .edition-suggestions button.selected { border-color: #16a34a; }
 .edition-content { padding-top: 5rem; padding-bottom: 6rem; }
 .edition-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 5rem; align-items: start; }
 .section-intro { margin-bottom: 1.7rem; }
@@ -179,6 +183,9 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .ghost-chart-message p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.6; }
 .observed-sales-section { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .section-copy { max-width: 650px; margin: 1rem 0 0; color: var(--muted); font-size: .93rem; line-height: 1.6; }
+.observed-sales-group { max-width: 760px; }
+.observed-sales-group + .observed-sales-group { margin-top: 2rem; }
+.observed-sales-group-label { margin: 0 0 .75rem; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .observed-sales-list { display: grid; gap: 1px; max-width: 760px; border: 1px solid var(--line); background: var(--line); }
 .observed-sale { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.35rem; background: var(--paper); }
 a.observed-sale { transition: background .2s ease; }
