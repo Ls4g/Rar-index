@@ -190,12 +190,29 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id"
     )
     .eq("id", id)
     .maybeSingle();
 
   if (!edition) notFound();
+
+  const [generalEditionResult, printingsOfThisEditionResult] = await Promise.all([
+    edition.printing_of_edition_id
+      ? supabase
+        .from("manga_editions")
+        .select("id,title,language,isbn_13,edition_statement")
+        .eq("id", edition.printing_of_edition_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("manga_editions")
+      .select("id,title,language,isbn_13,edition_statement,printing_number,variant_name")
+      .eq("printing_of_edition_id", id)
+      .eq("is_verified", true),
+  ]);
+  const generalEdition = generalEditionResult.data as { id: string; title: string | null; language: string | null; isbn_13: string | null; edition_statement: string | null } | null;
+  const printingsOfThisEdition = (printingsOfThisEditionResult.data ?? []) as RelatedEdition[];
 
   const relatedEditionsResult = edition.series && edition.volume_number
     ? await supabase
@@ -253,7 +270,13 @@ export default async function EditionPage({ params }: EditionPageProps) {
     : { data: [] as Source[] };
   const sourceNames = new Map((sourcesResult.data ?? []).map((source) => [source.id, source.name]));
   const observedSourceNames = [...new Set([...observedSourceIds].map((sourceId) => sourceNames.get(sourceId) ?? "Marketplace").filter(Boolean))];
-  const relatedEditions = (relatedEditionsResult.data ?? []) as RelatedEdition[];
+  const printingRelationIds = new Set([
+    ...(generalEdition ? [generalEdition.id] : []),
+    ...printingsOfThisEdition.map((printing) => printing.id),
+  ]);
+  const relatedEditions = ((relatedEditionsResult.data ?? []) as RelatedEdition[]).filter(
+    (related) => !printingRelationIds.has(related.id)
+  );
   // Kept only to avoid changing the old metric markup in the same release.
   // The rendered valuation now comes from historical conversions below.
   const metrics: Metric[] = [];
@@ -339,6 +362,27 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </p>
           {edition.variant_name || edition.edition_statement ? (
             <p className="edition-variant">{edition.variant_name || edition.edition_statement}</p>
+          ) : null}
+          {generalEdition ? (
+            <p className="edition-printing-relation">
+              A specific printing of{" "}
+              <Link href={`/edition/${generalEdition.id}`}>
+                {generalEdition.title} — {generalEdition.edition_statement || "general edition record"}
+              </Link>
+              . Market evidence and search profiles for this ISBN may also exist on that record.
+            </p>
+          ) : null}
+          {printingsOfThisEdition.length ? (
+            <p className="edition-printing-relation">
+              {printingsOfThisEdition.length} specific printing{printingsOfThisEdition.length === 1 ? "" : "s"} of this edition {printingsOfThisEdition.length === 1 ? "has" : "have"} been proven:{" "}
+              {printingsOfThisEdition.map((printing, index) => (
+                <span key={printing.id}>
+                  {index > 0 ? ", " : ""}
+                  <Link href={`/edition/${printing.id}`}>{relatedEditionLabel(printing)}</Link>
+                </span>
+              ))}
+              .
+            </p>
           ) : null}
           </div>
         </div>

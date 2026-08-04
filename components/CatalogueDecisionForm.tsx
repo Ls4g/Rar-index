@@ -23,7 +23,7 @@ const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }
   { value: "rejected", label: "Reject candidate", hint: "Wrong work or insufficient catalogue evidence." },
 ];
 
-type EditionSuggestion = { id: string; title: string | null; language: string | null; isbn_13: string | null; printing_number: number | null };
+type EditionSuggestion = { id: string; title: string | null; language: string | null; isbn_13: string | null; printing_number: number | null; is_verified?: boolean };
 
 export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle, candidate }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string; candidate: CandidateMetadata }) {
   const router = useRouter();
@@ -35,6 +35,8 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<EditionSuggestion[]>([]);
   const [metadata, setMetadata] = useState<CandidateMetadata>(candidate);
+  const [isbnMatches, setIsbnMatches] = useState<EditionSuggestion[]>([]);
+  const [printingOfEditionId, setPrintingOfEditionId] = useState("");
 
   useEffect(() => {
     if (decision !== "link_existing" || candidateTitle.trim().length < 2) return;
@@ -46,6 +48,25 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
     return () => controller.abort();
   }, [decision, candidateTitle]);
 
+  useEffect(() => {
+    setPrintingOfEditionId("");
+    if (decision !== "approve_new") {
+      setIsbnMatches([]);
+      return;
+    }
+    const isbn = (metadata.isbn13 ?? "").trim();
+    if (!/^97[89][0-9]{10}$/.test(isbn)) {
+      setIsbnMatches([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/price-import?isbn=${encodeURIComponent(isbn)}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((result: { editions?: EditionSuggestion[] }) => setIsbnMatches(result.editions ?? []))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [decision, metadata.isbn13]);
+
   const allowedDecisions = isEditionCandidate ? decisions : decisions.filter((item) => item.value !== "approve_new");
 
   async function saveDecision(event: React.FormEvent<HTMLFormElement>) {
@@ -56,7 +77,14 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
       const response = await fetch("/api/catalogue-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalogueImportId, decision, reviewer, notes, existingEditionId, metadata }),
+        body: JSON.stringify({
+          catalogueImportId,
+          decision,
+          reviewer,
+          notes,
+          existingEditionId,
+          metadata: decision === "approve_new" && printingOfEditionId ? { ...metadata, printingOfEditionId } : metadata,
+        }),
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -100,6 +128,11 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
           <label>Release date<input onChange={(event) => setMetadata({ ...metadata, releaseDate: event.target.value || null })} type="date" value={metadata.releaseDate ?? ""} /></label>
         </div>
       </fieldset> : null}
+      {decision === "approve_new" && isbnMatches.length ? <div className="catalogue-isbn-warning" role="alert">
+        <p>ISBN {metadata.isbn13} already exists in the catalogue. This will be blocked unless you either use &quot;Link existing edition&quot; instead, or confirm this candidate is a specific printing of one of the records below.</p>
+        <div className="edition-suggestions">{isbnMatches.map((edition) => <button className={printingOfEditionId === edition.id ? "selected" : ""} type="button" key={edition.id} onClick={() => setPrintingOfEditionId(printingOfEditionId === edition.id ? "" : edition.id)}>{[edition.title, edition.language, edition.is_verified ? null : "unverified", edition.printing_number ? `Printing ${edition.printing_number}` : "General edition record"].filter(Boolean).join(" | ")}</button>)}</div>
+        {printingOfEditionId ? <p>This candidate will be saved as a specific printing of the selected record.</p> : null}
+      </div> : null}
       {decision === "link_existing" && suggestions.length ? <div className="edition-suggestions">{suggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setExistingEditionId(edition.id)}>{[edition.title, edition.language, edition.printing_number ? `Printing ${edition.printing_number}` : null, edition.isbn_13 ? `ISBN ${edition.isbn_13}` : null].filter(Boolean).join(" | ")}</button>)}</div> : null}
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save catalogue decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </form>

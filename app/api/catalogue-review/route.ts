@@ -10,6 +10,7 @@ type ApprovedMetadata = {
   language?: unknown;
   isbn13?: unknown;
   releaseDate?: unknown;
+  printingOfEditionId?: unknown;
 };
 
 function cleanMetadata(value: unknown) {
@@ -24,6 +25,7 @@ function cleanMetadata(value: unknown) {
     language: text(input.language),
     isbn_13: text(input.isbn13)?.replace(/[^0-9Xx]/g, "").toUpperCase() ?? null,
     release_date: text(input.releaseDate),
+    printing_of_edition_id: text(input.printingOfEditionId),
   };
 }
 
@@ -77,6 +79,11 @@ export async function POST(request: Request) {
     p_existing_edition_id: existingEditionId,
     p_metadata: decision === "approve_new" ? metadata : null,
   });
-  if (error) return Response.json({ error: "The catalogue decision could not be saved. Check the edition evidence and try again." }, { status: 500 });
+  if (error) {
+    const message = error.message?.startsWith("ISBN ") || error.message?.startsWith("The selected general edition")
+      ? error.message
+      : "The catalogue decision could not be saved. Check the edition evidence and try again.";
+    return Response.json({ error: message }, { status: 500 });
+  }
   return Response.json({ ok: true });
 }

@@ -410,7 +410,26 @@ function publicPreflight(result: Awaited<ReturnType<typeof preflight>>) {
 export async function GET(request: NextRequest) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
+  const isbn = (request.nextUrl.searchParams.get("isbn") ?? "").trim();
   const query = (request.nextUrl.searchParams.get("q") ?? "").trim();
+
+  if (isbn) {
+    if (!/^97[89][0-9]{10}$/.test(isbn)) return Response.json({ editions: [] });
+    try {
+      const admin = getSupabaseAdmin();
+      const { data, error } = await admin
+        .from("manga_editions")
+        .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name,is_verified")
+        .eq("isbn_13", isbn)
+        .order("is_verified", { ascending: false })
+        .limit(8);
+      if (error) return Response.json({ error: "Edition suggestions could not be loaded." }, { status: 500 });
+      return Response.json({ editions: data ?? [] });
+    } catch {
+      return Response.json({ error: "Edition suggestions are unavailable right now." }, { status: 503 });
+    }
+  }
+
   if (query.length < 2) return Response.json({ editions: [] });
 
   try {
