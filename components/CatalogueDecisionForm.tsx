@@ -49,16 +49,9 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   }, [decision, candidateTitle]);
 
   useEffect(() => {
-    setPrintingOfEditionId("");
-    if (decision !== "approve_new") {
-      setIsbnMatches([]);
-      return;
-    }
+    if (decision !== "approve_new") return;
     const isbn = (metadata.isbn13 ?? "").trim();
-    if (!/^97[89][0-9]{10}$/.test(isbn)) {
-      setIsbnMatches([]);
-      return;
-    }
+    if (!/^97[89][0-9]{10}$/.test(isbn)) return;
     const controller = new AbortController();
     fetch(`/api/price-import?isbn=${encodeURIComponent(isbn)}`, { signal: controller.signal })
       .then((response) => response.json())
@@ -68,6 +61,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   }, [decision, metadata.isbn13]);
 
   const allowedDecisions = isEditionCandidate ? decisions : decisions.filter((item) => item.value !== "approve_new");
+  const currentIsbnMatches = isbnMatches.filter((edition) => edition.isbn_13 === metadata.isbn13);
 
   async function saveDecision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,7 +99,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
       <div className="review-decision-heading"><span>Catalogue decision</span><small>Approval records a durable evidence note.</small></div>
       <div className="catalogue-options" role="radiogroup" aria-label="Catalogue decision">
         {allowedDecisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
-          <input checked={decision === option.value} name={`catalogue-decision-${catalogueImportId}`} onChange={() => setDecision(option.value)} type="radio" value={option.value} />
+          <input checked={decision === option.value} name={`catalogue-decision-${catalogueImportId}`} onChange={() => { setDecision(option.value); setPrintingOfEditionId(""); }} type="radio" value={option.value} />
           <strong>{option.label}</strong><small>{option.hint}</small>
         </label>)}
       </div>
@@ -124,13 +118,13 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
           <label>Language<input onChange={(event) => setMetadata({ ...metadata, language: event.target.value || null })} required value={metadata.language ?? ""} /></label>
           <label>Author<input onChange={(event) => setMetadata({ ...metadata, author: event.target.value || null })} value={metadata.author ?? ""} /></label>
           <label>Publisher<input onChange={(event) => setMetadata({ ...metadata, publisher: event.target.value || null })} value={metadata.publisher ?? ""} /></label>
-          <label>ISBN-13<input inputMode="numeric" onChange={(event) => setMetadata({ ...metadata, isbn13: event.target.value || null })} value={metadata.isbn13 ?? ""} /></label>
+          <label>ISBN-13<input inputMode="numeric" onChange={(event) => { setMetadata({ ...metadata, isbn13: event.target.value || null }); setPrintingOfEditionId(""); }} value={metadata.isbn13 ?? ""} /></label>
           <label>Release date<input onChange={(event) => setMetadata({ ...metadata, releaseDate: event.target.value || null })} type="date" value={metadata.releaseDate ?? ""} /></label>
         </div>
       </fieldset> : null}
-      {decision === "approve_new" && isbnMatches.length ? <div className="catalogue-isbn-warning" role="alert">
+      {decision === "approve_new" && currentIsbnMatches.length ? <div className="catalogue-isbn-warning" role="alert">
         <p>ISBN {metadata.isbn13} already exists in the catalogue. This will be blocked unless you either use &quot;Link existing edition&quot; instead, or confirm this candidate is a specific printing of one of the records below.</p>
-        <div className="edition-suggestions">{isbnMatches.map((edition) => <button className={printingOfEditionId === edition.id ? "selected" : ""} type="button" key={edition.id} onClick={() => setPrintingOfEditionId(printingOfEditionId === edition.id ? "" : edition.id)}>{[edition.title, edition.language, edition.is_verified ? null : "unverified", edition.printing_number ? `Printing ${edition.printing_number}` : "General edition record"].filter(Boolean).join(" | ")}</button>)}</div>
+        <div className="edition-suggestions">{currentIsbnMatches.map((edition) => <button className={printingOfEditionId === edition.id ? "selected" : ""} type="button" key={edition.id} onClick={() => setPrintingOfEditionId(printingOfEditionId === edition.id ? "" : edition.id)}>{[edition.title, edition.language, edition.is_verified ? null : "unverified", edition.printing_number ? `Printing ${edition.printing_number}` : "General edition record"].filter(Boolean).join(" | ")}</button>)}</div>
         {printingOfEditionId ? <p>This candidate will be saved as a specific printing of the selected record.</p> : null}
       </div> : null}
       {decision === "link_existing" && suggestions.length ? <div className="edition-suggestions">{suggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setExistingEditionId(edition.id)}>{[edition.title, edition.language, edition.printing_number ? `Printing ${edition.printing_number}` : null, edition.isbn_13 ? `ISBN ${edition.isbn_13}` : null].filter(Boolean).join(" | ")}</button>)}</div> : null}
