@@ -371,7 +371,11 @@ export default async function EditionPage({ params }: EditionPageProps) {
               <span>Edition cover</span>
               {edition.cover_verification_status === "verified" ? (
                 <p>Catalogue cover sourced from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this catalogue record; sale photos remain linked with their individual sales.</p>
-              ) : <p>RAR has not yet verified an exact-edition cover from a publisher or licensed catalogue record.</p>}
+              ) : edition.cover_verification_status === "candidate" ? (
+                <p>A candidate cover has been found for this edition but is not yet confirmed against a publisher or licensed catalogue record.</p>
+              ) : edition.cover_verification_status === "rejected" ? (
+                <p>A candidate cover was reviewed and did not match this exact edition. RAR is still looking for a confirmed cover source.</p>
+              ) : <p>RAR has not yet sourced a cover for this edition from a publisher or licensed catalogue record.</p>}
             </div>
 
             {edition.historical_notes ? (
