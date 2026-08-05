@@ -38,7 +38,7 @@ export default function ReviewDecisionForm({ observationId }: { observationId: s
 
   return (
     <form className="review-decision" onSubmit={submitReview}>
-      <div className="review-decision-heading"><span>Record review decision</span><small>Every decision is saved with its evidence note.</small></div>
+      <div className="review-decision-heading"><span>Record review decision</span><small>Add an evidence note when it isn&apos;t obvious from the listing.</small></div>
       <div className="review-options" role="radiogroup" aria-label="Review decision">
         {decisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
           <input checked={decision === option.value} name={`decision-${observationId}`} onChange={() => setDecision(option.value)} type="radio" value={option.value} />
@@ -47,7 +47,7 @@ export default function ReviewDecisionForm({ observationId }: { observationId: s
       </div>
       <div className="review-form-fields">
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
-        <label>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What proves the edition match, or why is it excluded?" required value={notes} /></label>
+        <label>Evidence note (optional)<textarea onChange={(event) => setNotes(event.target.value)} placeholder="What proves the edition match, or why is it excluded?" value={notes} /></label>
       </div>
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </form>

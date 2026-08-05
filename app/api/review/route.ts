@@ -40,8 +40,8 @@ export async function POST(request: Request) {
   const decision = typeof payload.decision === "string" ? payload.decision : "";
   const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
-  if (!observationId || !decisions.includes(decision as ReviewDecision) || notes.length < 12 || !reviewer) {
-    return Response.json({ error: "Choose a decision, add at least 12 characters of evidence, and identify the reviewer." }, { status: 400 });
+  if (!observationId || !decisions.includes(decision as ReviewDecision) || !reviewer) {
+    return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
   }
 
   const supabaseAdmin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
