@@ -13,10 +13,10 @@ type PriceHistoryChartProps = {
 };
 
 const WIDTH = 720;
-const HEIGHT = 230;
+const HEIGHT = 380;
 const PADDING_X = 28;
-const PADDING_TOP = 42;
-const PADDING_BOTTOM = 52;
+const PADDING_TOP = 50;
+const PADDING_BOTTOM = 60;
 const MIN_COMPARABLE_SALES = 3;
 
 function formatShortDate(value: string) {
@@ -27,10 +27,10 @@ function GhostChart({ comparableCount, missingRates }: { comparableCount: number
   return (
     <div className="ghost-chart" aria-label="Price history is not yet available">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
-        <line x1="0" x2={WIDTH} y1="54" y2="54" />
-        <line x1="0" x2={WIDTH} y1="115" y2="115" />
-        <line x1="0" x2={WIDTH} y1="176" y2="176" />
-        <path d="M 0 158 C 100 127, 150 156, 240 120 S 380 94, 470 132 S 600 84, 720 102" />
+        <line x1="0" x2={WIDTH} y1={HEIGHT * 0.24} y2={HEIGHT * 0.24} />
+        <line x1="0" x2={WIDTH} y1={HEIGHT * 0.5} y2={HEIGHT * 0.5} />
+        <line x1="0" x2={WIDTH} y1={HEIGHT * 0.77} y2={HEIGHT * 0.77} />
+        <path d={`M 0 ${HEIGHT * 0.69} C 100 ${HEIGHT * 0.55}, 150 ${HEIGHT * 0.68}, 240 ${HEIGHT * 0.52} S 380 ${HEIGHT * 0.41}, 470 ${HEIGHT * 0.57} S 600 ${HEIGHT * 0.37}, 720 ${HEIGHT * 0.44}`} />
       </svg>
       <div className="ghost-chart-message">
         <strong>Not enough comparable verified sales yet</strong>

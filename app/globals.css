@@ -273,7 +273,7 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .price-history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
 .comparable-chart-card { min-width: 0; }
 .chart-comparable-label { margin: -1rem 0 1rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
-.ghost-chart { min-height: 230px; }
+.ghost-chart { min-height: 380px; }
 .ghost-chart svg { opacity: .45; }
 .ghost-chart path { fill: none; stroke: var(--gold); stroke-width: 3; stroke-dasharray: 8 9; }
 .ghost-chart-message { position: absolute; inset: 0; display: grid; place-content: center; max-width: 430px; margin: auto; padding: 1.5rem; text-align: center; }
