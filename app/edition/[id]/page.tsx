@@ -428,6 +428,10 @@ export default async function EditionPage({ params }: EditionPageProps) {
                 <p>RAR uses only completed sales that match this exact edition. Raw and graded results stay separate. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. The median is market evidence, not a promise of resale value.</p>
               </details>
             </div>
+            <div className="valuation-panel-live-teaser">
+              <span><strong>{liveListings.length}</strong> live listing{liveListings.length === 1 ? "" : "s"} right now</span>
+              <a href="#live-listings-heading">Can I buy one? →</a>
+            </div>
             <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio — free account →</Link>
           </aside>
         </div>
@@ -439,12 +443,12 @@ export default async function EditionPage({ params }: EditionPageProps) {
         <section className="live-listings-section" aria-labelledby="live-listings-heading">
           <div className="section-intro live-listings-intro">
             <div>
-              <p className="eyebrow">RAR Scout</p>
+              <p className="eyebrow">RAR Scout · Can I buy one now?</p>
               <h2 id="live-listings-heading">Live eBay listings</h2>
             </div>
             <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
-          <p className="section-copy">Current listings are buying opportunities, not completed sales. RAR only surfaces recent listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart.</p>
+          <p className="section-copy">These are asking prices on current listings, not completed sales. RAR only surfaces listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart above.</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (

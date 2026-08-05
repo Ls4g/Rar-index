@@ -39,9 +39,10 @@ export default async function BrowsePage() {
       <section className="browse-hero">
         <div>
           <p className="eyebrow">RAR alpha catalogue</p>
-          <h1>Browse editions.</h1>
-          <p>Every record here has a catalogue identity, ISBN, publisher, release date and linked source evidence. Specific printing proof is shown separately.</p>
+          <h1>Browse the archive.</h1>
+          <p>Every record here has a catalogue identity, ISBN, publisher, release date and linked source evidence.</p>
         </div>
+        <div className="queue-total"><strong>{editions.length}</strong><span>catalogue-ready editions</span></div>
       </section>
       <section className="browse-content">
         {error ? <p className="status-message">The catalogue could not be loaded. Please try again shortly.</p> : <BrowseEditions editions={editions} />}

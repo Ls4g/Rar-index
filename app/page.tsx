@@ -1,4 +1,5 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
+import CollectorShelf, { type ShelfEdition } from "@/components/CollectorShelf";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
@@ -99,6 +100,55 @@ export default async function Home() {
   const bestDocumentedCount = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => saleCounts.has(String(edition.id)) && edition.cover_verification_status === "verified")
     .length;
+
+  // First-print watch reuses the same catalogue fetch — no new query, just a
+  // different lens on data RAR already verified (an edition proven to be a
+  // first printing, not merely inferred from a release date).
+  const firstPrintWatch = ((allCatalogue ?? []) as Manga[])
+    .filter((edition) => edition.printing_number === 1)
+    .sort((a, b) => {
+      const coverRank = Number(b.cover_verification_status === "verified") - Number(a.cover_verification_status === "verified");
+      if (coverRank !== 0) return coverRank;
+      return (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0);
+    })
+    .slice(0, 4);
+
+  // The collector's shelf: verified covers only, sale-evidenced ones first.
+  // Latest-sale figures are the raw original sale amount (no FX conversion
+  // or median math) — the same "or latest verified sale" alternative the
+  // edition page itself offers when there isn't yet enough for a median.
+  const shelfCandidates = ((allCatalogue ?? []) as Manga[])
+    .filter((edition) => edition.cover_verification_status === "verified")
+    .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0))
+    .slice(0, 16);
+  const shelfEditionIds = shelfCandidates.map((edition) => String(edition.id));
+  const { data: shelfSalesData } = shelfEditionIds.length
+    ? await supabase
+      .from("price_observations")
+      .select("edition_id, sale_price, currency, sold_date")
+      .in("edition_id", shelfEditionIds)
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .order("sold_date", { ascending: false })
+    : { data: [] };
+  const latestSaleByEdition = new Map<string, { price: number; currency: string; soldDate: string | null }>();
+  for (const sale of (shelfSalesData ?? []) as RecentSale[]) {
+    if (!latestSaleByEdition.has(sale.edition_id)) {
+      latestSaleByEdition.set(sale.edition_id, { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date });
+    }
+  }
+  const shelfEditions: ShelfEdition[] = shelfCandidates.map((edition) => ({
+    id: String(edition.id),
+    title: edition.title,
+    series: edition.series,
+    volumeNumber: edition.volume_number,
+    language: edition.language,
+    editionLabel: editionDescriptor(edition),
+    coverImageUrl: edition.cover_image_url,
+    coverStatus: edition.cover_verification_status,
+    verifiedSaleCount: saleCounts.get(String(edition.id)) ?? 0,
+    latestSale: latestSaleByEdition.get(String(edition.id)) ?? null,
+  }));
 
   // A recent-sales activity feed and live buying opportunities, both drawn
   // across the whole catalogue rather than one edition at a time.
@@ -203,7 +253,22 @@ export default async function Home() {
             market history and collector knowledge.
           </p>
           <MangaSearch />
+          <div className="hero-entry-points">
+            <Link className="is-primary" href="/browse?evidence=verified-sales">Browse verified prices</Link>
+            <Link className="is-live" href="#live-opportunities-heading">Explore live opportunities</Link>
+            <Link href="/identify">Identify a copy</Link>
+          </div>
         </div>
+
+        {shelfEditions.length ? (
+          <div className="collector-shelf-section">
+            <div className="collector-shelf-heading">
+              <p className="eyebrow">The collector&apos;s shelf</p>
+              <p>Verified covers only. Select one to see its evidence — nothing here plays or scrolls on its own.</p>
+            </div>
+            <CollectorShelf editions={shelfEditions} />
+          </div>
+        ) : null}
       </section>
 
       <section className="index-section market-evidence-section" aria-labelledby="market-evidence-heading">
@@ -249,6 +314,45 @@ export default async function Home() {
           <div className="status-message">RAR is reviewing its first sale sources. Catalogue entries never receive a price until the source and edition match are confirmed.</div>
         )}
       </section>
+
+      {firstPrintWatch.length ? (
+        <section className="index-section first-print-watch-section" aria-labelledby="first-print-watch-heading">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">First-print watch</p>
+              <h2 id="first-print-watch-heading">Proven first printings</h2>
+            </div>
+            <span>{firstPrintCount ?? firstPrintWatch.length} first-print record{(firstPrintCount ?? firstPrintWatch.length) === 1 ? "" : "s"} in the catalogue</span>
+          </div>
+          <p className="section-copy">Every record here has copyright-page proof on file, not a first-print claim inferred from a release date. Check the linked evidence on each edition page before relying on it.</p>
+          <div className="manga-grid">
+            {firstPrintWatch.map((item, index) => {
+              const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
+              return (
+                <Link className="manga-card first-print-card" href={`/edition/${item.id}`} key={item.id}>
+                  <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
+                  <div className="card-body">
+                    <p className="card-kicker">{[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ")}</p>
+                    <h3>{item.title || "Untitled manga"}</h3>
+                    <dl>
+                      <div>
+                        <dt>Series</dt>
+                        <dd>{item.series || "Not yet recorded"}</dd>
+                      </div>
+                      <div>
+                        <dt>Publisher</dt>
+                        <dd>{publisherDisplayName(item.publisher)}</dd>
+                      </div>
+                    </dl>
+                    <small className="card-honest-note">{evidenceStatusLabel(item.cover_verification_status === "verified", verifiedSaleCount)}</small>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="index-section-action"><Link href="/browse?printing=first">Browse all first-print records →</Link></div>
+        </section>
+      ) : null}
 
       <section className="index-section" aria-labelledby="recent-sales-heading">
         <div className="section-heading">
@@ -375,11 +479,11 @@ export default async function Home() {
       <section className="index-explore" aria-labelledby="explore-index-heading">
         <div className="section-intro">
           <p className="eyebrow">Start with what you need</p>
-          <h2 id="explore-index-heading">Explore the index</h2>
+          <h2 id="explore-index-heading">Explore the archive</h2>
           <p className="section-copy">Choose a useful starting point, then follow the original evidence behind every record.</p>
         </div>
         <div className="index-explore-grid">
-          <Link href="/browse"><span>Catalogue</span><strong>Browse all {count ?? manga.length} editions</strong><small>Search by title, publisher, language or ISBN.</small></Link>
+          <Link href="/browse"><span>Browse the archive</span><strong>All {count ?? manga.length} editions</strong><small>Search by title, publisher, language or ISBN.</small></Link>
           <Link href="/browse?collection=best-documented"><span>Best documented</span><strong>{bestDocumentedCount} edition{bestDocumentedCount === 1 ? "" : "s"} with both</strong><small>A verified sale and a verified cover — RAR&apos;s strongest records.</small></Link>
           <Link href="/browse?evidence=verified-sales"><span>Market evidence</span><strong>{evidenceCount ?? 0} editions with verified sales</strong><small>See only editions with confirmed matching sale evidence.</small></Link>
           <Link href="/browse?printing=first"><span>Printing research</span><strong>{firstPrintCount ?? 0} first-print records</strong><small>Check the record and its linked source before relying on a printing claim.</small></Link>

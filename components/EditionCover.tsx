@@ -14,6 +14,19 @@ function fallbackLabel(title: string | null, series?: string | null) {
   return value.split(/\s+/).filter(Boolean).slice(0, 3).map((word) => word[0]).join("").toUpperCase();
 }
 
+// A small, deliberately restrained set of accent colours (never the reserved
+// status colours: teal/amber/blue/grey) so different series get a bit of
+// visual character on their placeholder card without implying a status.
+const SERIES_ACCENTS = ["#a7332a", "#c9692c", "#77883a"];
+
+function seriesAccent(value: string | null | undefined) {
+  const key = (value ?? "").trim();
+  if (!key) return SERIES_ACCENTS[0];
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  return SERIES_ACCENTS[hash % SERIES_ACCENTS.length];
+}
+
 const statusCopy: Record<string, { label: string; detail: string }> = {
   candidate: { label: "Cover under review", detail: "A candidate cover has been found but not yet confirmed." },
   rejected: { label: "Cover not confirmed", detail: "A candidate cover did not match this exact edition." },
@@ -37,7 +50,11 @@ export default function EditionCover({
       {hasVerifiedCover ? (
         <img src={imageUrl!} alt={`Cover of ${title || series || "this manga edition"}`} loading={priority ? "eager" : "lazy"} referrerPolicy="no-referrer" />
       ) : (
-        <div className={`edition-cover-fallback status-${status ?? "missing"}`} aria-label={`${title || series || "Manga"}: ${coverStatusCopy(status).label}`}>
+        <div
+          className={`edition-cover-fallback status-${status ?? "missing"}`}
+          style={{ "--series-accent": seriesAccent(series || title) } as React.CSSProperties}
+          aria-label={`${title || series || "Manga"}: ${coverStatusCopy(status).label}`}
+        >
           <span className="edition-cover-fallback-mark">{fallbackLabel(title, series)}</span>
           <div className="edition-cover-fallback-status">
             <strong title={coverStatusCopy(status).detail}>{coverStatusCopy(status).label}</strong>

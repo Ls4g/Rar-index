@@ -130,17 +130,27 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
         <p>Filtered to records with a verified sale and a verified cover. Remove a filter below to see the wider catalogue.</p>
       </div>
     ) : null}
-    <div className="browse-controls" aria-label="Filter editions">
-      <label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title, series or ISBN" /></label>
-      <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="all">All languages</option>{languages.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-      <label>Publisher<select value={publisher} onChange={(event) => setPublisher(event.target.value)}><option value="all">All publishers</option>{publishers.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-      <label>Type<select value={collectibleType} onChange={(event) => setCollectibleType(event.target.value)}><option value="all">All types</option>{collectibleTypes.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
-      <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="newest">Newest added</option><option value="title">Title A–Z</option><option value="completeness">Most documented</option></select></label>
-      <label className="browse-checkbox"><input type="checkbox" checked={firstPrintOnly} onChange={(event) => setFirstPrintOnly(event.target.checked)} /> First printing only</label>
-      <label className="browse-checkbox"><input type="checkbox" checked={coverOnly} onChange={(event) => setCoverOnly(event.target.checked)} /> Catalogue cover sourced</label>
-      <label className="browse-checkbox"><input type="checkbox" checked={verifiedSalesOnly} onChange={(event) => setVerifiedSalesOnly(event.target.checked)} /> Verified sales recorded</label>
-      <label className="browse-checkbox"><input type="checkbox" checked={japaneseOnly} onChange={(event) => setJapaneseOnly(event.target.checked)} /> Japanese originals only</label>
+    <div className="browse-search-row">
+      <label className="browse-search-field">
+        <span className="sr-only">Search</span>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, series or ISBN" />
+      </label>
+      <div className="browse-chip-row" role="group" aria-label="Quick filters">
+        <button type="button" className={`browse-chip${verifiedSalesOnly ? " is-active" : ""}`} aria-pressed={verifiedSalesOnly} onClick={() => setVerifiedSalesOnly((value) => !value)}>Verified prices</button>
+        <button type="button" className={`browse-chip${firstPrintOnly ? " is-active" : ""}`} aria-pressed={firstPrintOnly} onClick={() => setFirstPrintOnly((value) => !value)}>First prints</button>
+        <button type="button" className={`browse-chip${japaneseOnly ? " is-active" : ""}`} aria-pressed={japaneseOnly} onClick={() => setJapaneseOnly((value) => !value)}>Japanese originals</button>
+        <button type="button" className={`browse-chip${coverOnly ? " is-active" : ""}`} aria-pressed={coverOnly} onClick={() => setCoverOnly((value) => !value)}>Covers sourced</button>
+      </div>
     </div>
+    <details className="browse-controls">
+      <summary>Language, publisher, type &amp; sort</summary>
+      <div className="browse-controls-grid">
+        <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="all">All languages</option>{languages.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label>Publisher<select value={publisher} onChange={(event) => setPublisher(event.target.value)}><option value="all">All publishers</option>{publishers.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label>Type<select value={collectibleType} onChange={(event) => setCollectibleType(event.target.value)}><option value="all">All types</option>{collectibleTypes.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+        <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="newest">Newest added</option><option value="title">Title A–Z</option><option value="completeness">Most documented</option></select></label>
+      </div>
+    </details>
     <div className="browse-result-count"><strong>{resultCount}</strong> catalogue-ready edition{resultCount === 1 ? "" : "s"} across <strong>{groups.length}</strong> series</div>
     {groups.length ? (
       <div className="browse-series-list">
@@ -156,7 +166,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                 const hasVerifiedCover = edition.cover_verification_status === "verified";
                 const wellDocumented = hasVerifiedCover && edition.verified_sale_count > 0;
                 return (
-                  <Link href={`/edition/${edition.id}`} className="browse-card" key={edition.id}>
+                  <Link href={`/edition/${edition.id}`} className={`browse-card${wellDocumented ? " is-well-documented" : ""}`} key={edition.id}>
                     <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
                     <div className="browse-card-body">
                       <p>{[edition.collectible_type?.replaceAll("_", " "), edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
