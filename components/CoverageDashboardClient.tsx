@@ -28,6 +28,28 @@ export type CoverageRow = {
 type SaleRange = "all" | "zero" | "one_two" | "three_plus";
 type ProfileFilter = "all" | "has" | "missing";
 
+// Pricing coverage sprint (2026-08): these 9 series' Vol. 1 editions are the
+// current operational focus for closing sales-evidence and cover gaps.
+// Matched case-insensitively since the catalogue has a known casing
+// inconsistency ("One Piece" vs "ONE PIECE") on one series.
+const TARGET_SPRINT_SERIES = [
+  "One Piece",
+  "Hunter",
+  "Jujutsu Kaisen",
+  "Kagurabachi",
+  "Naruto",
+  "Bleach",
+  "Demon Slayer",
+  "Attack on Titan",
+  "Initial D",
+];
+
+function isTargetSprintRow(row: CoverageRow) {
+  if (row.volumeNumber !== "1") return false;
+  const series = (row.series ?? "").toLocaleLowerCase();
+  return TARGET_SPRINT_SERIES.some((target) => series.includes(target.toLocaleLowerCase()));
+}
+
 const coverLabels: Record<CoverageRow["coverStatus"], string> = {
   missing: "Cover pending",
   candidate: "Cover under review",
@@ -154,6 +176,11 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
     withPendingLeads: rows.filter((row) => row.pendingLeadCount > 0).length,
   }), [rows]);
 
+  const targetSprintRows = useMemo(() => rows
+    .filter(isTargetSprintRow)
+    .sort((a, b) => a.verifiedSaleCount - b.verifiedSaleCount || a.comparableSaleCount - b.comparableSaleCount || (a.series ?? "").localeCompare(b.series ?? "") || (a.language ?? "").localeCompare(b.language ?? "")),
+    [rows]);
+
   const missingSales = useMemo(() => filteredRows
     .filter((row) => row.verifiedSaleCount === 0)
     .sort((a, b) => Number(Boolean(b.profileId)) - Number(Boolean(a.profileId)) || Number(Boolean(b.series)) - Number(Boolean(a.series)) || (a.title ?? "").localeCompare(b.title ?? "")),
@@ -189,6 +216,11 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
         <div><span>{counts.missingBoth}</span><strong>Missing sales AND cover</strong><p>Weakest public pages — no market evidence, no confirmed cover.</p></div>
         <div><span>{counts.withPendingLeads}</span><strong>Live Scout leads waiting</strong><p>New listing leads not yet reviewed by staff.</p></div>
       </div>
+
+      <section className="review-list-section coverage-target-sprint">
+        <div className="section-intro"><p className="eyebrow">Pricing coverage sprint</p><h2>Target editions</h2><p className="section-copy">One Piece, Hunter × Hunter, Jujutsu Kaisen, Kagurabachi, Naruto, Bleach, Demon Slayer, Attack on Titan, and Initial D — Vol. 1, Japanese and English. Weakest evidence first. This list ignores the filters below; it always shows every target edition.</p></div>
+        <CoverageTable rows={targetSprintRows} emptyMessage="No target-sprint editions found." />
+      </section>
 
       <section className="review-list-section coverage-filters-section">
         <div className="section-intro"><p className="eyebrow">Narrow the queues</p><h2>Filters</h2></div>
