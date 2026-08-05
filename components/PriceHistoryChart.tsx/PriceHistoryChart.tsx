@@ -1,5 +1,7 @@
 "use client";
 
+import { useId, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { comparisonGroup, convertSale, formatPrice, type FxRate, type MarketSale } from "@/lib/fx";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 
@@ -13,8 +15,8 @@ type PriceHistoryChartProps = {
 const WIDTH = 720;
 const HEIGHT = 230;
 const PADDING_X = 28;
-const PADDING_TOP = 26;
-const PADDING_BOTTOM = 34;
+const PADDING_TOP = 42;
+const PADDING_BOTTOM = 52;
 const MIN_COMPARABLE_SALES = 3;
 
 function formatShortDate(value: string) {
@@ -56,20 +58,78 @@ function ComparableChart({ label, sales }: {
   sales: Array<NonNullable<ReturnType<typeof convertSale<SalePoint>>>>;
 }) {
   const { currency } = useMarketCurrency();
+  const gradientId = useId();
   const values = sales.map((sale) => sale.converted_price);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || Math.max(max * 0.1, 1);
   const plotWidth = WIDTH - PADDING_X * 2;
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+  const baselineY = PADDING_TOP + plotHeight;
   const points = sales.map((sale, index) => ({
     x: PADDING_X + (index / (sales.length - 1)) * plotWidth,
     y: PADDING_TOP + ((max - sale.converted_price) / range) * plotHeight,
     sale,
   }));
+  const [activeIndex, setActiveIndex] = useState(points.length - 1);
+  const activePoint = points[Math.min(activeIndex, points.length - 1)];
   const pointString = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const areaPath = `M ${points[0].x} ${baselineY} ${points.map((point) => `L ${point.x} ${point.y}`).join(" ")} L ${points.at(-1)!.x} ${baselineY} Z`;
   const firstDate = sales[0].sold_date!;
   const lastDate = sales.at(-1)?.sold_date;
+  const highLabelTop = (PADDING_TOP / HEIGHT) * 100;
+  const lowLabelTop = (baselineY / HEIGHT) * 100;
+  const tooltipLeft = Math.min(90, Math.max(10, (activePoint.x / WIDTH) * 100));
+  const tooltipTop = (activePoint.y / HEIGHT) * 100;
+  const tooltipBelow = activePoint.y < PADDING_TOP + plotHeight * 0.32;
+  const showsOriginalCurrency = activePoint.sale.currency !== currency;
+  const activeSummary = `${formatShortDate(activePoint.sale.sold_date!)} · ${formatPrice(activePoint.sale.converted_price, currency)}${showsOriginalCurrency ? ` (originally ${formatPrice(activePoint.sale.sale_price, activePoint.sale.currency)})` : ""}`;
+
+  function updateActiveFromClientX(clientX: number, wrap: HTMLDivElement) {
+    const rect = wrap.getBoundingClientRect();
+    if (!rect.width) return;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const svgX = ratio * WIDTH;
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+    points.forEach((point, index) => {
+      const distance = Math.abs(point.x - svgX);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    setActiveIndex(nearestIndex);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch") return;
+    updateActiveFromClientX(event.clientX, event.currentTarget);
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    updateActiveFromClientX(event.clientX, event.currentTarget);
+  }
+
+  function handlePointerLeave() {
+    setActiveIndex(points.length - 1);
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.min(points.length - 1, current + 1));
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(0, current - 1));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActiveIndex(points.length - 1);
+    }
+  }
 
   return (
     <article className="price-history-card comparable-chart-card">
@@ -81,25 +141,50 @@ function ComparableChart({ label, sales }: {
         <span className="chart-status">{sales.length} sales</span>
       </div>
       <p className="chart-comparable-label">{label} · shown in {currency}</p>
-      <div className="price-chart-wrap">
-        <svg className="price-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Price history from ${formatShortDate(firstDate)} to ${formatShortDate(lastDate ?? firstDate)} in ${currency}`}>
-          <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
-          <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP + plotHeight / 2} y2={PADDING_TOP + plotHeight / 2} />
-          <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP + plotHeight} y2={PADDING_TOP + plotHeight} />
+      <div
+        className="price-chart-wrap"
+        tabIndex={0}
+        role="group"
+        aria-label={`Verified sale prices from ${formatShortDate(firstDate)} to ${formatShortDate(lastDate ?? firstDate)}. Use the left and right arrow keys to move between individual sales.`}
+        onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={handlePointerLeave}
+        onKeyDown={handleKeyDown}
+      >
+        <svg className="price-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop className="chart-gradient-start" offset="0%" />
+              <stop className="chart-gradient-end" offset="100%" />
+            </linearGradient>
+          </defs>
+          <line className="chart-grid-high" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
+          <line className="chart-grid-low" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={baselineY} y2={baselineY} />
+          <path className="price-chart-area" d={areaPath} fill={`url(#${gradientId})`} />
+          <line className="chart-active-guide" x1={activePoint.x} x2={activePoint.x} y1={PADDING_TOP} y2={baselineY} />
           <polyline points={pointString} />
-          {points.map((point) => (
-            <circle cx={point.x} cy={point.y} r="5" key={`${point.sale.sold_date}-${point.sale.sale_price}-${point.sale.currency}`}>
+          {points.map((point, index) => (
+            <circle
+              className={`price-chart-point${index === activeIndex ? " is-active" : ""}`}
+              cx={point.x}
+              cy={point.y}
+              r={index === activeIndex ? 6 : 3}
+              key={`${point.sale.sold_date}-${point.sale.sale_price}-${point.sale.currency}`}
+            >
               <title>{`${formatShortDate(point.sale.sold_date!)}: ${formatPrice(point.sale.sale_price, point.sale.currency)} → ${formatPrice(point.sale.converted_price, currency)}`}</title>
             </circle>
           ))}
           <text x={PADDING_X} y={HEIGHT - 8}>{formatShortDate(firstDate)}</text>
           <text x={WIDTH - PADDING_X} y={HEIGHT - 8} textAnchor="end">{formatShortDate(lastDate ?? firstDate)}</text>
         </svg>
-        <div className="chart-range" aria-hidden="true">
-          <span>{formatPrice(max, currency)}</span>
-          <span>{formatPrice(min, currency)}</span>
+        <span className="chart-range-label" style={{ top: `${highLabelTop}%` }} aria-hidden="true">{formatPrice(max, currency)}</span>
+        <span className="chart-range-label chart-range-label-low" style={{ top: `${lowLabelTop}%` }} aria-hidden="true">{formatPrice(min, currency)}</span>
+        <div className={`chart-tooltip${tooltipBelow ? " is-below" : ""}`} style={{ left: `${tooltipLeft}%`, top: `${tooltipTop}%` }} aria-hidden="true">
+          <strong>{formatPrice(activePoint.sale.converted_price, currency)}</strong>
+          <span>{formatShortDate(activePoint.sale.sold_date!)}</span>
         </div>
       </div>
+      <p className="chart-active-summary" aria-live="polite">{activeSummary}</p>
     </article>
   );
 }

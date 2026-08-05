@@ -114,6 +114,7 @@ h1 span { display: block; color: var(--gold-light); font-style: italic; }
 .collector-shelf-detail-link:hover { background: var(--red-dark); }
 @media (prefers-reduced-motion: reduce) {
   .collector-shelf-item, .collector-shelf-nav { transition: none; }
+  .price-chart-point, .chart-tooltip { transition: none; }
 }
 @media (max-width: 700px) {
   .collector-shelf-track { padding: 1.25rem 1.25rem 1.75rem; }
@@ -249,11 +250,25 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .chart-status { padding: .42rem .62rem; border: 1px solid var(--line); color: var(--muted); font-size: .64rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
 .price-chart-wrap, .ghost-chart { position: relative; overflow: hidden; border: 1px solid var(--line); background: #ece5d8; }
 .price-chart, .ghost-chart svg { display: block; width: 100%; height: auto; }
-.price-chart line, .ghost-chart line { stroke: rgba(13,13,11,.12); stroke-width: 1; }
-.price-chart polyline { fill: none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.price-chart circle { fill: var(--paper); stroke: var(--gold); stroke-width: 3; }
+.ghost-chart line { stroke: rgba(13,13,11,.12); stroke-width: 1; }
+.price-chart .chart-grid-high, .price-chart .chart-grid-low { stroke: rgba(13,13,11,.17); stroke-width: 1; stroke-dasharray: 5 5; }
+.price-chart-area { opacity: .85; }
+.chart-gradient-start { stop-color: var(--gold); stop-opacity: .3; }
+.chart-gradient-end { stop-color: var(--gold); stop-opacity: 0; }
+.price-chart polyline { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.price-chart-point { fill: var(--paper); stroke: var(--gold); stroke-width: 2; opacity: .5; transition: r .12s ease, opacity .12s ease; }
+.price-chart-point.is-active { opacity: 1; stroke-width: 2.5; }
+.chart-active-guide { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 3 4; opacity: .5; }
 .price-chart text { fill: var(--muted); font-family: var(--font-geist), Arial, sans-serif; font-size: 12px; }
-.chart-range { position: absolute; top: 1rem; right: 1rem; display: grid; gap: .25rem; color: var(--muted); font-size: .68rem; text-align: right; }
+.price-chart-wrap { cursor: crosshair; }
+.price-chart-wrap:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 3px; }
+.chart-range-label { position: absolute; left: .65rem; margin-top: -.35rem; transform: translateY(-100%); color: var(--muted); font-size: .68rem; font-weight: 700; }
+.chart-range-label-low { margin-top: .35rem; transform: translateY(0); }
+.chart-tooltip { position: absolute; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; padding: .45rem .65rem; border-radius: .5rem; border: 1px solid var(--line); background: #fffcf3; box-shadow: 0 8px 20px rgba(33,29,24,.14); white-space: nowrap; transition: left .12s ease, top .12s ease; }
+.chart-tooltip.is-below { transform: translate(-50%, 14px); }
+.chart-tooltip strong { display: block; font-family: var(--font-cormorant), Georgia, serif; font-size: 1rem; font-weight: 700; color: var(--ink); line-height: 1; }
+.chart-tooltip span { display: block; margin-top: .2rem; color: var(--muted); font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.chart-active-summary { margin: .85rem 0 0; color: var(--muted); font-size: .78rem; font-weight: 600; }
 .chart-note { max-width: 690px; margin: 1rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
 .price-history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
 .comparable-chart-card { min-width: 0; }
@@ -704,8 +719,10 @@ footer { border-color: #e0d5b8; }
 .portfolio-add-button:hover, .community-report-actions button:hover, .portfolio-auth-form button[type="submit"]:hover, .portfolio-form-actions button[type="submit"]:hover { background: var(--red-dark); }
 .valuation-explainer summary { color: var(--orange-dark); }
 .price-chart-wrap, .ghost-chart { border-color: #e2d7ba; background: #fbf7ec; }
-.price-chart polyline { stroke: var(--red); }
-.price-chart circle { stroke: var(--red); }
+.price-chart polyline { stroke: var(--verified); }
+.price-chart-point { stroke: var(--verified); }
+.chart-gradient-start, .chart-gradient-end { stop-color: var(--verified); }
+.chart-active-guide { stroke: var(--verified); }
 .chart-status { background: var(--verified-soft); color: var(--verified); }
 a.observed-sale:hover, .source-card:hover { border-color: var(--orange); background: #fffcf3; }
 .sale-source, .edition-evidence-grid span { color: var(--orange-dark); }
