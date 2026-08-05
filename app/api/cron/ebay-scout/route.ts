@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { assessEditionMatch } from "@/lib/editionMatch";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
+import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
 
 export const maxDuration = 60;
 
@@ -17,6 +17,7 @@ type Profile = {
     language: string | null;
     isbn_13: string | null;
     publisher: string | null;
+    format: string | null;
   } | null;
 };
 
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("marketplace_search_profiles")
-    .select("id,search_query,collection_interval_days,last_checked_at,source:sources!inner(id,name),edition:manga_editions(title,series,volume_number,language,isbn_13,publisher)")
+    .select("id,search_query,collection_interval_days,last_checked_at,source:sources!inner(id,name),edition:manga_editions(title,series,volume_number,language,isbn_13,publisher,format)")
     .eq("is_active", true)
     .eq("source.name", "eBay Sold")
     .order("last_checked_at", { ascending: true, nullsFirst: true })
@@ -63,37 +64,13 @@ export async function GET(request: Request) {
   for (const profile of dueProfiles) {
     try {
       const listings = await findActiveEbayListings(profile.search_query, token);
-      const rows = listings.map((listing) => ({
-        profile_id: profile.id,
-        source_id: profile.source!.id,
-        external_id: listing.externalId,
-        source_listing_url: listing.url,
-        listing_title: listing.title,
-        listing_price: Number.isFinite(listing.price) ? listing.price : null,
-        currency: listing.currency,
-        listing_condition: listing.condition,
-        item_end_at: listing.itemEndAt,
-        match_assessment: assessEditionMatch(profile.edition!, {
-          title: listing.title,
-          series: null,
-          volume_number: null,
-          language: null,
-          isbn_13: null,
-          publisher: null,
-        }),
-        raw_payload: { provider: "ebay_browse", item: listing.rawPayload },
-        last_seen_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-      if (rows.length) {
-        const { error: upsertError } = await admin.from("scout_listing_leads").upsert(rows, { onConflict: "profile_id,source_id,external_id" });
-        if (upsertError) throw new Error("RAR could not store the active-listing leads.");
-      }
       const checkedAt = new Date().toISOString();
-      const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: rows.length });
+      const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt));
+      await storeScoutLeads(admin, profile.id, builds);
+      const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
       if (scanError) throw new Error("RAR could not record the completed Scout scan.");
-      await admin.from("marketplace_search_profiles").update({ last_checked_at: checkedAt, last_checked_result_count: rows.length, updated_at: checkedAt }).eq("id", profile.id);
-      activeLeads += rows.length;
+      await admin.from("marketplace_search_profiles").update({ last_checked_at: checkedAt, last_checked_result_count: builds.length, updated_at: checkedAt }).eq("id", profile.id);
+      activeLeads += builds.length;
     } catch (caught) {
       failures += 1;
       const message = caught instanceof Error ? caught.message : "Scout could not complete this scan.";

@@ -103,6 +103,64 @@ export function isPlausibleLiveListing(listing: PlausibilityListing, edition: Pl
   return false;
 }
 
+// Scout stores active-listing leads for later human review, one search
+// profile per exact edition. The listing text is the only evidence Scout has
+// before a human opens the link, so pulling an ISBN/publisher/language out of
+// the title lets the same contradiction check used for public live listings
+// also flag a lead as a confident non-match, worth auto-dismissing instead of
+// adding to a reviewer's queue.
+export function listingConflictsWithEdition(listingTitle: string, edition: PlausibilityEdition): boolean {
+  const candidateIsbn = listingIsbn(listingTitle);
+  if (candidateIsbn && edition.isbn_13 && candidateIsbn !== edition.isbn_13) return true;
+  if (formatContradicts(listingTitle, edition.format)) return true;
+  const mentioned = mentionedPublisherKeys(listingTitle);
+  if (mentioned.length) {
+    const editionKey = editionPublisherKey(edition.publisher);
+    if (editionKey === null || !mentioned.includes(editionKey)) return true;
+  }
+  return false;
+}
+
+const PUBLISHER_DISPLAY_NAMES: Record<string, string> = {
+  "viz media": "VIZ Media",
+  kodansha: "Kodansha",
+  "dark horse comics": "Dark Horse Comics",
+  shueisha: "Shueisha",
+  "epic comics": "Epic Comics",
+  marvel: "Marvel",
+  "graphitti designs": "Graphitti Designs",
+  "yen press": "Yen Press",
+  "seven seas": "Seven Seas",
+  "vertical comics": "Vertical Comics",
+  tokyopop: "Tokyopop",
+  "del rey": "Del Rey",
+  "udon entertainment": "Udon Entertainment",
+  "one peace books": "One Peace Books",
+  denpa: "Denpa",
+};
+
+function listingLanguage(text: string) {
+  const normalized = text.toLocaleLowerCase();
+  if (/\bjapanese\b/.test(normalized)) return "Japanese";
+  if (/\benglish\b/.test(normalized)) return "English";
+  return null;
+}
+
+export type ListingSignals = { isbn13: string | null; publisherName: string | null; language: string | null };
+
+// Best-effort read of ISBN/publisher/language directly out of a listing
+// title, for feeding a Scout match assessment something better than blank
+// fields. None of this is treated as confirmed unless it lines up with the
+// target edition's own recorded details.
+export function extractListingSignals(listingTitle: string): ListingSignals {
+  const mentioned = mentionedPublisherKeys(listingTitle);
+  return {
+    isbn13: listingIsbn(listingTitle),
+    publisherName: mentioned.length ? (PUBLISHER_DISPLAY_NAMES[mentioned[0]] ?? null) : null,
+    language: listingLanguage(listingTitle),
+  };
+}
+
 export function listingType(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Live listing";
   const item = (payload as { item?: unknown }).item;

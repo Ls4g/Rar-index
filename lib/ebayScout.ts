@@ -9,6 +9,17 @@ type EBayItem = {
 
 type EBaySearchResponse = { itemSummaries?: EBayItem[] };
 
+export type ActiveEbayListing = {
+  externalId: string;
+  url: string;
+  title: string;
+  price: number | null;
+  currency: string | null;
+  condition: string | null;
+  itemEndAt: string | null;
+  rawPayload: EBayItem;
+};
+
 export async function getEbayApplicationToken() {
   const clientId = process.env.EBAY_CLIENT_ID;
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
@@ -33,7 +44,7 @@ export async function getEbayApplicationToken() {
   return payload.access_token;
 }
 
-export async function findActiveEbayListings(query: string, applicationToken?: string) {
+export async function findActiveEbayListings(query: string, applicationToken?: string): Promise<ActiveEbayListing[]> {
   const token = applicationToken ?? await getEbayApplicationToken();
   const marketplaceId = process.env.EBAY_MARKETPLACE_ID || "EBAY_US";
   const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
