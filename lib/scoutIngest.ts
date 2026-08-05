@@ -63,8 +63,9 @@ export function buildScoutLeadRow(profileId: string, sourceId: string, edition: 
 }
 
 // Stores this scan's leads, then auto-dismisses only the ones a title-text
-// contradiction rules out (wrong ISBN, wrong publisher, wrong binding) and
-// that no human has touched yet. A lead a staff member has already set to
+// contradiction rules out (a multi-volume lot/set, wrong ISBN, wrong
+// publisher, wrong language, or wrong binding) and that no human has touched
+// yet. A lead a staff member has already set to
 // "watching" or manually "dismissed" is left alone — auto-triage never
 // overwrites a human decision, and it never verifies anything as a sale.
 export async function storeScoutLeads(admin: SupabaseClient, profileId: string, builds: ScoutLeadBuild[]) {
@@ -74,7 +75,7 @@ export async function storeScoutLeads(admin: SupabaseClient, profileId: string, 
 
   const conflictExternalIds = builds.filter((build) => build.conflictsWithEdition).map((build) => build.row.external_id);
   if (conflictExternalIds.length) {
-    const decisionNotes = "Auto-dismissed: the listing title conflicts with this edition's ISBN, publisher, or binding.";
+    const decisionNotes = "Auto-dismissed: the listing title is a multi-volume lot/set, or conflicts with this edition's ISBN, publisher, language, or binding.";
     const { data: dismissed } = await admin
       .from("scout_listing_leads")
       .update({ review_status: "dismissed", review_notes: decisionNotes, reviewed_by: "RAR Auto-Triage" })

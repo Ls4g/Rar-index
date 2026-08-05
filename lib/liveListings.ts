@@ -2,12 +2,22 @@ export function normaliseListingText(value: string | null | undefined) {
   return (value ?? "").toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+const MULTI_VOLUME_WORDS = /\b(?:vol(?:ume)?\.?|book|part)\s*\d+\s*(?:-|–|to)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
+
 export function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
   if (!volumeNumber) return true;
   const volume = String(volumeNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const exactVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part)\\s*${volume}\\b|#\\s*${volume}\\b|\\b${volume}\\s*(?:巻|kan)`, "i");
-  const multiVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part)\\s*\\d+\\s*(?:-|–|to)\\s*\\d+\\b|\\b(?:set|lot|collection|box\\s*set|complete)\\b`, "i");
-  return exactVolume.test(listingTitle) && !multiVolume.test(listingTitle);
+  return exactVolume.test(listingTitle) && !MULTI_VOLUME_WORDS.test(listingTitle);
+}
+
+// A listing whose title describes several volumes together (a "set", "lot",
+// numeric range, or "complete series") is never a single copy of one exact
+// edition, regardless of what else it says. Scout profiles are scoped to one
+// specific volume, so this alone is enough to rule a lot/set listing out —
+// no ISBN or publisher reading required.
+export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: string | number | null) {
+  return Boolean(volumeNumber) && MULTI_VOLUME_WORDS.test(listingTitle);
 }
 
 export type PlausibilityListing = { listing_title: string | null };
@@ -18,6 +28,7 @@ export type PlausibilityEdition = {
   publisher?: string | null;
   format?: string | null;
   isbn_13?: string | null;
+  language?: string | null;
 };
 
 // Publishers commonly seen in manga/comics eBay listings, including ones
@@ -110,9 +121,12 @@ export function isPlausibleLiveListing(listing: PlausibilityListing, edition: Pl
 // also flag a lead as a confident non-match, worth auto-dismissing instead of
 // adding to a reviewer's queue.
 export function listingConflictsWithEdition(listingTitle: string, edition: PlausibilityEdition): boolean {
+  if (listingIsMultiVolumeLot(listingTitle, edition.volume_number)) return true;
   const candidateIsbn = listingIsbn(listingTitle);
   if (candidateIsbn && edition.isbn_13 && candidateIsbn !== edition.isbn_13) return true;
   if (formatContradicts(listingTitle, edition.format)) return true;
+  const candidateLanguage = listingLanguage(listingTitle);
+  if (candidateLanguage && edition.language && candidateLanguage.toLocaleLowerCase() !== edition.language.toLocaleLowerCase()) return true;
   const mentioned = mentionedPublisherKeys(listingTitle);
   if (mentioned.length) {
     const editionKey = editionPublisherKey(edition.publisher);
