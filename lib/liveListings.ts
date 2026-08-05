@@ -20,6 +20,15 @@ export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: stri
   return Boolean(volumeNumber) && MULTI_VOLUME_WORDS.test(listingTitle);
 }
 
+// A title naming one specific volume other than the target's — "Vol 8" on a
+// Vol. 1 profile — is a plain, confident mismatch, distinct from a lot/set
+// (already handled above) or a listing that names no volume at all.
+function listingNamesOtherVolume(listingTitle: string, volumeNumber: string | number | null) {
+  if (!volumeNumber) return false;
+  const match = listingTitle.match(/\b(?:vol(?:ume)?\.?|book|part)\s*(\d+)\b/i);
+  return match !== null && match[1] !== String(volumeNumber);
+}
+
 export type PlausibilityListing = { listing_title: string | null };
 export type PlausibilityEdition = {
   title: string | null;
@@ -122,6 +131,7 @@ export function isPlausibleLiveListing(listing: PlausibilityListing, edition: Pl
 // adding to a reviewer's queue.
 export function listingConflictsWithEdition(listingTitle: string, edition: PlausibilityEdition): boolean {
   if (listingIsMultiVolumeLot(listingTitle, edition.volume_number)) return true;
+  if (listingNamesOtherVolume(listingTitle, edition.volume_number)) return true;
   const candidateIsbn = listingIsbn(listingTitle);
   if (candidateIsbn && edition.isbn_13 && candidateIsbn !== edition.isbn_13) return true;
   if (formatContradicts(listingTitle, edition.format)) return true;

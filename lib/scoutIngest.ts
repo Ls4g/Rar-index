@@ -75,7 +75,7 @@ export async function storeScoutLeads(admin: SupabaseClient, profileId: string, 
 
   const conflictExternalIds = builds.filter((build) => build.conflictsWithEdition).map((build) => build.row.external_id);
   if (conflictExternalIds.length) {
-    const decisionNotes = "Auto-dismissed: the listing title is a multi-volume lot/set, or conflicts with this edition's ISBN, publisher, language, or binding.";
+    const decisionNotes = "Auto-dismissed: the listing title is a multi-volume lot/set, names a different volume, or conflicts with this edition's ISBN, publisher, language, or binding.";
     const { data: dismissed } = await admin
       .from("scout_listing_leads")
       .update({ review_status: "dismissed", review_notes: decisionNotes, reviewed_by: "RAR Auto-Triage" })

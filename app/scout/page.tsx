@@ -69,7 +69,7 @@ export default async function ScoutPage() {
       <Link className="header-note" href="/collection-profiles">Collection profiles →</Link>
     </header>
     <section className="review-hero catalogue-hero">
-      <div><p className="eyebrow">RAR Scout</p><h1>Active listing leads</h1><p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. On every scan, RAR Auto-Triage dismisses leads that are a multi-volume lot/set, or whose title text clearly conflicts with the target edition&apos;s ISBN, publisher, language, or binding ({autoDismissedCount ?? 0} dismissed so far) &mdash; it never touches a lead a staff member has already reviewed, and it never verifies a sale.</p><ScoutBatchRunButton /></div>
+      <div><p className="eyebrow">RAR Scout</p><h1>Active listing leads</h1><p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. On every scan, RAR Auto-Triage dismisses leads that are a multi-volume lot/set, name a different volume, or whose title text clearly conflicts with the target edition&apos;s ISBN, publisher, language, or binding ({autoDismissedCount ?? 0} dismissed so far) &mdash; it never touches a lead a staff member has already reviewed, and it never verifies a sale.</p><ScoutBatchRunButton /></div>
       <div className="queue-total"><strong>{profiles.length}</strong><span>active search profiles</span></div>
     </section>
     <section className="review-list-section">
