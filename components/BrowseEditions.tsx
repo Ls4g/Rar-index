@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import EditionCover from "@/components/EditionCover";
-import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
 
 export type BrowseEdition = {
   id: string;
@@ -27,8 +27,11 @@ export type BrowseEdition = {
 
 type SortMode = "newest" | "title" | "completeness";
 
+// What "well documented" means for sort/filter purposes: a confirmed cover,
+// a proven sale, and the specific-printing evidence collectors actually rely
+// on — not just how many optional fields happen to be filled in.
 function completenessScore(edition: BrowseEdition) {
-  return Number(edition.cover_verification_status === "verified") + Number(Boolean(edition.edition_statement)) + Number(Boolean(edition.printing_number)) + Number(Boolean(edition.variant_name));
+  return Number(edition.cover_verification_status === "verified") + Number(edition.verified_sale_count > 0) + Number(Boolean(edition.edition_statement)) + Number(Boolean(edition.printing_number)) + Number(Boolean(edition.variant_name));
 }
 
 function bySort(sort: SortMode) {
@@ -41,15 +44,16 @@ function bySort(sort: SortMode) {
 
 export default function BrowseEditions({ editions }: { editions: BrowseEdition[] }) {
   const searchParams = useSearchParams();
+  const bestDocumented = searchParams.get("collection") === "best-documented";
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState("all");
   const [publisher, setPublisher] = useState("all");
   const [collectibleType, setCollectibleType] = useState("all");
   const [firstPrintOnly, setFirstPrintOnly] = useState(searchParams.get("printing") === "first");
-  const [coverOnly, setCoverOnly] = useState(false);
-  const [verifiedSalesOnly, setVerifiedSalesOnly] = useState(searchParams.get("evidence") === "verified-sales");
+  const [coverOnly, setCoverOnly] = useState(bestDocumented);
+  const [verifiedSalesOnly, setVerifiedSalesOnly] = useState(bestDocumented || searchParams.get("evidence") === "verified-sales");
   const [japaneseOnly, setJapaneseOnly] = useState(false);
-  const [sort, setSort] = useState<SortMode>("newest");
+  const [sort, setSort] = useState<SortMode>(bestDocumented ? "completeness" : "newest");
 
   const languages = useMemo(() => [...new Set(editions.map((edition) => edition.language).filter((value): value is string => Boolean(value)))].sort(), [editions]);
   const publishers = useMemo(() => [...new Set(editions.map((edition) => publisherDisplayName(edition.publisher)).filter((value): value is string => Boolean(value)))].sort(), [editions]);
@@ -120,6 +124,12 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   const resultCount = filtered.length;
 
   return <>
+    {bestDocumented ? (
+      <div className="browse-collection-banner">
+        <strong>Best-documented editions</strong>
+        <p>Filtered to records with a verified sale and a verified cover. Remove a filter below to see the wider catalogue.</p>
+      </div>
+    ) : null}
     <div className="browse-controls" aria-label="Filter editions">
       <label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title, series or ISBN" /></label>
       <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="all">All languages</option>{languages.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
@@ -143,6 +153,8 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
             <div className="browse-grid">
               {group.editions.map((edition) => {
                 const generalEdition = edition.printing_of_edition_id ? editionsById.get(edition.printing_of_edition_id) : null;
+                const hasVerifiedCover = edition.cover_verification_status === "verified";
+                const wellDocumented = hasVerifiedCover && edition.verified_sale_count > 0;
                 return (
                   <Link href={`/edition/${edition.id}`} className="browse-card" key={edition.id}>
                     <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
@@ -152,6 +164,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                       <strong>{editionDescriptor(edition)}</strong>
                       {generalEdition ? <em className="browse-card-printing-of">↳ Printing of {generalEdition.title}</em> : null}
                       <span>{publisherDisplayName(edition.publisher)}</span>
+                      <span className={`browse-card-evidence${wellDocumented ? " is-well-documented" : ""}`}>{evidenceStatusLabel(hasVerifiedCover, edition.verified_sale_count)}</span>
                       <small>{edition.isbn_13 || "ISBN pending"}</small>
                     </div>
                   </Link>

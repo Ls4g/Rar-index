@@ -306,6 +306,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <Link className="header-note" href="/identify">Identify a copy</Link>
           <Link className="header-note" href="/browse">Browse editions</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+          <Link className="header-note" href="/staff-login">Staff access</Link>
         </nav>
       </header>
 

@@ -28,3 +28,11 @@ export function publisherDisplayName(publisher: string | null | undefined) {
   if (!publisher) return "Publisher pending";
   return publisherAliases.find(([pattern]) => pattern.test(publisher))?.[1] ?? publisher;
 }
+
+// A single honest line for how documented an edition is, reused anywhere a
+// catalogue card needs to say so in plain text rather than implying it.
+export function evidenceStatusLabel(coverVerified: boolean, verifiedSaleCount: number) {
+  const cover = coverVerified ? "Verified cover" : "Cover pending";
+  const sale = verifiedSaleCount > 0 ? `${verifiedSaleCount} verified sale${verifiedSaleCount === 1 ? "" : "s"}` : "No verified sale yet";
+  return `${sale} · ${cover}`;
+}

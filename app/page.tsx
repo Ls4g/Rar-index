@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
-import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
 import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 
 // Catalogue updates should appear without waiting for the next deployment.
@@ -85,10 +85,20 @@ export default async function Home() {
   for (const sale of verifiedSales ?? []) {
     saleCounts.set(sale.edition_id, (saleCounts.get(sale.edition_id) ?? 0) + 1);
   }
+  // Best-documented first: a verified cover alongside a verified sale is
+  // what actually makes a record useful to a collector browsing right now,
+  // so it outranks a higher sale count with no confirmed cover art.
   const pricedEditions = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => saleCounts.has(String(edition.id)))
-    .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0))
+    .sort((a, b) => {
+      const coverRank = Number(b.cover_verification_status === "verified") - Number(a.cover_verification_status === "verified");
+      if (coverRank !== 0) return coverRank;
+      return (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0);
+    })
     .slice(0, 6);
+  const bestDocumentedCount = ((allCatalogue ?? []) as Manga[])
+    .filter((edition) => saleCounts.has(String(edition.id)) && edition.cover_verification_status === "verified")
+    .length;
 
   // A recent-sales activity feed and live buying opportunities, both drawn
   // across the whole catalogue rather than one edition at a time.
@@ -207,7 +217,7 @@ export default async function Home() {
 
         {pricedEditions.length > 0 ? (
           <>
-            <p className="section-copy market-evidence-copy">Every sale links back to its original source. RAR only uses a sale in a valuation after its edition match has been verified.</p>
+            <p className="section-copy market-evidence-copy">Every sale links back to its original source. RAR only uses a sale in a valuation after its edition match has been verified. Records with both a verified sale and a verified cover are shown first.</p>
             <div className="manga-grid">
               {pricedEditions.map((item, index) => {
                 const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
@@ -227,12 +237,13 @@ export default async function Home() {
                           <dd>{editionDescriptor(item)}</dd>
                         </div>
                       </dl>
+                      {item.cover_verification_status !== "verified" ? <small className="card-honest-note">Cover not yet confirmed — shown for its sale evidence.</small> : null}
                     </div>
                   </Link>
                 );
               })}
             </div>
-            <div className="index-section-action"><Link href="/browse?evidence=verified-sales">Browse editions with verified prices →</Link></div>
+            <div className="index-section-action"><Link href="/browse?collection=best-documented">Browse the best-documented editions →</Link></div>
           </>
         ) : (
           <div className="status-message">RAR is reviewing its first sale sources. Catalogue entries never receive a price until the source and edition match are confirmed.</div>
@@ -307,11 +318,11 @@ export default async function Home() {
         )}
       </section>
 
-      <section className="index-section" aria-labelledby="new-additions-heading">
+      <section className="index-section still-documenting-section" aria-labelledby="new-additions-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">The RAR Index</p>
-            <h2 id="new-additions-heading">Recently documented editions</h2>
+            <p className="eyebrow">Still being documented</p>
+            <h2 id="new-additions-heading">Recently added catalogue records</h2>
           </div>
           <span>{count ?? manga.length} catalogue-ready edition{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
         </div>
@@ -322,8 +333,11 @@ export default async function Home() {
           </div>
         ) : manga.length > 0 ? (
           <>
+            <p className="section-copy">These are the newest catalogue records, shown honestly: most do not have a verified sale or a verified cover yet. That evidence is added as RAR reviews it, never assumed.</p>
             <div className="manga-grid">
-              {manga.slice(0, 3).map((item, index) => (
+              {manga.slice(0, 3).map((item, index) => {
+                const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
+                return (
                 <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
                   <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
                   <div className="card-body">
@@ -343,11 +357,13 @@ export default async function Home() {
                         <dd>{publisherDisplayName(item.publisher)}</dd>
                       </div>
                     </dl>
+                    <small className="card-honest-note">{evidenceStatusLabel(item.cover_verification_status === "verified", verifiedSaleCount)}</small>
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
-            <div className="index-section-action"><Link href="/browse">Browse all catalogue-ready editions →</Link></div>
+            <div className="index-section-action"><Link href="/browse">Browse the full catalogue →</Link></div>
           </>
         ) : (
           <div className="status-message">
@@ -364,6 +380,7 @@ export default async function Home() {
         </div>
         <div className="index-explore-grid">
           <Link href="/browse"><span>Catalogue</span><strong>Browse all {count ?? manga.length} editions</strong><small>Search by title, publisher, language or ISBN.</small></Link>
+          <Link href="/browse?collection=best-documented"><span>Best documented</span><strong>{bestDocumentedCount} edition{bestDocumentedCount === 1 ? "" : "s"} with both</strong><small>A verified sale and a verified cover — RAR&apos;s strongest records.</small></Link>
           <Link href="/browse?evidence=verified-sales"><span>Market evidence</span><strong>{evidenceCount ?? 0} editions with verified sales</strong><small>See only editions with confirmed matching sale evidence.</small></Link>
           <Link href="/browse?printing=first"><span>Printing research</span><strong>{firstPrintCount ?? 0} first-print records</strong><small>Check the record and its linked source before relying on a printing claim.</small></Link>
           <a href="#recent-sales-heading"><span>Recent activity</span><strong>{recentSalesWithEdition.length} recent verified sale{recentSalesWithEdition.length === 1 ? "" : "s"}</strong><small>See the latest completed sales RAR has proven match an exact edition.</small></a>

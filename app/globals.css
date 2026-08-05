@@ -439,6 +439,10 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .browse-card > strong { color: #5e5132; font-size: .76rem; line-height: 1.4; }
 .browse-card > span, .browse-card > small { display: block; margin-top: .5rem; color: var(--muted); font-size: .72rem; line-height: 1.4; }
 .browse-card > small { margin-top: auto; padding-top: 1.5rem; }
+.browse-card-evidence.is-well-documented { color: #32623a; font-weight: 600; }
+.browse-collection-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1rem; margin-bottom: 1.25rem; padding: 1rem 1.25rem; border: 1px solid #d8c494; border-radius: .6rem; background: #fff9eb; }
+.browse-collection-banner strong { color: #705019; font-size: .9rem; }
+.browse-collection-banner p { margin: 0; color: var(--muted); font-size: .78rem; }
 @media (max-width: 850px) { .portfolio-auth, .portfolio-grid { grid-template-columns: 1fr; gap: 3rem; } .portfolio-summary { grid-template-columns: 1fr; } .browse-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } .browse-checkbox { grid-column: 1 / -1; } .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .portfolio-auth { padding: 4.5rem 1.25rem; } .portfolio-hero { display: block; padding-top: 4rem; padding-bottom: 3rem; } .portfolio-count { margin-top: 2rem; padding: 1rem 0 0; border-top: 1px solid rgba(244,240,232,.35); border-left: 0; } .portfolio-content { padding-left: 1rem; padding-right: 1rem; } .portfolio-holding { grid-template-columns: 1fr; } .portfolio-holding-value { padding: 1rem 0 0; border-top: 1px solid var(--line); border-left: 0; } }
 .identity-checklist { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--line); background: #f7f1e6; }
@@ -750,6 +754,8 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .priced-edition-card { position: relative; }
 .priced-edition-card::after { content: "Verified source"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid #d8c494; border-radius: 999px; background: #fff9eb; color: #72531a; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .priced-edition-card .card-kicker { padding-right: 4.9rem; line-height: 1.35; }
+.card-honest-note { display: block; margin-top: .6rem; color: var(--muted); font-size: .68rem; font-style: italic; line-height: 1.4; }
+.still-documenting-section { padding-top: 3.5rem; border-top: 1px dashed var(--line); }
 .index-explore { width: min(100% - 4rem, 1320px); margin: 0 auto 5.5rem; padding-top: 3.5rem; border-top: 1px solid #dfd6c6; }
 .index-explore-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-top: 1.5rem; }
 .index-explore-grid a { display: grid; gap: .48rem; min-height: 158px; padding: 1.2rem; border: 1px solid #dfd6c6; border-radius: .85rem; background: #fffdf8; color: var(--ink); text-decoration: none; transition: transform .18s ease, border-color .18s ease; }
