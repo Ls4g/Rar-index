@@ -90,6 +90,9 @@ h1 span { display: block; color: var(--gold-light); font-style: italic; }
 .search-result-cover .edition-cover-fallback-mark { display: none; }
 .search-result-cover .edition-cover-fallback-status strong { font-size: .58rem; }
 .search-result-cover .edition-cover-fallback small, .search-result-cover .edition-cover-badge { display: none; }
+/* The "Catalogue cover" badge needs more width than the homepage's compact
+   card thumbnail has; at that size it just clips to unreadable characters. */
+.card-cover .edition-cover-badge { display: none; }
 .search-result strong, .search-result span, .search-result small, .search-edition-label { display: block; }
 .search-result strong { color: var(--paper); font-size: .88rem; }
 .search-result span, .search-result small, .search-message { color: rgba(244,240,232,.58); font-size: .72rem; }
@@ -625,7 +628,7 @@ a.observed-sale:hover, .source-card:hover { border-color: #c9c4ff; background: #
 .portfolio-holding { border: 1px solid #e1e3eb; border-radius: .85rem; background: #fff; }
 
 @media (max-width: 850px) { .manga-grid, .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .edition-hero, .browse-hero, .portfolio-hero { margin-left: 1rem; margin-right: 1rem; } }
-@media (max-width: 600px) { .site-header { min-height: 64px; padding: .9rem 1rem; } .header-links { gap: .55rem; } .header-note:last-child { padding: .5rem .6rem; } .hero-content { padding: 5.6rem 1.25rem 4rem; } h1 { font-size: clamp(3.1rem, 15vw, 4.5rem); } .index-section { padding: 4rem 1rem; } .manga-grid, .browse-grid { grid-template-columns: 1fr; gap: .75rem; } .manga-card { grid-template-columns: 84px minmax(0, 1fr); } .principle-section { margin: 0 1rem 4rem; padding: 2rem 1.25rem; } .edition-hero, .browse-hero, .portfolio-hero { margin-left: .75rem; margin-right: .75rem; border-radius: 1rem; } .edition-content { padding-top: 3rem; } .valuation-panel { padding: 1.35rem; } .browse-controls { padding: 1rem; } }
+@media (max-width: 600px) { .site-header { min-height: 64px; padding: .9rem 1rem; } .header-links { flex-wrap: nowrap; gap: .9rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; } .header-links::-webkit-scrollbar { display: none; } .header-note { flex: 0 0 auto; white-space: nowrap; } .header-note:last-child { padding: .5rem .6rem; } .hero-content { padding: 5.6rem 1.25rem 4rem; } h1 { font-size: clamp(3.1rem, 15vw, 4.5rem); } .index-section { padding: 4rem 1rem; } .manga-grid, .browse-grid { grid-template-columns: 1fr; gap: .75rem; } .manga-card { grid-template-columns: 84px minmax(0, 1fr); } .principle-section { margin: 0 1rem 4rem; padding: 2rem 1.25rem; } .edition-hero, .browse-hero, .portfolio-hero { margin-left: .75rem; margin-right: .75rem; border-radius: 1rem; } .edition-content { padding-top: 3rem; } .valuation-panel { padding: 1.35rem; } .browse-controls { padding: 1rem; } }
 
 /* Collector re-skin: retain the modern product layout, restore RAR's warm physical-collecting character. */
 :root { --ink: #15130f; --paper: #f4f0e8; --stone: #e3dbcc; --muted: #756e62; --gold: #a77d2d; --gold-light: #dec77e; --line: #dfd6c6; }
@@ -753,7 +756,7 @@ a.observed-sale:hover, .source-card:hover { border-color: #cfbd84; background: #
 .market-evidence-copy { margin: -0.45rem 0 1.45rem; }
 .priced-edition-card { position: relative; }
 .priced-edition-card::after { content: "Verified source"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid #d8c494; border-radius: 999px; background: #fff9eb; color: #72531a; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.priced-edition-card .card-kicker { padding-right: 4.9rem; line-height: 1.35; }
+.priced-edition-card .card-kicker { padding-right: 7rem; line-height: 1.35; }
 .card-honest-note { display: block; margin-top: .6rem; color: var(--muted); font-size: .68rem; font-style: italic; line-height: 1.4; }
 .still-documenting-section { padding-top: 3.5rem; border-top: 1px dashed var(--line); }
 .index-explore { width: min(100% - 4rem, 1320px); margin: 0 auto 5.5rem; padding-top: 3.5rem; border-top: 1px solid #dfd6c6; }

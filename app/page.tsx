@@ -386,6 +386,7 @@ export default async function Home() {
           <a href="#recent-sales-heading"><span>Recent activity</span><strong>{recentSalesWithEdition.length} recent verified sale{recentSalesWithEdition.length === 1 ? "" : "s"}</strong><small>See the latest completed sales RAR has proven match an exact edition.</small></a>
           <a href="#live-opportunities-heading"><span>RAR Scout</span><strong>{liveOpportunities.length} live buying opportunit{liveOpportunities.length === 1 ? "y" : "ies"}</strong><small>Active listings whose title clearly matches a catalogue edition.</small></a>
           <a href="#new-additions-heading"><span>New research</span><strong>Recently documented editions</strong><small>See the newest records added to the growing catalogue.</small></a>
+          <Link href="/identify"><span>Get started</span><strong>Identify a copy</strong><small>Use the copyright page and identifiers before calling something a first print.</small></Link>
         </div>
       </section>
 
