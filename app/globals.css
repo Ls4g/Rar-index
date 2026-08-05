@@ -186,6 +186,17 @@ dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; overflow-wrap: 
 .edition-variant { margin: .65rem 0 0; color: rgba(244,240,232,.62); font-size: .9rem; }
 .edition-printing-relation { margin: .65rem 0 0; padding: .6rem .85rem; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; color: rgba(244,240,232,.78); }
 .edition-printing-relation a { color: inherit; text-decoration: underline; }
+.edition-printing-relation-group { display: grid; gap: .6rem; margin-top: .65rem; }
+.edition-printing-relation-group .edition-printing-relation { margin-top: 0; }
+/* A record with no evidence of its own but a linked general/printing
+   sibling that DOES have verified sales should make that impossible to
+   miss — not one sentence buried among several. */
+.printing-evidence-callout { display: block; margin-top: .65rem; padding: .9rem 1.1rem; border: 1px solid var(--verified); border-radius: .7rem; background: var(--verified-soft); color: var(--paper); text-decoration: none; transition: background .18s ease, border-color .18s ease; }
+.printing-evidence-callout:hover { background: rgba(31,122,92,.18); border-color: #2fa47a; }
+.printing-evidence-callout-label { display: block; margin-bottom: .3rem; color: #6fd6ae; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.printing-evidence-callout strong { display: block; font-family: var(--font-cormorant), Georgia, serif; font-size: 1.25rem; font-weight: 600; line-height: 1.1; }
+.printing-evidence-callout-stats { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin-top: .55rem; }
+.printing-evidence-callout-stats b { font-weight: 700; font-size: .82rem; color: #d7f3e6; }
 .catalogue-isbn-warning { margin: 1rem 0; padding: .85rem 1rem; border: 1px solid #b45309; border-radius: 6px; background: rgba(180,83,9,.08); }
 .catalogue-isbn-warning .edition-suggestions button.selected { border-color: #16a34a; }
 .edition-content { padding-top: 5rem; padding-bottom: 6rem; }

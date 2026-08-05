@@ -67,6 +67,9 @@ type LiveListing = {
   raw_payload: unknown;
 };
 
+type PrintingSale = { edition_id: string; sale_price: number; currency: string; sold_date: string | null };
+type PrintingEvidence = { verifiedSaleCount: number; latestSale: { price: number; currency: string; soldDate: string | null } };
+
 function formatPrice(value: number, code: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -154,6 +157,28 @@ export default async function EditionPage({ params }: EditionPageProps) {
   ]);
   const generalEdition = generalEditionResult.data as { id: string; title: string | null; language: string | null; isbn_13: string | null; edition_statement: string | null } | null;
   const printingsOfThisEdition = (printingsOfThisEditionResult.data ?? []) as RelatedEdition[];
+
+  // A general edition record and a proven specific printing of it are
+  // deliberately kept as separate catalogue entries (a first-print claim
+  // needs its own copyright-page proof). That easily reads as "why does
+  // this page have no prices?" so surface whichever linked record actually
+  // carries the evidence, not just its name.
+  const printingRelatedIds = [...(generalEdition ? [generalEdition.id] : []), ...printingsOfThisEdition.map((printing) => printing.id)];
+  const { data: printingSalesData } = printingRelatedIds.length
+    ? await supabase
+      .from("price_observations")
+      .select("edition_id, sale_price, currency, sold_date")
+      .in("edition_id", printingRelatedIds)
+      .eq("sale_status", "confirmed")
+      .eq("match_status", "verified_match")
+      .order("sold_date", { ascending: false })
+    : { data: [] };
+  const printingEvidence = new Map<string, PrintingEvidence>();
+  for (const sale of (printingSalesData ?? []) as PrintingSale[]) {
+    const existing = printingEvidence.get(sale.edition_id);
+    if (existing) existing.verifiedSaleCount += 1;
+    else printingEvidence.set(sale.edition_id, { verifiedSaleCount: 1, latestSale: { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date } });
+  }
 
   const relatedEditionsResult = edition.series && edition.volume_number
     ? await supabase
@@ -325,26 +350,47 @@ export default async function EditionPage({ params }: EditionPageProps) {
           {edition.variant_name || edition.edition_statement ? (
             <p className="edition-variant">{edition.variant_name || edition.edition_statement}</p>
           ) : null}
-          {generalEdition ? (
-            <p className="edition-printing-relation">
-              A specific printing of{" "}
-              <Link href={`/edition/${generalEdition.id}`}>
-                {generalEdition.title} — {generalEdition.edition_statement || "general edition record"}
-              </Link>
-              . Market evidence and search profiles for this ISBN may also exist on that record.
-            </p>
-          ) : null}
-          {printingsOfThisEdition.length ? (
-            <p className="edition-printing-relation">
-              {printingsOfThisEdition.length} specific printing{printingsOfThisEdition.length === 1 ? "" : "s"} of this edition {printingsOfThisEdition.length === 1 ? "has" : "have"} been proven:{" "}
-              {printingsOfThisEdition.map((printing, index) => (
-                <span key={printing.id}>
-                  {index > 0 ? ", " : ""}
-                  <Link href={`/edition/${printing.id}`}>{relatedEditionLabel(printing)}</Link>
+          {generalEdition ? (() => {
+            const evidence = printingEvidence.get(generalEdition.id);
+            return evidence ? (
+              <Link href={`/edition/${generalEdition.id}`} className="printing-evidence-callout">
+                <span className="printing-evidence-callout-label">Verified pricing lives on the general record →</span>
+                <strong>{generalEdition.title} — {generalEdition.edition_statement || "general edition record"}</strong>
+                <span className="printing-evidence-callout-stats">
+                  <b>{evidence.verifiedSaleCount} verified sale{evidence.verifiedSaleCount === 1 ? "" : "s"}</b>
+                  <b>Latest {formatPrice(evidence.latestSale.price, evidence.latestSale.currency)} · {formatDate(evidence.latestSale.soldDate)}</b>
                 </span>
-              ))}
-              .
-            </p>
+              </Link>
+            ) : (
+              <p className="edition-printing-relation">
+                A specific printing of{" "}
+                <Link href={`/edition/${generalEdition.id}`}>
+                  {generalEdition.title} — {generalEdition.edition_statement || "general edition record"}
+                </Link>
+                . Market evidence and search profiles for this ISBN may also exist on that record.
+              </p>
+            );
+          })() : null}
+          {printingsOfThisEdition.length ? (
+            <div className="edition-printing-relation-group">
+              {printingsOfThisEdition.map((printing) => {
+                const evidence = printingEvidence.get(printing.id);
+                return evidence ? (
+                  <Link href={`/edition/${printing.id}`} className="printing-evidence-callout" key={printing.id}>
+                    <span className="printing-evidence-callout-label">Verified pricing exists on a specific printing →</span>
+                    <strong>{relatedEditionLabel(printing)}</strong>
+                    <span className="printing-evidence-callout-stats">
+                      <b>{evidence.verifiedSaleCount} verified sale{evidence.verifiedSaleCount === 1 ? "" : "s"}</b>
+                      <b>Latest {formatPrice(evidence.latestSale.price, evidence.latestSale.currency)} · {formatDate(evidence.latestSale.soldDate)}</b>
+                    </span>
+                  </Link>
+                ) : (
+                  <p className="edition-printing-relation" key={printing.id}>
+                    A specific printing has been proven: <Link href={`/edition/${printing.id}`}>{relatedEditionLabel(printing)}</Link>.
+                  </p>
+                );
+              })}
+            </div>
           ) : null}
           </div>
         </div>
