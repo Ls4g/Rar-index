@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { isPrioritySeries } from "@/lib/prioritySeries";
 
 export type CoverageRow = {
   editionId: string;
@@ -28,26 +29,9 @@ export type CoverageRow = {
 type SaleRange = "all" | "zero" | "one_two" | "three_plus";
 type ProfileFilter = "all" | "has" | "missing";
 
-// Pricing coverage sprint (2026-08): these 9 series' Vol. 1 editions are the
-// current operational focus for closing sales-evidence and cover gaps.
-// Matched case-insensitively since the catalogue has a known casing
-// inconsistency ("One Piece" vs "ONE PIECE") on one series.
-const TARGET_SPRINT_SERIES = [
-  "One Piece",
-  "Hunter",
-  "Jujutsu Kaisen",
-  "Kagurabachi",
-  "Naruto",
-  "Bleach",
-  "Demon Slayer",
-  "Attack on Titan",
-  "Initial D",
-];
-
 function isTargetSprintRow(row: CoverageRow) {
   if (row.volumeNumber !== "1") return false;
-  const series = (row.series ?? "").toLocaleLowerCase();
-  return TARGET_SPRINT_SERIES.some((target) => series.includes(target.toLocaleLowerCase()));
+  return isPrioritySeries(row.series);
 }
 
 const coverLabels: Record<CoverageRow["coverStatus"], string> = {

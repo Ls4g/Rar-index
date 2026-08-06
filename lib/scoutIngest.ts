@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assessEditionMatch } from "./editionMatch";
-import { extractListingSignals, listingConflictsWithEdition } from "./liveListings";
+import { assessEditionMatch, type EditionMatchAssessment, type EditionMatchCandidate } from "./editionMatch";
+import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings";
 import type { ActiveEbayListing } from "./ebayScout";
 
 export type ScoutEdition = {
@@ -31,12 +31,50 @@ export type ScoutLeadRow = {
 
 export type ScoutLeadBuild = { row: ScoutLeadRow; conflictsWithEdition: boolean };
 
+// Reads everything a match assessment needs directly out of listing text.
+// Volume gets resolved to either the target's own volume number (a
+// confirmed match), a different number actually named in the title (a
+// confirmed conflict), or null (not mentioned at all) — the same
+// match/conflict/unknown distinction assessEditionMatch already keeps for
+// every other field, rather than leaving volume permanently blank the way
+// live Scout ingestion did before.
+export function buildCandidateFromListing(edition: ScoutEdition, listingTitle: string): EditionMatchCandidate {
+  const signals = extractListingSignals(listingTitle);
+  const matchesVolume = hasMatchingVolume(listingTitle, edition.volume_number);
+  const otherVolume = listingNamesOtherVolume(listingTitle, edition.volume_number);
+  return {
+    title: listingTitle,
+    series: null,
+    volume_number: matchesVolume && edition.volume_number ? String(edition.volume_number) : otherVolume,
+    language: signals.language,
+    isbn_13: signals.isbn13,
+    publisher: signals.publisherName,
+    format: detectFormatWord(listingTitle),
+  };
+}
+
+// The single scoring path for a Scout listing, used both when a scan first
+// stores a lead and whenever the Scout Triage Inbox re-renders one — so a
+// scoring-rule change takes effect immediately for every already-stored
+// lead without a data migration. A multi-volume lot/set is a plain-text
+// pattern or a whole-listing shape, not a structured field to weigh
+// alongside the others, so it is layered on afterwards as a hard conflict
+// rather than folded into assessEditionMatch itself (which stays identical
+// for its other caller, CSV price-import matching).
+export function assessScoutListing(edition: ScoutEdition, listingTitle: string): EditionMatchAssessment {
+  const candidate = buildCandidateFromListing(edition, listingTitle);
+  const assessment = assessEditionMatch(edition, candidate);
+  if (listingIsMultiVolumeLot(listingTitle, edition.volume_number)) {
+    return { ...assessment, confidence: "conflict", conflicts: [...assessment.conflicts, "listing appears to be a multi-volume lot or set"] };
+  }
+  return assessment;
+}
+
 // Every Scout scan (manual, batch, or the daily cron) builds rows the same
 // way. Centralising it means the title-text signal extraction and the
 // auto-dismiss rule below stay in one place instead of drifting across three
 // near-identical route handlers.
 export function buildScoutLeadRow(profileId: string, sourceId: string, edition: ScoutEdition, listing: ActiveEbayListing, checkedAt: string): ScoutLeadBuild {
-  const signals = extractListingSignals(listing.title);
   const row: ScoutLeadRow = {
     profile_id: profileId,
     source_id: sourceId,
@@ -47,14 +85,7 @@ export function buildScoutLeadRow(profileId: string, sourceId: string, edition: 
     currency: listing.currency,
     listing_condition: listing.condition,
     item_end_at: listing.itemEndAt,
-    match_assessment: assessEditionMatch(edition, {
-      title: listing.title,
-      series: null,
-      volume_number: null,
-      language: signals.language,
-      isbn_13: signals.isbn13,
-      publisher: signals.publisherName,
-    }),
+    match_assessment: assessScoutListing(edition, listing.title),
     raw_payload: { provider: "ebay_browse", item: listing.rawPayload },
     last_seen_at: checkedAt,
     updated_at: checkedAt,

@@ -2,7 +2,10 @@ export function normaliseListingText(value: string | null | undefined) {
   return (value ?? "").toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-const MULTI_VOLUME_WORDS = /\b(?:vol(?:ume)?\.?|book|part)\s*\d+\s*(?:-|–|to)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
+// The numeric-range half also accepts "&"/"and"/"," between two volume
+// numbers ("Volume 1 & 2", "Vol 1, 2, 3") — just as unambiguous a lot/set
+// signal as an explicit dash range, and a real, observed listing pattern.
+const MULTI_VOLUME_WORDS = /\b(?:vol(?:ume)?\.?|book|part)\s*\d+\s*(?:-|–|to|&|and|,)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
 
 export function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
   if (!volumeNumber) return true;
@@ -22,11 +25,13 @@ export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: stri
 
 // A title naming one specific volume other than the target's — "Vol 8" on a
 // Vol. 1 profile — is a plain, confident mismatch, distinct from a lot/set
-// (already handled above) or a listing that names no volume at all.
-function listingNamesOtherVolume(listingTitle: string, volumeNumber: string | number | null) {
-  if (!volumeNumber) return false;
+// (already handled above) or a listing that names no volume at all. Returns
+// the other volume number found (for feeding a match assessment) or null.
+export function listingNamesOtherVolume(listingTitle: string, volumeNumber: string | number | null): string | null {
+  if (!volumeNumber) return null;
   const match = listingTitle.match(/\b(?:vol(?:ume)?\.?|book|part)\s*(\d+)\b/i);
-  return match !== null && match[1] !== String(volumeNumber);
+  if (match && match[1] !== String(volumeNumber)) return match[1];
+  return null;
 }
 
 export type PlausibilityListing = { listing_title: string | null };
@@ -82,6 +87,16 @@ function listingIsbn(text: string) {
 
 const HARDCOVER_WORDS = /\b(hardcover|hardback|cased|hard\s*cover)\b/i;
 const PAPERBACK_WORDS = /\b(paperback|softcover|soft\s*cover|trade\s*paperback|tank[oō]bon)\b/i;
+
+// A best-effort read of binding/format straight out of listing text, for
+// feeding a match assessment a real (if imprecise) signal instead of
+// nothing. Only ever used as a conflict check against the edition's own
+// recorded format — never treated as confirming a format on its own.
+export function detectFormatWord(text: string): "hardcover" | "paperback" | null {
+  if (HARDCOVER_WORDS.test(text)) return "hardcover";
+  if (PAPERBACK_WORDS.test(text)) return "paperback";
+  return null;
+}
 
 function formatContradicts(text: string, editionFormat: string | null | undefined) {
   if (!editionFormat) return false;
