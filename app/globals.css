@@ -93,18 +93,22 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 /* Collector's shelf: verified covers arranged like books on a shelf, browsed
    manually (no autoplay). Books tilt slightly and the selected one lifts
    and squares up, echoing a shelf without any 3D engine or heavy animation. */
-.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 3.5rem; }
-.collector-shelf-heading { max-width: 960px; margin: 0 auto 1rem; padding: 0 2rem; text-align: center; }
+.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 4rem; }
+.collector-shelf-heading { max-width: 960px; margin: 0 auto 1.25rem; padding: 0 2rem; text-align: center; }
 .collector-shelf-heading p { margin: 0; color: rgba(244,240,232,.6); font-size: .82rem; }
-.collector-shelf-track { display: flex; align-items: flex-end; gap: 0; max-width: 1200px; margin: 0 auto; padding: 1.5rem 2.5rem 2.25rem; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; background-image: linear-gradient(rgba(244,240,232,.16), rgba(244,240,232,.16)); background-repeat: no-repeat; background-size: 100% 3px; background-position: 0 bottom 2.1rem; }
-.collector-shelf-item { flex: 0 0 auto; width: 104px; margin-left: -16px; border: 0; padding: 0; background: transparent; cursor: pointer; scroll-snap-align: center; transform: rotate(var(--shelf-tilt, 0deg)); transition: transform .22s ease, filter .22s ease; filter: brightness(.82); }
+/* overflow-x stays functional (wheel/touch/drag scroll, plus the
+   scrollIntoView the component uses to bring a selected cover into view) —
+   only the native scrollbar chrome is hidden, across engines. */
+.collector-shelf-track { display: flex; align-items: flex-end; gap: 0; max-width: 1320px; margin: 0 auto; padding: 2.25rem 2.5rem 3rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; background-image: linear-gradient(rgba(244,240,232,.16), rgba(244,240,232,.16)); background-repeat: no-repeat; background-size: 100% 3px; background-position: 0 bottom 2.85rem; }
+.collector-shelf-track::-webkit-scrollbar { display: none; height: 0; }
+.collector-shelf-item { flex: 0 0 auto; width: 144px; margin-left: -14px; border: 0; padding: 0; background: transparent; cursor: pointer; scroll-snap-align: center; transform: rotate(var(--shelf-tilt, 0deg)); transition: transform .22s ease, filter .22s ease; filter: brightness(.88); }
 .collector-shelf-item:first-child { margin-left: 0; }
-.collector-shelf-item:hover { filter: brightness(1); transform: translateY(-6px) rotate(0deg); z-index: 2; }
-.collector-shelf-item.is-active { filter: brightness(1); transform: translateY(-16px) rotate(0deg) scale(1.08); z-index: 3; }
+.collector-shelf-item:hover { filter: brightness(1); transform: translateY(-8px) rotate(0deg); z-index: 2; }
+.collector-shelf-item.is-active { filter: brightness(1); transform: translateY(-22px) rotate(0deg) scale(1.1); z-index: 3; }
 .collector-shelf-item:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 4px; filter: brightness(1); }
-.collector-shelf-cover { width: 104px; aspect-ratio: 2 / 3; border-radius: .3rem; overflow: hidden; box-shadow: 0 10px 22px rgba(0,0,0,.4); }
-.collector-shelf-item.is-active .collector-shelf-cover { box-shadow: 0 16px 30px rgba(0,0,0,.45), 0 0 0 3px var(--red); }
-.collector-shelf-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: -.75rem; }
+.collector-shelf-cover { width: 144px; aspect-ratio: 2 / 3; border-radius: .35rem; overflow: hidden; box-shadow: 0 14px 28px rgba(0,0,0,.42); }
+.collector-shelf-item.is-active .collector-shelf-cover { box-shadow: 0 22px 40px rgba(0,0,0,.5), 0 0 0 3px var(--red); }
+.collector-shelf-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: -.5rem; }
 .collector-shelf-nav { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgba(244,240,232,.28); border-radius: 50%; background: rgba(244,240,232,.06); color: var(--paper); cursor: pointer; font-size: 1.05rem; line-height: 1; transition: background .18s ease, border-color .18s ease; }
 .collector-shelf-nav:hover:not(:disabled) { background: rgba(244,240,232,.16); border-color: var(--gold-light); }
 .collector-shelf-nav:disabled { opacity: .3; cursor: default; }
@@ -124,9 +128,10 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
   .price-chart-point, .chart-tooltip { transition: none; }
 }
 @media (max-width: 700px) {
-  .collector-shelf-track { padding: 1.25rem 1.25rem 1.75rem; }
-  .collector-shelf-item { width: 84px; margin-left: -12px; }
-  .collector-shelf-cover { width: 84px; }
+  .collector-shelf-track { padding: 1.5rem 1.25rem 2rem; background-position: 0 bottom 1.85rem; }
+  .collector-shelf-item { width: 108px; margin-left: -10px; }
+  .collector-shelf-item.is-active { transform: translateY(-14px) rotate(0deg) scale(1.08); }
+  .collector-shelf-cover { width: 108px; }
   .collector-shelf-detail { flex-direction: column; align-items: stretch; }
   .collector-shelf-detail-evidence { justify-content: space-between; }
 }
@@ -825,6 +830,26 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .index-explore-grid span { color: #a77d2d; font-size: .64rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .index-explore-grid strong { font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; line-height: 1.08; }
 .index-explore-grid small { align-self: end; color: var(--muted); font-size: .75rem; line-height: 1.42; }
+
+/* Homepage only: continue the collector-archive mood past the hero instead
+   of handing back to a flat cream page. A calm dark canvas runs the full
+   page; cream/light surfaces (search, buttons, market cards, evidence
+   panels) stay reserved for the objects sitting on top of it. */
+.home-page { background: linear-gradient(180deg, #211d18 0%, #251f19 45%, #211d18 100%); }
+.home-page h2 { color: var(--paper); }
+.home-page .section-copy { color: rgba(244,240,232,.66); }
+.home-page .status-message { border-color: rgba(244,240,232,.22); background: rgba(244,240,232,.05); color: rgba(244,240,232,.68); }
+.home-page .still-documenting-section { border-top-color: rgba(244,240,232,.16); }
+.home-page .index-explore, .home-page .collector-pathways { border-top-color: rgba(244,240,232,.16); }
+.home-page .market-evidence-section .eyebrow { color: #6fd6ae; }
+.home-page .still-documenting-section .eyebrow { color: rgba(244,240,232,.55); }
+.home-page .principle-section { background: linear-gradient(120deg, #2b241d, #211d18); }
+.home-page .principle-section > p:last-child { color: rgba(244,240,232,.88); }
+/* .live-listings-section keeps its own pale-blue information-panel
+   background (unchanged) — restore dark-on-light text inside it rather
+   than the page-wide light-on-dark colours above. */
+.home-page .live-listings-section h2 { color: var(--ink); }
+.home-page .live-listings-section .section-copy { color: var(--muted); }
 .identify-example { display: grid; grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr); gap: 1.4rem; align-items: center; margin-bottom: 1rem; padding: 1.4rem; border: 1px solid #e0d8ca; border-radius: .9rem; background: #fffdf8; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
 .identify-example h2 { margin: .2rem 0 .6rem; font-family: var(--font-display); font-size: clamp(1.6rem, 2.8vw, 2.1rem); }
 .identify-example p { margin: 0; color: var(--muted); line-height: 1.55; }
