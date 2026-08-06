@@ -111,6 +111,7 @@ export default async function CoverageDashboardPage() {
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/data-readiness">Data readiness -&gt;</Link>
+        <Link className="header-note" href="/cover-review">Cover review -&gt;</Link>
         <Link className="header-note" href="/scout">RAR Scout -&gt;</Link>
         <Link className="header-note" href="/review">Review queue -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>

@@ -69,6 +69,7 @@ export default async function DataReadinessPage() {
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard -&gt;</Link>
+        <Link className="header-note" href="/cover-review">Cover review -&gt;</Link>
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <Link className="header-note" href="/review">Review queue -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>

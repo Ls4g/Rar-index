@@ -423,6 +423,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               ) : edition.cover_verification_status === "rejected" ? (
                 <p>A candidate cover was reviewed and did not match this exact edition. RAR is still looking for a confirmed cover source.</p>
               ) : <p>RAR has not yet sourced a cover for this edition from a publisher or licensed catalogue record.</p>}
+              <Link className="staff-action-link" href={`/cover-review?edition=${edition.id}`}>Review this cover -&gt;</Link>
             </div>
 
             {edition.historical_notes ? (

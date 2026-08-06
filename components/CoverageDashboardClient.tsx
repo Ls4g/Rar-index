@@ -75,7 +75,7 @@ function primaryAction(row: CoverageRow) {
       ? { href: `/collection-profiles/${row.profileId}`, label: "Check for sales", tone: "coverage-warning" }
       : { href: `/collection-profiles/new?editionId=${row.editionId}`, label: "Create collection profile", tone: "coverage-warning" };
   }
-  if (row.coverStatus !== "verified") return { href: `/edition/${row.editionId}`, label: "Source a cover", tone: "coverage-warning" };
+  if (row.coverStatus !== "verified") return { href: `/cover-review?edition=${row.editionId}`, label: "Source a cover", tone: "coverage-warning" };
   if (row.comparableSaleCount < 3) return { href: `/price-import?editionId=${row.editionId}`, label: "Add sale evidence", tone: "coverage-neutral" };
   return { href: `/edition/${row.editionId}`, label: "View edition", tone: "coverage-good" };
 }
@@ -89,6 +89,7 @@ function RowActions({ row }: { row: CoverageRow }) {
         : <Link className="staff-action-link" href={`/collection-profiles/new?editionId=${row.editionId}`}>New profile -&gt;</Link>}
       {row.pendingLeadCount > 0 ? <Link className="staff-action-link" href="/scout">Scout leads -&gt;</Link> : null}
       {row.reviewSaleCount > 0 ? <Link className="staff-action-link" href="/review">Review sales -&gt;</Link> : null}
+      {row.coverStatus === "candidate" || row.coverStatus === "rejected" ? <Link className="staff-action-link" href={`/cover-review?edition=${row.editionId}`}>Cover review -&gt;</Link> : null}
       <Link className="staff-action-link" href={`/price-import?editionId=${row.editionId}`}>Price import -&gt;</Link>
     </div>
   );

@@ -35,6 +35,7 @@ export const config = {
     "/community-reports/:path*",
     "/catalogue-requests/:path*",
     "/scout/:path*",
+    "/cover-review/:path*",
     "/api/review/:path*",
     "/api/catalogue-import/:path*",
     "/api/catalogue-review/:path*",
@@ -46,5 +47,6 @@ export const config = {
     "/api/catalogue-requests/:path*",
     "/api/scout/:path*",
     "/api/scout-leads/:path*",
+    "/api/cover-review/:path*",
   ],
 };
