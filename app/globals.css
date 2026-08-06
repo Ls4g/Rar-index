@@ -904,9 +904,9 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .live-listing-card { display: grid; gap: 1.25rem; min-height: 190px; padding: 1.15rem; border: 1px solid rgba(44,90,160,.22); border-radius: .75rem; background: #fbfdff; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .live-listing-card:hover { border-color: var(--blue); box-shadow: 0 10px 24px rgba(44,90,160,.14); transform: translateY(-2px); }
 .live-listing-card span { color: var(--blue-dark); font-size: .63rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.live-listing-card h3 { display: -webkit-box; margin: .65rem 0 0; overflow: hidden; font-size: 1.35rem; line-height: 1.02; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.live-listing-card h3 { display: -webkit-box; margin: .65rem 0 0; overflow: hidden; font-size: 1rem; line-height: 1.15; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .live-listing-meta { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
-.live-listing-meta strong { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.9rem; font-weight: 700; line-height: .95; color: var(--blue-dark); }
+.live-listing-meta strong { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 700; line-height: .95; color: var(--blue-dark); }
 .live-listing-meta small { max-width: 10rem; color: var(--muted); font-size: .69rem; line-height: 1.4; text-align: right; }
 .live-listings-empty { max-width: 620px; margin-top: 1.4rem; padding: 1rem 0 0; border-top: 1px solid rgba(44,90,160,.22); }
 .live-listings-empty strong { display: block; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; }
