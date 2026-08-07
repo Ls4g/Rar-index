@@ -93,7 +93,7 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 /* Collector's shelf: verified covers arranged like books on a shelf, browsed
    manually (no autoplay). Books tilt slightly and the selected one lifts
    and squares up, echoing a shelf without any 3D engine or heavy animation. */
-.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 4rem; }
+.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 1.5rem; }
 .collector-shelf-heading { max-width: 960px; margin: 0 auto 1.25rem; padding: 0 2rem; text-align: center; }
 .collector-shelf-heading p { margin: 0; color: rgba(244,240,232,.6); font-size: .82rem; }
 /* overflow-x stays functional (wheel/touch/drag scroll, plus the
@@ -657,7 +657,7 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 @media (max-width: 850px) { .edition-layout { grid-template-columns: 1fr; gap: 3rem; } }
 @media (max-width: 600px) { .edition-hero-with-cover { grid-template-columns: 112px minmax(0, 1fr); gap: 1.25rem; align-items: end; } .edition-hero-cover { width: 112px; } .edition-hero-with-cover .back-link { margin-bottom: 1.5rem; } .browse-card { grid-template-columns: 86px minmax(0, 1fr); } .browse-card-body { padding: 1rem; } }
 @media (max-width: 850px) { .catalogue-rules, .edition-evidence-grid { grid-template-columns: 1fr; } .catalogue-options { grid-template-columns: repeat(2, 1fr); } .identity-checklist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .site-header { padding: 1rem; } .header-links { gap: .75rem; } .header-note { font-size: .61rem; letter-spacing: .07em; } .hero { min-height: auto; } .hero-content { padding: 6rem 1.25rem 4rem; } h1 { font-size: clamp(3.4rem, 18vw, 5.2rem); } .search-form { display: block; } .search-form button { width: 100%; min-height: 3.2rem; } .search-result { grid-template-columns: auto minmax(0,1fr); } .search-result small { grid-column: 2; } .index-section { padding: 4.5rem 1rem; } .section-heading { align-items: start; flex-direction: column; gap: .85rem; } .manga-grid { grid-template-columns: 1fr; } .principle-section { padding: 4rem 1.25rem; } footer { flex-direction: column; gap: .4rem; padding: 1.4rem 1.25rem; } .edition-hero-inner, .edition-content { padding-left: 1.25rem; padding-right: 1.25rem; } .edition-hero-inner { padding-top: 3rem; padding-bottom: 3.2rem; } .back-link { margin-bottom: 2.6rem; } .edition-details { grid-template-columns: 1fr; } .edition-content { padding-top: 3.5rem; padding-bottom: 4.5rem; } .price-history-heading { align-items: start; flex-direction: column; } .chart-range { top: .75rem; right: .75rem; } .observed-sale { align-items: flex-start; flex-direction: column; gap: 1rem; } .sale-status { max-width: none; } .price-history-section, .observed-sales-section, .sources-section, .community-report { margin-top: 4rem; padding-top: 3rem; } .review-hero { display: block; padding-top: 4rem; padding-bottom: 3rem; } .queue-total { margin-top: 2rem; border-top: 1px solid rgba(244,240,232,.35); border-left: 0; padding: 1rem 0 0; } .review-steps, .review-options, .review-form-fields, .community-handoff-fields, .identity-checklist-grid { grid-template-columns: 1fr; } .review-card-main { display: block; } .review-source-link { display: inline-block; margin-top: 1rem; } .confidence-grid { grid-template-columns: 1fr; } .catalogue-import-form, .catalogue-options, .price-import-form, .community-report-form, .community-report-sale-fields { grid-template-columns: 1fr; } .catalogue-form-actions { align-items: start; flex-direction: column; } .catalogue-notes-wide { grid-column: auto; } .selected-edition { align-items: start; flex-direction: column; } .preflight-summary { grid-template-columns: 1fr 1fr; } .preflight-summary > div:nth-child(2) { border-right: 0; } .preflight-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); } .browse-hero { padding: 4rem 1.25rem; } .browse-content { padding: 2rem 1rem 4rem; } .browse-controls, .browse-grid { grid-template-columns: 1fr; } .browse-checkbox { grid-column: auto; } }
+@media (max-width: 600px) { .site-header { padding: 1rem; } .header-links { gap: .75rem; } .header-note { font-size: .61rem; letter-spacing: .07em; } .hero { min-height: auto; } .hero-content { padding: 6rem 1.25rem 4rem; } h1 { font-size: clamp(3.4rem, 18vw, 5.2rem); } .search-form { display: block; } .search-form input { width: 100%; } .search-form button { width: 100%; min-height: 3.2rem; } .search-result { grid-template-columns: auto minmax(0,1fr); } .search-result small { grid-column: 2; } .index-section { padding: 4.5rem 1rem; } .section-heading { align-items: start; flex-direction: column; gap: .85rem; } .manga-grid { grid-template-columns: 1fr; } .principle-section { padding: 4rem 1.25rem; } footer { flex-direction: column; gap: .4rem; padding: 1.4rem 1.25rem; } .edition-hero-inner, .edition-content { padding-left: 1.25rem; padding-right: 1.25rem; } .edition-hero-inner { padding-top: 3rem; padding-bottom: 3.2rem; } .back-link { margin-bottom: 2.6rem; } .edition-details { grid-template-columns: 1fr; } .edition-content { padding-top: 3.5rem; padding-bottom: 4.5rem; } .price-history-heading { align-items: start; flex-direction: column; } .chart-range { top: .75rem; right: .75rem; } .observed-sale { align-items: flex-start; flex-direction: column; gap: 1rem; } .sale-status { max-width: none; } .price-history-section, .observed-sales-section, .sources-section, .community-report { margin-top: 4rem; padding-top: 3rem; } .review-hero { display: block; padding-top: 4rem; padding-bottom: 3rem; } .queue-total { margin-top: 2rem; border-top: 1px solid rgba(244,240,232,.35); border-left: 0; padding: 1rem 0 0; } .review-steps, .review-options, .review-form-fields, .community-handoff-fields, .identity-checklist-grid { grid-template-columns: 1fr; } .review-card-main { display: block; } .review-source-link { display: inline-block; margin-top: 1rem; } .confidence-grid { grid-template-columns: 1fr; } .catalogue-import-form, .catalogue-options, .price-import-form, .community-report-form, .community-report-sale-fields { grid-template-columns: 1fr; } .catalogue-form-actions { align-items: start; flex-direction: column; } .catalogue-notes-wide { grid-column: auto; } .selected-edition { align-items: start; flex-direction: column; } .preflight-summary { grid-template-columns: 1fr 1fr; } .preflight-summary > div:nth-child(2) { border-right: 0; } .preflight-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); } .browse-hero { padding: 4rem 1.25rem; } .browse-content { padding: 2rem 1rem 4rem; } .browse-controls, .browse-grid { grid-template-columns: 1fr; } .browse-checkbox { grid-column: auto; } }
 
 
 @media (max-width: 850px) { .manga-grid, .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .edition-hero, .browse-hero, .portfolio-hero { margin-left: 1rem; margin-right: 1rem; } }
@@ -720,7 +720,7 @@ h1 span { color: var(--gold-light); font-style: normal; }
 .search-form button:hover:not(:disabled) { background: var(--red-dark); }
 .search-results { background: #29251e; }
 .result-marker { background: var(--gold-light); }
-.section-heading > span { background: #ece2cc; color: #5f5849; }
+.section-heading > span { color: #5f5849; }
 .manga-card { border-color: #e2d7ba; background: #fbf7ec; box-shadow: 0 8px 22px rgba(33,29,24,.05); }
 .manga-card:hover { border-color: var(--orange); background: #fffcf3; box-shadow: 0 15px 30px rgba(201,105,44,.14); }
 .card-cover { background: linear-gradient(150deg, #26221b, var(--red-dark)); }
@@ -824,7 +824,10 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .index-section-action { margin-top: 1.5rem; text-align: right; }
 .index-section-action a { display: inline-block; padding: .7rem .95rem; border: 1px solid #d5c7a9; border-radius: .55rem; color: #705019; background: #f7f0e2; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
 .index-section-action a:hover { border-color: #a77d2d; background: #fffaf0; }
-.market-evidence-section { padding-bottom: 3.5rem; }
+/* Directly follows the hero/shelf — a full 6.5rem index-section top padding
+   here reads as dead space between the featured cover and the evidence
+   grid, not a deliberate break. */
+.market-evidence-section { padding-top: 2.5rem; padding-bottom: 3.5rem; }
 .market-evidence-copy { margin: -0.45rem 0 1.45rem; }
 .priced-edition-card { position: relative; }
 .priced-edition-card::after { content: "Verified source"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid #d8c494; border-radius: 999px; background: #fff9eb; color: #72531a; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -848,25 +851,198 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .index-explore-grid strong { font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; line-height: 1.08; }
 .index-explore-grid small { align-self: end; color: var(--muted); font-size: .75rem; line-height: 1.42; }
 
-/* Homepage only: continue the collector-archive mood past the hero instead
-   of handing back to a flat cream page. A calm dark canvas runs the full
-   page; cream/light surfaces (search, buttons, market cards, evidence
-   panels) stay reserved for the objects sitting on top of it. */
-.home-page { background: linear-gradient(180deg, #211d18 0%, #251f19 45%, #211d18 100%); }
-.home-page h2 { color: var(--paper); }
-.home-page .section-copy { color: rgba(244,240,232,.66); }
-.home-page .status-message { border-color: rgba(244,240,232,.22); background: rgba(244,240,232,.05); color: rgba(244,240,232,.68); }
-.home-page .still-documenting-section { border-top-color: rgba(244,240,232,.16); }
-.home-page .index-explore, .home-page .collector-pathways { border-top-color: rgba(244,240,232,.16); }
-.home-page .market-evidence-section .eyebrow { color: #6fd6ae; }
-.home-page .still-documenting-section .eyebrow { color: rgba(244,240,232,.55); }
-.home-page .principle-section { background: linear-gradient(120deg, #2b241d, #211d18); }
-.home-page .principle-section > p:last-child { color: rgba(244,240,232,.88); }
-/* .live-listings-section keeps its own pale-blue information-panel
-   background (unchanged) — restore dark-on-light text inside it rather
-   than the page-wide light-on-dark colours above. */
-.home-page .live-listings-section h2 { color: var(--ink); }
-.home-page .live-listings-section .section-copy { color: var(--muted); }
+/* Public site: one continuous dark collector-archive canvas, not a dark
+   hero handing back to a flat cream page. Every public route's <main> gets
+   this class; staff-only routes (gated by proxy.ts) never receive it, so
+   none of this touches staff tooling. Cards use a lifted charcoal surface
+   with a hairline border instead of the old cream/paper panels — cream
+   itself is reserved for small text/labels, never a rectangular fill. */
+.public-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #211d18 0%, #251f19 45%, #211d18 100%);
+  /* --muted/--line are colour-only (never a surface fill) everywhere they're
+     used, so redefining them here quietly relights every existing "color:
+     var(--muted)" and "border: var(--line)" rule inside public pages —
+     including ones this stylesheet doesn't touch below — without fighting
+     their original selectors' specificity. --ink and --paper stay put: both
+     do double duty as text AND background colours elsewhere (e.g. the hero),
+     so redefining them here would break those. */
+  --muted: rgba(244,240,232,.62);
+  --line: rgba(244,240,232,.14);
+}
+.public-page h1, .public-page h2, .public-page h3 { color: var(--paper); }
+.public-page .section-copy, .public-page .card-honest-note { color: rgba(244,240,232,.6); }
+.public-page .status-message { background: rgba(244,240,232,.05); }
+.public-page .section-heading > span { color: rgba(244,240,232,.5); }
+.public-page .site-header { background: transparent; }
+.public-page .brand { color: var(--paper); }
+.public-page .header-note { color: rgba(244,240,232,.55); }
+.public-page .live-listings-empty strong { color: var(--paper); }
+.public-page .edition-disclosure summary > span:first-child { color: var(--paper); }
+.public-page .confidence-signal strong { color: var(--paper); }
+.public-page .ghost-chart-message strong { color: var(--paper); }
+.public-page .edition-evidence-grid strong { color: var(--paper); }
+.public-page .evidence-checklist strong { color: var(--paper); }
+.public-page .browse-result-count strong { color: var(--paper); }
+.public-page .browse-series-header h2 { color: var(--paper); }
+.public-page .identify-disclaimer { color: rgba(244,240,232,.6); }
+.public-page .market-currency-control label { color: rgba(244,240,232,.6); }
+.public-page .search-form { background: #211d18; border: 1px solid rgba(244,240,232,.22); box-shadow: 0 16px 42px rgba(0,0,0,.4); }
+.public-page .search-form input { background: transparent; }
+.public-page .header-note:hover { color: var(--paper); }
+.public-page .header-note:last-child { background: transparent; border: 1px solid rgba(244,240,232,.22); border-radius: .4rem; padding: .4rem .6rem; color: rgba(244,240,232,.7); }
+.public-page .price-chart-wrap, .public-page .ghost-chart { background: #29241d; border-color: rgba(244,240,232,.12); }
+.public-page .chart-grid-high, .public-page .chart-grid-low, .public-page .ghost-chart line { stroke: rgba(244,240,232,.14); }
+.public-page .chart-tooltip { background: #322b20; }
+.public-page .chart-tooltip strong { color: var(--paper); }
+.public-page .metric-card dd { color: rgba(244,240,232,.62); }
+.public-page .metric-card { border-top-color: rgba(244,240,232,.16); }
+.public-page .confidence-panel { border-top-color: rgba(244,240,232,.16); }
+.public-page .community-report-edition strong { color: var(--paper); }
+.public-page .portfolio-suggestions button { color: var(--paper); }
+.public-page .identify-checks label { color: rgba(244,240,232,.75); }
+.public-page .portfolio-auth > div > p:not(.eyebrow):not(.portfolio-add-context) { color: rgba(244,240,232,.66); }
+.public-page .portfolio-benefits { color: rgba(244,240,232,.65); }
+.public-page .portfolio-benefits li::before { color: var(--gold-light); }
+.public-page .cover-provenance { background: #29241d; }
+/* .staff-action-link keeps its own opaque cream chip background (a small,
+   self-contained button, not an information panel) so it's excluded here —
+   its dark text already reads fine regardless of the page around it. */
+.public-page .cover-provenance a:not(.staff-action-link) { color: var(--gold-light); }
+.public-page .evidence-proof-links a { color: var(--gold-light); }
+
+/* Section dividers: a soft, low-contrast hairline instead of the light
+   tan --line border, so sections read as one environment, not seams. */
+.public-page .still-documenting-section,
+.public-page .index-explore,
+.public-page .collector-pathways,
+.public-page .observed-sales-section,
+.public-page .sources-section,
+.public-page .community-report,
+.public-page .related-editions-section:not(.edition-disclosure),
+.public-page .collector-context-section:not(.edition-disclosure),
+.public-page .edition-disclosure { border-top-color: rgba(244,240,232,.14); }
+.public-page .market-evidence-section .eyebrow { color: #6fd6ae; }
+.public-page .still-documenting-section .eyebrow { color: rgba(244,240,232,.55); }
+.public-page .principle-section { background: linear-gradient(120deg, #2b241d, #211d18); }
+.public-page .principle-section > p:last-child { color: rgba(244,240,232,.88); }
+
+/* Dark charcoal card system: replaces every cream/off-white information
+   panel on public pages with a lifted surface that sits naturally on the
+   dark canvas — subtle border and soft shadow instead of a colour break. */
+.public-page .manga-card,
+.public-page .browse-card,
+.public-page .observed-sale,
+.public-page .source-card,
+.public-page .valuation-panel,
+.public-page .edition-details > div,
+.public-page .community-report-form,
+.public-page .confidence-signal,
+.public-page .browse-controls,
+.public-page .identify-step,
+.public-page .identify-result,
+.public-page .identify-example,
+.public-page .edition-request-form,
+.public-page .evidence-checklist > div,
+.public-page .collector-context-card > div,
+.public-page .collector-pathway-list a,
+.public-page .index-explore-grid a,
+.public-page .related-editions-list a,
+.public-page .live-listings-section,
+.public-page .live-listing-card,
+.public-page .price-things-to-know,
+.public-page .portfolio-summary > div,
+.public-page .portfolio-holding,
+.public-page .portfolio-form-panel,
+.public-page .portfolio-auth-form,
+.public-page .portfolio-suggestions,
+.public-page .portfolio-add-context,
+.public-page .edition-evidence-grid > div,
+.public-page .market-currency-control {
+  border-color: rgba(244,240,232,.12);
+  background: #29241d;
+  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+}
+.public-page .manga-card:hover,
+.public-page .browse-card:hover,
+.public-page a.observed-sale:hover,
+.public-page .source-card:hover { border-color: var(--orange); background: #302a21; box-shadow: 0 14px 28px rgba(0,0,0,.34); }
+.public-page .browse-card.is-well-documented { border-top-color: var(--verified); }
+.public-page .identify-choice-grid button { border-color: rgba(244,240,232,.16); background: #26221b; color: var(--paper); }
+.public-page .identify-choice-grid button.selected { border-color: var(--orange); background: #3a2c1c; }
+.public-page .identify-result { border-left-color: var(--orange); }
+.public-page .identify-result .result-positive { color: #6fd6ae; }
+.public-page .identify-result .result-caution { color: #e3b464; }
+
+/* Text inside dark cards: labels/kickers keep the warm accent, values and
+   headings go light, muted copy dims rather than disappears. */
+.public-page .card-kicker, .public-page dt,
+.public-page .sale-source, .public-page .edition-evidence-grid span,
+.public-page .collector-context-card span, .public-page .collector-context-card .collector-context-tags,
+.public-page .collector-pathway-list > a > span, .public-page .index-explore-grid span,
+.public-page .related-editions-list span, .public-page .browse-card p, .public-page .browse-card strong { color: var(--gold-light); }
+.public-page dd, .public-page .observed-sale small, .public-page .source-card small,
+.public-page .browse-card span, .public-page .browse-card small,
+.public-page .browse-card-evidence,
+.public-page .community-report-edition, .public-page .metric-label, .public-page .metric-card dd,
+.public-page .collector-context-card p, .public-page .collector-pathway-list p, .public-page .index-explore-grid small,
+.public-page .related-editions-list small, .public-page .evidence-checklist small,
+.public-page .identify-step p, .public-page .identify-result p, .public-page .identify-example p,
+.public-page .valuation-explainer, .public-page .empty-valuation p { color: rgba(244,240,232,.6); }
+.public-page h3, .public-page .observed-sale strong, .public-page .source-card strong,
+.public-page .identify-step > strong, .public-page .identify-result > strong, .public-page .identify-example strong,
+.public-page .metric-card > strong, .public-page .empty-valuation strong, .public-page .confidence-label,
+.public-page .collector-context-card strong, .public-page .collector-pathway-list strong,
+.public-page .index-explore-grid strong, .public-page .related-editions-list strong { color: var(--paper); }
+.public-page .sale-status { border-color: rgba(244,240,232,.2); color: rgba(244,240,232,.55); }
+.public-page .sale-status.verified_match { border-color: rgba(111,214,174,.4); color: #6fd6ae; }
+.public-page .sale-status.needs_review { border-color: rgba(227,180,100,.45); color: #e3b464; }
+.public-page .valuation-panel-live-teaser { border-color: rgba(44,90,160,.4); color: #a9c6ec; }
+.public-page .collector-pathway-list b { color: var(--orange); }
+.public-page .collector-pathway-list a:hover, .public-page .index-explore-grid a:hover, .public-page .related-editions-list a:hover { border-color: #d98a55; transform: translateY(-3px); }
+.public-page .portfolio-add-context { border-left-color: var(--red); color: rgba(244,240,232,.72) !important; }
+.public-page .portfolio-no-value { color: #e3b464; }
+.public-page .portfolio-selected-edition, .public-page .selected-edition { border-color: rgba(244,240,232,.22); background: #322b20; color: var(--paper); }
+.public-page .portfolio-auth-options button { border-color: rgba(244,240,232,.2); background: #211d18; color: rgba(244,240,232,.65); }
+.public-page .portfolio-auth-options button.selected { border-color: var(--orange); background: #3a2c1c; color: var(--gold-light); }
+
+/* Live buying opportunities: cobalt stays the accent (border + text), but
+   the panel itself joins the dark surface system instead of a pale-blue
+   information box breaking the page's colour continuity. */
+.public-page .live-listings-section { border-color: rgba(44,90,160,.32); }
+.public-page .live-listing-card { border-color: rgba(44,90,160,.3); }
+.public-page .live-listing-card:hover { border-color: var(--blue); box-shadow: 0 10px 24px rgba(44,90,160,.22); }
+.public-page .live-listing-card span { color: #8fb4e8; }
+.public-page .live-listing-meta strong { color: #a9c6ec; }
+.public-page .live-listings-empty { border-top-color: rgba(44,90,160,.3); }
+
+/* Form fields inside dark cards. */
+.public-page input, .public-page select, .public-page textarea {
+  background: #211d18;
+  border-color: rgba(244,240,232,.18);
+  color: var(--paper);
+}
+.public-page input::placeholder, .public-page textarea::placeholder { color: rgba(244,240,232,.35); }
+.public-page .community-report-form input, .public-page .community-report-form select, .public-page .community-report-form textarea,
+.public-page .edition-request-form input, .public-page .edition-request-form select, .public-page .edition-request-form textarea,
+.public-page .portfolio-auth-form input, .public-page .portfolio-form-panel input, .public-page .portfolio-form-panel textarea,
+.public-page .browse-search-field input, .public-page .market-currency-control select { background: #211d18; border-color: rgba(244,240,232,.18); color: var(--paper); }
+.public-page .browse-chip { border-color: rgba(244,240,232,.18); background: #26221b; color: rgba(244,240,232,.6); }
+.public-page .browse-chip:hover { border-color: var(--orange); color: var(--gold-light); }
+.public-page .browse-chip.is-active { border-color: var(--red); background: var(--red-soft); color: #e2685c; }
+.public-page .browse-collection-banner { border-color: rgba(201,105,44,.4); background: rgba(201,105,44,.1); }
+.public-page .browse-collection-banner strong { color: var(--gold-light); }
+.public-page .browse-controls summary { color: rgba(244,240,232,.6); }
+.public-page .community-report-toggle { border-color: rgba(244,240,232,.22); background: #26221b; color: var(--gold-light); }
+.public-page .community-report-toggle:hover { border-color: var(--orange); background: #302a21; }
+.public-page .community-report-note { color: rgba(244,240,232,.55); }
+
+/* Grid hairlines: the 1px "border" between cards is really the grid's own
+   background showing through — keep it a dark, low-contrast line instead
+   of the light tan used on cream pages. */
+.public-page .manga-grid, .public-page .browse-grid, .public-page .observed-sales-list,
+.public-page .source-list, .public-page .edition-evidence-grid, .public-page .confidence-grid,
+.public-page .portfolio-summary, .public-page .portfolio-list { border-color: rgba(244,240,232,.1); background: rgba(244,240,232,.1); }
 .identify-example { display: grid; grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr); gap: 1.4rem; align-items: center; margin-bottom: 1rem; padding: 1.4rem; border: 1px solid #e0d8ca; border-radius: .9rem; background: #fffdf8; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
 .identify-example h2 { margin: .2rem 0 .6rem; font-family: var(--font-display); font-size: clamp(1.6rem, 2.8vw, 2.1rem); }
 .identify-example p { margin: 0; color: var(--muted); line-height: 1.55; }

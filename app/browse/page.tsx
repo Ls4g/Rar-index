@@ -27,7 +27,7 @@ export default async function BrowsePage() {
   const editions = (data ?? []).map((edition) => ({ ...edition, verified_sale_count: saleCounts.get(edition.id) ?? 0 })) as BrowseEdition[];
 
   return (
-    <main>
+    <main className="public-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <nav className="header-links" aria-label="Main navigation">

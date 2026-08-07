@@ -320,7 +320,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
   ].filter(([, value]) => value) as Array<[string, string]>;
 
   return (
-    <main>
+    <main className="public-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home">
           <span className="brand-mark">R</span>

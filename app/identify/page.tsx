@@ -3,7 +3,7 @@ import Image from "next/image";
 import IdentificationTool from "@/components/IdentificationTool";
 
 export default function IdentifyPage() {
-  return <main>
+  return <main className="public-page">
     <header className="site-header">
       <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
       <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/browse">Browse editions</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link></nav>

@@ -225,7 +225,7 @@ export default async function Home() {
     .slice(0, 6);
 
   return (
-    <main className="home-page">
+    <main className="public-page home-page">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="RAR Index home">
           <span className="brand-mark">R</span>
