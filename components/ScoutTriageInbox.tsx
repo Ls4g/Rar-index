@@ -240,14 +240,24 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leadIds, decision, reviewer, notes }),
       });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { error?: string; failed?: number; failedLeadIds?: string[] };
       if (!response.ok) { setMessage(result.error ?? "The Scout lead decision could not be saved."); return; }
-      const rowIdSet = new Set(rowIds);
+      const failedLeadIds = new Set(result.failedLeadIds ?? []);
+      // A grouped eBay listing can already have a human decision on one
+      // secondary profile. The API protects that decision, while still
+      // allowing the currently displayed (primary) new lead to be saved.
+      const savedRows = rows.filter((row) => !failedLeadIds.has(row.id));
+      const failedRows = rows.filter((row) => !savedRows.includes(row));
+      const rowIdSet = new Set(savedRows.map((row) => row.id));
       setLeads((current) => current.map((lead) => rowIdSet.has(lead.id) ? { ...lead, reviewStatus: decision, reviewNotes: notes || lead.reviewNotes, reviewedBy: reviewer } : lead));
-      setSelected((current) => { const next = new Set(current); for (const id of rowIds) next.delete(id); return next; });
-      setRowNotes((current) => { const next = { ...current }; for (const id of rowIds) delete next[id]; return next; });
-      setBulkNote("");
-      setMessage(`${decision === "watching" ? "Watching" : "Dismissed"} ${rows.length} listing${rows.length === 1 ? "" : "s"}.`);
+      setSelected((current) => { const next = new Set(current); for (const id of rowIdSet) next.delete(id); return next; });
+      setRowNotes((current) => { const next = { ...current }; for (const id of rowIdSet) delete next[id]; return next; });
+      if (!failedRows.length) setBulkNote("");
+      setMessage(
+        failedRows.length
+          ? `${decision === "watching" ? "Watching" : "Dismissed"} ${savedRows.length} listing${savedRows.length === 1 ? "" : "s"}. ${failedRows.length} could not be saved and remain selected — try again or review them individually.`
+          : `${decision === "watching" ? "Watching" : "Dismissed"} ${savedRows.length} listing${savedRows.length === 1 ? "" : "s"}.`,
+      );
     } catch {
       setMessage("The Scout lead decision could not be saved. Check the connection and try again.");
     } finally {
