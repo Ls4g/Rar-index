@@ -59,6 +59,7 @@ type LiveListingProfile = {
 type LiveListing = {
   id: string;
   profile_id: string;
+  review_status: "new" | "watching" | "dismissed";
   source_listing_url: string;
   listing_title: string;
   listing_price: number | null;
@@ -264,7 +265,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const { data: liveLeadData } = liveProfileIds.length
     ? await admin
       .from("scout_listing_leads")
-      .select("id,profile_id,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
+      .select("id,profile_id,review_status,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
       .in("profile_id", liveProfileIds)
       .in("review_status", ["new", "watching"])
       .gte("last_seen_at", liveListingFreshnessCutoff)
@@ -273,7 +274,10 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .limit(50)
     : { data: [] };
   const liveListings = ((liveLeadData ?? []) as LiveListing[])
-    .filter((listing) => isPlausibleLiveListing(listing, edition))
+    // A staff member marking a listing as Watching is an explicit human
+    // confirmation that it belongs on this exact edition's live feed. New
+    // leads still need the conservative automatic plausibility check.
+    .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition))
     .slice(0, 6);
   const latestScoutCheck = liveProfiles
     .map((profile) => profile.last_checked_at)
