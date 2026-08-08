@@ -1,6 +1,7 @@
 import Link from "next/link";
 import CommunityReportDecisionForm from "@/components/CommunityReportDecisionForm";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function CommunityReportsPage() {
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <span className="header-note">Internal review</span>
+        <StaffNav current="/community-reports" />
       </header>
       <section className="review-hero">
         <div><p className="eyebrow">Community evidence</p><h1>Report review queue</h1><p>Community submissions are leads, not market data. Review the original source before deciding whether to discard it or take it into the normal import process.</p></div>

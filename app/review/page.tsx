@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import ReviewDecisionForm from "@/components/ReviewDecisionForm";
+import StaffNav from "@/components/StaffNav";
 
 // This is an operational queue: newly imported sales must appear immediately.
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export default async function ReviewQueuePage() {
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard -&gt;</Link>
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <span className="header-note">Internal review</span>
+        <StaffNav current="/review" />
       </header>
 
       <section className="review-hero">

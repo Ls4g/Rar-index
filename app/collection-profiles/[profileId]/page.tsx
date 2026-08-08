@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CollectionRunForm from "@/components/CollectionRunForm";
 import CollectionProfileEditForm from "@/components/CollectionProfileEditForm";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
         <div className="staff-header-actions">
           <Link className="header-note" href="/collection-profiles">All profiles</Link>
           <Link className="staff-header-primary" href={`/add-sale?editionId=${profile.edition.id}`}>+ Add a sale</Link>
+          <StaffNav current="/collection-profiles" />
         </div>
       </header>
       <section className="review-hero catalogue-hero">

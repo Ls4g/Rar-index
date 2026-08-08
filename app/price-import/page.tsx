@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PriceImportForm from "@/components/PriceImportForm";
+import StaffNav from "@/components/StaffNav";
 
 type PriceImportPageProps = { searchParams: Promise<{ report?: string | string[]; editionId?: string | string[] }> };
 
@@ -16,6 +17,7 @@ export default async function PriceImportPage({ searchParams }: PriceImportPageP
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard -&gt;</Link>
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>
+        <StaffNav current="/price-import" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

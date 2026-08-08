@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CoverReviewClient, { type CoverQueueRow } from "@/components/CoverReviewClient";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,7 @@ export default async function CoverReviewPage({
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard -&gt;</Link>
         <Link className="header-note" href="/catalogue-review">Catalogue review -&gt;</Link>
         <Link className="header-note" href="/data-readiness">Data readiness -&gt;</Link>
+        <StaffNav current="/cover-review" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

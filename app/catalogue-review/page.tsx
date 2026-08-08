@@ -1,6 +1,7 @@
 import Link from "next/link";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
 import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
+import StaffNav from "@/components/StaffNav";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export default async function CatalogueReviewPage() {
         <Link className="header-note" href="/catalogue-import">Import candidates →</Link>
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
         <Link className="header-note" href="/cover-review">Cover review →</Link>
+        <StaffNav current="/catalogue-review" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

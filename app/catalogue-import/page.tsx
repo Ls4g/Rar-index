@@ -1,5 +1,6 @@
 import Link from "next/link";
 import CatalogueImportForm from "@/components/CatalogueImportForm";
+import StaffNav from "@/components/StaffNav";
 
 export default function CatalogueImportPage() {
   return (
@@ -8,6 +9,7 @@ export default function CatalogueImportPage() {
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/catalogue-review">Catalogue review queue →</Link>
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
+        <StaffNav current="/catalogue-import" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

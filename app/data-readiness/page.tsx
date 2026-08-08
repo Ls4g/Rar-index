@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export default async function DataReadinessPage() {
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <Link className="header-note" href="/review">Review queue -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>
+        <StaffNav current="/data-readiness" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

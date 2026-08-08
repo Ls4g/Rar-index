@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CollectionRunForm from "@/components/CollectionRunForm";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,7 @@ export default async function CollectionProfilesPage() {
         <Link className="header-note" href="/add-sale">Add one sale -&gt;</Link>
         <Link className="header-note" href="/data-readiness">Data readiness -&gt;</Link>
         <Link className="header-note" href="/price-import">Price import -&gt;</Link>
+        <StaffNav current="/collection-profiles" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>

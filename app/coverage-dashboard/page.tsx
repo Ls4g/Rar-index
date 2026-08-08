@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { comparisonGroup } from "@/lib/fx";
 import CoverageDashboardClient, { type CoverageRow } from "@/components/CoverageDashboardClient";
+import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,7 @@ export default async function CoverageDashboardPage() {
         <Link className="header-note" href="/review">Review queue -&gt;</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles -&gt;</Link>
         <Link className="header-note" href="/price-import">Price import -&gt;</Link>
+        <StaffNav current="/coverage-dashboard" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>
