@@ -1,11 +1,12 @@
 import Link from "next/link";
 import EditionRequestForm from "@/components/EditionRequestForm";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function RequestEditionPage() {
   return <main className="public-page">
     <header className="site-header">
       <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-      <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/identify">Identify this copy</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link></nav>
+      <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/identify">Identify this copy</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link><ThemeToggle /></nav>
     </header>
     <section className="tool-hero">
       <p className="eyebrow">Community catalogue request</p>

@@ -20,6 +20,12 @@ export const metadata: Metadata = {
   description: "A growing index of manga editions, market history and collector knowledge.",
 };
 
+// Sets data-theme on <html> before first paint so the visitor's saved (or
+// system) preference renders immediately, with no flash of the other theme.
+// Kept as a literal string (see lib/theme.ts) because it runs before any JS
+// bundle loads, so it cannot import the shared constant.
+const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var k="rar-theme";var t=localStorage.getItem(k);if(t!=="day"&&t!=="night"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"day":"night";}document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","night");}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +33,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

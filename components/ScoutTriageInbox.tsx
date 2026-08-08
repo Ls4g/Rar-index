@@ -80,6 +80,16 @@ const DEFAULT_FILTERS: Filters = {
 
 const PAGE_SIZE = 50;
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+const REVIEWER_STORAGE_KEY = "rar-scout-reviewer";
+
+function loadStoredReviewer() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(REVIEWER_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function matchesScoreBand(score: number, band: ScoreBand) {
   if (band === "75plus") return score >= 75;
@@ -131,9 +141,13 @@ const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
 
 export default function ScoutTriageInbox({ leads: initialLeads }: { leads: ScoutLead[] }) {
   const [leads, setLeads] = useState(initialLeads);
-  const [reviewer, setReviewer] = useState("");
+  // Lazy-initialised (not an effect) so it reads localStorage exactly once,
+  // on mount, without the extra render pass a setState-in-effect causes.
+  // The value can legitimately differ from the server-rendered "", so the
+  // input below opts out of the hydration-mismatch warning for it.
+  const [reviewer, setReviewer] = useState(loadStoredReviewer);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [activeQuickView, setActiveQuickView] = useState<QuickView>("reviewNow");
+  const [activeQuickView, setActiveQuickView] = useState<QuickView | null>("reviewNow");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
@@ -149,7 +163,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
 
   function updateFilters(partial: Partial<Filters>, quickView: QuickView | null) {
     setFilters((current) => ({ ...current, ...partial }));
-    setActiveQuickView(quickView ?? "reviewNow");
+    setActiveQuickView(quickView);
     setVisibleCount(PAGE_SIZE);
     setSelected(new Set());
   }
@@ -222,7 +236,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
 
   function onManualFilterChange(partial: Partial<Filters>) {
     setFilters((current) => ({ ...current, ...partial }));
-    setActiveQuickView("reviewNow" as QuickView); // manual edits leave no quick view highlighted; see render guard below
+    // A manual tweak can leave the filters not matching any quick view's
+    // preset, so no quick view stays highlighted as if it were still active.
+    setActiveQuickView(null);
     setVisibleCount(PAGE_SIZE);
     setSelected(new Set());
   }
@@ -265,6 +281,16 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     }
   }
 
+  function updateReviewer(value: string) {
+    setReviewer(value);
+    try {
+      window.localStorage.setItem(REVIEWER_STORAGE_KEY, value);
+    } catch {
+      // Storage can be unavailable (private browsing, disabled storage); the
+      // name still works for this session, it just won't persist.
+    }
+  }
+
   function toggleSelected(id: string) {
     setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
@@ -282,8 +308,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   return (
     <div className="scout-inbox">
       <div className="scout-reviewer-bar">
-        <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
-        <small>Entered once — every Watch, Dismiss, and bulk decision below uses this name.</small>
+        <label>Reviewer<input onChange={(event) => updateReviewer(event.target.value)} placeholder="Your name or initials" suppressHydrationWarning value={reviewer} /></label>
+        <small>Remembered on this device — every Watch, Dismiss, and bulk decision below uses this name.</small>
       </div>
 
       <div className="scout-quick-views" role="group" aria-label="Quick views">
@@ -341,7 +367,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
 
       {visibleLeads.length ? (
         <>
-          <label className="scout-filters-checkboxes scout-select-all">
+          <label className="scout-select-all">
             <input checked={visibleLeads.length > 0 && visibleLeads.every((lead) => selected.has(lead.id))} onChange={toggleSelectAllVisible} type="checkbox" /> Select all {visibleLeads.length} visible
           </label>
           <div className="scout-lead-list">

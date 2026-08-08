@@ -1,6 +1,7 @@
 import Link from "next/link";
 import BrowseEditions, { type BrowseEdition } from "@/components/BrowseEditions";
 import { supabase } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function BrowsePage() {
           <Link className="header-note" href="/identify">Identify a copy</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
+          <ThemeToggle />
         </nav>
       </header>
       <section className="browse-hero">

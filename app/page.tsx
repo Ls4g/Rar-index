@@ -1,5 +1,6 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import CollectorShelf, { type ShelfEdition } from "@/components/CollectorShelf";
+import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
@@ -237,6 +238,7 @@ export default async function Home() {
           <Link className="header-note" href="/browse">Browse editions</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
+          <ThemeToggle />
         </nav>
       </header>
 

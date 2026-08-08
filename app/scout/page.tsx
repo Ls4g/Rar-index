@@ -3,8 +3,14 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ScoutBatchRunButton from "@/components/ScoutBatchRunButton";
 import ScoutRunButton from "@/components/ScoutRunButton";
 import ScoutTriageInbox, { type ScoutLead } from "@/components/ScoutTriageInbox";
+import StaffNav from "@/components/StaffNav";
 import { assessScoutListing, type ScoutEdition } from "@/lib/scoutIngest";
 import { isPrioritySeries } from "@/lib/prioritySeries";
+
+function formatLastChecked(value: string | null) {
+  if (!value) return "Never scanned";
+  return `Last scanned ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value))}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -142,13 +148,14 @@ export default async function ScoutPage() {
   }
 
   return (
-    <main className="review-page catalogue-page">
+    <main className="review-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles →</Link>
+        <StaffNav current="/scout" />
       </header>
-      <section className="review-hero catalogue-hero">
+      <section className="review-hero">
         <div>
           <p className="eyebrow">RAR Scout</p>
           <h1>Scout triage inbox</h1>
@@ -168,7 +175,7 @@ export default async function ScoutPage() {
                 <div className="scout-profile-row" key={profile.id}>
                   <div>
                     <strong>{profile.edition?.title ?? "Edition"}</strong>
-                    <small>{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null, profile.source?.name].filter(Boolean).join(" · ")}</small>
+                    <small>{[profile.edition?.language, profile.edition?.isbn_13 ? `ISBN ${profile.edition.isbn_13}` : null, profile.source?.name].filter(Boolean).join(" · ")} · {formatLastChecked(profile.last_checked_at)}</small>
                   </div>
                   <ScoutRunButton profileId={profile.id} />
                 </div>

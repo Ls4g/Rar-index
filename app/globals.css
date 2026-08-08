@@ -57,6 +57,32 @@ button, input { font: inherit; }
 .staff-header-primary { padding: .6rem .78rem; border-radius: .45rem; background: var(--action); color: #fff; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .staff-header-primary:hover { background: var(--action-dark); }
 
+/* Day/Night switch: a small segmented pill next to the other header links.
+   Coral marks the active theme, matching every other selected-state use of
+   that colour on the site. */
+.theme-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; }
+.theme-toggle button { border: 0; border-radius: 999px; padding: .38rem .68rem; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; transition: background .15s ease, color .15s ease; }
+.theme-toggle button:hover { color: var(--canvas-heading); }
+.theme-toggle button.is-active, .theme-toggle button.is-active:hover { background: var(--red); color: #fff; }
+
+/* Staff tools menu: every staff-gated page in one disclosure instead of a
+   hand-picked handful of links per page. Plain <details> — no client JS,
+   works pre-hydration, and a link click just navigates away so there is no
+   open state to reset. */
+.staff-nav-menu { position: relative; }
+.staff-nav-menu summary { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: .45rem; color: var(--muted); cursor: pointer; font-size: .7rem; font-weight: 700; letter-spacing: .06em; list-style: none; text-transform: uppercase; }
+.staff-nav-menu summary::-webkit-details-marker { display: none; }
+.staff-nav-menu summary::after { content: "▾"; font-size: .6rem; }
+.staff-nav-menu[open] summary { border-color: var(--gold); color: var(--ink); }
+.staff-nav-panel { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 20; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem; min-width: 620px; padding: 1.1rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--paper); box-shadow: 0 18px 40px rgba(33,29,24,.18); }
+.staff-nav-group { display: grid; gap: .3rem; align-content: start; }
+.staff-nav-group-label { margin-bottom: .2rem; color: var(--gold); font-size: .6rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.staff-nav-panel a { padding: .42rem .5rem; border-radius: .35rem; color: var(--ink); font-size: .82rem; }
+.staff-nav-panel a:hover { background: #eee6d7; }
+.staff-nav-panel a.is-current { background: var(--action-soft); color: var(--action-dark); font-weight: 700; pointer-events: none; }
+@media (max-width: 850px) { .staff-nav-panel { min-width: 0; width: min(90vw, 420px); grid-template-columns: repeat(2, minmax(0, 1fr)); right: -1rem; } }
+@media (max-width: 600px) { .staff-nav-panel { grid-template-columns: 1fr; } }
+
 /* The hero used to be a tall, mostly-empty dark panel. It now holds real
    content immediately (search, entry points, the shelf) instead of acting
    as a billboard, so it no longer needs a fixed minimum height. */
@@ -851,68 +877,126 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .index-explore-grid strong { font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; line-height: 1.08; }
 .index-explore-grid small { align-self: end; color: var(--muted); font-size: .75rem; line-height: 1.42; }
 
-/* Public site: one continuous dark collector-archive canvas, not a dark
-   hero handing back to a flat cream page. Every public route's <main> gets
-   this class; staff-only routes (gated by proxy.ts) never receive it, so
-   none of this touches staff tooling. Cards use a lifted charcoal surface
-   with a hairline border instead of the old cream/paper panels — cream
-   itself is reserved for small text/labels, never a rectangular fill. */
+/* Public site theme system: Night (dark collector-archive, the original
+   default) and Day (stone/parchment collector reference), switched by
+   html[data-theme] — see components/ThemeToggle.tsx and lib/theme.ts.
+   Every public route's <main> gets .public-page; staff-only routes (gated
+   by proxy.ts) never receive it, so none of this touches staff tooling.
+   Layout, spacing and component structure are identical between themes —
+   only the tokens below change. Night's values are the original literals
+   this block always used, kept as the default (undefined data-theme, or
+   data-theme="night") so Night is pixel-identical to before this system
+   existed. Cards use a lifted surface with a hairline border instead of a
+   colour-block panel — cream/beige is never used as a rectangular fill. */
 .public-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #211d18 0%, #251f19 45%, #211d18 100%);
-  /* --muted/--line are colour-only (never a surface fill) everywhere they're
-     used, so redefining them here quietly relights every existing "color:
-     var(--muted)" and "border: var(--line)" rule inside public pages —
-     including ones this stylesheet doesn't touch below — without fighting
-     their original selectors' specificity. --ink and --paper stay put: both
-     do double duty as text AND background colours elsewhere (e.g. the hero),
-     so redefining them here would break those. */
+  /* --muted/--line are colour-only (never a surface fill) everywhere
+     they're used, so redefining them here quietly relights every existing
+     "color: var(--muted)" and "border: var(--line)" rule inside public
+     pages — including ones this stylesheet doesn't touch below — without
+     fighting their original selectors' specificity. --ink and --paper stay
+     put: both do double duty as text AND background colours elsewhere
+     (e.g. the hero, which keeps its dark mood in both themes as RAR's
+     consistent masthead), so redefining them here would break those. */
   --muted: rgba(244,240,232,.62);
   --line: rgba(244,240,232,.14);
+  --canvas-bg: linear-gradient(180deg, #211d18 0%, #251f19 45%, #211d18 100%);
+  --canvas-heading: var(--paper);
+  --canvas-muted-strong: rgba(244,240,232,.7);
+  --surface-card: #29241d;
+  --surface-card-hover: #302a21;
+  --surface-card-active: #322b20;
+  --surface-chip: #26221b;
+  --surface-chip-active: #3a2c1c;
+  --surface-input: #211d18;
+  --surface-tooltip: #322b20;
+  --surface-hairline-fill: rgba(244,240,232,.05);
+  --input-placeholder: rgba(244,240,232,.35);
+  --card-shadow: 0 10px 24px rgba(0,0,0,.28);
+  --card-shadow-hover: 0 14px 28px rgba(0,0,0,.34);
+  --principle-bg: linear-gradient(120deg, #2b241d, #211d18);
+  --accent-positive-text: #6fd6ae;
+  --accent-warning-text: #e3b464;
+  --accent-info-text: #a9c6ec;
+  --accent-info-text-strong: #8fb4e8;
+  --accent-label-text: var(--gold-light);
+  --accent-chip-active-text: #e2685c;
+  background: var(--canvas-bg);
 }
-.public-page h1, .public-page h2, .public-page h3 { color: var(--paper); }
-.public-page .section-copy, .public-page .card-honest-note { color: rgba(244,240,232,.6); }
-.public-page .status-message { background: rgba(244,240,232,.05); }
-.public-page .section-heading > span { color: rgba(244,240,232,.5); }
+/* Day: soft stone/parchment-grey canvas, charcoal text, white/near-white
+   cards with restrained shadows — a premium reference library, not a dark
+   theme with the brightness turned up. Same selectors as Night above; only
+   these custom properties change. */
+html[data-theme="day"] .public-page {
+  --muted: #6b6558;
+  --line: rgba(28,26,22,.12);
+  --canvas-bg: linear-gradient(180deg, #f4f1e9 0%, #f0ece2 45%, #ece6d8 100%);
+  --canvas-heading: #1c1a16;
+  --canvas-muted-strong: #4d473b;
+  --surface-card: #ffffff;
+  --surface-card-hover: #faf8f3;
+  --surface-card-active: #f2ede2;
+  --surface-chip: #f5f2ea;
+  --surface-chip-active: #ece4d0;
+  --surface-input: #ffffff;
+  --surface-tooltip: #ffffff;
+  --surface-hairline-fill: rgba(28,26,22,.04);
+  --input-placeholder: rgba(28,26,22,.32);
+  --card-shadow: 0 3px 10px rgba(28,26,22,.07);
+  --card-shadow-hover: 0 8px 22px rgba(28,26,22,.09);
+  --principle-bg: linear-gradient(120deg, #ece5d6, #f4efe6);
+  --accent-positive-text: #1f7a5c;
+  --accent-warning-text: #8a5a1a;
+  --accent-info-text: #204581;
+  --accent-info-text-strong: #2c5aa0;
+  --accent-label-text: #a5541f;
+  --accent-chip-active-text: #832822;
+}
+.public-page h1, .public-page h2, .public-page h3 { color: var(--canvas-heading); }
+.public-page .section-copy, .public-page .card-honest-note { color: var(--muted); }
+.public-page .status-message { background: var(--surface-hairline-fill); }
+.public-page .section-heading > span { color: var(--muted); }
 .public-page .site-header { background: transparent; }
-.public-page .brand { color: var(--paper); }
-.public-page .header-note { color: rgba(244,240,232,.55); }
-.public-page .live-listings-empty strong { color: var(--paper); }
-.public-page .edition-disclosure summary > span:first-child { color: var(--paper); }
-.public-page .confidence-signal strong { color: var(--paper); }
-.public-page .ghost-chart-message strong { color: var(--paper); }
-.public-page .edition-evidence-grid strong { color: var(--paper); }
-.public-page .evidence-checklist strong { color: var(--paper); }
-.public-page .browse-result-count strong { color: var(--paper); }
-.public-page .browse-series-header h2 { color: var(--paper); }
-.public-page .identify-disclaimer { color: rgba(244,240,232,.6); }
-.public-page .market-currency-control label { color: rgba(244,240,232,.6); }
+.public-page .brand { color: var(--canvas-heading); }
+.public-page .header-note { color: var(--muted); }
+.public-page .live-listings-empty strong { color: var(--canvas-heading); }
+.public-page .edition-disclosure summary > span:first-child { color: var(--canvas-heading); }
+.public-page .confidence-signal strong { color: var(--canvas-heading); }
+.public-page .ghost-chart-message strong { color: var(--canvas-heading); }
+.public-page .edition-evidence-grid strong { color: var(--canvas-heading); }
+.public-page .evidence-checklist strong { color: var(--canvas-heading); }
+.public-page .browse-result-count strong { color: var(--canvas-heading); }
+.public-page .browse-series-header h2 { color: var(--canvas-heading); }
+.public-page .identify-disclaimer { color: var(--muted); }
+.public-page .market-currency-control label { color: var(--muted); }
+/* The hero's search bar sits on RAR's constant dark masthead in both
+   themes (see note above), so it keeps its own literal colours here. */
 .public-page .search-form { background: #211d18; border: 1px solid rgba(244,240,232,.22); box-shadow: 0 16px 42px rgba(0,0,0,.4); }
 .public-page .search-form input { background: transparent; }
-.public-page .header-note:hover { color: var(--paper); }
-.public-page .header-note:last-child { background: transparent; border: 1px solid rgba(244,240,232,.22); border-radius: .4rem; padding: .4rem .6rem; color: rgba(244,240,232,.7); }
-.public-page .price-chart-wrap, .public-page .ghost-chart { background: #29241d; border-color: rgba(244,240,232,.12); }
-.public-page .chart-grid-high, .public-page .chart-grid-low, .public-page .ghost-chart line { stroke: rgba(244,240,232,.14); }
-.public-page .chart-tooltip { background: #322b20; }
-.public-page .chart-tooltip strong { color: var(--paper); }
-.public-page .metric-card dd { color: rgba(244,240,232,.62); }
-.public-page .metric-card { border-top-color: rgba(244,240,232,.16); }
-.public-page .confidence-panel { border-top-color: rgba(244,240,232,.16); }
-.public-page .community-report-edition strong { color: var(--paper); }
-.public-page .portfolio-suggestions button { color: var(--paper); }
-.public-page .identify-checks label { color: rgba(244,240,232,.75); }
-.public-page .portfolio-auth > div > p:not(.eyebrow):not(.portfolio-add-context) { color: rgba(244,240,232,.66); }
-.public-page .portfolio-benefits { color: rgba(244,240,232,.65); }
-.public-page .portfolio-benefits li::before { color: var(--gold-light); }
-.public-page .cover-provenance { background: #29241d; }
+.public-page .header-note:hover { color: var(--canvas-heading); }
+.public-page .header-note:last-child { background: transparent; border: 1px solid var(--line); border-radius: .4rem; padding: .4rem .6rem; color: var(--canvas-muted-strong); }
+.public-page .price-chart-wrap, .public-page .ghost-chart { background: var(--surface-card); border-color: var(--line); }
+.public-page .chart-grid-high, .public-page .chart-grid-low, .public-page .ghost-chart line { stroke: var(--line); }
+.public-page .chart-tooltip { background: var(--surface-tooltip); box-shadow: var(--card-shadow); }
+.public-page .chart-tooltip strong { color: var(--canvas-heading); }
+.public-page .metric-card dd { color: var(--muted); }
+.public-page .metric-card { border-top-color: var(--line); }
+.public-page .confidence-panel { border-top-color: var(--line); }
+.public-page .community-report-edition strong { color: var(--canvas-heading); }
+.public-page .portfolio-suggestions button { color: var(--canvas-heading); }
+.public-page .identify-checks label { color: var(--canvas-muted-strong); }
+.public-page .portfolio-auth > div > p:not(.eyebrow):not(.portfolio-add-context) { color: var(--muted); }
+.public-page .portfolio-benefits { color: var(--muted); }
+.public-page .portfolio-benefits li::before { color: var(--accent-label-text); }
+.public-page .cover-provenance { background: var(--surface-card); }
 /* .staff-action-link keeps its own opaque cream chip background (a small,
    self-contained button, not an information panel) so it's excluded here —
-   its dark text already reads fine regardless of the page around it. */
-.public-page .cover-provenance a:not(.staff-action-link) { color: var(--gold-light); }
-.public-page .evidence-proof-links a { color: var(--gold-light); }
+   its dark text already reads fine regardless of the page or theme around it. */
+.public-page .cover-provenance a:not(.staff-action-link) { color: var(--accent-label-text); }
+.public-page .evidence-proof-links a { color: var(--accent-label-text); }
 
-/* Section dividers: a soft, low-contrast hairline instead of the light
-   tan --line border, so sections read as one environment, not seams. */
+/* Section dividers: a soft, low-contrast hairline instead of a stronger
+   border, so sections read as one environment, not seams. */
 .public-page .still-documenting-section,
 .public-page .index-explore,
 .public-page .collector-pathways,
@@ -921,15 +1005,15 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .public-page .community-report,
 .public-page .related-editions-section:not(.edition-disclosure),
 .public-page .collector-context-section:not(.edition-disclosure),
-.public-page .edition-disclosure { border-top-color: rgba(244,240,232,.14); }
-.public-page .market-evidence-section .eyebrow { color: #6fd6ae; }
-.public-page .still-documenting-section .eyebrow { color: rgba(244,240,232,.55); }
-.public-page .principle-section { background: linear-gradient(120deg, #2b241d, #211d18); }
-.public-page .principle-section > p:last-child { color: rgba(244,240,232,.88); }
+.public-page .edition-disclosure { border-top-color: var(--line); }
+.public-page .market-evidence-section .eyebrow { color: var(--accent-positive-text); }
+.public-page .still-documenting-section .eyebrow { color: var(--muted); }
+.public-page .principle-section { background: var(--principle-bg); }
+.public-page .principle-section > p:last-child { color: var(--canvas-heading); }
 
-/* Dark charcoal card system: replaces every cream/off-white information
-   panel on public pages with a lifted surface that sits naturally on the
-   dark canvas — subtle border and soft shadow instead of a colour break. */
+/* Card system: replaces every cream/off-white information panel on public
+   pages with a lifted surface (white on Day, charcoal on Night) — subtle
+   border and restrained shadow instead of a colour-block break. */
 .public-page .manga-card,
 .public-page .browse-card,
 .public-page .observed-sale,
@@ -959,28 +1043,29 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .public-page .portfolio-add-context,
 .public-page .edition-evidence-grid > div,
 .public-page .market-currency-control {
-  border-color: rgba(244,240,232,.12);
-  background: #29241d;
-  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+  border-color: var(--line);
+  background: var(--surface-card);
+  box-shadow: var(--card-shadow);
 }
 .public-page .manga-card:hover,
 .public-page .browse-card:hover,
 .public-page a.observed-sale:hover,
-.public-page .source-card:hover { border-color: var(--orange); background: #302a21; box-shadow: 0 14px 28px rgba(0,0,0,.34); }
+.public-page .source-card:hover { border-color: var(--orange); background: var(--surface-card-hover); box-shadow: var(--card-shadow-hover); }
 .public-page .browse-card.is-well-documented { border-top-color: var(--verified); }
-.public-page .identify-choice-grid button { border-color: rgba(244,240,232,.16); background: #26221b; color: var(--paper); }
-.public-page .identify-choice-grid button.selected { border-color: var(--orange); background: #3a2c1c; }
+.public-page .identify-choice-grid button { border-color: var(--line); background: var(--surface-chip); color: var(--canvas-heading); }
+.public-page .identify-choice-grid button.selected { border-color: var(--orange); background: var(--surface-chip-active); }
 .public-page .identify-result { border-left-color: var(--orange); }
-.public-page .identify-result .result-positive { color: #6fd6ae; }
-.public-page .identify-result .result-caution { color: #e3b464; }
+.public-page .identify-result .result-positive { color: var(--accent-positive-text); }
+.public-page .identify-result .result-caution { color: var(--accent-warning-text); }
 
-/* Text inside dark cards: labels/kickers keep the warm accent, values and
-   headings go light, muted copy dims rather than disappears. */
+/* Text inside cards: labels/kickers keep the warm accent, values and
+   headings take the strong canvas colour, muted copy dims rather than
+   disappears. */
 .public-page .card-kicker, .public-page dt,
 .public-page .sale-source, .public-page .edition-evidence-grid span,
 .public-page .collector-context-card span, .public-page .collector-context-card .collector-context-tags,
 .public-page .collector-pathway-list > a > span, .public-page .index-explore-grid span,
-.public-page .related-editions-list span, .public-page .browse-card p, .public-page .browse-card strong { color: var(--gold-light); }
+.public-page .related-editions-list span, .public-page .browse-card p, .public-page .browse-card strong { color: var(--accent-label-text); }
 .public-page dd, .public-page .observed-sale small, .public-page .source-card small,
 .public-page .browse-card span, .public-page .browse-card small,
 .public-page .browse-card-evidence,
@@ -988,61 +1073,60 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .public-page .collector-context-card p, .public-page .collector-pathway-list p, .public-page .index-explore-grid small,
 .public-page .related-editions-list small, .public-page .evidence-checklist small,
 .public-page .identify-step p, .public-page .identify-result p, .public-page .identify-example p,
-.public-page .valuation-explainer, .public-page .empty-valuation p { color: rgba(244,240,232,.6); }
+.public-page .valuation-explainer, .public-page .empty-valuation p { color: var(--muted); }
 .public-page h3, .public-page .observed-sale strong, .public-page .source-card strong,
 .public-page .identify-step > strong, .public-page .identify-result > strong, .public-page .identify-example strong,
 .public-page .metric-card > strong, .public-page .empty-valuation strong, .public-page .confidence-label,
 .public-page .collector-context-card strong, .public-page .collector-pathway-list strong,
-.public-page .index-explore-grid strong, .public-page .related-editions-list strong { color: var(--paper); }
-.public-page .sale-status { border-color: rgba(244,240,232,.2); color: rgba(244,240,232,.55); }
-.public-page .sale-status.verified_match { border-color: rgba(111,214,174,.4); color: #6fd6ae; }
-.public-page .sale-status.needs_review { border-color: rgba(227,180,100,.45); color: #e3b464; }
-.public-page .valuation-panel-live-teaser { border-color: rgba(44,90,160,.4); color: #a9c6ec; }
+.public-page .index-explore-grid strong, .public-page .related-editions-list strong { color: var(--canvas-heading); }
+.public-page .sale-status { border-color: var(--line); color: var(--muted); }
+.public-page .sale-status.verified_match { border-color: color-mix(in srgb, var(--accent-positive-text) 45%, transparent); color: var(--accent-positive-text); }
+.public-page .sale-status.needs_review { border-color: color-mix(in srgb, var(--accent-warning-text) 45%, transparent); color: var(--accent-warning-text); }
+.public-page .valuation-panel-live-teaser { border-color: rgba(44,90,160,.4); color: var(--accent-info-text); }
 .public-page .collector-pathway-list b { color: var(--orange); }
 .public-page .collector-pathway-list a:hover, .public-page .index-explore-grid a:hover, .public-page .related-editions-list a:hover { border-color: #d98a55; transform: translateY(-3px); }
-.public-page .portfolio-add-context { border-left-color: var(--red); color: rgba(244,240,232,.72) !important; }
-.public-page .portfolio-no-value { color: #e3b464; }
-.public-page .portfolio-selected-edition, .public-page .selected-edition { border-color: rgba(244,240,232,.22); background: #322b20; color: var(--paper); }
-.public-page .portfolio-auth-options button { border-color: rgba(244,240,232,.2); background: #211d18; color: rgba(244,240,232,.65); }
-.public-page .portfolio-auth-options button.selected { border-color: var(--orange); background: #3a2c1c; color: var(--gold-light); }
+.public-page .portfolio-add-context { border-left-color: var(--red); color: var(--canvas-muted-strong) !important; }
+.public-page .portfolio-no-value { color: var(--accent-warning-text); }
+.public-page .portfolio-selected-edition, .public-page .selected-edition { border-color: var(--line); background: var(--surface-card-active); color: var(--canvas-heading); }
+.public-page .portfolio-auth-options button { border-color: var(--line); background: var(--surface-input); color: var(--muted); }
+.public-page .portfolio-auth-options button.selected { border-color: var(--orange); background: var(--surface-chip-active); color: var(--accent-label-text); }
 
 /* Live buying opportunities: cobalt stays the accent (border + text), but
-   the panel itself joins the dark surface system instead of a pale-blue
+   the panel itself joins the card system instead of a pale-blue
    information box breaking the page's colour continuity. */
 .public-page .live-listings-section { border-color: rgba(44,90,160,.32); }
 .public-page .live-listing-card { border-color: rgba(44,90,160,.3); }
 .public-page .live-listing-card:hover { border-color: var(--blue); box-shadow: 0 10px 24px rgba(44,90,160,.22); }
-.public-page .live-listing-card span { color: #8fb4e8; }
-.public-page .live-listing-meta strong { color: #a9c6ec; }
+.public-page .live-listing-card span { color: var(--accent-info-text-strong); }
+.public-page .live-listing-meta strong { color: var(--accent-info-text); }
 .public-page .live-listings-empty { border-top-color: rgba(44,90,160,.3); }
 
-/* Form fields inside dark cards. */
+/* Form fields inside cards. */
 .public-page input, .public-page select, .public-page textarea {
-  background: #211d18;
-  border-color: rgba(244,240,232,.18);
-  color: var(--paper);
+  background: var(--surface-input);
+  border-color: var(--line);
+  color: var(--canvas-heading);
 }
-.public-page input::placeholder, .public-page textarea::placeholder { color: rgba(244,240,232,.35); }
+.public-page input::placeholder, .public-page textarea::placeholder { color: var(--input-placeholder); }
 .public-page .community-report-form input, .public-page .community-report-form select, .public-page .community-report-form textarea,
 .public-page .edition-request-form input, .public-page .edition-request-form select, .public-page .edition-request-form textarea,
 .public-page .portfolio-auth-form input, .public-page .portfolio-form-panel input, .public-page .portfolio-form-panel textarea,
-.public-page .browse-search-field input, .public-page .market-currency-control select { background: #211d18; border-color: rgba(244,240,232,.18); color: var(--paper); }
-.public-page .browse-chip { border-color: rgba(244,240,232,.18); background: #26221b; color: rgba(244,240,232,.6); }
-.public-page .browse-chip:hover { border-color: var(--orange); color: var(--gold-light); }
-.public-page .browse-chip.is-active { border-color: var(--red); background: var(--red-soft); color: #e2685c; }
+.public-page .browse-search-field input, .public-page .market-currency-control select { background: var(--surface-input); border-color: var(--line); color: var(--canvas-heading); }
+.public-page .browse-chip { border-color: var(--line); background: var(--surface-chip); color: var(--muted); }
+.public-page .browse-chip:hover { border-color: var(--orange); color: var(--accent-label-text); }
+.public-page .browse-chip.is-active { border-color: var(--red); background: var(--red-soft); color: var(--accent-chip-active-text); }
 .public-page .browse-collection-banner { border-color: rgba(201,105,44,.4); background: rgba(201,105,44,.1); }
-.public-page .browse-collection-banner strong { color: var(--gold-light); }
-.public-page .browse-controls summary { color: rgba(244,240,232,.6); }
-.public-page .community-report-toggle { border-color: rgba(244,240,232,.22); background: #26221b; color: var(--gold-light); }
-.public-page .community-report-toggle:hover { border-color: var(--orange); background: #302a21; }
-.public-page .community-report-note { color: rgba(244,240,232,.55); }
+.public-page .browse-collection-banner strong { color: var(--accent-label-text); }
+.public-page .browse-controls summary { color: var(--muted); }
+.public-page .community-report-toggle { border-color: var(--line); background: var(--surface-chip); color: var(--accent-label-text); }
+.public-page .community-report-toggle:hover { border-color: var(--orange); background: var(--surface-card-hover); }
+.public-page .community-report-note { color: var(--muted); }
 
 /* Grid hairlines: the 1px "border" between cards is really the grid's own
-   background showing through — keep it a dark, low-contrast line instead
-   of the light tan used on cream pages. */
+   background showing through. */
 .public-page .manga-grid, .public-page .browse-grid, .public-page .observed-sales-list,
 .public-page .source-list, .public-page .edition-evidence-grid, .public-page .confidence-grid,
-.public-page .portfolio-summary, .public-page .portfolio-list { border-color: rgba(244,240,232,.1); background: rgba(244,240,232,.1); }
+.public-page .portfolio-summary, .public-page .portfolio-list { border-color: var(--line); background: var(--line); }
 .identify-example { display: grid; grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr); gap: 1.4rem; align-items: center; margin-bottom: 1rem; padding: 1.4rem; border: 1px solid #e0d8ca; border-radius: .9rem; background: #fffdf8; box-shadow: 0 8px 22px rgba(57,43,23,.04); }
 .identify-example h2 { margin: .2rem 0 .6rem; font-family: var(--font-display); font-size: clamp(1.6rem, 2.8vw, 2.1rem); }
 .identify-example p { margin: 0; color: var(--muted); line-height: 1.55; }
@@ -1198,7 +1282,12 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
 .scout-filters-checkboxes { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: 0 1.1rem 1.1rem; }
 .scout-filters-checkboxes label { display: inline-flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .78rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
 .scout-filters-checkboxes input { width: 1.05rem; height: 1.05rem; accent-color: var(--gold); }
-.scout-select-all { margin-bottom: .5rem; }
+/* Its own rule, not a reuse of .scout-filters-checkboxes: that class's
+   label styling only applies to <label> DESCENDANTS, and this element is
+   both the container and the label at once, so reusing it here left the
+   text unstyled — default size/colour, misaligned from the checkbox. */
+.scout-select-all { display: inline-flex; align-items: center; gap: .5rem; margin-bottom: .75rem; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.scout-select-all input { width: 1.05rem; height: 1.05rem; accent-color: var(--gold); }
 
 .scout-lead-list { display: grid; gap: 1px; border: 1px solid var(--line); background: var(--line); }
 .scout-lead-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .9rem 1.1rem; align-items: start; padding: 1rem 1.1rem; background: #fbf9f3; transition: background .15s ease; }

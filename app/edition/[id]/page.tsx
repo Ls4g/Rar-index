@@ -5,6 +5,7 @@ import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import MarketValuePanel from "@/components/MarketValuePanel";
 import EditionCover from "@/components/EditionCover";
+import ThemeToggle from "@/components/ThemeToggle";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -332,6 +333,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <Link className="header-note" href="/browse">Browse editions</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
+          <ThemeToggle />
         </nav>
       </header>
 
