@@ -21,16 +21,12 @@ type Profile = {
   } | null;
 };
 
+const DAILY_PROFILE_LIMIT = 50;
+const SCAN_CONCURRENCY = 4;
+
 function isAuthorizedCron(request: Request) {
   const secret = process.env.CRON_SECRET;
   return Boolean(secret) && request.headers.get("authorization") === `Bearer ${secret}`;
-}
-
-function isDue(profile: Profile, now: number) {
-  if (!profile.last_checked_at) return true;
-  const lastCheckedAt = new Date(profile.last_checked_at).getTime();
-  const interval = Math.max(profile.collection_interval_days ?? 7, 1) * 86_400_000;
-  return Number.isNaN(lastCheckedAt) || now - lastCheckedAt >= interval;
 }
 
 export async function GET(request: Request) {
@@ -43,14 +39,15 @@ export async function GET(request: Request) {
     .eq("is_active", true)
     .eq("source.name", "eBay Sold")
     .order("last_checked_at", { ascending: true, nullsFirst: true })
-    .limit(50);
+    .limit(DAILY_PROFILE_LIMIT);
   const profiles = (data ?? []) as unknown as Profile[];
   if (error) return Response.json({ error: "RAR could not load the daily Scout profiles." }, { status: 500 });
 
-  // The daily job intentionally processes a small due batch. That keeps API
-  // usage controlled while each active profile is revisited on its cadence.
-  const dueProfiles = profiles.filter((profile) => profile.source?.name === "eBay Sold" && profile.edition && isDue(profile, Date.now())).slice(0, 6);
-  if (!dueProfiles.length) return Response.json({ scannedProfiles: 0, activeLeads: 0, failures: 0 });
+  // "Live" can only mean recently checked. Refresh every active eBay profile
+  // once a day instead of following the slower completed-sales collection
+  // cadence, which left public live listings stale for most editions.
+  const activeProfiles = profiles.filter((profile) => profile.source?.name === "eBay Sold" && profile.edition);
+  if (!activeProfiles.length) return Response.json({ scannedProfiles: 0, activeLeads: 0, failures: 0 });
 
   let token: string;
   try {
@@ -59,9 +56,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "eBay did not issue RAR an application token." }, { status: 503 });
   }
 
-  let activeLeads = 0;
-  let failures = 0;
-  for (const profile of dueProfiles) {
+  const scanProfile = async (profile: Profile) => {
     try {
       const listings = await findActiveEbayListings(profile.search_query, token);
       const checkedAt = new Date().toISOString();
@@ -70,13 +65,23 @@ export async function GET(request: Request) {
       const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
       if (scanError) throw new Error("RAR could not record the completed Scout scan.");
       await admin.from("marketplace_search_profiles").update({ last_checked_at: checkedAt, last_checked_result_count: builds.length, updated_at: checkedAt }).eq("id", profile.id);
-      activeLeads += builds.length;
+      return { activeLeads: builds.length, failed: false };
     } catch (caught) {
-      failures += 1;
       const message = caught instanceof Error ? caught.message : "Scout could not complete this scan.";
       await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "failed", result_count: 0, error_message: message });
+      return { activeLeads: 0, failed: true };
     }
+  };
+
+  const results: Array<{ activeLeads: number; failed: boolean }> = [];
+  for (let offset = 0; offset < activeProfiles.length; offset += SCAN_CONCURRENCY) {
+    const batch = activeProfiles.slice(offset, offset + SCAN_CONCURRENCY);
+    results.push(...await Promise.all(batch.map(scanProfile)));
   }
 
-  return Response.json({ scannedProfiles: dueProfiles.length, activeLeads, failures });
+  const activeLeads = results.reduce((total, result) => total + result.activeLeads, 0);
+  const failures = results.filter((result) => result.failed).length;
+  const scannedProfiles = results.length - failures;
+
+  return Response.json({ scannedProfiles, activeLeads, failures });
 }

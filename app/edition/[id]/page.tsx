@@ -499,7 +499,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               <p className="eyebrow">RAR Scout · Can I buy one now?</p>
               <h2 id="live-listings-heading">Live eBay listings</h2>
             </div>
-            <span className="live-listings-status">{latestScoutCheck ? `Last checked ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
+            <span className="live-listings-status">{latestScoutCheck ? `Last Scout scan ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
           <p className="section-copy">These are asking prices on current listings, not completed sales. RAR only surfaces listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart above.</p>
           {liveListings.length ? (
