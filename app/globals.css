@@ -183,9 +183,12 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 .search-result-cover .edition-cover-fallback-mark { display: none; }
 .search-result-cover .edition-cover-fallback-status strong { font-size: .58rem; }
 .search-result-cover .edition-cover-fallback small, .search-result-cover .edition-cover-badge { display: none; }
-/* The "Catalogue cover" badge needs more width than the homepage's compact
-   card thumbnail has; at that size it just clips to unreadable characters. */
-.card-cover .edition-cover-badge { display: none; }
+/* The "Catalogue cover" badge needs more width than a compact thumbnail
+   has; at these sizes it clips to unreadable characters and covers the
+   artwork it is meant to caption. The portfolio's ranked list is 52x68px,
+   smaller than either of the others. */
+.card-cover .edition-cover-badge,
+.most-valuable-cover .edition-cover-badge { display: none; }
 .search-result strong, .search-result span, .search-result small, .search-edition-label { display: block; }
 .search-result strong { color: var(--paper); font-size: .88rem; }
 .search-result span, .search-result small, .search-message { color: rgba(244,240,232,.58); font-size: .72rem; }
@@ -610,6 +613,11 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .holding-card-figures dd { display: grid; margin: .25rem 0 0; color: var(--canvas-heading); font-size: .82rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .holding-card-gain.is-positive dd { color: var(--accent-positive-text); }
 .holding-card-gain.is-negative dd { color: var(--accent-chip-active-text, var(--red)); }
+/* Each figure keeps to its own line rather than wrapping mid-number in a
+   narrow column. overflow-wrap on the parent dd would otherwise break
+   inside "+£1,402.94". */
+.holding-card-gain-amount, .holding-card-gain-percent { display: block; overflow-wrap: normal; white-space: nowrap; }
+.holding-card-gain-percent { font-size: .72rem; opacity: .85; }
 .holding-card-notes { margin: 0; padding: .6rem .7rem; border-radius: .5rem; background: var(--surface-chip); color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .holding-card-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding-top: .5rem; }
 .holding-card-link { color: var(--accent-label-text); font-size: .72rem; font-weight: 700; }

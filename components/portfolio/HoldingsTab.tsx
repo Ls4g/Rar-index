@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import HoldingCard, { type Holding } from "@/components/portfolio/HoldingCard";
-import type { EditionMarketMetric } from "@/lib/portfolioValuation";
+import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
+import { computeHoldingMarketValues, type EditionMarketMetric } from "@/lib/portfolioValuation";
+import type { FxRate } from "@/lib/fx";
 
 type FilterKey = "all" | "proven" | "other" | "none";
 
@@ -17,15 +19,24 @@ type HoldingsTabProps = {
   holdings: Holding[];
   metricsByEdition: Map<string, EditionMarketMetric[]>;
   otherSaleCounts: Map<string, number>;
+  rates: FxRate[];
   loading: boolean;
   onAddClick: () => void;
   onEdit: (holding: Holding) => void;
   onRemove: (id: string) => void;
 };
 
-export default function HoldingsTab({ holdings, metricsByEdition, otherSaleCounts, loading, onAddClick, onEdit, onRemove }: HoldingsTabProps) {
+export default function HoldingsTab({ holdings, metricsByEdition, otherSaleCounts, rates, loading, onAddClick, onEdit, onRemove }: HoldingsTabProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const { currency } = useMarketCurrency();
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Same shared valuation the Overview tab and the portfolio totals use, so
+  // a holding's gain can never disagree with the figures above it.
+  const valueByHolding = useMemo(() => {
+    const computed = computeHoldingMarketValues(holdings, metricsByEdition, rates, currency, today);
+    return new Map(computed.map((entry) => [entry.holdingId, entry]));
+  }, [holdings, metricsByEdition, rates, currency, today]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -79,12 +90,14 @@ export default function HoldingsTab({ holdings, metricsByEdition, otherSaleCount
           <div className="holding-card-grid">
             {filtered.map((holding) => (
               <HoldingCard
+                currency={currency}
                 holding={holding}
                 key={holding.id}
                 metrics={metricsByEdition.get(holding.edition_id) ?? []}
                 onEdit={onEdit}
                 onRemove={onRemove}
                 otherSaleCount={otherSaleCounts.get(holding.edition_id) ?? 0}
+                value={valueByHolding.get(holding.id) ?? null}
               />
             ))}
           </div>

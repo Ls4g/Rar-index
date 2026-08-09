@@ -370,6 +370,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
               onEdit={editHolding}
               onRemove={(id) => void removeHolding(id)}
               otherSaleCounts={otherSaleCounts}
+              rates={rates}
             />
           ) : null}
 

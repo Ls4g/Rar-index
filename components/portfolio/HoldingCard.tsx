@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
-import { formatPrice } from "@/lib/fx";
+import { formatPrice, type DisplayCurrency } from "@/lib/fx";
 import type { SummaryMetric } from "@/components/portfolio/PortfolioSummary";
+import type { HoldingMarketValue } from "@/lib/portfolioValuation";
 
 export type HoldingEdition = {
   id: string;
@@ -35,19 +36,22 @@ type HoldingCardProps = {
   holding: Holding;
   metrics: SummaryMetric[];
   otherSaleCount: number;
+  value: HoldingMarketValue | null;
+  currency: DisplayCurrency;
   onEdit: (holding: Holding) => void;
   onRemove: (id: string) => void;
 };
 
-export default function HoldingCard({ holding, metrics, otherSaleCount, onEdit, onRemove }: HoldingCardProps) {
+export default function HoldingCard({ holding, metrics, otherSaleCount, value, currency, onEdit, onRemove }: HoldingCardProps) {
   const edition = holding.edition;
   const paidAmount = holding.purchase_price !== null ? holding.purchase_price * holding.quantity : null;
-  // A per-card gain/loss is only ever shown when the purchase and the
-  // market evidence already share one currency — no conversion happens at
-  // this level. A mismatch is explained, never estimated.
-  const matchingMetric = paidAmount !== null && holding.purchase_currency ? metrics.find((metric) => metric.currency === holding.purchase_currency) ?? null : null;
-  const gain = matchingMetric && paidAmount !== null ? matchingMetric.market_value_median * holding.quantity - paidAmount : null;
-  const gainPercent = gain !== null && paidAmount ? (gain / paidAmount) * 100 : null;
+  // Gain comes from the shared valuation logic, which converts the purchase
+  // and the market evidence into the display currency using real historical
+  // rates -- the same path the portfolio totals take. A holding bought in
+  // one currency against evidence in another is an ordinary case, not an
+  // unanswerable one. Still never estimated: no real rate means no figure.
+  const gain = value?.gain ?? null;
+  const gainPercent = value?.gainPercent ?? null;
   const gainTone = gain === null ? "" : gain > 0 ? "is-positive" : gain < 0 ? "is-negative" : "";
 
   return (
@@ -94,19 +98,35 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, onEdit, 
           </div>
           <div>
             <dt>Market value</dt>
+            {/* Converted into the display currency so it agrees with the
+                gain beside it and the totals above. Only when a real rate
+                is missing does this fall back to listing each original
+                amount, rather than reporting nothing. */}
             <dd>
-              {metrics.length
-                ? metrics.map((metric) => <span key={metric.currency}>{formatPrice(metric.market_value_median * holding.quantity, metric.currency)}</span>)
-                : "Not enough data"}
+              {value?.marketValue != null
+                ? formatPrice(value.marketValue, currency)
+                : metrics.length
+                  ? metrics.map((metric) => <span key={metric.currency}>{formatPrice(metric.market_value_median * holding.quantity, metric.currency)}</span>)
+                  : "Not enough data"}
             </dd>
           </div>
           <div className={`holding-card-gain ${gainTone}`}>
             <dt>Gain / loss</dt>
             <dd>
               {gain !== null ? (
-                <>{gain >= 0 ? "+" : ""}{formatPrice(gain, holding.purchase_currency as string)}{gainPercent !== null ? ` (${gainPercent >= 0 ? "+" : ""}${gainPercent.toFixed(1)}%)` : ""}</>
+                // Amount and percentage are each one unbreakable string on
+                // its own line -- as separate text nodes in a narrow column
+                // they wrapped mid-figure, splitting the sign off the
+                // number and stranding a bracket on its own row.
+                <>
+                  <span className="holding-card-gain-amount">{`${gain >= 0 ? "+" : ""}${formatPrice(gain, currency)}`}</span>
+                  {gainPercent !== null ? <span className="holding-card-gain-percent">{`${gainPercent >= 0 ? "+" : ""}${gainPercent.toFixed(1)}%`}</span> : null}
+                </>
               ) : paidAmount !== null && metrics.length ? (
-                "Different currency"
+                // Reached only when a real exchange rate is missing for a
+                // sale or purchase date, not merely because two currencies
+                // differ -- which is now converted.
+                <span title="RAR has no exchange rate on file for one of these dates yet.">No rate for this date</span>
               ) : (
                 "—"
               )}

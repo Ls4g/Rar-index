@@ -236,17 +236,39 @@ export type HoldingMarketValue = {
   editionId: string;
   marketValue: number | null;
   hasExcludedEvidence: boolean;
+  // Both in the display currency, so a holding bought in one currency and
+  // evidenced in another still compares. null where the amount could not be
+  // converted with a real historical rate, or does not exist at all.
+  paidValue: number | null;
+  gain: number | null;
+  gainPercent: number | null;
 };
 
 // Per-holding market value in the display currency, for ranking ("Most
-// valuable holdings"). null means either no evidence at all, or evidence
-// that exists but could not be safely converted -- distinguished via
-// hasExcludedEvidence so the UI never shows a holding with real evidence as
-// if it were worth nothing.
+// valuable holdings") and for the gain shown on each holding card. null
+// marketValue means either no evidence at all, or evidence that exists but
+// could not be safely converted -- distinguished via hasExcludedEvidence so
+// the UI never shows a holding with real evidence as if it were worth
+// nothing.
+//
+// Gain converts both sides into the display currency through the same
+// convertAmount the portfolio totals use, rather than requiring the
+// purchase and the evidence to have been in the same currency to begin
+// with. A holding bought in GBP against sales evidenced in USD is an
+// ordinary case, not an unanswerable one -- and the totals above already
+// answered it. Still never estimated: if either side has no real rate for
+// its date, the gain stays null instead of being guessed.
 export function computeHoldingMarketValues(holdings: ValuationHolding[], metricsByEdition: Map<string, EditionMarketMetric[]>, rates: FxRate[], displayCurrency: DisplayCurrency, today: string): HoldingMarketValue[] {
   return holdings.map((holding) => {
+    const paidValue = holding.purchase_price !== null && holding.purchase_currency
+      ? convertAmount(holding.purchase_price * holding.quantity, holding.purchase_currency, holding.purchase_date, displayCurrency, rates)
+      : null;
+
     const editionMetrics = metricsByEdition.get(holding.edition_id) ?? [];
-    if (!editionMetrics.length) return { holdingId: holding.id, editionId: holding.edition_id, marketValue: null, hasExcludedEvidence: false };
+    if (!editionMetrics.length) {
+      return { holdingId: holding.id, editionId: holding.edition_id, marketValue: null, hasExcludedEvidence: false, paidValue, gain: null, gainPercent: null };
+    }
+
     let total = 0;
     let excluded = false;
     for (const metric of editionMetrics) {
@@ -255,7 +277,10 @@ export function computeHoldingMarketValues(holdings: ValuationHolding[], metrics
       if (converted !== null) total += converted;
       else excluded = true;
     }
-    return { holdingId: holding.id, editionId: holding.edition_id, marketValue: excluded ? null : total, hasExcludedEvidence: excluded };
+    const marketValue = excluded ? null : total;
+    const gain = marketValue !== null && paidValue !== null ? marketValue - paidValue : null;
+    const gainPercent = gain !== null && paidValue ? (gain / paidValue) * 100 : null;
+    return { holdingId: holding.id, editionId: holding.edition_id, marketValue, hasExcludedEvidence: excluded, paidValue, gain, gainPercent };
   });
 }
 
