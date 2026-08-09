@@ -37,6 +37,7 @@ export const config = {
     "/scout/:path*",
     "/cover-review/:path*",
     "/api/review/:path*",
+    "/api/print-classification/:path*",
     "/api/catalogue-import/:path*",
     "/api/catalogue-review/:path*",
     "/api/price-import/:path*",

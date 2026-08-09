@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ReviewDecisionForm from "@/components/ReviewDecisionForm";
+import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import StaffNav from "@/components/StaffNav";
 
 // This is an operational queue: newly imported sales must appear immediately.
@@ -26,6 +28,26 @@ type ReviewRecord = {
   printing_number: number | null;
   source_name: string | null;
   evidence_image_url: string | null;
+  print_classification: "printing_not_identified" | "known_later_print" | "first_print_proven";
+  printing_proof_url: string | null;
+  known_printing_number: number | null;
+};
+
+type ClassificationQueueRecord = {
+  observation_id: string;
+  edition_id: string;
+  title: string | null;
+  series: string | null;
+  volume_number: string | null;
+  language: string | null;
+  publisher: string | null;
+  listing_title: string | null;
+  source_listing_url: string | null;
+  sold_date: string | null;
+  sale_price: number | null;
+  currency: string | null;
+  print_classification: "printing_not_identified" | "known_later_print" | "first_print_proven";
+  has_unreviewed_evidence_hint: boolean;
 };
 
 function formatPrice(value: number | null, currency: string | null) {
@@ -55,7 +77,32 @@ export default async function ReviewQueuePage() {
     .order("queued_at", { ascending: false })
     .limit(50);
 
-  const records = (data ?? []) as ReviewRecord[];
+  const baseRecords = (data ?? []) as Omit<ReviewRecord, "print_classification" | "printing_proof_url" | "known_printing_number">[];
+  const admin = getSupabaseAdmin();
+  const observationIds = baseRecords.map((record) => record.observation_id);
+  const { data: classificationData } = observationIds.length
+    ? await admin.from("price_observations").select("id,print_classification,printing_proof_url,known_printing_number").in("id", observationIds)
+    : { data: [] };
+  const classificationById = new Map((classificationData ?? []).map((row) => [row.id, row]));
+  const records: ReviewRecord[] = baseRecords.map((record) => {
+    const classification = classificationById.get(record.observation_id);
+    return {
+      ...record,
+      print_classification: classification?.print_classification ?? "printing_not_identified",
+      printing_proof_url: classification?.printing_proof_url ?? null,
+      known_printing_number: classification?.known_printing_number ?? null,
+    };
+  });
+
+  // Sales that already matched their exact edition but still sit at the
+  // honest default — the print-classification backlog, prioritised toward
+  // rows whose listing title reads as a first-print claim or which already
+  // captured an image nobody has reviewed for printing proof yet.
+  const { data: classificationQueueData } = await admin
+    .from("print_classification_queue")
+    .select("*")
+    .limit(30);
+  const classificationQueue = (classificationQueueData ?? []) as ClassificationQueueRecord[];
 
   return (
     <main className="review-page">
@@ -136,6 +183,12 @@ export default async function ReviewQueuePage() {
                   <p>{record.match_notes ?? "Check the listing images, copyright-page proof and edition identifiers before verifying."}</p>
                 </div>
                 <ReviewDecisionForm observationId={record.observation_id} />
+                <PrintClassificationDecisionForm
+                  observationId={record.observation_id}
+                  currentClassification={record.print_classification}
+                  currentProofUrl={record.printing_proof_url}
+                  currentPrintingNumber={record.known_printing_number}
+                />
               </article>
             ))}
           </div>
@@ -143,6 +196,52 @@ export default async function ReviewQueuePage() {
           <div className="review-empty">
             <strong>The queue is clear.</strong>
             <p>New candidate sales will appear here before they can affect the RAR Index.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="review-list-section">
+        <div className="section-intro">
+          <p className="eyebrow">Edition confirmed, printing unresolved</p>
+          <h2>Sales awaiting print classification</h2>
+          <p className="section-copy">These sales already matched their exact edition and stay honestly at &quot;printing not identified&quot; until proven otherwise. Rows flagged below either read as a first-print claim in the listing title or already have an image nobody has reviewed for printing proof.</p>
+        </div>
+
+        {classificationQueue.length ? (
+          <div className="review-list">
+            {classificationQueue.map((record) => (
+              <article className="review-card" key={record.observation_id}>
+                <div className="review-card-topline">
+                  <span>{record.has_unreviewed_evidence_hint ? "Worth a second look" : "Confirmed sale"}</span>
+                  <time>{formatDate(record.sold_date)}</time>
+                </div>
+                <div className="review-card-main">
+                  <div>
+                    <h3>{record.listing_title ?? "Untitled marketplace listing"}</h3>
+                    <strong className="review-price">{formatPrice(record.sale_price, record.currency)}</strong>
+                  </div>
+                  {record.source_listing_url ? (
+                    <a className="review-source-link" href={record.source_listing_url} target="_blank" rel="noreferrer">Open original listing ↗</a>
+                  ) : null}
+                </div>
+                <div className="review-match">
+                  <p className="eyebrow">Confirmed edition</p>
+                  <h4>{record.title ?? "Edition"}</h4>
+                  <p>{[record.series, record.volume_number ? `Vol. ${record.volume_number}` : null, record.language, record.publisher].filter(Boolean).join(" · ")}</p>
+                </div>
+                <PrintClassificationDecisionForm
+                  observationId={record.observation_id}
+                  currentClassification={record.print_classification}
+                  currentProofUrl={null}
+                  currentPrintingNumber={null}
+                />
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="review-empty">
+            <strong>Nothing waiting on a printing decision.</strong>
+            <p>Every edition-confirmed sale is either classified or has no hint worth flagging yet.</p>
           </div>
         )}
       </section>

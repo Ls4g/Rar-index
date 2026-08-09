@@ -71,6 +71,10 @@ export async function POST(request: Request) {
   const currency = text(payload.currency).toUpperCase(); const saleType = text(payload.saleType) || "unknown";
   const evidenceImageUrl = text(payload.evidenceImageUrl); const intakeNotes = text(payload.intakeNotes); const suppliedExternalId = text(payload.externalId);
   const salePrice = typeof payload.salePrice === "number" ? payload.salePrice : Number(text(payload.salePrice));
+  const reviewer = text(payload.reviewer);
+  const printClassification = text(payload.printClassification) || "printing_not_identified";
+  const knownPrintingNumberRaw = text(payload.knownPrintingNumber);
+  const knownPrintingNumber = knownPrintingNumberRaw ? Number(knownPrintingNumberRaw) : null;
   if (!editionId || !sourceId || !sourceListingUrl || !listingTitle || !soldDate || !currency) return Response.json({ error: "Select the exact edition, then add the original completed-sale link, source, title, date, price, and currency." }, { status: 400 });
   if (!validUrl(sourceListingUrl)) return Response.json({ error: "The original listing link must be a valid http or https URL." }, { status: 400 });
   if (evidenceImageUrl && !validUrl(evidenceImageUrl)) return Response.json({ error: "The optional proof image link must be a valid http or https URL." }, { status: 400 });
@@ -78,6 +82,12 @@ export async function POST(request: Request) {
   if (!Number.isFinite(salePrice) || salePrice <= 0) return Response.json({ error: "Sale price must be greater than zero." }, { status: 400 });
   if (!/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Currency must use a three-letter code such as GBP, USD, or JPY." }, { status: 400 });
   if (!(["auction", "best_offer", "fixed_price", "unknown"] as string[]).includes(saleType)) return Response.json({ error: "Choose a recognised sale type." }, { status: 400 });
+  if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
+  const classifying = printClassification !== "printing_not_identified";
+  if (classifying && !reviewer) return Response.json({ error: "A reviewer name is required to classify the printing — it is an audited decision." }, { status: 400 });
+  if (classifying && intakeNotes.length < 12) return Response.json({ error: "A classification note of at least 12 characters is required to explain the printing evidence." }, { status: 400 });
+  if (printClassification === "first_print_proven" && !evidenceImageUrl) return Response.json({ error: "A first-print classification requires the copyright-page proof link." }, { status: 400 });
+  if (knownPrintingNumberRaw && (!Number.isFinite(knownPrintingNumber) || (knownPrintingNumber as number) < 1)) return Response.json({ error: "Known printing number must be a positive number." }, { status: 400 });
 
   try {
     const edition = await exactEdition(editionId);
@@ -99,6 +109,25 @@ export async function POST(request: Request) {
     }).select("id").single();
     if (insertError?.code === "23505") return Response.json({ error: "This marketplace listing already exists in RAR. It was not changed." }, { status: 409 });
     if (insertError || !observation) return Response.json({ error: "The sale could not be queued. Nothing was verified automatically." }, { status: 500 });
+
+    // The sale always lands printing_not_identified via the plain insert
+    // above. A printing classification only ever happens through this
+    // audited RPC — never a raw column set — so it always gets a named
+    // reviewer, a real note, and a permanent row in
+    // price_print_classification_decisions, exactly like every other
+    // staff decision in RAR.
+    if (classifying) {
+      const { error: classificationError } = await admin.rpc("apply_price_print_classification", {
+        p_observation_id: observation.id,
+        p_classification: printClassification,
+        p_printing_proof_url: evidenceImageUrl || null,
+        p_known_printing_number: knownPrintingNumber,
+        p_decision_notes: intakeNotes,
+        p_reviewed_by: reviewer,
+      });
+      if (classificationError) return Response.json({ error: `The sale was saved, but its printing classification could not be recorded: ${classificationError.message}` }, { status: 500 });
+    }
+
     return Response.json({ observationId: observation.id });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "The sale could not be queued." }, { status: 400 }); }
 }

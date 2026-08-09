@@ -21,6 +21,15 @@ Required capture fields:
 
 For a completed sale, also capture `sale_status = confirmed`, `sold_date`, `sale_price`, and `currency`. Shipping is separate from sale price. Listings marked ended, withdrawn, unavailable, or otherwise not sold use `sale_status = not_sold` and can never feed valuation.
 
+Two further optional columns let a batch classify the printing of the specific sold copy, not the catalogue edition:
+
+| Field | Rule |
+| --- | --- |
+| `print_classification` | Optional. One of `printing_not_identified` (default when blank), `known_later_print`, or `first_print_proven`. `first_print_proven` is rejected by the preflight unless `evidence_image_url` is also present on that row — the same rule the database itself enforces. |
+| `known_printing_number` | Optional positive whole number, e.g. `1` for a first printing or `3` for a known third printing. |
+
+A row that sets `print_classification` is committed through `apply_price_print_classification` immediately after import, with an auditable note and the reviewer name supplied for the whole batch — never a raw column write. Leaving the column blank is always safe; the sale simply stays `printing_not_identified` until a human reviews it, same as everything else.
+
 ## 2. Preflight one exact-edition batch
 
 The staff CSV tool requires a selected, verified RAR edition before it accepts any sale records. This is a batch-level link only: every created observation still begins as `needs_review` and must be checked against the original listing.
@@ -65,6 +74,18 @@ Each candidate price receives exactly one current `match_status` and an evidence
 - `excluded` — wrong edition, a non-sale, duplicated record, or otherwise unsuitable. It never feeds market metrics.
 
 Use `apply_price_review(observation_id, decision, notes, reviewer)` to make a decision. It records the decision in `price_review_decisions`, updates the observation, and leaves a traceable reason.
+
+This is an edition-match decision only — it says nothing about which printing the copy is. That is a separate, equally auditable decision.
+
+## 5a. Classify the printing, separately
+
+Every sale also carries `print_classification`, defaulting to `printing_not_identified` and never set by any automated step:
+
+- `first_print_proven` — direct proof (typically a copyright-page image) ties this exact sold copy to a first printing. Requires `printing_proof_url`.
+- `known_later_print` — the printing is known, but it is not the first. `known_printing_number` records which one when known.
+- `printing_not_identified` — the safe default. A title claim, a Scout lead, or the edition's own reputation is never enough to leave this state.
+
+Use `apply_price_print_classification(observation_id, classification, printing_proof_url, known_printing_number, notes, reviewer)` to change it — from the Review queue, Add Sale, or a CSV batch's `print_classification` column. It records the decision in `price_print_classification_decisions` and can be re-run later to correct an earlier classification; nothing overwrites that history.
 
 ## 6. One-page operational checklist
 

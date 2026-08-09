@@ -1,21 +1,22 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
+import { notFound, redirect } from "next/navigation";
+import PublicationPrintTabs, { type PublicationSale } from "@/components/PublicationPrintTabs";
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
-import MarketValuePanel from "@/components/MarketValuePanel";
 import EditionCover from "@/components/EditionCover";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { editionDescriptor } from "@/lib/editionDisplay";
 
 // Valuations are live market intelligence, not deployment-time content.
 export const dynamic = "force-dynamic";
 
 type EditionPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ printing?: string }>;
 };
 
 type SourceLink = {
@@ -27,7 +28,9 @@ type SourceLink = {
 
 type Source = { id: string; name: string };
 
-type ObservedSale = {
+type ObservedSaleRow = {
+  id: string;
+  edition_id: string;
   source_id: string | null;
   source_listing_url: string | null;
   listing_title: string | null;
@@ -37,7 +40,9 @@ type ObservedSale = {
   grading_company: string | null;
   grade_label: string | null;
   match_status: "verified_match" | "needs_review" | "excluded";
-  raw_payload: unknown;
+  print_classification: "first_print_proven" | "known_later_print" | "printing_not_identified";
+  printing_proof_url: string | null;
+  known_printing_number: number | null;
 };
 
 type RelatedEdition = {
@@ -46,6 +51,14 @@ type RelatedEdition = {
   language: string | null;
   publisher: string | null;
   isbn_13: string | null;
+  edition_statement: string | null;
+  printing_number: number | null;
+  variant_name: string | null;
+};
+
+type PrintRunChild = {
+  id: string;
+  title: string | null;
   edition_statement: string | null;
   printing_number: number | null;
   variant_name: string | null;
@@ -69,9 +82,6 @@ type LiveListing = {
   raw_payload: unknown;
 };
 
-type PrintingSale = { edition_id: string; sale_price: number; currency: string; sold_date: string | null };
-type PrintingEvidence = { verifiedSaleCount: number; latestSale: { price: number; currency: string; soldDate: string | null } };
-
 function formatPrice(value: number, code: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -92,10 +102,6 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
-function matchStatusLabel(status: ObservedSale["match_status"]) {
-  return status === "verified_match" ? "Edition match verified" : "Edition match under review";
-}
-
 function signalLabel(verifiedSales: number, verifiedSources: number) {
   if (verifiedSales >= 6 && verifiedSources >= 3) return "Established evidence";
   if (verifiedSales >= 3 && verifiedSources >= 2) return "Developing evidence";
@@ -113,26 +119,36 @@ function readableTag(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function relatedEditionLabel(edition: RelatedEdition) {
-  if (edition.variant_name) return edition.variant_name;
-  if (edition.printing_number) {
-    const finalTwo = edition.printing_number % 100;
-    const suffix = finalTwo >= 11 && finalTwo <= 13 ? "th" : edition.printing_number % 10 === 1 ? "st" : edition.printing_number % 10 === 2 ? "nd" : edition.printing_number % 10 === 3 ? "rd" : "th";
-    return `${edition.printing_number}${suffix} printing`;
-  }
-  return edition.edition_statement || "Standard edition record";
+// A print-run record that redirects here (see below) is either a proven
+// first print or a proven later printing -- decide which tab to land on
+// from its own identity, best-effort, so a shared/bookmarked link still
+// opens on the group its title actually claims.
+function looksLikeFirstPrint(printingNumber: number | null, text: string | null) {
+  if (printingNumber === 1) return true;
+  if (printingNumber && printingNumber > 1) return false;
+  return /first/i.test(text ?? "");
 }
 
-function copyrightProofUrl(payload: unknown) {
-  if (!payload || typeof payload !== "object") return null;
-  const metadata = (payload as { rar_import_metadata?: unknown }).rar_import_metadata;
-  if (!metadata || typeof metadata !== "object") return null;
-  const value = (metadata as { evidence_image_url?: unknown }).evidence_image_url;
-  return typeof value === "string" && /^https?:\/\//.test(value) ? value : null;
-}
-
-export default async function EditionPage({ params }: EditionPageProps) {
+export default async function EditionPage({ params, searchParams }: EditionPageProps) {
   const { id } = await params;
+  const search = await searchParams;
+
+  // A print-run record is never the public destination -- it always
+  // redirects to its publication, with the correct print group selected,
+  // so every historical /edition/{printRunId} link keeps working.
+  const { data: recordCheck } = await supabase
+    .from("manga_editions")
+    .select("id, printing_of_edition_id, printing_number, edition_statement, variant_name")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!recordCheck) notFound();
+
+  if (recordCheck.printing_of_edition_id) {
+    const tab = looksLikeFirstPrint(recordCheck.printing_number, recordCheck.edition_statement || recordCheck.variant_name) ? "first" : "other";
+    redirect(`/edition/${recordCheck.printing_of_edition_id}?printing=${tab}`);
+  }
+
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
@@ -143,44 +159,13 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
   if (!edition) notFound();
 
-  const [generalEditionResult, printingsOfThisEditionResult] = await Promise.all([
-    edition.printing_of_edition_id
-      ? supabase
-        .from("manga_editions")
-        .select("id,title,language,isbn_13,edition_statement")
-        .eq("id", edition.printing_of_edition_id)
-        .maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase
-      .from("manga_editions")
-      .select("id,title,language,isbn_13,edition_statement,printing_number,variant_name")
-      .eq("printing_of_edition_id", id)
-      .eq("is_verified", true),
-  ]);
-  const generalEdition = generalEditionResult.data as { id: string; title: string | null; language: string | null; isbn_13: string | null; edition_statement: string | null } | null;
-  const printingsOfThisEdition = (printingsOfThisEditionResult.data ?? []) as RelatedEdition[];
-
-  // A general edition record and a proven specific printing of it are
-  // deliberately kept as separate catalogue entries (a first-print claim
-  // needs its own copyright-page proof). That easily reads as "why does
-  // this page have no prices?" so surface whichever linked record actually
-  // carries the evidence, not just its name.
-  const printingRelatedIds = [...(generalEdition ? [generalEdition.id] : []), ...printingsOfThisEdition.map((printing) => printing.id)];
-  const { data: printingSalesData } = printingRelatedIds.length
-    ? await supabase
-      .from("price_observations")
-      .select("edition_id, sale_price, currency, sold_date")
-      .in("edition_id", printingRelatedIds)
-      .eq("sale_status", "confirmed")
-      .eq("match_status", "verified_match")
-      .order("sold_date", { ascending: false })
-    : { data: [] };
-  const printingEvidence = new Map<string, PrintingEvidence>();
-  for (const sale of (printingSalesData ?? []) as PrintingSale[]) {
-    const existing = printingEvidence.get(sale.edition_id);
-    if (existing) existing.verifiedSaleCount += 1;
-    else printingEvidence.set(sale.edition_id, { verifiedSaleCount: 1, latestSale: { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date } });
-  }
+  const { data: printRunChildrenData } = await supabase
+    .from("manga_editions")
+    .select("id,title,edition_statement,printing_number,variant_name")
+    .eq("printing_of_edition_id", id)
+    .eq("is_verified", true);
+  const printRunChildren = (printRunChildrenData ?? []) as PrintRunChild[];
+  const familyIds = [id, ...printRunChildren.map((child) => child.id)];
 
   const relatedEditionsResult = edition.series && edition.volume_number
     ? await supabase
@@ -189,7 +174,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .eq("series", edition.series)
       .eq("volume_number", edition.volume_number)
       .eq("is_verified", true)
-      .neq("id", id)
+      .not("id", "in", `(${familyIds.join(",")})`)
       .order("language", { ascending: true })
       .limit(6)
     : { data: [] };
@@ -202,18 +187,26 @@ export default async function EditionPage({ params }: EditionPageProps) {
       .order("is_primary", { ascending: false }),
     supabase
       .from("price_observations")
-      .select("source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status, raw_payload")
-      .eq("edition_id", id)
+      .select("id, edition_id, source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status, print_classification, printing_proof_url, known_printing_number")
+      .in("edition_id", familyIds)
       .eq("sale_status", "confirmed")
       .neq("match_status", "excluded")
       .order("sold_date", { ascending: false })
-      .limit(100),
+      .limit(200),
   ]);
 
   const sourceLinks = (sourceLinksResult.data ?? []) as SourceLink[];
-  const observedSales = (observedSalesResult.data ?? []) as ObservedSale[];
+  const observedSales = (observedSalesResult.data ?? []) as ObservedSaleRow[];
+  const firstPrintSales: PublicationSale[] = observedSales
+    .filter((sale) => sale.print_classification === "first_print_proven")
+    .map((sale) => ({ ...sale, match_status: sale.match_status as "verified_match" | "needs_review" }));
+  const otherSales: PublicationSale[] = observedSales
+    .filter((sale) => sale.print_classification !== "first_print_proven")
+    .map((sale) => ({ ...sale, match_status: sale.match_status as "verified_match" | "needs_review" }));
   const verifiedSales = observedSales.filter((sale) => sale.match_status === "verified_match");
   const pendingSales = observedSales.filter((sale) => sale.match_status === "needs_review");
+  const firstPrintVerifiedCount = firstPrintSales.filter((sale) => sale.match_status === "verified_match").length;
+
   const rateCurrencies = [...new Set(["GBP", "USD", ...verifiedSales.map((sale) => sale.currency)])];
   const fxRatesResult = rateCurrencies.length
     ? await supabase
@@ -230,31 +223,27 @@ export default async function EditionPage({ params }: EditionPageProps) {
   const sourceIds = [
     ...new Set([
       ...sourceLinks.map((source) => source.source_id),
-      ...observedSales.map((sale) => sale.source_id).filter((id): id is string => Boolean(id)),
+      ...observedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)),
     ]),
   ];
   const sourcesResult = sourceIds.length
     ? await supabase.from("sources").select("id, name").in("id", sourceIds)
     : { data: [] as Source[] };
   const sourceNames = new Map((sourcesResult.data ?? []).map((source) => [source.id, source.name]));
+  const sourceNamesObject = Object.fromEntries(sourceNames);
   const observedSourceNames = [...new Set([...observedSourceIds].map((sourceId) => sourceNames.get(sourceId) ?? "Marketplace").filter(Boolean))];
-  const printingRelationIds = new Set([
-    ...(generalEdition ? [generalEdition.id] : []),
-    ...printingsOfThisEdition.map((printing) => printing.id),
-  ]);
-  const relatedEditions = ((relatedEditionsResult.data ?? []) as RelatedEdition[]).filter(
-    (related) => !printingRelationIds.has(related.id)
-  );
-  const copyrightProofUrls = [...new Set(observedSales.map((sale) => copyrightProofUrl(sale.raw_payload)).filter((url): url is string => Boolean(url)))];
+  const relatedEditions = (relatedEditionsResult.data ?? []) as RelatedEdition[];
 
   // Live Scout leads answer "can I buy one now?" They deliberately use a
   // server-only read and are never included in verified sales, market value,
-  // or price history.
+  // or price history. Shown at the publication level -- across every
+  // print-run record in the family -- unless a listing's own print claim is
+  // separately proven (Scout never proves that; it only ever produces leads).
   const admin = getSupabaseAdmin();
   const { data: profileData } = await admin
     .from("marketplace_search_profiles")
     .select("id,last_checked_at,source:sources!inner(name)")
-    .eq("edition_id", id)
+    .in("edition_id", familyIds)
     .eq("is_active", true)
     .eq("source.name", "eBay Sold");
   const liveProfiles = (profileData ?? []) as unknown as LiveListingProfile[];
@@ -275,8 +264,8 @@ export default async function EditionPage({ params }: EditionPageProps) {
     : { data: [] };
   const liveListings = ((liveLeadData ?? []) as LiveListing[])
     // A staff member marking a listing as Watching is an explicit human
-    // confirmation that it belongs on this exact edition's live feed. New
-    // leads still need the conservative automatic plausibility check.
+    // confirmation that it belongs on this exact publication's live feed.
+    // New leads still need the conservative automatic plausibility check.
     .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition))
     .slice(0, 6);
   const latestScoutCheck = liveProfiles
@@ -284,28 +273,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => right.localeCompare(left))[0] ?? null;
 
-  function renderObservedSale(sale: ObservedSale) {
-    const content = (
-      <>
-        <div>
-          <span className="sale-source">{sale.source_id ? sourceNames.get(sale.source_id) ?? "Marketplace sale" : "Marketplace sale"}</span>
-          <strong>{formatPrice(sale.sale_price, sale.currency)}</strong>
-          <small>{formatDate(sale.sold_date)}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
-        </div>
-        <span className={`sale-status ${sale.match_status}`}>{matchStatusLabel(sale.match_status)}</span>
-      </>
-    );
-
-    return sale.source_listing_url ? (
-      <a className="observed-sale" href={sale.source_listing_url} target="_blank" rel="noreferrer" key={sale.source_listing_url}>
-        {content}
-      </a>
-    ) : (
-      <div className="observed-sale" key={`${sale.sold_date}-${sale.sale_price}`}>
-        {content}
-      </div>
-    );
-  }
+  const initialTab: "first" | "other" = search.printing === "other" ? "other" : search.printing === "first" ? "first" : firstPrintSales.length ? "first" : "other";
 
   const details = [
     ["Series", edition.series],
@@ -321,7 +289,6 @@ export default async function EditionPage({ params }: EditionPageProps) {
     ["ISBN-13", edition.isbn_13],
     ["ISBN-10", edition.isbn_10],
     ["Edition", edition.edition_statement],
-    ["Printing", edition.printing_number ? `${edition.printing_number}${edition.printing_number === 1 ? "st" : "th"} printing` : null],
   ].filter(([, value]) => value) as Array<[string, string]>;
 
   return (
@@ -346,58 +313,14 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           <div>
           <Link href="/" className="back-link">← Back to the index</Link>
-          <p className="eyebrow">Catalogue edition record</p>
+          <p className="eyebrow">Publication</p>
           <h1>{edition.title}</h1>
           <p className="edition-subtitle">
             {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
               .filter(Boolean)
               .join(" · ")}
           </p>
-          {edition.variant_name || edition.edition_statement ? (
-            <p className="edition-variant">{edition.variant_name || edition.edition_statement}</p>
-          ) : null}
-          {generalEdition ? (() => {
-            const evidence = printingEvidence.get(generalEdition.id);
-            return evidence ? (
-              <Link href={`/edition/${generalEdition.id}`} className="printing-evidence-callout">
-                <span className="printing-evidence-callout-label">Verified pricing lives on the general record →</span>
-                <strong>{generalEdition.title} — {generalEdition.edition_statement || "general edition record"}</strong>
-                <span className="printing-evidence-callout-stats">
-                  <b>{evidence.verifiedSaleCount} verified sale{evidence.verifiedSaleCount === 1 ? "" : "s"}</b>
-                  <b>Latest {formatPrice(evidence.latestSale.price, evidence.latestSale.currency)} · {formatDate(evidence.latestSale.soldDate)}</b>
-                </span>
-              </Link>
-            ) : (
-              <p className="edition-printing-relation">
-                A specific printing of{" "}
-                <Link href={`/edition/${generalEdition.id}`}>
-                  {generalEdition.title} — {generalEdition.edition_statement || "general edition record"}
-                </Link>
-                . Market evidence and search profiles for this ISBN may also exist on that record.
-              </p>
-            );
-          })() : null}
-          {printingsOfThisEdition.length ? (
-            <div className="edition-printing-relation-group">
-              {printingsOfThisEdition.map((printing) => {
-                const evidence = printingEvidence.get(printing.id);
-                return evidence ? (
-                  <Link href={`/edition/${printing.id}`} className="printing-evidence-callout" key={printing.id}>
-                    <span className="printing-evidence-callout-label">Verified pricing exists on a specific printing →</span>
-                    <strong>{relatedEditionLabel(printing)}</strong>
-                    <span className="printing-evidence-callout-stats">
-                      <b>{evidence.verifiedSaleCount} verified sale{evidence.verifiedSaleCount === 1 ? "" : "s"}</b>
-                      <b>Latest {formatPrice(evidence.latestSale.price, evidence.latestSale.currency)} · {formatDate(evidence.latestSale.soldDate)}</b>
-                    </span>
-                  </Link>
-                ) : (
-                  <p className="edition-printing-relation" key={printing.id}>
-                    A specific printing has been proven: <Link href={`/edition/${printing.id}`}>{relatedEditionLabel(printing)}</Link>.
-                  </p>
-                );
-              })}
-            </div>
-          ) : null}
+          <p className="edition-variant">RAR tracks this publication; select a printing group below to compare sales.{printRunChildren.length ? ` ${printRunChildren.length} specific print-run record${printRunChildren.length === 1 ? "" : "s"} contribute evidence here.` : ""}</p>
           </div>
         </div>
       </section>
@@ -406,11 +329,11 @@ export default async function EditionPage({ params }: EditionPageProps) {
       <section className="edition-content">
         <div className="edition-layout">
           <details className="edition-disclosure catalogue-details-disclosure">
-            <summary><span><small>Catalogue record</small>Edition details</span><span className="disclosure-hint">Identifiers, publication and cover source</span></summary>
+            <summary><span><small>Catalogue record</small>Publication details</span><span className="disclosure-hint">Identifiers, publication and cover source</span></summary>
             <div className="edition-disclosure-content">
             <div className="section-intro">
               <p className="eyebrow">Catalogue record</p>
-              <h2>Edition details</h2>
+              <h2>Publication details</h2>
             </div>
             <dl className="edition-details">
               {details.map(([label, value]) => (
@@ -421,14 +344,14 @@ export default async function EditionPage({ params }: EditionPageProps) {
               ))}
             </dl>
             <div className="cover-provenance">
-              <span>Edition cover</span>
+              <span>Publication cover</span>
               {edition.cover_verification_status === "verified" ? (
-                <p>Catalogue cover sourced from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this catalogue record; sale photos remain linked with their individual sales.</p>
+                <p>Catalogue cover sourced from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this publication; sale photos remain linked with their individual sales.</p>
               ) : edition.cover_verification_status === "candidate" ? (
-                <p>A candidate cover has been found for this edition but is not yet confirmed against a publisher or licensed catalogue record.</p>
+                <p>A candidate cover has been found for this publication but is not yet confirmed against a publisher or licensed catalogue record.</p>
               ) : edition.cover_verification_status === "rejected" ? (
-                <p>A candidate cover was reviewed and did not match this exact edition. RAR is still looking for a confirmed cover source.</p>
-              ) : <p>RAR has not yet sourced a cover for this edition from a publisher or licensed catalogue record.</p>}
+                <p>A candidate cover was reviewed and did not match this exact publication. RAR is still looking for a confirmed cover source.</p>
+              ) : <p>RAR has not yet sourced a cover for this publication from a publisher or licensed catalogue record.</p>}
               <Link className="staff-action-link" href={`/cover-review?edition=${edition.id}`}>Review this cover -&gt;</Link>
             </div>
 
@@ -450,37 +373,32 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </details>
 
           <aside className="valuation-panel">
-            <p className="eyebrow">RAR market evidence</p>
-            <MarketValuePanel sales={verifiedSales} rates={fxRates} />
-
-            <div className="confidence-panel">
-              <p className="eyebrow">RAR confidence</p>
-              <strong className="confidence-label">{signalLabel(verifiedSales.length, verifiedSourceIds.size)}</strong>
-              <div className="confidence-grid">
-                <div className="confidence-signal">
-                  <span>Verified sales</span>
-                  <strong>{verifiedSales.length}</strong>
-                </div>
-                <div className="confidence-signal">
-                  <span>Under review</span>
-                  <strong>{pendingSales.length}</strong>
-                </div>
-                <div className="confidence-signal">
-                  <span>Sources observed</span>
-                  <strong>{observedSourceNames.length || "—"}</strong>
-                  <small>{observedSourceNames.length ? observedSourceNames.join(" · ") : "No completed sale source yet"}</small>
-                </div>
-                <div className="confidence-signal">
-                  <span>Latest verified sale</span>
-                  <strong>{latestVerifiedSale ? formatPrice(latestVerifiedSale.sale_price, latestVerifiedSale.currency) : "—"}</strong>
-                  <small>{latestVerifiedSale ? formatDate(latestVerifiedSale.sold_date) : "No verified sale yet"}</small>
-                </div>
+            <p className="eyebrow">RAR confidence</p>
+            <strong className="confidence-label">{signalLabel(verifiedSales.length, verifiedSourceIds.size)}</strong>
+            <div className="confidence-grid">
+              <div className="confidence-signal">
+                <span>Verified sales</span>
+                <strong>{verifiedSales.length}</strong>
               </div>
-              <details className="valuation-explainer">
-                <summary>How RAR values this edition</summary>
-                <p>RAR uses only completed sales that match this exact edition. Raw and graded results stay separate. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. The median is market evidence, not a promise of resale value.</p>
-              </details>
+              <div className="confidence-signal">
+                <span>Under review</span>
+                <strong>{pendingSales.length}</strong>
+              </div>
+              <div className="confidence-signal">
+                <span>Sources observed</span>
+                <strong>{observedSourceNames.length || "—"}</strong>
+                <small>{observedSourceNames.length ? observedSourceNames.join(" · ") : "No completed sale source yet"}</small>
+              </div>
+              <div className="confidence-signal">
+                <span>Latest verified sale</span>
+                <strong>{latestVerifiedSale ? formatPrice(latestVerifiedSale.sale_price, latestVerifiedSale.currency) : "—"}</strong>
+                <small>{latestVerifiedSale ? formatDate(latestVerifiedSale.sold_date) : "No verified sale yet"}</small>
+              </div>
             </div>
+            <details className="valuation-explainer">
+              <summary>How RAR values this publication</summary>
+              <p>RAR uses only completed sales that match this exact publication. First-print-proven sales, known-later printings and printing-not-identified sales are never combined into one value. Raw and graded results stay separate too. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. A median is market evidence, not a promise of resale value.</p>
+            </details>
             <div className="valuation-panel-live-teaser">
               <span><strong>{liveListings.length}</strong> live listing{liveListings.length === 1 ? "" : "s"} right now</span>
               <a href="#live-listings-heading">Can I buy one? →</a>
@@ -490,7 +408,11 @@ export default async function EditionPage({ params }: EditionPageProps) {
         </div>
 
         <section className="price-history-section">
-          <PriceHistoryChart sales={verifiedSales} rates={fxRates} />
+          <div className="section-intro">
+            <p className="eyebrow">Market evidence</p>
+            <h2>Sales by print group</h2>
+          </div>
+          <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} />
         </section>
 
         <section className="live-listings-section" aria-labelledby="live-listings-heading">
@@ -501,7 +423,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
             </div>
             <span className="live-listings-status">{latestScoutCheck ? `Last Scout scan ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
-          <p className="section-copy">These are asking prices on current listings, not completed sales. RAR only surfaces listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart above.</p>
+          <p className="section-copy">These are asking prices on current listings, not completed sales, shown across every printing RAR tracks for this publication. RAR only surfaces listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart above.</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
@@ -513,27 +435,26 @@ export default async function EditionPage({ params }: EditionPageProps) {
             </div>
           ) : (
             <div className="live-listings-empty">
-              <strong>{liveProfileIds.length ? "No current listings from RAR Scout" : "Live listings are not being monitored for this edition yet"}</strong>
+              <strong>{liveProfileIds.length ? "No current listings from RAR Scout" : "Live listings are not being monitored for this publication yet"}</strong>
               <p>{liveProfileIds.length ? "Scout stores only listings that are still live at the time of viewing. Check again after the next scheduled scan." : "RAR needs an exact-edition eBay search profile before it can surface live buying opportunities."}</p>
             </div>
           )}
         </section>
 
-        <details className="edition-disclosure edition-evidence-section" open={edition.printing_number === 1}>
-          <summary><span><small>Why this edition is identified</small>Edition evidence</span><span className="disclosure-hint">{edition.printing_number === 1 ? "First-print proof included" : "Identifiers and proof"}</span></summary>
+        <details className="edition-disclosure edition-evidence-section" open={firstPrintVerifiedCount > 0}>
+          <summary><span><small>Why this publication is identified</small>Publication evidence</span><span className="disclosure-hint">{firstPrintVerifiedCount > 0 ? "First-print proof on file" : "Identifiers and proof"}</span></summary>
           <div className="edition-disclosure-content">
-            <p className="section-copy">RAR separates the publisher&apos;s edition record from proof of a specific printing. A first-print claim requires copyright-page evidence.</p>
+            <p className="section-copy">RAR separates the publisher&apos;s publication record from proof of a specific printing. A first-print claim requires copyright-page evidence tied to the exact sold copy, not the publication&apos;s reputation.</p>
           <div className="edition-evidence-grid">
-            <div><span>Edition identifiers</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
-            <div><span>Printing status</span><strong>{edition.printing_number === 1 ? "First printing recorded" : edition.printing_number ? `Printing ${edition.printing_number} recorded` : "Printing not yet proven"}</strong><small>{edition.printing_number === 1 ? "Check the copyright-page proof below." : "Do not infer a printing from the release date alone."}</small></div>
-            <div><span>Copyright-page proof</span><strong>{copyrightProofUrls.length ? `${copyrightProofUrls.length} linked reference${copyrightProofUrls.length === 1 ? "" : "s"}` : "No linked reference yet"}</strong><small>{copyrightProofUrls.length ? "Recorded from a specific marketplace listing or physical copy." : "Add a direct proof image when reviewing a sale or edition."}</small></div>
+            <div><span>Publication identifiers</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
+            <div><span>First-print evidence</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has direct copyright-page proof yet."}</small></div>
+            <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Known later printings and printing-not-identified sales — see the Other tab above.</small></div>
           </div>
-          {copyrightProofUrls.length ? <div className="evidence-proof-links">{copyrightProofUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer">Open copyright-page proof {index + 1} ↗</a>)}</div> : null}
           <div className="evidence-checklist" aria-label="RAR evidence checklist">
             <p className="eyebrow">RAR evidence checklist</p>
             <div>
               <span className={edition.is_verified ? "checked" : "needed"}>{edition.is_verified ? "✓" : "-"}</span>
-              <strong>Edition record</strong>
+              <strong>Publication record</strong>
               <small>{edition.is_verified ? "Catalogue record reviewed" : "Still awaiting catalogue review"}</small>
             </div>
             <div>
@@ -547,9 +468,9 @@ export default async function EditionPage({ params }: EditionPageProps) {
               <small>{edition.release_date ? "Date recorded" : "Date still needed"}</small>
             </div>
             <div>
-              <span className={edition.printing_number && copyrightProofUrls.length ? "checked" : "needed"}>{edition.printing_number && copyrightProofUrls.length ? "✓" : "-"}</span>
+              <span className={firstPrintVerifiedCount > 0 ? "checked" : "needed"}>{firstPrintVerifiedCount > 0 ? "✓" : "-"}</span>
               <strong>Printing proof</strong>
-              <small>{edition.printing_number && copyrightProofUrls.length ? "Copyright page linked" : "Do not infer from a listing title"}</small>
+              <small>{firstPrintVerifiedCount > 0 ? "Copyright page linked to a specific sale" : "No sale has been proven a first print yet"}</small>
             </div>
             <div>
               <span className={verifiedSales.length ? "checked" : "needed"}>{verifiedSales.length ? "✓" : "-"}</span>
@@ -562,14 +483,14 @@ export default async function EditionPage({ params }: EditionPageProps) {
 
         {relatedEditions.length ? (
           <details className="edition-disclosure related-editions-section">
-            <summary><span><small>Compare before you buy</small>Other records for this volume</span><span className="disclosure-hint">{relatedEditions.length} record{relatedEditions.length === 1 ? "" : "s"}</span></summary>
+            <summary><span><small>Different language or publisher</small>Related publications</span><span className="disclosure-hint">{relatedEditions.length} publication{relatedEditions.length === 1 ? "" : "s"}</span></summary>
             <div className="edition-disclosure-content">
-              <p className="section-copy">These are separate RAR catalogue records for the same series and volume. A standard edition is not proof of a specific printing.</p>
+              <p className="section-copy">These are separate RAR publications for the same series and volume — a different language or publisher edition, not a different printing of this publication. Printings of this exact publication are compared using the tabs above, not here.</p>
             <div className="related-editions-list">
               {relatedEditions.map((related) => (
                 <Link href={`/edition/${related.id}`} key={related.id}>
                   <span>{related.language || "Language pending"}</span>
-                  <strong>{relatedEditionLabel(related)}</strong>
+                  <strong>{editionDescriptor(related)}</strong>
                   <small>{[related.publisher, related.isbn_13 ? `ISBN ${related.isbn_13}` : null].filter(Boolean).join(" · ")}</small>
                 </Link>
               ))}
@@ -582,7 +503,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
           <details className="edition-disclosure collector-context-section">
             <summary><span><small>Collector context</small>Why collectors care</span><span className="disclosure-hint">Research notes and tags</span></summary>
             <div className="edition-disclosure-content">
-              <p className="section-copy">RAR records why a specific edition may matter, without treating a historical note as a prediction of future value.</p>
+              <p className="section-copy">RAR records why a specific publication may matter, without treating a historical note as a prediction of future value.</p>
             <div className="collector-context-card">
               <div>
                 <span>Collectible type</span>
@@ -605,42 +526,6 @@ export default async function EditionPage({ params }: EditionPageProps) {
           </details>
         ) : null}
 
-        <section className="observed-sales-section">
-          <div className="section-intro">
-            <p className="eyebrow">Recent market evidence</p>
-            <h2>Observed completed sales</h2>
-            <p className="section-copy">
-              {verifiedSales.length
-                ? `The ${verifiedSales.length} verified sale${verifiedSales.length === 1 ? "" : "s"} counted in the market value above are listed here, alongside any sale still under review.`
-                : observedSales.length
-                  ? "None of the sales observed for this edition are verified yet, so they are not counted in the market value above."
-                  : "These are marketplace listings that completed. RAR uses a sale in market evidence only after the listing is proven to match this exact edition."}
-            </p>
-          </div>
-          {observedSales.length ? (
-            <>
-              {verifiedSales.length ? (
-                <div className="observed-sales-group">
-                  <p className="observed-sales-group-label">Verified — counted in the market value above ({verifiedSales.length})</p>
-                  <div className="observed-sales-list">
-                    {verifiedSales.slice(0, 12).map((sale) => renderObservedSale(sale))}
-                  </div>
-                </div>
-              ) : null}
-              {pendingSales.length ? (
-                <div className="observed-sales-group">
-                  <p className="observed-sales-group-label">Under review — not yet counted ({pendingSales.length})</p>
-                  <div className="observed-sales-list">
-                    {pendingSales.slice(0, 12).map((sale) => renderObservedSale(sale))}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="status-message">No completed sales have been recorded for this edition yet.</p>
-          )}
-        </section>
-
         <CommunityReportForm editionId={edition.id} editionTitle={edition.title} />
 
         <details className="edition-disclosure sources-section">
@@ -657,7 +542,7 @@ export default async function EditionPage({ params }: EditionPageProps) {
               ))}
             </div>
           ) : (
-            <p className="status-message">Source evidence will be attached as this edition is verified.</p>
+            <p className="status-message">Source evidence will be attached as this publication is verified.</p>
           )}
           </div>
         </details>

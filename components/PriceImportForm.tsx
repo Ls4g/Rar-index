@@ -90,6 +90,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   const [collectionRuns, setCollectionRuns] = useState<CollectionRun[]>([]);
   const [selectedCollectionRunId, setSelectedCollectionRunId] = useState("");
   const [csv, setCsv] = useState("");
+  const [reviewer, setReviewer] = useState("");
   const [result, setResult] = useState<Preflight | null>(null);
   const [message, setMessage] = useState("");
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -222,7 +223,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       return;
     }
     const headers = [
-      "source_id", "external_id", "source_listing_url", "listing_title", "sale_status", "sale_type", "sold_date", "sale_price", "currency", "shipping_price", "evidence_image_url", "raw_payload", "candidate_title", "candidate_series", "candidate_volume_number", "candidate_language", "candidate_isbn_13", "candidate_publisher", "candidate_format",
+      "source_id", "external_id", "source_listing_url", "listing_title", "sale_status", "sale_type", "sold_date", "sale_price", "currency", "shipping_price", "evidence_image_url", "raw_payload", "candidate_title", "candidate_series", "candidate_volume_number", "candidate_language", "candidate_isbn_13", "candidate_publisher", "candidate_format", "print_classification", "known_printing_number",
     ];
     const payload = {
       source: "community_report",
@@ -231,8 +232,11 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       reported_values: { price: handoffPrice || null, currency: handoffCurrency || null, sold_date: handoffSoldDate || null },
       handoff_created_at: new Date().toISOString(),
     };
+    // print_classification is left blank (defaults to printing_not_identified)
+    // — a community report is never enough on its own to claim a printing;
+    // staff add that separately, with proof, if they establish it later.
     const row = [
-      source.id, handoffExternalId.trim(), communityReport.sourceListingUrl, communityReport.listingTitle ?? "", "confirmed", handoffSaleType, handoffSoldDate, handoffPrice, handoffCurrency.toUpperCase(), "", "", JSON.stringify(payload), communityReport.edition.title ?? "", communityReport.edition.series ?? "", communityReport.edition.volume_number ?? "", communityReport.edition.language ?? "", communityReport.edition.isbn_13 ?? "", communityReport.edition.publisher ?? "", communityReport.edition.format ?? "",
+      source.id, handoffExternalId.trim(), communityReport.sourceListingUrl, communityReport.listingTitle ?? "", "confirmed", handoffSaleType, handoffSoldDate, handoffPrice, handoffCurrency.toUpperCase(), "", "", JSON.stringify(payload), communityReport.edition.title ?? "", communityReport.edition.series ?? "", communityReport.edition.volume_number ?? "", communityReport.edition.language ?? "", communityReport.edition.isbn_13 ?? "", communityReport.edition.publisher ?? "", communityReport.edition.format ?? "", "", "",
     ];
     setCsv(`${headers.join(",")}\n${row.map(csvCell).join(",")}`);
     setResult(null);
@@ -267,7 +271,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       const response = await fetch("/api/price-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editionId: selectedEdition.id, collectionRunId: selectedCollectionRunId, csv, dryRun }),
+        body: JSON.stringify({ editionId: selectedEdition.id, collectionRunId: selectedCollectionRunId, csv, dryRun, reviewer }),
       });
       const data = (await response.json()) as Preflight & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "The CSV could not be processed.");
@@ -342,6 +346,12 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
           Paste CSV (or load it above)
           <textarea id="csv-text" value={csv} onChange={(event) => { setCsv(event.target.value); setResult(null); }} placeholder="Paste the complete CSV including the header row" rows={10} spellCheck={false} />
         </label>
+
+        <div className="price-import-field">
+          <label htmlFor="import-reviewer">Reviewer name</label>
+          <input id="import-reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Required only if any row sets print_classification" />
+          <p className="field-help">Only required when queuing a batch where a row&apos;s <code>print_classification</code> column is not blank — that becomes an audited decision, same as any other staff classification.</p>
+        </div>
 
         <div className="price-import-actions">
           <button type="button" disabled={working || !selectedCollectionRunId} onClick={() => runImport(true)}>{working ? "Checking..." : "Run preflight"}</button>

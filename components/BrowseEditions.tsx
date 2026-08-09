@@ -15,23 +15,23 @@ export type BrowseEdition = {
   language: string | null;
   isbn_13: string | null;
   edition_statement: string | null;
-  printing_number: number | null;
-  variant_name: string | null;
   collectible_type: string | null;
   cover_image_url: string | null;
   cover_verification_status: string | null;
   created_at: string | null;
   verified_sale_count: number;
-  printing_of_edition_id: string | null;
+  firstPrintProvenCount: number;
+  printingNotIdentifiedCount: number;
+  hasFirstPrintEvidence: boolean;
 };
 
 type SortMode = "newest" | "title" | "completeness";
 
 // What "well documented" means for sort/filter purposes: a confirmed cover,
-// a proven sale, and the specific-printing evidence collectors actually rely
-// on — not just how many optional fields happen to be filled in.
+// a proven sale, and proven first-print evidence — not just how many
+// optional fields happen to be filled in.
 function completenessScore(edition: BrowseEdition) {
-  return Number(edition.cover_verification_status === "verified") + Number(edition.verified_sale_count > 0) + Number(Boolean(edition.edition_statement)) + Number(Boolean(edition.printing_number)) + Number(Boolean(edition.variant_name));
+  return Number(edition.cover_verification_status === "verified") + Number(edition.verified_sale_count > 0) + Number(Boolean(edition.edition_statement)) + Number(edition.hasFirstPrintEvidence);
 }
 
 function bySort(sort: SortMode) {
@@ -58,7 +58,6 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   const languages = useMemo(() => [...new Set(editions.map((edition) => edition.language).filter((value): value is string => Boolean(value)))].sort(), [editions]);
   const publishers = useMemo(() => [...new Set(editions.map((edition) => publisherDisplayName(edition.publisher)).filter((value): value is string => Boolean(value)))].sort(), [editions]);
   const collectibleTypes = useMemo(() => [...new Set(editions.map((edition) => edition.collectible_type).filter((value): value is string => Boolean(value)))].sort(), [editions]);
-  const editionsById = useMemo(() => new Map(editions.map((edition) => [edition.id, edition])), [editions]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
@@ -68,7 +67,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
         && (language === "all" || edition.language === language)
         && (publisher === "all" || publisherDisplayName(edition.publisher) === publisher)
         && (collectibleType === "all" || edition.collectible_type === collectibleType)
-        && (!firstPrintOnly || edition.printing_number === 1)
+        && (!firstPrintOnly || edition.hasFirstPrintEvidence)
         && (!coverOnly || edition.cover_verification_status === "verified")
         && (!verifiedSalesOnly || edition.verified_sale_count > 0)
         && (!japaneseOnly || edition.language === "Japanese");
@@ -77,7 +76,6 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
 
   const groups = useMemo(() => {
     const compare = bySort(sort);
-    const filteredIds = new Set(filtered.map((edition) => edition.id));
     const bySeries = new Map<string, BrowseEdition[]>();
     for (const edition of filtered) {
       const key = edition.series || edition.title || "Uncategorised";
@@ -87,25 +85,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
     }
 
     const groupList = [...bySeries.entries()].map(([series, list]) => {
-      // Editions proven to be a specific printing of another edition in this
-      // same filtered view are shown directly after that general record,
-      // rather than as an unrelated card elsewhere in the grid.
-      const generals = list.filter((edition) => !edition.printing_of_edition_id || !filteredIds.has(edition.printing_of_edition_id));
-      const printingsByParent = new Map<string, BrowseEdition[]>();
-      for (const edition of list) {
-        if (edition.printing_of_edition_id && filteredIds.has(edition.printing_of_edition_id)) {
-          const siblings = printingsByParent.get(edition.printing_of_edition_id) ?? [];
-          siblings.push(edition);
-          printingsByParent.set(edition.printing_of_edition_id, siblings);
-        }
-      }
-      generals.sort(compare);
-      const ordered: BrowseEdition[] = [];
-      for (const general of generals) {
-        ordered.push(general);
-        ordered.push(...(printingsByParent.get(general.id) ?? []).sort(compare));
-      }
-
+      const ordered = [...list].sort(compare);
       const bestCompleteness = Math.max(...list.map(completenessScore));
       const latestCreatedAt = list.reduce((latest, edition) => (edition.created_at && edition.created_at > latest ? edition.created_at : latest), "");
       const verifiedCount = list.filter((edition) => edition.verified_sale_count > 0).length;
@@ -137,7 +117,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
       </label>
       <div className="browse-chip-row" role="group" aria-label="Quick filters">
         <button type="button" className={`browse-chip${verifiedSalesOnly ? " is-active" : ""}`} aria-pressed={verifiedSalesOnly} onClick={() => setVerifiedSalesOnly((value) => !value)}>Verified prices</button>
-        <button type="button" className={`browse-chip${firstPrintOnly ? " is-active" : ""}`} aria-pressed={firstPrintOnly} onClick={() => setFirstPrintOnly((value) => !value)}>First prints</button>
+        <button type="button" className={`browse-chip${firstPrintOnly ? " is-active" : ""}`} aria-pressed={firstPrintOnly} onClick={() => setFirstPrintOnly((value) => !value)}>First-print evidence</button>
         <button type="button" className={`browse-chip${japaneseOnly ? " is-active" : ""}`} aria-pressed={japaneseOnly} onClick={() => setJapaneseOnly((value) => !value)}>Japanese originals</button>
         <button type="button" className={`browse-chip${coverOnly ? " is-active" : ""}`} aria-pressed={coverOnly} onClick={() => setCoverOnly((value) => !value)}>Covers sourced</button>
       </div>
@@ -151,7 +131,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
         <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="newest">Newest added</option><option value="title">Title A–Z</option><option value="completeness">Most documented</option></select></label>
       </div>
     </details>
-    <div className="browse-result-count"><strong>{resultCount}</strong> catalogue-ready edition{resultCount === 1 ? "" : "s"} across <strong>{groups.length}</strong> series</div>
+    <div className="browse-result-count"><strong>{resultCount}</strong> publication{resultCount === 1 ? "" : "s"} across <strong>{groups.length}</strong> series</div>
     {groups.length ? (
       <div className="browse-series-list">
         {groups.map((group) => (
@@ -162,7 +142,6 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
             </div>
             <div className="browse-grid">
               {group.editions.map((edition) => {
-                const generalEdition = edition.printing_of_edition_id ? editionsById.get(edition.printing_of_edition_id) : null;
                 const hasVerifiedCover = edition.cover_verification_status === "verified";
                 const wellDocumented = hasVerifiedCover && edition.verified_sale_count > 0;
                 return (
@@ -172,7 +151,11 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                       <p>{[edition.collectible_type?.replaceAll("_", " "), edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
                       <h2>{edition.title || "Untitled manga"}</h2>
                       <strong>{editionDescriptor(edition)}</strong>
-                      {generalEdition ? <em className="browse-card-printing-of">↳ Printing of {generalEdition.title}</em> : null}
+                      {edition.hasFirstPrintEvidence ? (
+                        <em className="browse-card-print-badge is-proven">{edition.firstPrintProvenCount} proven first-print sale{edition.firstPrintProvenCount === 1 ? "" : "s"}</em>
+                      ) : edition.printingNotIdentifiedCount > 0 ? (
+                        <em className="browse-card-print-badge is-unidentified">{edition.printingNotIdentifiedCount} sale{edition.printingNotIdentifiedCount === 1 ? "" : "s"} with printing not identified</em>
+                      ) : null}
                       <span>{publisherDisplayName(edition.publisher)}</span>
                       <span className={`browse-card-evidence${wellDocumented ? " is-well-documented" : ""}`}>{evidenceStatusLabel(hasVerifiedCover, edition.verified_sale_count)}</span>
                       <small>{edition.isbn_13 || "ISBN pending"}</small>
@@ -184,6 +167,6 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
           </section>
         ))}
       </div>
-    ) : <p className="status-message">No verified editions match those filters. Try removing a filter or searching by ISBN.</p>}
+    ) : <p className="status-message">No publications match those filters. Try removing a filter or searching by ISBN.</p>}
   </>;
 }

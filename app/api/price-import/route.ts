@@ -58,6 +58,8 @@ type ReportRow = {
   match: EditionMatchAssessment | null;
 };
 
+type PrintClassification = "printing_not_identified" | "known_later_print" | "first_print_proven";
+
 type PreparedSale = {
   rowNumber: number;
   sourceId: string;
@@ -75,6 +77,8 @@ type PreparedSale = {
   rawPayload: Record<string, unknown>;
   candidate: Record<string, string | null>;
   match: EditionMatchAssessment;
+  printClassification: PrintClassification;
+  knownPrintingNumber: number | null;
 };
 
 function isStaffRequest(request: Request) {
@@ -283,6 +287,9 @@ async function preflight(csv: string, edition: Edition) {
     const evidenceImageUrl = clean(record.evidence_image_url);
     const candidate = candidateFromRow(record);
     const match = assessEditionMatch(edition, candidate);
+    const printClassification = (clean(record.print_classification).toLowerCase() || "printing_not_identified") as PrintClassification;
+    const knownPrintingNumberRaw = clean(record.known_printing_number);
+    const knownPrintingNumber = knownPrintingNumberRaw ? Number(knownPrintingNumberRaw) : null;
     let rawPayload: Record<string, unknown> | null = null;
 
     if (hasExtraValues) issues.push("contains more values than the header row");
@@ -316,6 +323,15 @@ async function preflight(csv: string, edition: Edition) {
     if (match.conflicts.length) issues.push(...match.conflicts);
     if (sealed && !["true", "false", "yes", "no", "1", "0"].includes(sealed)) {
       issues.push("is_sealed must be true or false when supplied");
+    }
+    if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) {
+      issues.push("print_classification must be printing_not_identified, known_later_print, or first_print_proven when supplied");
+    }
+    if (printClassification === "first_print_proven" && !evidenceImageUrl) {
+      issues.push("first_print_proven requires evidence_image_url — a title claim alone is never enough");
+    }
+    if (knownPrintingNumberRaw && (!Number.isFinite(knownPrintingNumber) || (knownPrintingNumber as number) < 1)) {
+      issues.push("known_printing_number must be a positive whole number when supplied");
     }
     try {
       const parsed = JSON.parse(clean(record.raw_payload));
@@ -354,6 +370,8 @@ async function preflight(csv: string, edition: Edition) {
       rawPayload,
       candidate,
       match,
+      printClassification,
+      knownPrintingNumber,
     });
   }
 
@@ -468,7 +486,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { editionId?: unknown; collectionRunId?: unknown; csv?: unknown; dryRun?: unknown };
+  let payload: { editionId?: unknown; collectionRunId?: unknown; csv?: unknown; dryRun?: unknown; reviewer?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -479,6 +497,7 @@ export async function POST(request: Request) {
   const collectionRunId = typeof payload.collectionRunId === "string" ? payload.collectionRunId.trim() : "";
   const csv = typeof payload.csv === "string" ? payload.csv : "";
   const dryRun = payload.dryRun !== false;
+  const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   if (!editionId) return Response.json({ error: "Select the exact RAR edition for this batch." }, { status: 400 });
   if (!collectionRunId) return Response.json({ error: "Choose the recorded collection run that found this batch." }, { status: 400 });
   if (!csv.trim()) return Response.json({ error: "Paste a CSV batch before running preflight." }, { status: 400 });
@@ -492,6 +511,11 @@ export async function POST(request: Request) {
 
     const result = await preflight(csv, edition);
     if (dryRun || !result.ready.length) return Response.json({ ...publicPreflight(result), committed: 0 });
+
+    const classifiedRows = result.ready.filter((sale) => sale.printClassification !== "printing_not_identified");
+    if (classifiedRows.length && !reviewer) {
+      return Response.json({ error: "Add a reviewer name before committing — it is required to record a printing classification, which is an audited decision." }, { status: 400 });
+    }
 
     const importedAt = new Date().toISOString();
     const records = result.ready.map((sale) => ({
@@ -532,7 +556,29 @@ export async function POST(request: Request) {
     }
     if (error) return Response.json({ error: "The safe sales could not be queued. Nothing was verified automatically." }, { status: 500 });
 
-    return Response.json({ ...publicPreflight(result), committed: data?.length ?? 0 });
+    // Every inserted row lands printing_not_identified via the plain insert
+    // above, same as always. A row whose CSV cell explicitly claimed a
+    // classification is then promoted through the same audited RPC every
+    // other classification path uses — never a raw column set — so it still
+    // gets a named reviewer and a permanent price_print_classification_decisions row.
+    const insertedIds = (data ?? []).map((row) => row.id as string);
+    let classificationFailures = 0;
+    for (let index = 0; index < result.ready.length; index += 1) {
+      const sale = result.ready[index];
+      const observationId = insertedIds[index];
+      if (!observationId || sale.printClassification === "printing_not_identified") continue;
+      const { error: classificationError } = await admin.rpc("apply_price_print_classification", {
+        p_observation_id: observationId,
+        p_classification: sale.printClassification,
+        p_printing_proof_url: sale.evidenceImageUrl,
+        p_known_printing_number: sale.knownPrintingNumber,
+        p_decision_notes: `CSV import batch classification: row ${sale.rowNumber}, "${sale.listingTitle}". Proof supplied via evidence_image_url.`,
+        p_reviewed_by: reviewer,
+      });
+      if (classificationError) classificationFailures += 1;
+    }
+
+    return Response.json({ ...publicPreflight(result), committed: data?.length ?? 0, classificationFailures });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The CSV could not be checked.";
     return Response.json({ error: message }, { status: 400 });

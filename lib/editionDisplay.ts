@@ -14,10 +14,10 @@ export function editionDescriptor(edition: EditionDisplayFields) {
   if (edition.variant_name) return edition.variant_name;
   if (edition.printing_number) return `${ordinal(edition.printing_number)} printing`;
   if (edition.edition_statement) return edition.edition_statement;
-  return "Standard edition record";
+  return "Publication record";
 }
 
-function ordinal(value: number) {
+export function ordinal(value: number) {
   const finalTwo = value % 100;
   if (finalTwo >= 11 && finalTwo <= 13) return `${value}th`;
   const suffix = value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th";

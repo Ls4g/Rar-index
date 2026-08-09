@@ -43,6 +43,10 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [saleType, setSaleType] = useState("unknown");
   const [evidenceImageUrl, setEvidenceImageUrl] = useState("");
   const [intakeNotes, setIntakeNotes] = useState("");
+  const [reviewer, setReviewer] = useState("");
+  const [printClassification, setPrintClassification] = useState<"printing_not_identified" | "known_later_print" | "first_print_proven">("printing_not_identified");
+  const [knownPrintingNumber, setKnownPrintingNumber] = useState("");
+  const classifying = printClassification !== "printing_not_identified";
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
@@ -111,6 +115,8 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedEdition) { setMessage("Choose the exact RAR edition first."); return; }
+    if (classifying && !reviewer.trim()) { setMessage("Enter your name before classifying the printing — it is required for that audited decision."); return; }
+    if (printClassification === "first_print_proven" && !evidenceImageUrl.trim()) { setMessage("A first-print classification requires the copyright-page proof link above."); return; }
     setLoading(true);
     setMessage("");
     try {
@@ -129,11 +135,14 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
           saleType,
           evidenceImageUrl,
           intakeNotes,
+          reviewer,
+          printClassification,
+          knownPrintingNumber,
         }),
       });
       const data = await response.json() as { observationId?: string; error?: string };
       if (!response.ok) throw new Error(data.error ?? "The sale could not be queued.");
-      setMessage("Saved to the review queue. It is not public market evidence yet.");
+      setMessage(classifying ? "Saved to the review queue and classified. It still needs edition-match review before it is public market evidence." : "Saved to the review queue. It is not public market evidence yet.");
       setExternalId("");
       setSourceListingUrl("");
       setListingTitle("");
@@ -141,6 +150,8 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       setSalePrice("");
       setEvidenceImageUrl("");
       setIntakeNotes("");
+      setPrintClassification("printing_not_identified");
+      setKnownPrintingNumber("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The sale could not be queued.");
     } finally {
@@ -168,10 +179,20 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
         <label className="quick-sale-wide">Listing title<input required value={listingTitle} onChange={(event) => setListingTitle(event.target.value)} placeholder="Copy the title exactly as shown" /></label>
         <label>Sold price<input required inputMode="decimal" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="0.00" /></label>
         <label>Currency<input required maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="GBP" /></label>
-        <label className="quick-sale-wide">Copyright-page proof link <small>Optional; add when claiming a first print.</small><input type="url" value={evidenceImageUrl} onChange={(event) => setEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
-        <label className="quick-sale-wide">Intake note <small>Optional; useful context for the reviewer.</small><textarea value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="What did you check before adding this?" rows={3} /></label>
+        <label className="quick-sale-wide">Copyright-page proof link <small>Required to classify this sale as a proven first print.</small><input type="url" value={evidenceImageUrl} onChange={(event) => setEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
+        <label className="quick-sale-wide">Intake note <small>{classifying ? "Required (12+ characters): explain what you checked to reach this printing classification." : "Optional; useful context for the reviewer."}</small><textarea required={classifying} minLength={classifying ? 12 : undefined} value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="What did you check before adding this?" rows={3} /></label>
       </div>
-      <div className="quick-sale-submit"><button type="submit" disabled={loading}>{loading ? "Saving..." : "Queue sale for review"}</button><p>After saving, open the review queue and verify or exclude it against the original source.</p></div>
+      <div className="quick-sale-step"><span>3</span><div><strong>Classify the printing</strong><p>Never inferred automatically. Printing not identified is the safe default — only change it with direct evidence for this exact copy.</p></div></div>
+      <div className="quick-sale-grid">
+        <label>Print classification<select value={printClassification} onChange={(event) => setPrintClassification(event.target.value as typeof printClassification)}>
+          <option value="printing_not_identified">Printing not identified (default)</option>
+          <option value="known_later_print">Known later printing</option>
+          <option value="first_print_proven">First print — proven</option>
+        </select></label>
+        <label>Known printing number <small>Optional</small><input inputMode="numeric" min={1} type="number" value={knownPrintingNumber} onChange={(event) => setKnownPrintingNumber(event.target.value)} placeholder="e.g. 1" /></label>
+        <label className="quick-sale-wide">Your name / initials <small>{classifying ? "Required to classify a printing — this is an audited decision." : "Optional unless classifying the printing."}</small><input required={classifying} value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Reviewer name" /></label>
+      </div>
+      <div className="quick-sale-submit"><button type="submit" disabled={loading}>{loading ? "Saving..." : "Queue sale for review"}</button><p>After saving, open the review queue and verify or exclude it against the original source. A printing classification here still needs edition-match review before it shows publicly.</p></div>
     </> : null}
     {message ? <p className="quick-sale-message" role="status">{message}</p> : null}
   </form>;

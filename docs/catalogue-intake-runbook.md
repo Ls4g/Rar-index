@@ -71,6 +71,16 @@ the original sale URL, and review whether it is a completed sale for that exact
 edition. A sale is never evidence for a printing unless its listing or supplied
 inspection evidence proves that printing.
 
+Every sale also gets its own `print_classification` — `first_print_proven`,
+`known_later_print`, or `printing_not_identified` (the safe default). This is
+a property of the specific sold copy, not the catalogue edition: an edition
+named "1997 first printing (verified)" does not make any individual sale
+attached to it a proven first print on its own. `first_print_proven` always
+requires a direct printing-proof URL for that exact sale, and is only ever
+set through `apply_price_print_classification` — from Add Sale, the Review
+queue, or a CSV batch's `print_classification` column — never inferred
+automatically.
+
 ## Definition of done
 
 An edition is ready for discovery when its identity is published, its source

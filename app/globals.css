@@ -334,6 +334,30 @@ a.observed-sale:hover { background: #ece5d8; }
 .sale-status { flex: 0 0 auto; max-width: 12rem; padding: .42rem .6rem; border: 1px solid var(--line); color: var(--muted); font-size: .62rem; font-weight: 700; letter-spacing: .06em; line-height: 1.35; text-align: center; text-transform: uppercase; }
 .sale-status.verified_match { border-color: rgba(62, 113, 68, .45); color: #32623a; }
 .sale-status.needs_review { border-color: rgba(170, 129, 44, .55); color: #84621c; }
+.observed-sale { flex-wrap: wrap; }
+.sale-classification { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; gap: .35rem; }
+.print-classification-badge { display: inline-block; padding: .32rem .5rem; border: 1px solid var(--line); border-radius: .4rem; color: var(--muted); font-size: .6rem; font-weight: 700; letter-spacing: .05em; text-align: center; text-transform: uppercase; white-space: nowrap; }
+.print-classification-badge.is-first-print-proven { border-color: rgba(62,113,68,.45); color: #32623a; }
+.print-classification-badge.is-known-later-print { border-color: rgba(44,90,160,.45); color: #204581; }
+.print-classification-badge.is-printing-not-identified { border-color: var(--line); color: var(--muted); }
+.observed-sale-links { display: flex; flex: 1 0 100%; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .5rem; padding-top: .75rem; border-top: 1px dashed var(--line); }
+.observed-sale-links a { color: #6f5010; font-size: .72rem; font-weight: 700; text-decoration: none; }
+.observed-sale-links a:hover { text-decoration: underline; }
+
+/* Publication print-group tabs (First-print sales / Other). Reuses existing
+   theme tokens throughout, so no separate .public-page override block is
+   needed -- see the .public-page overrides just below for the two classes
+   that don't already resolve through var(--muted)/var(--line). */
+.publication-print-tabs { margin-top: 1.5rem; }
+.print-tab-bar { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1.5rem; }
+.print-tab-bar button { display: inline-flex; align-items: center; gap: .5rem; padding: .8rem 1.1rem; border: 1px solid var(--line); border-radius: .6rem; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: .85rem; font-weight: 700; }
+.print-tab-bar button span { display: inline-grid; place-items: center; min-width: 1.6rem; padding: .15rem .4rem; border-radius: 999px; background: var(--line); font-variant-numeric: tabular-nums; font-size: .72rem; }
+.print-tab-bar button.is-active { border-color: var(--red); background: var(--red); color: #fff; }
+.print-tab-bar button.is-active span { background: rgba(255,255,255,.22); color: #fff; }
+.print-tab-panel { display: grid; gap: 1.5rem; }
+.print-tab-valuation { max-width: 420px; }
+.print-tab-subgroup { padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.print-tab-subgroup h3 { margin: 0 0 .75rem; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; }
 .sources-section { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .community-report { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .community-report-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; max-width: 760px; padding: 1.3rem; border: 1px solid var(--line); background: #fbf9f3; }
@@ -588,7 +612,9 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .browse-series-header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .browse-series-header h2 { margin: 0; font-size: 1.5rem; font-weight: 650; letter-spacing: normal; }
 .browse-series-header span { color: var(--muted); font-size: .78rem; letter-spacing: .02em; white-space: nowrap; }
-.browse-card-printing-of { display: block; margin-top: .35rem; color: var(--muted); font-size: .68rem; font-style: italic; }
+.browse-card-print-badge { display: inline-block; margin-top: .35rem; padding: .22rem .45rem; border-radius: .35rem; font-size: .64rem; font-weight: 700; font-style: normal; letter-spacing: .02em; }
+.browse-card-print-badge.is-proven { background: rgba(62,113,68,.1); color: #32623a; }
+.browse-card-print-badge.is-unidentified { background: rgba(138,131,117,.12); color: var(--muted); }
 .browse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
 .browse-card { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-content: stretch; min-height: 210px; padding: 0; border-top: 3px solid transparent; background: #fbf9f3; transition: background .2s ease, border-color .2s ease; overflow: hidden; }
 .browse-card:hover { background: #ece5d8; }
@@ -994,6 +1020,8 @@ html[data-theme="day"] .public-page {
    its dark text already reads fine regardless of the page or theme around it. */
 .public-page .cover-provenance a:not(.staff-action-link) { color: var(--accent-label-text); }
 .public-page .evidence-proof-links a { color: var(--accent-label-text); }
+.public-page .observed-sale-links a { color: var(--accent-label-text); }
+.public-page .print-tab-bar button:hover { border-color: var(--orange); color: var(--canvas-heading); }
 
 /* Section dividers: a soft, low-contrast hairline instead of a stronger
    border, so sections read as one environment, not seams. */
@@ -1082,6 +1110,10 @@ html[data-theme="day"] .public-page {
 .public-page .sale-status { border-color: var(--line); color: var(--muted); }
 .public-page .sale-status.verified_match { border-color: color-mix(in srgb, var(--accent-positive-text) 45%, transparent); color: var(--accent-positive-text); }
 .public-page .sale-status.needs_review { border-color: color-mix(in srgb, var(--accent-warning-text) 45%, transparent); color: var(--accent-warning-text); }
+.public-page .print-classification-badge.is-first-print-proven { border-color: color-mix(in srgb, var(--accent-positive-text) 45%, transparent); color: var(--accent-positive-text); }
+.public-page .print-classification-badge.is-known-later-print { border-color: rgba(44,90,160,.4); color: var(--accent-info-text); }
+.public-page .browse-card-print-badge.is-proven { background: color-mix(in srgb, var(--accent-positive-text) 16%, transparent); color: var(--accent-positive-text); }
+.public-page .browse-card-print-badge.is-unidentified { background: var(--line); color: var(--muted); }
 .public-page .valuation-panel-live-teaser { border-color: rgba(44,90,160,.4); color: var(--accent-info-text); }
 .public-page .collector-pathway-list b { color: var(--orange); }
 .public-page .collector-pathway-list a:hover, .public-page .index-explore-grid a:hover, .public-page .related-editions-list a:hover { border-color: #d98a55; transform: translateY(-3px); }
