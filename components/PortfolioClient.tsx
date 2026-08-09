@@ -3,19 +3,29 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { median, type FxRate } from "@/lib/fx";
+import { type FxRate } from "@/lib/fx";
+import {
+  computeEditionMetrics,
+  familyIdsFor,
+  resolvePublicationFamily,
+  type ValuationSale,
+} from "@/lib/portfolioValuation";
 import ThemeToggle from "@/components/ThemeToggle";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import PortfolioAuth from "@/components/portfolio/PortfolioAuth";
-import PortfolioSummary, { type SummaryMetric } from "@/components/portfolio/PortfolioSummary";
-import HoldingCard, { type Holding, type HoldingEdition } from "@/components/portfolio/HoldingCard";
+import PortfolioTabs, { type PortfolioTabKey } from "@/components/portfolio/PortfolioTabs";
+import OverviewTab from "@/components/portfolio/OverviewTab";
+import HoldingsTab from "@/components/portfolio/HoldingsTab";
+import PerformanceTab from "@/components/portfolio/PerformanceTab";
+import { type SummaryMetric } from "@/components/portfolio/PortfolioSummary";
+import { type Holding, type HoldingEdition } from "@/components/portfolio/HoldingCard";
 import HoldingModal from "@/components/portfolio/HoldingModal";
-import ActivityFeed, { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
-
-type RawSale = { edition_id: string; sale_price: number; currency: string; sold_date: string | null; print_classification: "first_print_proven" | "known_later_print" | "printing_not_identified" };
+import { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
+import { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
 
 const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
+const SNAPSHOT_HISTORY_LIMIT = 400;
 
 export default function PortfolioClient({ initialEditionId = "" }: { initialEditionId?: string }) {
   const [email, setEmail] = useState("");
@@ -23,11 +33,13 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [authMessage, setAuthMessage] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<PortfolioTabKey>("overview");
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [metrics, setMetrics] = useState<SummaryMetric[]>([]);
   const [otherSaleCounts, setOtherSaleCounts] = useState<Map<string, number>>(new Map());
   const [recentSales, setRecentSales] = useState<RecentSaleActivity[]>([]);
   const [rates, setRates] = useState<FxRate[]>([]);
+  const [snapshots, setSnapshots] = useState<PortfolioSnapshotPoint[]>([]);
   const [liveListings, setLiveListings] = useState<LiveListingActivity[]>([]);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,6 +67,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       setOtherSaleCounts(new Map());
       setRecentSales([]);
       setRates([]);
+      setSnapshots([]);
       setLoading(false);
       return;
     }
@@ -69,6 +82,14 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     }
     const nextHoldings = (data ?? []) as unknown as Array<Holding & { created_at: string }>;
     setHoldings(nextHoldings);
+
+    const { data: snapshotData } = await supabase
+      .from("portfolio_snapshots")
+      .select("id,snapshot_at,display_currency,total_paid,total_evidence_value,gain_loss_amount,gain_loss_percent,holdings_total_count,holdings_valued_count,holdings_unvalued_count")
+      .order("snapshot_at", { ascending: true })
+      .limit(SNAPSHOT_HISTORY_LIMIT);
+    setSnapshots((snapshotData ?? []) as PortfolioSnapshotPoint[]);
+
     const ids = nextHoldings.map((holding) => holding.edition_id);
     if (!ids.length) {
       setMetrics([]);
@@ -78,30 +99,11 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       setLoading(false);
       return;
     }
-    // A holding can point at a publication or (for older holdings added
-    // before print-run tracking existed) directly at one of its proven
-    // print-run children — resolve both directions so evidence is never
-    // missed just because it lives on the sibling record.
-    const publicationIds = [...new Set(nextHoldings.flatMap((holding) => holding.edition?.printing_of_edition_id ? [holding.edition.printing_of_edition_id] : [holding.edition_id]))];
+    const publicationIds = [...new Set(nextHoldings.map((holding) => holding.edition?.printing_of_edition_id ?? holding.edition_id))];
     const { data: childrenData } = await supabase.from("manga_editions").select("id,printing_of_edition_id").in("printing_of_edition_id", publicationIds);
-    const familyIds = [...new Set([...ids, ...publicationIds, ...(childrenData ?? []).map((child) => child.id)])];
-    const publicationByMember = new Map<string, string>();
-    for (const holding of nextHoldings) {
-      const publicationId = holding.edition?.printing_of_edition_id ?? holding.edition_id;
-      publicationByMember.set(holding.edition_id, publicationId);
-      publicationByMember.set(publicationId, publicationId);
-    }
-    for (const child of childrenData ?? []) {
-      if (child.printing_of_edition_id) publicationByMember.set(child.id, child.printing_of_edition_id);
-    }
-    // For activity display, a sale on a family member (e.g. a print-run
-    // child) is shown under whichever of the user's own holdings represents
-    // that same publication — never a raw internal id the user never chose.
-    const holdingByPublicationId = new Map<string, Holding>();
-    for (const holding of nextHoldings) {
-      const publicationId = holding.edition?.printing_of_edition_id ?? holding.edition_id;
-      if (!holdingByPublicationId.has(publicationId)) holdingByPublicationId.set(publicationId, holding);
-    }
+    const children = (childrenData ?? []) as Array<{ id: string; printing_of_edition_id: string | null }>;
+    const { publicationByMember } = resolvePublicationFamily(nextHoldings, children);
+    const familyIds = familyIdsFor(nextHoldings, publicationIds, children);
 
     const { data: salesData } = familyIds.length
       ? await supabase
@@ -111,50 +113,20 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
         .eq("sale_status", "confirmed")
         .eq("match_status", "verified_match")
       : { data: [] };
-    const sales = (salesData ?? []) as RawSale[];
+    const sales = (salesData ?? []) as ValuationSale[];
 
-    const provenByPublication = new Map<string, Array<{ price: number; currency: string; soldDate: string | null }>>();
-    const otherCountByPublication = new Map<string, number>();
-    for (const sale of sales) {
-      const publicationId = publicationByMember.get(sale.edition_id) ?? sale.edition_id;
-      if (sale.print_classification === "first_print_proven") {
-        const list = provenByPublication.get(publicationId) ?? [];
-        list.push({ price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date });
-        provenByPublication.set(publicationId, list);
-      } else {
-        otherCountByPublication.set(publicationId, (otherCountByPublication.get(publicationId) ?? 0) + 1);
-      }
-    }
-
-    // Computed once per publication, then emitted under every holding's own
-    // edition_id (a publication and its print-run child can each be held
-    // separately, and both must see the same proven evidence).
-    const metricsByPublication = new Map<string, Array<{ currency: string; value: number; count: number; latestSoldDate: string | null }>>();
-    for (const [publicationId, publicationSales] of provenByPublication) {
-      const byCurrency = new Map<string, typeof publicationSales>();
-      for (const sale of publicationSales) byCurrency.set(sale.currency, [...(byCurrency.get(sale.currency) ?? []), sale]);
-      const perCurrency: Array<{ currency: string; value: number; count: number; latestSoldDate: string | null }> = [];
-      for (const [currency, group] of byCurrency) {
-        const value = median(group.map((sale) => sale.price));
-        if (value === null) continue;
-        const latest = [...group].sort((a, b) => (b.soldDate ?? "").localeCompare(a.soldDate ?? ""))[0];
-        perCurrency.push({ currency, value, count: group.length, latestSoldDate: latest.soldDate });
-      }
-      metricsByPublication.set(publicationId, perCurrency);
-    }
-
-    const nextMetrics: SummaryMetric[] = [];
-    const nextOtherCounts = new Map<string, number>();
-    for (const holding of nextHoldings) {
-      const publicationId = holding.edition?.printing_of_edition_id ?? holding.edition_id;
-      for (const entry of metricsByPublication.get(publicationId) ?? []) {
-        nextMetrics.push({ edition_id: holding.edition_id, currency: entry.currency, market_value_median: entry.value, verified_sale_count: entry.count, latest_sale_date: entry.latestSoldDate });
-      }
-      nextOtherCounts.set(holding.edition_id, otherCountByPublication.get(publicationId) ?? 0);
-    }
+    const { metrics: nextMetrics, otherSaleCounts: nextOtherCounts } = computeEditionMetrics(nextHoldings, sales, publicationByMember);
     setMetrics(nextMetrics);
     setOtherSaleCounts(nextOtherCounts);
 
+    // For activity display, a sale on a family member (e.g. a print-run
+    // child) is shown under whichever of the user's own holdings represents
+    // that same publication — never a raw internal id the user never chose.
+    const holdingByPublicationId = new Map<string, Holding>();
+    for (const holding of nextHoldings) {
+      const publicationId = holding.edition?.printing_of_edition_id ?? holding.edition_id;
+      if (!holdingByPublicationId.has(publicationId)) holdingByPublicationId.set(publicationId, holding);
+    }
     const nextRecentSales: RecentSaleActivity[] = [...sales]
       .sort((a, b) => (b.sold_date ?? "").localeCompare(a.sold_date ?? ""))
       .flatMap((sale) => {
@@ -339,31 +311,37 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     ) : (
       <MarketCurrencyProvider>
         <section className="portfolio-content">
-          <PortfolioSummary holdings={holdings} metricsByEdition={metricsByEdition} onAddClick={openAddModal} rates={rates} />
+          <PortfolioTabs active={activeTab} onChange={setActiveTab} />
 
-          <div className="portfolio-holdings-section">
-            <div className="section-intro"><p className="eyebrow">Your collection</p><h2>Holdings</h2></div>
-            {loading ? (
-              <p className="status-message">Loading your private portfolio...</p>
-            ) : holdings.length ? (
-              <div className="holding-card-grid">
-                {holdings.map((holding) => (
-                  <HoldingCard
-                    holding={holding}
-                    key={holding.id}
-                    metrics={metricsByEdition.get(holding.edition_id) ?? []}
-                    onEdit={editHolding}
-                    onRemove={(id) => void removeHolding(id)}
-                    otherSaleCount={otherSaleCounts.get(holding.edition_id) ?? 0}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="status-message">Add your first RAR edition. Your portfolio will stay private and only use records already in the RAR catalogue.</p>
-            )}
-          </div>
+          {activeTab === "overview" ? (
+            <OverviewTab
+              holdings={holdings}
+              liveListings={visibleLiveListings}
+              listingsLoading={listingsLoading}
+              metricsByEdition={metricsByEdition}
+              onAddClick={openAddModal}
+              rates={rates}
+              recentHoldings={recentHoldingsActivity}
+              recentSales={recentSales}
+              snapshots={snapshots}
+            />
+          ) : null}
 
-          <ActivityFeed liveListings={visibleLiveListings} listingsLoading={listingsLoading} recentHoldings={recentHoldingsActivity} recentSales={recentSales} />
+          {activeTab === "holdings" ? (
+            <HoldingsTab
+              holdings={holdings}
+              loading={loading}
+              metricsByEdition={metricsByEdition}
+              onAddClick={openAddModal}
+              onEdit={editHolding}
+              onRemove={(id) => void removeHolding(id)}
+              otherSaleCounts={otherSaleCounts}
+            />
+          ) : null}
+
+          {activeTab === "performance" ? (
+            <PerformanceTab onSnapshotTaken={loadPortfolio} snapshots={snapshots} />
+          ) : null}
         </section>
 
         <HoldingModal
