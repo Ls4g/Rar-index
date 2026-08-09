@@ -88,7 +88,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
 
     const { data: snapshotData } = await supabase
       .from("portfolio_snapshots")
-      .select("id,snapshot_at,display_currency,total_paid,total_evidence_value,gain_loss_amount,gain_loss_percent,holdings_total_count,holdings_valued_count,holdings_unvalued_count")
+      .select("id,snapshot_at,display_currency,total_paid,total_evidence_value,gain_loss_amount,gain_loss_percent,holdings_total_count,holdings_valued_count,holdings_unvalued_count,trigger_reason")
       .order("snapshot_at", { ascending: true })
       .limit(SNAPSHOT_HISTORY_LIMIT);
     setSnapshots((snapshotData ?? []) as PortfolioSnapshotPoint[]);

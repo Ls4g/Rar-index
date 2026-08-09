@@ -633,6 +633,12 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .holding-modal input:focus-visible, .holding-modal textarea:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
 .holding-modal textarea { min-height: 5rem; resize: vertical; line-height: 1.5; }
 .holding-modal label small { font-weight: 500; letter-spacing: normal; text-transform: none; color: var(--muted); }
+/* Purchase price is the one figure that can move a collector's chart the
+   day they add a holding, so it reads as expected rather than incidental --
+   without becoming required, since gifts and inherited copies have none. */
+.holding-modal .holding-price-field { padding: .85rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--surface-input); }
+.holding-modal .holding-price-field small { color: var(--accent-info-text-strong); font-weight: 600; }
+.holding-modal .holding-price-hint { margin: -.35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.5; }
 .portfolio-selected-edition { display: flex; align-items: start; justify-content: space-between; gap: .75rem; min-height: 3.4rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--surface-chip-active); color: var(--canvas-heading); font-size: .78rem; letter-spacing: normal; line-height: 1.4; text-transform: none; }
 .portfolio-selected-edition button, .holding-modal-manage button { border: 0; padding: 0; background: transparent; color: var(--accent-label-text); cursor: pointer; font: inherit; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .portfolio-suggestions { display: grid; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: .55rem; background: var(--surface-input); }
@@ -723,6 +729,9 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-chart-legend-swatch:first-child { margin-left: 0; }
 .portfolio-chart-legend-swatch.is-evidence { background: var(--accent-positive-text); }
 .portfolio-chart-legend-swatch.is-paid { background: var(--muted); }
+/* Contribution markers use the informational tone, deliberately not the
+   gain/loss green or red: the user changing what they own is neither. */
+.portfolio-chart-legend-swatch.is-contribution { background: var(--accent-info-text-strong); }
 .portfolio-chart-range { color: var(--muted); font-size: .72rem; }
 .portfolio-chart-wrap { position: relative; }
 .portfolio-chart-svg { display: block; width: 100%; height: auto; }
@@ -738,12 +747,15 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-chart-point.is-evidence { stroke: var(--accent-positive-text); }
 .portfolio-chart-point.is-paid { stroke: var(--muted); }
 .portfolio-chart-point.is-active { fill: currentColor; }
+.portfolio-chart-contribution { stroke: var(--accent-info-text-strong); stroke-width: 2; stroke-linecap: round; opacity: .5; }
+.portfolio-chart-contribution.is-active { opacity: 1; stroke-width: 3; }
 .portfolio-chart-svg text { fill: var(--muted); font-size: 11px; }
 .portfolio-chart-tooltip { position: absolute; z-index: 2; display: grid; gap: .1rem; min-width: 9rem; padding: .55rem .7rem; border-radius: .5rem; background: var(--surface-tooltip); box-shadow: var(--card-shadow); pointer-events: none; transform: translate(-50%, -115%); }
 .portfolio-chart-tooltip strong { color: var(--canvas-heading); font-size: .86rem; }
 .portfolio-chart-tooltip span { color: var(--muted); font-size: .68rem; }
 .portfolio-chart-tooltip span.is-positive { color: var(--accent-positive-text); }
 .portfolio-chart-tooltip span.is-negative { color: var(--accent-chip-active-text, var(--red)); }
+.portfolio-chart-tooltip span.is-contribution { color: var(--accent-info-text-strong); font-weight: 700; }
 .portfolio-chart-active-summary { margin: .9rem 0 0; color: var(--muted); font-size: .76rem; }
 
 .portfolio-chart-empty { display: grid; gap: 1.25rem; padding: 1.5rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }

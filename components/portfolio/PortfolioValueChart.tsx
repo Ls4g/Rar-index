@@ -4,6 +4,13 @@ import { useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { formatPrice, type DisplayCurrency } from "@/lib/fx";
 
+export type SnapshotTriggerReason =
+  | "holding_added"
+  | "holding_updated"
+  | "holding_removed"
+  | "evidence_changed"
+  | "daily_cron";
+
 export type PortfolioSnapshotPoint = {
   id: string;
   snapshot_at: string;
@@ -14,7 +21,28 @@ export type PortfolioSnapshotPoint = {
   gain_loss_percent: number | null;
   holdings_valued_count: number;
   holdings_unvalued_count: number;
+  // Null on snapshots recorded before automatic triggers existed -- treated
+  // as "not a known contribution", never guessed at retrospectively.
+  trigger_reason?: SnapshotTriggerReason | null;
 };
+
+// A snapshot recorded because the user changed what they own. The value
+// moved because the portfolio's contents changed, not because the market
+// did -- the distinction a real portfolio tool draws between a deposit and
+// a gain, and the reason these points are marked rather than blended into
+// the trend line.
+const CONTRIBUTION_REASONS = new Set<string>(["holding_added", "holding_updated", "holding_removed"]);
+
+function isContribution(point: PortfolioSnapshotPoint) {
+  return point.trigger_reason ? CONTRIBUTION_REASONS.has(point.trigger_reason) : false;
+}
+
+function contributionLabel(reason: SnapshotTriggerReason | null | undefined) {
+  if (reason === "holding_added") return "You added a holding";
+  if (reason === "holding_removed") return "You removed a holding";
+  if (reason === "holding_updated") return "You edited a holding";
+  return null;
+}
 
 type PortfolioValueChartProps = {
   snapshots: PortfolioSnapshotPoint[];
@@ -181,6 +209,7 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
         <span className="portfolio-chart-legend">
           <i className="portfolio-chart-legend-swatch is-evidence" aria-hidden="true" /> RAR evidence value
           <i className="portfolio-chart-legend-swatch is-paid" aria-hidden="true" /> Total paid
+          {ordered.some(isContribution) ? <><i className="portfolio-chart-legend-swatch is-contribution" aria-hidden="true" /> You changed a holding</> : null}
         </span>
         <span className="portfolio-chart-range">{rangeLabel} · shown in {currency}</span>
       </div>
@@ -203,6 +232,20 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
           {hasAnyPaid ? <path d={paidPath} className="portfolio-chart-line is-paid" fill="none" /> : null}
           {hasAnyEvidence ? <path d={evidencePath} className="portfolio-chart-line is-evidence" fill="none" /> : null}
           <line className="portfolio-chart-active-guide" x1={activeX} x2={activeX} y1={PADDING_TOP} y2={baselineY} />
+          {/* Contribution markers sit on the baseline rather than on either
+              line: the change they caused belongs to the whole portfolio, not
+              to one series, and anchoring them to a value would imply the
+              market moved to that figure. */}
+          {ordered.map((point, index) => isContribution(point) ? (
+            <line
+              key={`c-${point.id}`}
+              className={`portfolio-chart-contribution${index === activeIndex ? " is-active" : ""}`}
+              x1={xFor(index)}
+              x2={xFor(index)}
+              y1={baselineY - 9}
+              y2={baselineY}
+            />
+          ) : null)}
           {evidencePoints.map((point) => point.value === null ? null : (
             <circle key={`e-${ordered[point.index].id}`} className={`portfolio-chart-point is-evidence${point.index === activeIndex ? " is-active" : ""}`} cx={point.x} cy={yFor(point.value)} r={point.index === activeIndex ? 6 : 3} />
           ))}
@@ -216,10 +259,15 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
           <strong>{activePoint.total_evidence_value !== null ? formatPrice(activePoint.total_evidence_value, currency) : "No evidence value yet"}</strong>
           <span>{formatSnapshotDate(activePoint.snapshot_at)}</span>
           {activePoint.total_paid !== null ? <span>Paid {formatPrice(activePoint.total_paid, currency)}</span> : null}
+          {/* Shown before any gain figure: a move into this point caused by
+              the user changing what they own must not read as the market
+              having moved. */}
+          {isContribution(activePoint) ? <span className="is-contribution">{contributionLabel(activePoint.trigger_reason)}</span> : null}
           {activePoint.gain_loss_amount !== null ? (
             <span className={activePoint.gain_loss_amount >= 0 ? "is-positive" : "is-negative"}>
               {activePoint.gain_loss_amount >= 0 ? "+" : ""}{formatPrice(activePoint.gain_loss_amount, currency)}
               {activePoint.gain_loss_percent !== null ? ` (${activePoint.gain_loss_percent >= 0 ? "+" : ""}${activePoint.gain_loss_percent.toFixed(1)}%)` : ""}
+              {" vs paid"}
             </span>
           ) : null}
         </div>
@@ -227,6 +275,7 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
       <p className="portfolio-chart-active-summary" aria-live="polite">
         {formatSnapshotDate(activePoint.snapshot_at)} · {activePoint.total_evidence_value !== null ? formatPrice(activePoint.total_evidence_value, currency) : "No evidence value yet"}
         {activePoint.total_paid !== null ? ` · paid ${formatPrice(activePoint.total_paid, currency)}` : ""}
+        {isContribution(activePoint) ? ` · ${contributionLabel(activePoint.trigger_reason)}` : ""}
         {" · "}{activePoint.holdings_valued_count} holding{activePoint.holdings_valued_count === 1 ? "" : "s"} valued
         {activePoint.holdings_unvalued_count ? `, ${activePoint.holdings_unvalued_count} awaiting evidence` : ""}
       </p>
