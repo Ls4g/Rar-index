@@ -66,7 +66,7 @@ function SaleRow({ sale, sourceNames }: { sale: PublicationSale; sourceNames: Re
       <div className="observed-sale-links">
         {sale.source_listing_url ? <a href={sale.source_listing_url} target="_blank" rel="noreferrer">View source ↗</a> : null}
         {sale.print_classification === "first_print_proven" && sale.printing_proof_url ? (
-          <a href={sale.printing_proof_url} target="_blank" rel="noreferrer">View copyright-page proof ↗</a>
+          <a href={sale.printing_proof_url} target="_blank" rel="noreferrer">View printing evidence ↗</a>
         ) : null}
       </div>
     </div>
@@ -123,7 +123,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
       {tab === "first" ? (
         <div className="print-tab-panel" role="tabpanel">
-          <p className="section-copy">Only completed sales with proof that the specific sold copy is a first print — a listing title claim alone is never enough.</p>
+          <p className="section-copy">Only completed sales with proof that the specific sold copy is a first print, including an SP-confirmed inspection. A listing-title claim alone is never enough.</p>
           <div className="print-tab-valuation">
             <p className="eyebrow">RAR market evidence · First print</p>
             <MarketValuePanel sales={firstVerified} rates={rates} />
