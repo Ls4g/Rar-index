@@ -51,13 +51,21 @@ type PortfolioValueChartProps = {
 };
 
 const WIDTH = 760;
-const HEIGHT = 340;
+const HEIGHT = 260;
 const PADDING_X = 32;
-const PADDING_TOP = 36;
-const PADDING_BOTTOM = 54;
+const PADDING_TOP = 28;
+const PADDING_BOTTOM = 46;
 
 function formatSnapshotDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+// Several snapshots on one day are normal (adding a holding records one
+// immediately), and axis ends both reading "9 Aug 2026" looks broken. Fall
+// back to clock time whenever the whole range sits inside a single day.
+function formatAxisLabel(value: string, sameDay: boolean) {
+  if (!sameDay) return formatSnapshotDate(value);
+  return new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function EmptyState() {
@@ -92,11 +100,11 @@ function SinglePointState({ snapshot, currency }: { snapshot: PortfolioSnapshotP
     <div className="portfolio-chart-single">
       <div className="portfolio-chart-single-figures">
         <div>
-          <span>RAR evidence value</span>
+          <span>Market value</span>
           <strong>{snapshot.total_evidence_value !== null ? formatPrice(snapshot.total_evidence_value, currency) : "Still being researched"}</strong>
         </div>
         <div>
-          <span>Total paid</span>
+          <span>What you paid</span>
           <strong>{snapshot.total_paid !== null ? formatPrice(snapshot.total_paid, currency) : "Not recorded"}</strong>
         </div>
       </div>
@@ -130,42 +138,46 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
   const evidencePoints = ordered.map((point, index) => ({ index, x: xFor(index), value: point.total_evidence_value }));
   const paidPoints = ordered.map((point, index) => ({ index, x: xFor(index), value: point.total_paid }));
 
-  function pathFor(points: Array<{ x: number; value: number | null }>) {
-    const segments: string[] = [];
-    let drawing = false;
+  // Runs of consecutive points that actually have a figure. A gap (a
+  // snapshot with no value for that series) breaks the run rather than
+  // being interpolated across, so a line is never drawn through a period
+  // RAR had nothing to report.
+  function runsOf(points: Array<{ x: number; value: number | null }>) {
+    const runs: Array<Array<{ x: number; y: number }>> = [];
+    let run: Array<{ x: number; y: number }> = [];
     for (const point of points) {
-      if (point.value === null) { drawing = false; continue; }
-      const y = yFor(point.value);
-      segments.push(`${drawing ? "L" : "M"} ${point.x} ${y}`);
-      drawing = true;
+      if (point.value === null) { if (run.length) runs.push(run); run = []; continue; }
+      run.push({ x: point.x, y: yFor(point.value) });
     }
-    return segments.join(" ");
+    if (run.length) runs.push(run);
+    return runs;
   }
 
-  // The filled band between the two lines only ever covers stretches where
-  // both a paid and an evidence figure exist for the same snapshot — never
-  // interpolated across a gap, and never drawn as "gain" or "loss" from a
-  // single-sided figure.
-  const bandSegments: Array<{ points: string; isGain: boolean }> = [];
-  let current: Array<{ x: number; paidY: number; evidenceY: number }> = [];
-  function flushBand() {
-    if (current.length < 2) { current = []; return; }
-    const isGain = current.reduce((sum, point) => sum + (point.evidenceY <= point.paidY ? 1 : 0), 0) >= current.length / 2;
-    const top = current.map((point) => `${point.x},${Math.min(point.paidY, point.evidenceY)}`).join(" L ");
-    const bottom = [...current].reverse().map((point) => `${point.x},${Math.max(point.paidY, point.evidenceY)}`).join(" L ");
-    bandSegments.push({ points: `M ${top} L ${bottom} Z`, isGain });
-    current = [];
+  function lineFrom(runs: Array<Array<{ x: number; y: number }>>) {
+    return runs.map((run) => run.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ")).join(" ");
   }
-  ordered.forEach((point, index) => {
-    if (point.total_paid === null || point.total_evidence_value === null) { flushBand(); return; }
-    current.push({ x: xFor(index), paidY: yFor(point.total_paid), evidenceY: yFor(point.total_evidence_value) });
-  });
-  flushBand();
 
-  const evidencePath = pathFor(evidencePoints);
-  const paidPath = pathFor(paidPoints);
+  // A soft fill under the market-value line only. The previous version
+  // filled the whole gap between "paid" and "market value" and tinted it
+  // green or red -- with a low purchase price against a high market value
+  // that slab covered most of the chart and read as a solid block rather
+  // than a trend. Gain is a number, and stays one (in the tooltip and the
+  // summary above the chart); it is not a shape.
+  function areaFrom(runs: Array<Array<{ x: number; y: number }>>) {
+    return runs
+      .filter((run) => run.length > 1)
+      .map((run) => `M ${run[0].x} ${baselineY} ${run.map((point) => `L ${point.x} ${point.y}`).join(" ")} L ${run[run.length - 1].x} ${baselineY} Z`)
+      .join(" ");
+  }
+
+  const evidenceRuns = runsOf(evidencePoints);
+  const paidRuns = runsOf(paidPoints);
+  const evidencePath = lineFrom(evidenceRuns);
+  const paidPath = lineFrom(paidRuns);
+  const evidenceArea = areaFrom(evidenceRuns);
   const hasAnyEvidence = evidencePoints.some((point) => point.value !== null);
   const hasAnyPaid = paidPoints.some((point) => point.value !== null);
+  const sameDayRange = ordered[0].snapshot_at.slice(0, 10) === ordered[ordered.length - 1].snapshot_at.slice(0, 10);
 
   function updateActiveFromClientX(clientX: number, wrap: HTMLDivElement) {
     const rect = wrap.getBoundingClientRect();
@@ -202,13 +214,17 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
   const tooltipLeft = Math.min(88, Math.max(12, (activeX / WIDTH) * 100));
   const activeEvidenceY = activePoint.total_evidence_value !== null ? yFor(activePoint.total_evidence_value) : null;
   const tooltipTop = activeEvidenceY !== null ? (activeEvidenceY / HEIGHT) * 100 : 50;
+  // Above the point by default, but flipped below whenever the point sits
+  // high in the plot -- otherwise the tooltip lands on top of the legend
+  // and covers it.
+  const tooltipBelow = tooltipTop < 34;
 
   return (
     <div className="portfolio-value-chart">
       <div className="portfolio-chart-heading">
         <span className="portfolio-chart-legend">
-          <i className="portfolio-chart-legend-swatch is-evidence" aria-hidden="true" /> RAR evidence value
-          <i className="portfolio-chart-legend-swatch is-paid" aria-hidden="true" /> Total paid
+          <i className="portfolio-chart-legend-swatch is-evidence" aria-hidden="true" /> Market value
+          <i className="portfolio-chart-legend-swatch is-paid" aria-hidden="true" /> What you paid
           {ordered.some(isContribution) ? <><i className="portfolio-chart-legend-swatch is-contribution" aria-hidden="true" /> You changed a holding</> : null}
         </span>
         <span className="portfolio-chart-range">{rangeLabel} · shown in {currency}</span>
@@ -226,9 +242,10 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
         <svg className="portfolio-chart-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
           <line className="portfolio-chart-grid" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
           <line className="portfolio-chart-grid" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={baselineY} y2={baselineY} />
-          {bandSegments.map((segment, index) => (
-            <path key={index} d={segment.points} className={`portfolio-chart-band ${segment.isGain ? "is-gain" : "is-loss"}`} />
-          ))}
+          {/* Only when market value is the sole series. With a paid line as
+              well, a fill reaching the baseline swallows it and the pair
+              reads as one block again -- two clean lines compare better. */}
+          {hasAnyEvidence && !hasAnyPaid ? <path d={evidenceArea} className="portfolio-chart-area" /> : null}
           {hasAnyPaid ? <path d={paidPath} className="portfolio-chart-line is-paid" fill="none" /> : null}
           {hasAnyEvidence ? <path d={evidencePath} className="portfolio-chart-line is-evidence" fill="none" /> : null}
           <line className="portfolio-chart-active-guide" x1={activeX} x2={activeX} y1={PADDING_TOP} y2={baselineY} />
@@ -252,10 +269,11 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
           {paidPoints.map((point) => point.value === null ? null : (
             <circle key={`p-${ordered[point.index].id}`} className={`portfolio-chart-point is-paid${point.index === activeIndex ? " is-active" : ""}`} cx={point.x} cy={yFor(point.value)} r={point.index === activeIndex ? 5 : 2.5} />
           ))}
-          <text x={PADDING_X} y={HEIGHT - 10}>{formatSnapshotDate(ordered[0].snapshot_at)}</text>
-          <text x={WIDTH - PADDING_X} y={HEIGHT - 10} textAnchor="end">{formatSnapshotDate(ordered.at(-1)!.snapshot_at)}</text>
+          <text x={PADDING_X} y={HEIGHT - 10}>{formatAxisLabel(ordered[0].snapshot_at, sameDayRange)}</text>
+          <text x={WIDTH / 2} y={HEIGHT - 10} textAnchor="middle">{sameDayRange ? formatSnapshotDate(ordered[0].snapshot_at) : ""}</text>
+          <text x={WIDTH - PADDING_X} y={HEIGHT - 10} textAnchor="end">{formatAxisLabel(ordered.at(-1)!.snapshot_at, sameDayRange)}</text>
         </svg>
-        <div className="portfolio-chart-tooltip" style={{ left: `${tooltipLeft}%`, top: `${tooltipTop}%` }} aria-hidden="true">
+        <div className={`portfolio-chart-tooltip${tooltipBelow ? " is-below" : ""}`} style={{ left: `${tooltipLeft}%`, top: `${tooltipTop}%` }} aria-hidden="true">
           <strong>{activePoint.total_evidence_value !== null ? formatPrice(activePoint.total_evidence_value, currency) : "No evidence value yet"}</strong>
           <span>{formatSnapshotDate(activePoint.snapshot_at)}</span>
           {activePoint.total_paid !== null ? <span>Paid {formatPrice(activePoint.total_paid, currency)}</span> : null}

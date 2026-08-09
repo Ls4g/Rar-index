@@ -639,6 +639,10 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .holding-modal .holding-price-field { padding: .85rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--surface-input); }
 .holding-modal .holding-price-field small { color: var(--accent-info-text-strong); font-weight: 600; }
 .holding-modal .holding-price-hint { margin: -.35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+/* "Not recorded" was a dead label on the one figure the collector can
+   actually supply -- it reads and behaves as the action instead. */
+.holding-card-add-price { border: 1px dashed var(--line); border-radius: .4rem; padding: .2rem .5rem; background: transparent; color: var(--accent-info-text-strong); cursor: pointer; font: inherit; font-size: .78rem; font-weight: 700; }
+.holding-card-add-price:hover { border-color: var(--accent-info-text-strong); border-style: solid; }
 .portfolio-selected-edition { display: flex; align-items: start; justify-content: space-between; gap: .75rem; min-height: 3.4rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--surface-chip-active); color: var(--canvas-heading); font-size: .78rem; letter-spacing: normal; line-height: 1.4; text-transform: none; }
 .portfolio-selected-edition button, .holding-modal-manage button { border: 0; padding: 0; background: transparent; color: var(--accent-label-text); cursor: pointer; font: inherit; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .portfolio-suggestions { display: grid; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: .55rem; background: var(--surface-input); }
@@ -736,9 +740,9 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-chart-wrap { position: relative; }
 .portfolio-chart-svg { display: block; width: 100%; height: auto; }
 .portfolio-chart-grid { stroke: var(--line); stroke-width: 1; }
-.portfolio-chart-band { stroke: none; }
-.portfolio-chart-band.is-gain { fill: color-mix(in srgb, var(--accent-positive-text) 16%, transparent); }
-.portfolio-chart-band.is-loss { fill: color-mix(in srgb, var(--accent-chip-active-text, var(--red)) 14%, transparent); }
+/* A soft fade under the market-value line, not a slab between two lines --
+   the shape reads as "this is the value line", and gain stays a number. */
+.portfolio-chart-area { stroke: none; fill: color-mix(in srgb, var(--accent-positive-text) 13%, transparent); }
 .portfolio-chart-line { stroke-width: 2.5; }
 .portfolio-chart-line.is-evidence { stroke: var(--accent-positive-text); }
 .portfolio-chart-line.is-paid { stroke: var(--muted); stroke-dasharray: 5 4; }
@@ -751,6 +755,9 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-chart-contribution.is-active { opacity: 1; stroke-width: 3; }
 .portfolio-chart-svg text { fill: var(--muted); font-size: 11px; }
 .portfolio-chart-tooltip { position: absolute; z-index: 2; display: grid; gap: .1rem; min-width: 9rem; padding: .55rem .7rem; border-radius: .5rem; background: var(--surface-tooltip); box-shadow: var(--card-shadow); pointer-events: none; transform: translate(-50%, -115%); }
+/* Flipped below the point when it sits high in the plot, so it never
+   covers the legend above the chart. */
+.portfolio-chart-tooltip.is-below { transform: translate(-50%, 22%); }
 .portfolio-chart-tooltip strong { color: var(--canvas-heading); font-size: .86rem; }
 .portfolio-chart-tooltip span { color: var(--muted); font-size: .68rem; }
 .portfolio-chart-tooltip span.is-positive { color: var(--accent-positive-text); }

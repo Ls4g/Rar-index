@@ -82,10 +82,18 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, onEdit, 
         <dl className="holding-card-figures">
           <div>
             <dt>Paid</dt>
-            <dd>{paidAmount !== null && holding.purchase_currency ? formatPrice(paidAmount, holding.purchase_currency) : "Not recorded"}</dd>
+            {/* A missing purchase price is the one thing on this card the
+                collector can fix in a click, and the thing blocking their
+                chart -- so it is the action itself, not a dead label they
+                have to work out how to change. */}
+            <dd>
+              {paidAmount !== null && holding.purchase_currency
+                ? formatPrice(paidAmount, holding.purchase_currency)
+                : <button className="holding-card-add-price" onClick={() => onEdit(holding)} type="button">+ Add price</button>}
+            </dd>
           </div>
           <div>
-            <dt>RAR evidence</dt>
+            <dt>Market value</dt>
             <dd>
               {metrics.length
                 ? metrics.map((metric) => <span key={metric.currency}>{formatPrice(metric.market_value_median * holding.quantity, metric.currency)}</span>)
