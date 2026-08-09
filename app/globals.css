@@ -177,18 +177,21 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 .edition-cover-fallback.status-candidate .edition-cover-fallback-status strong { color: #f2dba7; }
 .edition-cover-fallback.status-rejected { background: linear-gradient(150deg, #2a1c19, #6b332a); }
 .edition-cover-fallback.status-rejected .edition-cover-fallback-status strong { color: #f2c3b8; }
-.edition-cover-badge { position: absolute; right: .45rem; bottom: .45rem; padding: .25rem .36rem; border-radius: .3rem; background: rgba(33,29,24,.82); color: #f7f1e4; font-size: .5rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+/* The "Catalogue cover" badge is provenance -- it says this artwork came
+   from a publisher or licensed catalogue record rather than a marketplace
+   photo. That matters where a collector is examining one edition and can
+   act on it, so it shows on the edition page and nowhere else. Everywhere
+   else covers are browsed at a glance, where the badge sat over the
+   artwork it captions and, at thumbnail sizes, clipped to unreadable
+   characters. Hidden by default and opted into by exactly one selector, so
+   a new cover placement can't reintroduce it by omission. */
+.edition-cover-badge { display: none; position: absolute; right: .45rem; bottom: .45rem; padding: .25rem .36rem; border-radius: .3rem; background: rgba(33,29,24,.82); color: #f7f1e4; font-size: .5rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+.edition-hero-cover .edition-cover-badge { display: block; }
 .search-result-cover { width: 2.35rem; height: 3.15rem; flex: 0 0 auto; }
 .search-result-cover .edition-cover-fallback { padding: .35rem; }
 .search-result-cover .edition-cover-fallback-mark { display: none; }
 .search-result-cover .edition-cover-fallback-status strong { font-size: .58rem; }
-.search-result-cover .edition-cover-fallback small, .search-result-cover .edition-cover-badge { display: none; }
-/* The "Catalogue cover" badge needs more width than a compact thumbnail
-   has; at these sizes it clips to unreadable characters and covers the
-   artwork it is meant to caption. The portfolio's ranked list is 52x68px,
-   smaller than either of the others. */
-.card-cover .edition-cover-badge,
-.most-valuable-cover .edition-cover-badge { display: none; }
+.search-result-cover .edition-cover-fallback small { display: none; }
 .search-result strong, .search-result span, .search-result small, .search-edition-label { display: block; }
 .search-result strong { color: var(--paper); font-size: .88rem; }
 .search-result span, .search-result small, .search-message { color: rgba(244,240,232,.58); font-size: .72rem; }
