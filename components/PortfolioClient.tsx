@@ -22,6 +22,7 @@ import { type Holding, type HoldingEdition } from "@/components/portfolio/Holdin
 import HoldingModal from "@/components/portfolio/HoldingModal";
 import { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
 import { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
+import CollectorUsernameControl from "@/components/portfolio/CollectorUsernameControl";
 
 const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
@@ -33,6 +34,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [authMessage, setAuthMessage] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PortfolioTabKey>("overview");
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [metrics, setMetrics] = useState<SummaryMetric[]>([]);
@@ -61,6 +63,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     const { data: sessionData } = await supabase.auth.getSession();
     const user = sessionData.session?.user;
     setUserEmail(user?.email ?? null);
+    setUserId(user?.id ?? null);
     if (!user) {
       setHoldings([]);
       setMetrics([]);
@@ -303,7 +306,11 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   return <main className="portfolio-page public-page">
     <header className="site-header">
       <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-      <div className="header-links">{userEmail ? <button className="portfolio-signout" onClick={() => void signOut()}>Sign out</button> : <span className="header-note">Private collecting, evidence first</span>}<ThemeToggle /></div>
+      <div className="header-links">
+        {userEmail && userId ? <CollectorUsernameControl userId={userId} /> : null}
+        {userEmail ? <button className="portfolio-signout" onClick={() => void signOut()}>Sign out</button> : <span className="header-note">Private collecting, evidence first</span>}
+        <ThemeToggle />
+      </div>
     </header>
 
     {!userEmail ? (

@@ -533,6 +533,28 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .import-status.valuation_ready { border-color: rgba(62,113,68,.45); color: #32623a; }
 .portfolio-page { min-height: 100vh; background: var(--paper); }
 .portfolio-signout, .portfolio-text-button { border: 0; padding: 0; background: transparent; color: var(--accent-label-text, #6f5010); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+
+/* Public collector handle: a small header control, not a settings page. */
+.collector-handle { position: relative; }
+.collector-handle-toggle { border: 1px solid var(--line); border-radius: .4rem; padding: .4rem .65rem; background: transparent; color: var(--canvas-muted-strong); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+.collector-handle-toggle:hover { border-color: var(--orange); color: var(--canvas-heading); }
+.collector-handle-toggle:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.collector-handle-form { position: absolute; z-index: 20; top: calc(100% + .5rem); right: 0; display: grid; gap: .55rem; width: 17rem; max-width: 80vw; padding: 1rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--surface-card); box-shadow: 0 18px 40px rgba(0,0,0,.28); text-align: left; }
+.collector-handle-form label { color: var(--muted); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.collector-handle-input-row { display: flex; align-items: center; gap: .35rem; border: 1px solid var(--line); border-radius: .5rem; padding: 0 .7rem; background: var(--surface-input); }
+.collector-handle-input-row span { color: var(--muted); font-size: .85rem; }
+.collector-handle-input-row input { flex: 1 1 auto; min-width: 0; min-height: 2.6rem; border: 0; background: transparent; color: var(--canvas-heading); font: inherit; font-size: .85rem; }
+.collector-handle-input-row input:focus { outline: none; }
+.collector-handle-form:focus-within .collector-handle-input-row { border-color: var(--orange); }
+.collector-handle-status { margin: -.2rem 0 0; font-size: .72rem; }
+.collector-handle-status.is-positive { color: var(--accent-positive-text); }
+.collector-handle-status.is-negative { color: var(--accent-chip-active-text, var(--red)); }
+.collector-handle-note { margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.5; }
+.collector-handle-actions { display: flex; align-items: center; gap: 1rem; }
+.collector-handle-actions button[type="submit"] { border: 0; border-radius: .5rem; padding: .6rem 1rem; background: var(--red); color: #fff; cursor: pointer; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.collector-handle-actions button[type="submit"]:hover:not(:disabled) { background: var(--red-dark); }
+.collector-handle-actions button[type="submit"]:disabled { opacity: .55; cursor: not-allowed; }
+.collector-handle-actions button:focus-visible, .collector-handle-input-row input:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .portfolio-content { max-width: 1180px; margin: auto; padding: 3rem 1.5rem 5.5rem; }
 
 /* Unauthenticated screen: a collector-product intro, not a login page. A
@@ -818,6 +840,7 @@ a.coverage-badge:hover { filter: brightness(0.96); }
   .portfolio-range-selector button { flex: 1 1 auto; }
   .most-valuable-list li { flex-wrap: wrap; }
   .portfolio-value-chart { padding: 1rem; }
+  .collector-handle-form { position: fixed; top: auto; right: .75rem; left: .75rem; bottom: .75rem; width: auto; max-width: none; }
 }
 .identity-checklist { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--line); background: #f7f1e6; }
 .identity-checklist .eyebrow { margin-bottom: .7rem; }
