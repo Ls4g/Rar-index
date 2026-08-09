@@ -8,8 +8,8 @@ const MarketCurrencyContext = createContext<{
   setCurrency: (currency: DisplayCurrency) => void;
 } | null>(null);
 
-export default function MarketCurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrency] = useState<DisplayCurrency>("GBP");
+export default function MarketCurrencyProvider({ children, initialCurrency = "GBP" }: { children: React.ReactNode; initialCurrency?: DisplayCurrency }) {
+  const [currency, setCurrency] = useState<DisplayCurrency>(initialCurrency);
   return <MarketCurrencyContext.Provider value={{ currency, setCurrency }}>{children}</MarketCurrencyContext.Provider>;
 }
 

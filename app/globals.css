@@ -985,6 +985,9 @@ html[data-theme="day"] .public-page {
 .public-page .site-header { background: transparent; }
 .public-page .brand { color: var(--canvas-heading); }
 .public-page .header-note { color: var(--muted); }
+.home-market-currency-control { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.home-market-currency-control select { min-height: 1.8rem; border: 1px solid var(--line); border-radius: .35rem; padding: .22rem .35rem; background: var(--surface-input); color: var(--canvas-heading); font: inherit; font-size: .68rem; letter-spacing: .04em; cursor: pointer; }
+.home-market-currency-control select:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .public-page .live-listings-empty strong { color: var(--canvas-heading); }
 .public-page .edition-disclosure summary > span:first-child { color: var(--canvas-heading); }
 .public-page .confidence-signal strong { color: var(--canvas-heading); }

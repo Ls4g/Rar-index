@@ -7,13 +7,12 @@ import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
 import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
+import { HomeMarketCurrencyControl, HomePrice } from "@/components/HomeMarketDisplay";
+import type { FxRate } from "@/lib/fx";
 
 // Catalogue updates should appear without waiting for the next deployment.
 export const dynamic = "force-dynamic";
-
-function formatSalePrice(value: number, code: string) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: code, currencyDisplay: "narrowSymbol", maximumFractionDigits: 2 }).format(value);
-}
 
 function formatSaleDate(value: string | null) {
   if (!value) return "Date not recorded";
@@ -21,7 +20,6 @@ function formatSaleDate(value: string | null) {
   if (Number.isNaN(date.getTime())) return "Date not recorded";
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
-
 type RecentSale = {
   edition_id: string;
   sale_price: number;
@@ -247,7 +245,19 @@ export default async function Home() {
     })
     .slice(0, 6);
 
+  // All homepage prices use one visitor-selected display currency. Sales are
+  // converted with their sale-date ECB reference rate; active listings use
+  // the latest available reference rate without changing the stored amount.
+  const { data: homepageFxRatesData } = await supabase
+    .from("exchange_rates")
+    .select("rate_date,currency,rate_per_eur,source_name,source_url")
+    .order("rate_date", { ascending: true })
+    .limit(1000);
+  const homepageFxRates = (homepageFxRatesData ?? []) as FxRate[];
+  const homepageListingRateDate = new Date().toISOString().slice(0, 10);
+
   return (
+    <MarketCurrencyProvider initialCurrency="USD">
     <main className="public-page home-page">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="RAR Index home">
@@ -260,6 +270,7 @@ export default async function Home() {
           <Link className="header-note" href="/browse">Browse editions</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
+          <HomeMarketCurrencyControl />
           <ThemeToggle />
         </nav>
       </header>
@@ -290,7 +301,7 @@ export default async function Home() {
               <p className="eyebrow">The collector&apos;s shelf</p>
               <p>Verified covers only. Select one to see its evidence — nothing here plays or scrolls on its own.</p>
             </div>
-            <CollectorShelf editions={shelfEditions} />
+            <CollectorShelf editions={shelfEditions} rates={homepageFxRates} />
           </div>
         ) : null}
       </section>
@@ -393,7 +404,7 @@ export default async function Home() {
               <Link className="manga-card" href={publicationLink(edition)} key={`${edition.id}-${sale.sold_date}-${sale.sale_price}`}>
                 <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
                 <div className="card-body">
-                  <p className="card-kicker">{formatSalePrice(sale.sale_price, sale.currency)} · {formatSaleDate(sale.sold_date)}</p>
+                  <p className="card-kicker"><HomePrice value={sale.sale_price} sourceCurrency={sale.currency} rateDate={sale.sold_date} rates={homepageFxRates} /> · {formatSaleDate(sale.sold_date)}</p>
                   <h3>{edition.title || "Untitled manga"}</h3>
                   <dl>
                     <div>
@@ -432,7 +443,7 @@ export default async function Home() {
                   <h3>{lead.listing_title}</h3>
                 </div>
                 <div className="live-listing-meta">
-                  <strong>{lead.listing_price !== null && lead.currency ? formatSalePrice(lead.listing_price, lead.currency) : "Price not listed"}</strong>
+                  <strong>{lead.listing_price !== null && lead.currency ? <HomePrice value={lead.listing_price} sourceCurrency={lead.currency} rateDate={homepageListingRateDate} rates={homepageFxRates} /> : "Price not listed"}</strong>
                   <small>Ends {formatListingEnd(lead.item_end_at)}</small>
                 </div>
               </a>
@@ -555,5 +566,6 @@ export default async function Home() {
         <span>Collectible intelligence, beginning with manga.</span>
       </footer>
     </main>
+    </MarketCurrencyProvider>
   );
 }

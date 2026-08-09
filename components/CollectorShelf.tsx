@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
+import { HomePrice } from "@/components/HomeMarketDisplay";
+import type { FxRate } from "@/lib/fx";
 
 export type ShelfEdition = {
   id: string;
@@ -18,10 +20,6 @@ export type ShelfEdition = {
   latestSale: { price: number; currency: string; soldDate: string | null } | null;
 };
 
-function formatSalePrice(value: number, code: string) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: code, currencyDisplay: "narrowSymbol", maximumFractionDigits: 2 }).format(value);
-}
-
 function formatSaleDate(value: string | null) {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00`);
@@ -34,15 +32,12 @@ function prefersReducedMotion() {
 }
 
 /**
- * A manually-browsable shelf of verified covers. Selecting one brings it
- * into focus and shows its evidence. Never autoplays; respects
- * prefers-reduced-motion for both the CSS transitions and the scroll used
- * to bring a newly selected cover into view.
+ * A manually browsable shelf of verified covers. It never auto-plays, and the
+ * selected publication's latest sale follows the homepage currency selector.
  */
-export default function CollectorShelf({ editions }: { editions: ShelfEdition[] }) {
+export default function CollectorShelf({ editions, rates }: { editions: ShelfEdition[]; rates: FxRate[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
   const active = editions[activeIndex] ?? null;
 
   function goTo(index: number, moveFocus: boolean) {
@@ -64,15 +59,11 @@ export default function CollectorShelf({ editions }: { editions: ShelfEdition[] 
 
   return (
     <div className="collector-shelf">
-      <div
-        className="collector-shelf-track"
-        aria-label="Verified manga covers"
-        onKeyDown={handleTrackKeyDown}
-      >
+      <div className="collector-shelf-track" aria-label="Verified manga covers" onKeyDown={handleTrackKeyDown}>
         {editions.map((edition, index) => (
           <button
             key={edition.id}
-            ref={(el) => { itemRefs.current[index] = el; }}
+            ref={(element) => { itemRefs.current[index] = element; }}
             type="button"
             aria-pressed={index === activeIndex}
             aria-label={`${edition.title || edition.series || "Edition"}${index === activeIndex ? " — selected" : ""}`}
@@ -95,13 +86,9 @@ export default function CollectorShelf({ editions }: { editions: ShelfEdition[] 
       </div>
 
       <div className="collector-shelf-controls">
-        <button type="button" className="collector-shelf-nav" onClick={() => goTo(activeIndex - 1, false)} disabled={activeIndex === 0} aria-label="Previous cover">
-          ←
-        </button>
+        <button type="button" className="collector-shelf-nav" onClick={() => goTo(activeIndex - 1, false)} disabled={activeIndex === 0} aria-label="Previous cover">←</button>
         <span className="collector-shelf-position">{activeIndex + 1} / {editions.length}</span>
-        <button type="button" className="collector-shelf-nav" onClick={() => goTo(activeIndex + 1, false)} disabled={activeIndex === editions.length - 1} aria-label="Next cover">
-          →
-        </button>
+        <button type="button" className="collector-shelf-nav" onClick={() => goTo(activeIndex + 1, false)} disabled={activeIndex === editions.length - 1} aria-label="Next cover">→</button>
       </div>
 
       {active ? (
@@ -112,13 +99,10 @@ export default function CollectorShelf({ editions }: { editions: ShelfEdition[] 
             <p className="collector-shelf-detail-edition">{active.editionLabel}</p>
           </div>
           <div className="collector-shelf-detail-evidence">
-            <div>
-              <span>Verified sales</span>
-              <strong>{active.verifiedSaleCount}</strong>
-            </div>
+            <div><span>Verified sales</span><strong>{active.verifiedSaleCount}</strong></div>
             <div>
               <span>Latest verified sale</span>
-              <strong>{active.latestSale ? formatSalePrice(active.latestSale.price, active.latestSale.currency) : "—"}</strong>
+              <strong>{active.latestSale ? <HomePrice value={active.latestSale.price} sourceCurrency={active.latestSale.currency} rateDate={active.latestSale.soldDate} rates={rates} /> : "—"}</strong>
               <small>{active.latestSale ? (formatSaleDate(active.latestSale.soldDate) ?? "Date not recorded") : "No verified sale yet"}</small>
             </div>
           </div>
