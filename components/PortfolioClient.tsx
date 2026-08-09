@@ -273,6 +273,25 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     if (error) setAuthMessage(error.message);
   }
 
+  // Fires a snapshot in the background after a holding changes -- no button,
+  // no loading state, no visible step. Best-effort: the holding CRUD above
+  // has already succeeded and is already reflected in the live-computed
+  // value on screen regardless of whether this call succeeds.
+  async function triggerBackgroundSnapshot(reason: "holding_added" | "holding_updated" | "holding_removed") {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      await fetch("/api/portfolio-snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason }),
+      });
+    } catch {
+      // Ignored -- see comment above.
+    }
+  }
+
   async function saveHolding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedEdition) { setMessage("Choose a RAR edition first."); return; }
@@ -282,10 +301,14 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       setMessage("Use a whole quantity and a valid non-negative purchase price."); return;
     }
     setSaving(true); setMessage("");
+    const wasEditing = Boolean(editingId);
     const values = { edition_id: selectedEdition.id, quantity: nextQuantity, purchase_price: nextPrice, purchase_currency: nextPrice === null ? null : purchaseCurrency.toUpperCase(), purchase_date: purchaseDate || null, notes: notes.trim() || null, updated_at: new Date().toISOString() };
     const result = editingId ? await supabase.from("portfolio_holdings").update(values).eq("id", editingId) : await supabase.from("portfolio_holdings").insert(values);
     if (result.error) setMessage(result.error.code === "23505" ? "This edition is already in your portfolio. Edit that holding instead." : "Your holding could not be saved.");
-    else { setModalOpen(false); resetForm(); await loadPortfolio(); }
+    else {
+      setModalOpen(false); resetForm(); await loadPortfolio();
+      void triggerBackgroundSnapshot(wasEditing ? "holding_updated" : "holding_added");
+    }
     setSaving(false);
   }
 
@@ -298,7 +321,11 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     if (!window.confirm("Remove this holding from your portfolio?")) return;
     const { error } = await supabase.from("portfolio_holdings").delete().eq("id", id);
     if (error) setMessage("This holding could not be removed.");
-    else { if (editingId === id) closeModal(); await loadPortfolio(); }
+    else {
+      if (editingId === id) closeModal();
+      await loadPortfolio();
+      void triggerBackgroundSnapshot("holding_removed");
+    }
   }
 
   async function signOut() { await supabase.auth.signOut(); resetForm(); }
@@ -347,7 +374,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
           ) : null}
 
           {activeTab === "performance" ? (
-            <PerformanceTab onSnapshotTaken={loadPortfolio} snapshots={snapshots} />
+            <PerformanceTab snapshots={snapshots} />
           ) : null}
         </section>
 

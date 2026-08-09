@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 import PortfolioValueChart, { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
 
@@ -16,14 +15,15 @@ type RangeKey = (typeof RANGES)[number]["key"];
 
 type PerformanceTabProps = {
   snapshots: PortfolioSnapshotPoint[];
-  onSnapshotTaken: () => void | Promise<void>;
 };
 
-export default function PerformanceTab({ snapshots, onSnapshotTaken }: PerformanceTabProps) {
+// Read-only: every snapshot here was recorded automatically -- when a
+// holding is added, edited, or removed, when verified evidence changes for
+// an edition a portfolio holds, and once daily for everyone else. There is
+// no manual "take a snapshot" step to show or trigger from this tab.
+export default function PerformanceTab({ snapshots }: PerformanceTabProps) {
   const { currency } = useMarketCurrency();
   const [range, setRange] = useState<RangeKey>("3M");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
   const rangeMeta = RANGES.find((entry) => entry.key === range)!;
   const filtered = useMemo(() => {
@@ -40,35 +40,6 @@ export default function PerformanceTab({ snapshots, onSnapshotTaken }: Performan
   const chartSnapshots = usingFallback ? snapshots : filtered;
   const rangeLabel = usingFallback ? "All time" : rangeMeta.label;
 
-  async function takeSnapshot() {
-    setSaving(true);
-    setMessage("");
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) {
-      setMessage("Sign in required.");
-      setSaving(false);
-      return;
-    }
-    try {
-      const response = await fetch("/api/portfolio-snapshot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ displayCurrency: currency }),
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        setMessage(body.error ?? "Could not take a snapshot.");
-      } else {
-        setMessage("Snapshot recorded.");
-        await onSnapshotTaken();
-      }
-    } catch {
-      setMessage("Could not take a snapshot.");
-    }
-    setSaving(false);
-  }
-
   return (
     <section aria-labelledby="portfolio-tab-performance" className="portfolio-performance" id="portfolio-panel-performance" role="tabpanel">
       <div className="section-intro portfolio-performance-head">
@@ -76,23 +47,17 @@ export default function PerformanceTab({ snapshots, onSnapshotTaken }: Performan
           <p className="eyebrow">Portfolio history</p>
           <h2>Performance</h2>
         </div>
-        <div className="portfolio-performance-actions">
-          <div aria-label="Time range" className="portfolio-range-selector" role="group">
-            {RANGES.map((entry) => (
-              <button className={range === entry.key ? "is-active" : ""} key={entry.key} onClick={() => setRange(entry.key)} type="button">{entry.key}</button>
-            ))}
-          </div>
-          <button className="portfolio-snapshot-button" disabled={saving} onClick={() => void takeSnapshot()} type="button">
-            {saving ? "Recording…" : "Take a snapshot"}
-          </button>
+        <div aria-label="Time range" className="portfolio-range-selector" role="group">
+          {RANGES.map((entry) => (
+            <button className={range === entry.key ? "is-active" : ""} key={entry.key} onClick={() => setRange(entry.key)} type="button">{entry.key}</button>
+          ))}
         </div>
       </div>
 
       <p className="portfolio-performance-explainer">
-        Built only from your own recorded snapshots — never estimated, backdated, or drawn from active Scout listings. Each snapshot uses completed, verified RAR sales for the correct print group at the moment it was taken. Gain or loss only appears when purchase price and evidence value are both fully comparable in one currency.
+        Built automatically from your own recorded snapshots — never estimated, backdated, or drawn from active Scout listings. A new snapshot is recorded whenever a holding changes or verified evidence changes, and once daily otherwise. Gain or loss only appears when purchase price and evidence value are both fully comparable in one currency.
       </p>
       {usingFallback ? <p className="portfolio-performance-note" role="status">No snapshots in the last {rangeMeta.label.toLowerCase()} — showing your full history instead.</p> : null}
-      {message ? <p className="portfolio-performance-message" role="status">{message}</p> : null}
 
       <PortfolioValueChart currency={currency} rangeLabel={rangeLabel} snapshots={chartSnapshots} />
     </section>

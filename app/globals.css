@@ -703,19 +703,15 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .most-valuable-figures strong { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: .95rem; color: var(--canvas-heading); }
 .most-valuable-list a:focus-visible, .most-valuable-cover:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 
-/* Performance tab: range selector + manual snapshot trigger. */
-.portfolio-performance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .85rem; }
+/* Performance tab: a read-only range selector over automatic snapshots. */
 .portfolio-range-selector { display: flex; border: 1px solid var(--line); border-radius: .6rem; overflow: hidden; }
 .portfolio-range-selector button { border: 0; border-right: 1px solid var(--line); padding: .6rem .9rem; background: var(--surface-chip); color: var(--muted); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
 .portfolio-range-selector button:last-child { border-right: 0; }
 .portfolio-range-selector button:hover { color: var(--canvas-heading); }
 .portfolio-range-selector button.is-active { background: var(--red); color: #fff; }
-.portfolio-snapshot-button { border: 1px solid var(--line); border-radius: .6rem; padding: .68rem 1.05rem; background: transparent; color: var(--accent-label-text); cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-.portfolio-snapshot-button:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
-.portfolio-snapshot-button:disabled { opacity: .6; cursor: wait; }
-.portfolio-range-selector button:focus-visible, .portfolio-snapshot-button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.portfolio-range-selector button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .portfolio-performance-explainer { max-width: 760px; margin: 0 0 1rem; color: var(--muted); font-size: .8rem; line-height: 1.6; }
-.portfolio-performance-note, .portfolio-performance-message { margin: 0 0 1rem; color: var(--accent-label-text); font-size: .78rem; }
+.portfolio-performance-note { margin: 0 0 1rem; color: var(--accent-label-text); font-size: .78rem; }
 
 /* Portfolio value chart — an original RAR component: a paid-vs-evidence
    band (green when evidence sits above paid, red below), never a single
@@ -835,7 +831,6 @@ a.coverage-badge:hover { filter: brightness(0.96); }
   .portfolio-tabs { gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .portfolio-tabs button { flex: 1 1 auto; padding: .85rem .6rem; white-space: nowrap; }
   .portfolio-holdings-head, .portfolio-performance-head { flex-direction: column; align-items: stretch; }
-  .portfolio-performance-actions { flex-direction: column; align-items: stretch; }
   .portfolio-range-selector { width: 100%; }
   .portfolio-range-selector button { flex: 1 1 auto; }
   .most-valuable-list li { flex-wrap: wrap; }

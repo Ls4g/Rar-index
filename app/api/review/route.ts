@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 type ReviewDecision = "verified_match" | "needs_review" | "excluded";
 
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
   }
 
   const supabaseAdmin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: observation } = await supabaseAdmin.from("price_observations").select("edition_id").eq("id", observationId).maybeSingle();
+
   const { error } = await supabaseAdmin.rpc("apply_price_review", {
     p_observation_id: observationId,
     p_decision: decision,
@@ -53,5 +56,19 @@ export async function POST(request: Request) {
   });
 
   if (error) return Response.json({ error: "The review decision could not be saved." }, { status: 500 });
+
+  // A review decision changes what counts as verified evidence for this
+  // edition's whole publication family -- every affected portfolio should
+  // reflect that today, not after tomorrow's cron. Runs as the affected
+  // users via the service-role client (RLS is bypassed, not routed around),
+  // and never fails the staff member's own successful review decision.
+  if (observation?.edition_id) {
+    try {
+      await snapshotHoldersOfEdition(supabaseAdmin, observation.edition_id);
+    } catch {
+      // Best-effort: the review decision itself already succeeded.
+    }
+  }
+
   return Response.json({ ok: true });
 }

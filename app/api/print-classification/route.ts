@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 type Classification = "printing_not_identified" | "known_later_print" | "first_print_proven";
 
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
   }
 
   const supabaseAdmin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: observation } = await supabaseAdmin.from("price_observations").select("edition_id").eq("id", observationId).maybeSingle();
+
   const { error } = await supabaseAdmin.rpc("apply_price_print_classification", {
     p_observation_id: observationId,
     p_classification: classification,
@@ -68,5 +71,19 @@ export async function POST(request: Request) {
   });
 
   if (error) return Response.json({ error: error.message || "The print classification could not be saved." }, { status: 500 });
+
+  // Print classification is as much a valuation input as match_status is
+  // (see computeEditionMetrics in lib/portfolioValuation.ts, which only
+  // counts first_print_proven sales) -- a classification change can move a
+  // sale in or out of a portfolio's evidence set just like a review
+  // decision can, so it gets the same immediate re-snapshot.
+  if (observation?.edition_id) {
+    try {
+      await snapshotHoldersOfEdition(supabaseAdmin, observation.edition_id);
+    } catch {
+      // Best-effort: the classification decision itself already succeeded.
+    }
+  }
+
   return Response.json({ ok: true });
 }

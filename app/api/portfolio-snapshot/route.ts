@@ -1,6 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { createPortfolioSnapshot } from "@/lib/portfolioSnapshot";
-import { DISPLAY_CURRENCIES, type DisplayCurrency } from "@/lib/fx";
+import { createPortfolioSnapshot, DEFAULT_SNAPSHOT_CURRENCY, type SnapshotTriggerReason } from "@/lib/portfolioSnapshot";
 
 // Authenticated-user-safe snapshot creation: the caller sends their own
 // Supabase Auth access token (from supabase.auth.getSession() client-side),
@@ -9,11 +8,14 @@ import { DISPLAY_CURRENCIES, type DisplayCurrency } from "@/lib/fx";
 // portfolio, never anyone else's, and the row is written by the server, not
 // trusted from client-supplied numbers.
 //
-// No scheduling exists yet. This route is the manual/on-demand path only
-// (e.g. a user opening the Performance tab, or an explicit refresh). Real
-// unattended daily history needs a scheduled job (e.g. Vercel Cron) that
-// iterates every user_id with at least one holding and calls
-// createPortfolioSnapshot() for each -- intentionally not built here.
+// This is the automatic, background path fired by components/PortfolioClient
+// right after a holding is added, edited, or removed -- there is no
+// user-facing button anymore. Only reasons a holding-CRUD action can
+// legitimately claim are accepted here; evidence-change and daily-cron
+// snapshots are recorded server-side directly (see lib/portfolioSnapshot.ts
+// and app/api/cron/portfolio-snapshots/route.ts), never through this route.
+const CLIENT_TRIGGERABLE_REASONS: SnapshotTriggerReason[] = ["holding_added", "holding_updated", "holding_removed"];
+
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -23,18 +25,18 @@ export async function POST(request: Request) {
   const { data: userData, error: userError } = await admin.auth.getUser(token);
   if (userError || !userData.user) return Response.json({ error: "Sign in required." }, { status: 401 });
 
-  let payload: { displayCurrency?: unknown };
+  let payload: { reason?: unknown };
   try {
     payload = await request.json();
   } catch {
     payload = {};
   }
-  const requested = typeof payload.displayCurrency === "string" ? payload.displayCurrency : "GBP";
-  const displayCurrency: DisplayCurrency = (DISPLAY_CURRENCIES as readonly string[]).includes(requested) ? (requested as DisplayCurrency) : "GBP";
+  const requestedReason = typeof payload.reason === "string" ? payload.reason : "";
+  const reason = (CLIENT_TRIGGERABLE_REASONS as string[]).includes(requestedReason) ? (requestedReason as SnapshotTriggerReason) : null;
 
   try {
-    const snapshot = await createPortfolioSnapshot(admin, userData.user.id, displayCurrency);
-    return Response.json({ snapshot }, { status: 201 });
+    const { snapshot, created } = await createPortfolioSnapshot(admin, userData.user.id, DEFAULT_SNAPSHOT_CURRENCY, reason);
+    return Response.json({ snapshot, created }, { status: created ? 201 : 200 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not create snapshot." }, { status: 500 });
   }
