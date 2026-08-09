@@ -26,24 +26,6 @@ export type PortfolioSnapshotPoint = {
   trigger_reason?: SnapshotTriggerReason | null;
 };
 
-// A snapshot recorded because the user changed what they own. The value
-// moved because the portfolio's contents changed, not because the market
-// did -- the distinction a real portfolio tool draws between a deposit and
-// a gain, and the reason these points are marked rather than blended into
-// the trend line.
-const CONTRIBUTION_REASONS = new Set<string>(["holding_added", "holding_updated", "holding_removed"]);
-
-function isContribution(point: PortfolioSnapshotPoint) {
-  return point.trigger_reason ? CONTRIBUTION_REASONS.has(point.trigger_reason) : false;
-}
-
-function contributionLabel(reason: SnapshotTriggerReason | null | undefined) {
-  if (reason === "holding_added") return "You added a holding";
-  if (reason === "holding_removed") return "You removed a holding";
-  if (reason === "holding_updated") return "You edited a holding";
-  return null;
-}
-
 type PortfolioValueChartProps = {
   snapshots: PortfolioSnapshotPoint[];
   currency: DisplayCurrency;
@@ -51,10 +33,11 @@ type PortfolioValueChartProps = {
 };
 
 const WIDTH = 760;
-const HEIGHT = 260;
-const PADDING_X = 32;
-const PADDING_TOP = 28;
-const PADDING_BOTTOM = 46;
+const HEIGHT = 280;
+const PADDING_LEFT = 16;
+const PADDING_RIGHT = 24;
+const PADDING_TOP = 24;
+const PADDING_BOTTOM = 40;
 
 function formatSnapshotDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
@@ -68,15 +51,21 @@ function formatAxisLabel(value: string, sameDay: boolean) {
   return new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
+// A snapshot recorded because the user changed what they own: the value
+// moved because the portfolio's contents changed, not because the market
+// did. Stated in the tooltip so a jump is never silently read as a gain.
+const CONTRIBUTION_REASONS = new Set<string>(["holding_added", "holding_updated", "holding_removed"]);
+
+function contributionLabel(reason: SnapshotTriggerReason | null | undefined) {
+  if (reason === "holding_added") return "You added a holding";
+  if (reason === "holding_removed") return "You removed a holding";
+  if (reason === "holding_updated") return "You edited a holding";
+  return null;
+}
+
 function EmptyState() {
   return (
     <div className="portfolio-chart-empty" role="status">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true" className="portfolio-chart-ghost">
-        <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={HEIGHT * 0.32} y2={HEIGHT * 0.32} />
-        <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={HEIGHT * 0.58} y2={HEIGHT * 0.58} />
-        <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={HEIGHT * 0.84} y2={HEIGHT * 0.84} />
-        <circle cx={WIDTH * 0.5} cy={HEIGHT * 0.58} r="6" />
-      </svg>
       <div className="portfolio-chart-empty-message">
         <p><strong>Portfolio tracking starts today.</strong> RAR will build history from verified evidence over time.</p>
         <p>Nothing here is estimated or backdated. The first point appears the moment a real snapshot is recorded.</p>
@@ -88,7 +77,7 @@ function EmptyState() {
 function CurrencyMismatch({ currency }: { currency: DisplayCurrency }) {
   return (
     <div className="portfolio-chart-empty" role="status">
-      <p><strong>No snapshots recorded in {currency} yet.</strong> Snapshots are stored in the currency selected when they were taken. Switch display currency, or take a new snapshot in {currency}.</p>
+      <p><strong>No snapshots recorded in {currency} yet.</strong> Snapshots are stored in the currency selected when they were taken. Switch display currency to see your history.</p>
     </div>
   );
 }
@@ -98,18 +87,9 @@ function CurrencyMismatch({ currency }: { currency: DisplayCurrency }) {
 function SinglePointState({ snapshot, currency }: { snapshot: PortfolioSnapshotPoint; currency: DisplayCurrency }) {
   return (
     <div className="portfolio-chart-single">
-      <div className="portfolio-chart-single-figures">
-        <div>
-          <span>Market value</span>
-          <strong>{snapshot.total_evidence_value !== null ? formatPrice(snapshot.total_evidence_value, currency) : "Still being researched"}</strong>
-        </div>
-        <div>
-          <span>What you paid</span>
-          <strong>{snapshot.total_paid !== null ? formatPrice(snapshot.total_paid, currency) : "Not recorded"}</strong>
-        </div>
-      </div>
+      <strong>{snapshot.total_evidence_value !== null ? formatPrice(snapshot.total_evidence_value, currency) : "Still being researched"}</strong>
       <p className="portfolio-chart-single-date">Recorded {formatSnapshotDate(snapshot.snapshot_at)}</p>
-      <p>One snapshot recorded so far. A trend will appear once RAR has taken more snapshots to compare against.</p>
+      <p>One snapshot recorded so far. A line appears once RAR has a second one to compare against.</p>
     </div>
   );
 }
@@ -117,67 +97,42 @@ function SinglePointState({ snapshot, currency }: { snapshot: PortfolioSnapshotP
 export default function PortfolioValueChart({ snapshots, currency, rangeLabel }: PortfolioValueChartProps) {
   const inRangeCurrency = snapshots.filter((snapshot) => snapshot.display_currency === currency);
   const ordered = [...inRangeCurrency].sort((a, b) => a.snapshot_at.localeCompare(b.snapshot_at));
+  // One line: the portfolio's market value over time. What was paid is a
+  // fixed figure, not a movement, and is already reported as a number in
+  // the summary above — plotting it here only ever competed with the line
+  // this chart exists to show.
+  const valued = ordered.filter((snapshot) => snapshot.total_evidence_value !== null);
 
-  const [activeIndex, setActiveIndex] = useState(ordered.length - 1);
-  const activePoint = ordered[Math.min(Math.max(activeIndex, 0), ordered.length - 1)];
+  // Null means "not being pointed at", which always resolves to the latest
+  // snapshot. Seeding state with a length-derived index instead went stale:
+  // the first render happens before snapshots load, so the index stuck at
+  // the value computed from an empty list.
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   if (!snapshots.length) return <EmptyState />;
   if (!ordered.length) return <CurrencyMismatch currency={currency} />;
-  if (ordered.length === 1) return <SinglePointState snapshot={ordered[0]} currency={currency} />;
+  if (valued.length === 1) return <SinglePointState snapshot={valued[0]} currency={currency} />;
+  if (!valued.length) return <SinglePointState snapshot={ordered[ordered.length - 1]} currency={currency} />;
 
-  const values = ordered.flatMap((point) => [point.total_paid, point.total_evidence_value]).filter((value): value is number => value !== null);
-  const min = Math.min(0, ...values);
-  const max = Math.max(...values, 0.01);
-  const range = max - min || 1;
-  const plotWidth = WIDTH - PADDING_X * 2;
+  const activeIdx = hoverIndex === null ? valued.length - 1 : Math.min(Math.max(hoverIndex, 0), valued.length - 1);
+  const activePoint = valued[activeIdx];
+  const values = valued.map((point) => point.total_evidence_value as number);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  // Padded around the real range rather than forced to zero, so genuine
+  // movement is visible rather than pressed flat against the top of the
+  // plot. Both ends are labelled, so the scale is never implied.
+  const span = rawMax - rawMin || Math.max(rawMax * 0.02, 1);
+  const min = rawMin - span * 0.25;
+  const max = rawMax + span * 0.25;
+  const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = PADDING_TOP + plotHeight;
-  const xFor = (index: number) => PADDING_X + (ordered.length === 1 ? 0 : (index / (ordered.length - 1)) * plotWidth);
-  const yFor = (value: number) => PADDING_TOP + ((max - value) / range) * plotHeight;
+  const xFor = (index: number) => PADDING_LEFT + (valued.length === 1 ? 0 : (index / (valued.length - 1)) * plotWidth);
+  const yFor = (value: number) => PADDING_TOP + ((max - value) / (max - min)) * plotHeight;
 
-  const evidencePoints = ordered.map((point, index) => ({ index, x: xFor(index), value: point.total_evidence_value }));
-  const paidPoints = ordered.map((point, index) => ({ index, x: xFor(index), value: point.total_paid }));
-
-  // Runs of consecutive points that actually have a figure. A gap (a
-  // snapshot with no value for that series) breaks the run rather than
-  // being interpolated across, so a line is never drawn through a period
-  // RAR had nothing to report.
-  function runsOf(points: Array<{ x: number; value: number | null }>) {
-    const runs: Array<Array<{ x: number; y: number }>> = [];
-    let run: Array<{ x: number; y: number }> = [];
-    for (const point of points) {
-      if (point.value === null) { if (run.length) runs.push(run); run = []; continue; }
-      run.push({ x: point.x, y: yFor(point.value) });
-    }
-    if (run.length) runs.push(run);
-    return runs;
-  }
-
-  function lineFrom(runs: Array<Array<{ x: number; y: number }>>) {
-    return runs.map((run) => run.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ")).join(" ");
-  }
-
-  // A soft fill under the market-value line only. The previous version
-  // filled the whole gap between "paid" and "market value" and tinted it
-  // green or red -- with a low purchase price against a high market value
-  // that slab covered most of the chart and read as a solid block rather
-  // than a trend. Gain is a number, and stays one (in the tooltip and the
-  // summary above the chart); it is not a shape.
-  function areaFrom(runs: Array<Array<{ x: number; y: number }>>) {
-    return runs
-      .filter((run) => run.length > 1)
-      .map((run) => `M ${run[0].x} ${baselineY} ${run.map((point) => `L ${point.x} ${point.y}`).join(" ")} L ${run[run.length - 1].x} ${baselineY} Z`)
-      .join(" ");
-  }
-
-  const evidenceRuns = runsOf(evidencePoints);
-  const paidRuns = runsOf(paidPoints);
-  const evidencePath = lineFrom(evidenceRuns);
-  const paidPath = lineFrom(paidRuns);
-  const evidenceArea = areaFrom(evidenceRuns);
-  const hasAnyEvidence = evidencePoints.some((point) => point.value !== null);
-  const hasAnyPaid = paidPoints.some((point) => point.value !== null);
-  const sameDayRange = ordered[0].snapshot_at.slice(0, 10) === ordered[ordered.length - 1].snapshot_at.slice(0, 10);
+  const linePath = valued.map((point, index) => `${index ? "L" : "M"} ${xFor(index)} ${yFor(point.total_evidence_value as number)}`).join(" ");
+  const sameDayRange = valued[0].snapshot_at.slice(0, 10) === valued[valued.length - 1].snapshot_at.slice(0, 10);
 
   function updateActiveFromClientX(clientX: number, wrap: HTMLDivElement) {
     const rect = wrap.getBoundingClientRect();
@@ -186,11 +141,11 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
     const svgX = ratio * WIDTH;
     let nearestIndex = 0;
     let nearestDistance = Infinity;
-    ordered.forEach((_, index) => {
+    valued.forEach((_, index) => {
       const distance = Math.abs(xFor(index) - svgX);
       if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index; }
     });
-    setActiveIndex(nearestIndex);
+    setHoverIndex(nearestIndex);
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
@@ -201,101 +156,63 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
     updateActiveFromClientX(event.clientX, event.currentTarget);
   }
   function handlePointerLeave() {
-    setActiveIndex(ordered.length - 1);
+    setHoverIndex(null);
   }
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowRight") { event.preventDefault(); setActiveIndex((current) => Math.min(ordered.length - 1, current + 1)); }
-    else if (event.key === "ArrowLeft") { event.preventDefault(); setActiveIndex((current) => Math.max(0, current - 1)); }
-    else if (event.key === "Home") { event.preventDefault(); setActiveIndex(0); }
-    else if (event.key === "End") { event.preventDefault(); setActiveIndex(ordered.length - 1); }
+    const current = hoverIndex === null ? valued.length - 1 : hoverIndex;
+    if (event.key === "ArrowRight") { event.preventDefault(); setHoverIndex(Math.min(valued.length - 1, current + 1)); }
+    else if (event.key === "ArrowLeft") { event.preventDefault(); setHoverIndex(Math.max(0, current - 1)); }
+    else if (event.key === "Home") { event.preventDefault(); setHoverIndex(0); }
+    else if (event.key === "End") { event.preventDefault(); setHoverIndex(valued.length - 1); }
   }
 
-  const activeX = xFor(Math.min(activeIndex, ordered.length - 1));
-  const tooltipLeft = Math.min(88, Math.max(12, (activeX / WIDTH) * 100));
-  const activeEvidenceY = activePoint.total_evidence_value !== null ? yFor(activePoint.total_evidence_value) : null;
-  const tooltipTop = activeEvidenceY !== null ? (activeEvidenceY / HEIGHT) * 100 : 50;
-  // Above the point by default, but flipped below whenever the point sits
-  // high in the plot -- otherwise the tooltip lands on top of the legend
-  // and covers it.
+  const activeX = xFor(activeIdx);
+  const activeY = yFor(activePoint.total_evidence_value as number);
+  const tooltipLeft = Math.min(86, Math.max(14, (activeX / WIDTH) * 100));
+  const tooltipTop = (activeY / HEIGHT) * 100;
   const tooltipBelow = tooltipTop < 34;
+  const contribution = activePoint.trigger_reason && CONTRIBUTION_REASONS.has(activePoint.trigger_reason)
+    ? contributionLabel(activePoint.trigger_reason)
+    : null;
 
   return (
     <div className="portfolio-value-chart">
       <div className="portfolio-chart-heading">
-        <span className="portfolio-chart-legend">
-          <i className="portfolio-chart-legend-swatch is-evidence" aria-hidden="true" /> Market value
-          <i className="portfolio-chart-legend-swatch is-paid" aria-hidden="true" /> What you paid
-          {ordered.some(isContribution) ? <><i className="portfolio-chart-legend-swatch is-contribution" aria-hidden="true" /> You changed a holding</> : null}
-        </span>
+        <span className="portfolio-chart-legend">Market value</span>
         <span className="portfolio-chart-range">{rangeLabel} · shown in {currency}</span>
       </div>
       <div
         className="portfolio-chart-wrap"
         tabIndex={0}
         role="group"
-        aria-label={`Portfolio value from ${formatSnapshotDate(ordered[0].snapshot_at)} to ${formatSnapshotDate(ordered.at(-1)!.snapshot_at)}. Use the left and right arrow keys to move between snapshots.`}
+        aria-label={`Portfolio market value from ${formatSnapshotDate(valued[0].snapshot_at)} to ${formatSnapshotDate(valued[valued.length - 1].snapshot_at)}. Use the left and right arrow keys to move between snapshots.`}
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
         onPointerLeave={handlePointerLeave}
         onKeyDown={handleKeyDown}
       >
         <svg className="portfolio-chart-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
-          <line className="portfolio-chart-grid" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
-          <line className="portfolio-chart-grid" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={baselineY} y2={baselineY} />
-          {/* Only when market value is the sole series. With a paid line as
-              well, a fill reaching the baseline swallows it and the pair
-              reads as one block again -- two clean lines compare better. */}
-          {hasAnyEvidence && !hasAnyPaid ? <path d={evidenceArea} className="portfolio-chart-area" /> : null}
-          {hasAnyPaid ? <path d={paidPath} className="portfolio-chart-line is-paid" fill="none" /> : null}
-          {hasAnyEvidence ? <path d={evidencePath} className="portfolio-chart-line is-evidence" fill="none" /> : null}
+          <line className="portfolio-chart-axis" x1={PADDING_LEFT} x2={PADDING_LEFT} y1={PADDING_TOP - 8} y2={baselineY} />
+          <line className="portfolio-chart-axis" x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={baselineY} y2={baselineY} />
+          <path d={linePath} className="portfolio-chart-line" fill="none" />
           <line className="portfolio-chart-active-guide" x1={activeX} x2={activeX} y1={PADDING_TOP} y2={baselineY} />
-          {/* Contribution markers sit on the baseline rather than on either
-              line: the change they caused belongs to the whole portfolio, not
-              to one series, and anchoring them to a value would imply the
-              market moved to that figure. */}
-          {ordered.map((point, index) => isContribution(point) ? (
-            <line
-              key={`c-${point.id}`}
-              className={`portfolio-chart-contribution${index === activeIndex ? " is-active" : ""}`}
-              x1={xFor(index)}
-              x2={xFor(index)}
-              y1={baselineY - 9}
-              y2={baselineY}
-            />
-          ) : null)}
-          {evidencePoints.map((point) => point.value === null ? null : (
-            <circle key={`e-${ordered[point.index].id}`} className={`portfolio-chart-point is-evidence${point.index === activeIndex ? " is-active" : ""}`} cx={point.x} cy={yFor(point.value)} r={point.index === activeIndex ? 6 : 3} />
-          ))}
-          {paidPoints.map((point) => point.value === null ? null : (
-            <circle key={`p-${ordered[point.index].id}`} className={`portfolio-chart-point is-paid${point.index === activeIndex ? " is-active" : ""}`} cx={point.x} cy={yFor(point.value)} r={point.index === activeIndex ? 5 : 2.5} />
-          ))}
-          <text x={PADDING_X} y={HEIGHT - 10}>{formatAxisLabel(ordered[0].snapshot_at, sameDayRange)}</text>
-          <text x={WIDTH / 2} y={HEIGHT - 10} textAnchor="middle">{sameDayRange ? formatSnapshotDate(ordered[0].snapshot_at) : ""}</text>
-          <text x={WIDTH - PADDING_X} y={HEIGHT - 10} textAnchor="end">{formatAxisLabel(ordered.at(-1)!.snapshot_at, sameDayRange)}</text>
+          <circle className="portfolio-chart-point is-active" cx={activeX} cy={activeY} r={5} />
+          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={yFor(rawMax) - 8}>{formatPrice(rawMax, currency)}</text>
+          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={yFor(rawMin) + 16}>{formatPrice(rawMin, currency)}</text>
+          <text x={PADDING_LEFT} y={HEIGHT - 12}>{formatAxisLabel(valued[0].snapshot_at, sameDayRange)}</text>
+          {sameDayRange ? <text x={WIDTH / 2} y={HEIGHT - 12} textAnchor="middle">{formatSnapshotDate(valued[0].snapshot_at)}</text> : null}
+          <text x={WIDTH - PADDING_RIGHT} y={HEIGHT - 12} textAnchor="end">{formatAxisLabel(valued[valued.length - 1].snapshot_at, sameDayRange)}</text>
         </svg>
         <div className={`portfolio-chart-tooltip${tooltipBelow ? " is-below" : ""}`} style={{ left: `${tooltipLeft}%`, top: `${tooltipTop}%` }} aria-hidden="true">
-          <strong>{activePoint.total_evidence_value !== null ? formatPrice(activePoint.total_evidence_value, currency) : "No evidence value yet"}</strong>
+          <strong>{formatPrice(activePoint.total_evidence_value as number, currency)}</strong>
           <span>{formatSnapshotDate(activePoint.snapshot_at)}</span>
-          {activePoint.total_paid !== null ? <span>Paid {formatPrice(activePoint.total_paid, currency)}</span> : null}
-          {/* Shown before any gain figure: a move into this point caused by
-              the user changing what they own must not read as the market
-              having moved. */}
-          {isContribution(activePoint) ? <span className="is-contribution">{contributionLabel(activePoint.trigger_reason)}</span> : null}
-          {activePoint.gain_loss_amount !== null ? (
-            <span className={activePoint.gain_loss_amount >= 0 ? "is-positive" : "is-negative"}>
-              {activePoint.gain_loss_amount >= 0 ? "+" : ""}{formatPrice(activePoint.gain_loss_amount, currency)}
-              {activePoint.gain_loss_percent !== null ? ` (${activePoint.gain_loss_percent >= 0 ? "+" : ""}${activePoint.gain_loss_percent.toFixed(1)}%)` : ""}
-              {" vs paid"}
-            </span>
-          ) : null}
+          {contribution ? <span className="is-contribution">{contribution}</span> : null}
         </div>
       </div>
       <p className="portfolio-chart-active-summary" aria-live="polite">
-        {formatSnapshotDate(activePoint.snapshot_at)} · {activePoint.total_evidence_value !== null ? formatPrice(activePoint.total_evidence_value, currency) : "No evidence value yet"}
-        {activePoint.total_paid !== null ? ` · paid ${formatPrice(activePoint.total_paid, currency)}` : ""}
-        {isContribution(activePoint) ? ` · ${contributionLabel(activePoint.trigger_reason)}` : ""}
-        {" · "}{activePoint.holdings_valued_count} holding{activePoint.holdings_valued_count === 1 ? "" : "s"} valued
-        {activePoint.holdings_unvalued_count ? `, ${activePoint.holdings_unvalued_count} awaiting evidence` : ""}
+        {formatSnapshotDate(activePoint.snapshot_at)} · {formatPrice(activePoint.total_evidence_value as number, currency)}
+        {contribution ? ` · ${contribution}` : ""}
+        {activePoint.holdings_unvalued_count ? ` · ${activePoint.holdings_unvalued_count} holding${activePoint.holdings_unvalued_count === 1 ? "" : "s"} awaiting evidence` : ""}
       </p>
     </div>
   );

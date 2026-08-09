@@ -729,31 +729,19 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-value-chart { border: 1px solid var(--line); border-radius: .9rem; padding: 1.25rem 1.4rem 1.5rem; background: var(--surface-card); }
 .portfolio-chart-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .9rem; }
 .portfolio-chart-legend { display: flex; align-items: center; gap: .4rem; color: var(--canvas-muted-strong); font-size: .72rem; font-weight: 600; }
-.portfolio-chart-legend-swatch { display: inline-block; width: .65rem; height: .65rem; margin-left: .6rem; border-radius: 2px; }
-.portfolio-chart-legend-swatch:first-child { margin-left: 0; }
-.portfolio-chart-legend-swatch.is-evidence { background: var(--accent-positive-text); }
-.portfolio-chart-legend-swatch.is-paid { background: var(--muted); }
-/* Contribution markers use the informational tone, deliberately not the
-   gain/loss green or red: the user changing what they own is neither. */
-.portfolio-chart-legend-swatch.is-contribution { background: var(--accent-info-text-strong); }
 .portfolio-chart-range { color: var(--muted); font-size: .72rem; }
 .portfolio-chart-wrap { position: relative; }
 .portfolio-chart-svg { display: block; width: 100%; height: auto; }
-.portfolio-chart-grid { stroke: var(--line); stroke-width: 1; }
-/* A soft fade under the market-value line, not a slab between two lines --
-   the shape reads as "this is the value line", and gain stays a number. */
-.portfolio-chart-area { stroke: none; fill: color-mix(in srgb, var(--accent-positive-text) 13%, transparent); }
-.portfolio-chart-line { stroke-width: 2.5; }
-.portfolio-chart-line.is-evidence { stroke: var(--accent-positive-text); }
-.portfolio-chart-line.is-paid { stroke: var(--muted); stroke-dasharray: 5 4; }
+/* One value line against plain axes. Everything the chart used to draw on
+   top of it -- a second series, a tinted gain slab, per-point markers --
+   competed with the movement it exists to show; those figures are reported
+   as numbers in the summary above instead. */
+.portfolio-chart-axis { stroke: var(--canvas-heading); stroke-width: 1.5; opacity: .55; }
+.portfolio-chart-line { stroke: var(--accent-positive-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .portfolio-chart-active-guide { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
-.portfolio-chart-point { fill: var(--surface-card); stroke-width: 2; }
-.portfolio-chart-point.is-evidence { stroke: var(--accent-positive-text); }
-.portfolio-chart-point.is-paid { stroke: var(--muted); }
-.portfolio-chart-point.is-active { fill: currentColor; }
-.portfolio-chart-contribution { stroke: var(--accent-info-text-strong); stroke-width: 2; stroke-linecap: round; opacity: .5; }
-.portfolio-chart-contribution.is-active { opacity: 1; stroke-width: 3; }
+.portfolio-chart-point.is-active { fill: var(--accent-positive-text); }
 .portfolio-chart-svg text { fill: var(--muted); font-size: 11px; }
+.portfolio-chart-svg text.portfolio-chart-axis-value { font-variant-numeric: tabular-nums; font-weight: 600; }
 .portfolio-chart-tooltip { position: absolute; z-index: 2; display: grid; gap: .1rem; min-width: 9rem; padding: .55rem .7rem; border-radius: .5rem; background: var(--surface-tooltip); box-shadow: var(--card-shadow); pointer-events: none; transform: translate(-50%, -115%); }
 /* Flipped below the point when it sits high in the plot, so it never
    covers the legend above the chart. */
@@ -766,16 +754,12 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-chart-active-summary { margin: .9rem 0 0; color: var(--muted); font-size: .76rem; }
 
 .portfolio-chart-empty { display: grid; gap: 1.25rem; padding: 1.5rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }
-.portfolio-chart-ghost line { stroke: var(--line); }
-.portfolio-chart-ghost circle { fill: var(--surface-chip); stroke: var(--accent-label-text); stroke-width: 2; }
 .portfolio-chart-empty-message p { margin: 0 0 .5rem; color: var(--muted); font-size: .84rem; line-height: 1.55; }
 .portfolio-chart-empty-message p:last-child { margin-bottom: 0; }
 .portfolio-chart-empty-message strong { color: var(--canvas-heading); }
 
 .portfolio-chart-single { display: grid; gap: .5rem; padding: 1.5rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }
-.portfolio-chart-single-figures { display: flex; flex-wrap: wrap; gap: 2rem; }
-.portfolio-chart-single-figures span { display: block; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.portfolio-chart-single-figures strong { display: block; margin-top: .3rem; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.4rem; color: var(--canvas-heading); }
+.portfolio-chart-single > strong { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.9rem; color: var(--canvas-heading); }
 .portfolio-chart-single-date { margin: 0; color: var(--muted); font-size: .72rem; }
 .portfolio-chart-single > p:last-child { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 
