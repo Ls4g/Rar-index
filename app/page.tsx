@@ -359,7 +359,7 @@ export default async function Home() {
             </div>
             <span>{firstPrintCount ?? firstPrintWatch.length} publication{(firstPrintCount ?? firstPrintWatch.length) === 1 ? "" : "s"} currently {(firstPrintCount ?? firstPrintWatch.length) === 1 ? "has" : "have"} proven first-print evidence</span>
           </div>
-          <p className="section-copy">Every publication here has at least one sale with copyright-page proof on file, not a first-print claim inferred from a release date or the publication&apos;s own name. Open a publication to see exactly which sales are proven.</p>
+          <p className="section-copy">Every publication here has at least one sale with retained printing evidence or an SP-confirmed inspection, not a first-print claim inferred from a release date or the publication&apos;s own name. Open a publication to see exactly which sales qualify.</p>
           <div className="manga-grid">
             {firstPrintWatch.map((item, index) => {
               const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
