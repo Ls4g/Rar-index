@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
-import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import { HomeMarketCurrencyControl, HomePrice } from "@/components/HomeMarketDisplay";
 import type { FxRate } from "@/lib/fx";
@@ -444,7 +444,7 @@ export default async function Home() {
                 </div>
                 <div className="live-listing-meta">
                   <strong>{lead.listing_price !== null && lead.currency ? <HomePrice value={lead.listing_price} sourceCurrency={lead.currency} rateDate={homepageListingRateDate} rates={homepageFxRates} /> : "Price not listed"}</strong>
-                  <small>Ends {formatListingEnd(lead.item_end_at)}</small>
+                  <small>{formatListingEndLabel(lead.item_end_at)}</small>
                 </div>
               </a>
             ))}

@@ -223,3 +223,11 @@ export function formatListingEnd(value: string | null) {
     timeZoneName: "short",
   }).format(date);
 }
+
+// Call sites used to prefix "Ends " themselves, which read as "Ends End
+// time unavailable" whenever eBay gave no end time -- common on fixed-price
+// listings. The whole phrase is built here so the two cases stay coherent.
+export function formatListingEndLabel(value: string | null) {
+  const formatted = formatListingEnd(value);
+  return formatted === "End time unavailable" ? formatted : `Ends ${formatted}`;
+}

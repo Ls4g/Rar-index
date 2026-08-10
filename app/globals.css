@@ -1744,3 +1744,16 @@ html[data-theme="day"] .public-page {
   .header-note:last-child { padding: .35rem .55rem; }
   .brand { font-size: .95rem; }
 }
+
+/* A publication RAR has no completed sales for. Says so plainly and offers
+   the routes that exist, instead of two zero-count tabs and headings about
+   how absent evidence would have been separated. */
+.publication-no-sales { display: grid; gap: .85rem; padding: 1.6rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); box-shadow: var(--card-shadow); }
+.publication-no-sales > strong { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; color: var(--canvas-heading); }
+.publication-no-sales > p { margin: 0; max-width: 60ch; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+.publication-no-sales-actions { display: flex; flex-wrap: wrap; gap: .55rem; }
+.publication-no-sales-actions a { padding: .65rem .9rem; border: 1px solid var(--line); border-radius: .5rem; color: var(--canvas-heading); font-size: .78rem; font-weight: 700; text-decoration: none; transition: border-color .15s ease, background .15s ease; }
+.publication-no-sales-actions a:hover { border-color: var(--orange); background: var(--surface-card-hover); }
+.publication-no-sales-actions a.is-primary { border-color: var(--red); background: var(--red); color: #fff; }
+.publication-no-sales-actions a.is-primary:hover { background: var(--red-dark); border-color: var(--red-dark); }
+.publication-no-sales > small { color: var(--muted); font-size: .76rem; line-height: 1.55; max-width: 62ch; }

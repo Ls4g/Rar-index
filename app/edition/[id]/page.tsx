@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { formatListingEnd, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import { editionDescriptor } from "@/lib/editionDisplay";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -320,7 +320,15 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               .filter(Boolean)
               .join(" · ")}
           </p>
-          <p className="edition-variant">RAR tracks this publication; select a printing group below to compare sales.{printRunChildren.length ? ` ${printRunChildren.length} specific print-run record${printRunChildren.length === 1 ? "" : "s"} contribute evidence here.` : ""}</p>
+          {/* Telling a reader to "select a printing group below" is only
+              useful when groups with sales exist. On a record RAR has no
+              completed sales for, that was an instruction they could not
+              follow. */}
+          <p className="edition-variant">
+            {firstPrintSales.length || otherSales.length
+              ? <>RAR tracks this publication; select a printing group below to compare sales.{printRunChildren.length ? ` ${printRunChildren.length} specific print-run record${printRunChildren.length === 1 ? "" : "s"} contribute evidence here.` : ""}</>
+              : "RAR tracks this publication. No completed sale has been verified for it yet."}
+          </p>
           </div>
         </div>
       </section>
@@ -412,7 +420,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <p className="eyebrow">Market evidence</p>
             <h2>Sales by print group</h2>
           </div>
-          <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} />
+          <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} editionId={edition.id} series={edition.series} />
         </section>
 
         <section className="live-listings-section" aria-labelledby="live-listings-heading">
@@ -429,7 +437,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               {liveListings.map((listing) => (
                 <a className="live-listing-card" href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
                   <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
-                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>Ends {formatListingEnd(listing.item_end_at)}</small></div>
+                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>{formatListingEndLabel(listing.item_end_at)}</small></div>
                 </a>
               ))}
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { FxRate } from "@/lib/fx";
 import { ordinal } from "@/lib/editionDisplay";
 import { groupKnownLaterPrintSales, hasComparableChart, splitByPrintClassification, MIN_COMPARABLE_SALES } from "@/lib/printClassification";
@@ -29,6 +30,8 @@ type PublicationPrintTabsProps = {
   rates: FxRate[];
   sourceNames: Record<string, string>;
   initialTab: "first" | "other";
+  editionId: string;
+  series: string | null;
 };
 
 const classificationLabels: Record<PublicationSale["print_classification"], string> = {
@@ -98,8 +101,33 @@ function SaleGroupList({ sales, sourceNames }: { sales: PublicationSale[]; sourc
   );
 }
 
-export default function PublicationPrintTabs({ firstPrintSales, otherSales, rates, sourceNames, initialTab }: PublicationPrintTabsProps) {
+// With no completed sales at all, the tab machinery said nothing useful:
+// two groups reading 0, an empty one highlighted, and three headings
+// explaining how evidence RAR does not have would have been separated. A
+// reader who arrives here should be told plainly that there is nothing yet,
+// and offered the routes that actually exist for changing that.
+function NoSalesYet({ editionId, series }: { editionId: string; series: string | null }) {
+  return (
+    <div className="publication-no-sales">
+      <strong>No completed sale verified yet</strong>
+      <p>
+        RAR only records a sale once it has a working link to the completed listing and can tie it to this exact
+        publication. Nothing has cleared that bar here, so there is no price to show — rather than an estimate.
+      </p>
+      <div className="publication-no-sales-actions">
+        <Link className="is-primary" href={`/portfolio?edition=${editionId}`}>Add to your portfolio</Link>
+        <Link href={`/request-edition?edition=${editionId}`}>Ask RAR to research this</Link>
+        {series ? <Link href={`/browse?q=${encodeURIComponent(series)}`}>See the rest of {series}</Link> : <Link href="/browse">Browse the catalogue</Link>}
+      </div>
+      <small>Seen this sell somewhere? Send the original listing using the report form further down — it goes to a human reviewer, never straight onto the page.</small>
+    </div>
+  );
+}
+
+export default function PublicationPrintTabs({ firstPrintSales, otherSales, rates, sourceNames, initialTab, editionId, series }: PublicationPrintTabsProps) {
   const [tab, setTab] = useState<"first" | "other">(initialTab);
+
+  if (!firstPrintSales.length && !otherSales.length) return <NoSalesYet editionId={editionId} series={series} />;
 
   const firstVerified = firstPrintSales.filter((sale) => sale.match_status === "verified_match");
   const { knownLaterPrint: knownLater, printingNotIdentified: unidentified } = splitByPrintClassification(otherSales);
