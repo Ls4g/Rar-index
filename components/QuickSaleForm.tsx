@@ -180,7 +180,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
         <label>Sold price<input required inputMode="decimal" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="0.00" /></label>
         <label>Currency<input required maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="GBP" /></label>
         <label className="quick-sale-wide">Copyright-page proof link <small>Required to classify this sale as a proven first print.</small><input type="url" value={evidenceImageUrl} onChange={(event) => setEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
-        <label className="quick-sale-wide">Intake note <small>{classifying ? "Required (12+ characters): explain what you checked to reach this printing classification." : "Optional; useful context for the reviewer."}</small><textarea required={classifying} minLength={classifying ? 12 : undefined} value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="What did you check before adding this?" rows={3} /></label>
+        <label className="quick-sale-wide">Intake note <small>Optional; add context only when the source does not make the decision clear.</small><textarea value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="What did you check before adding this?" rows={3} /></label>
       </div>
       <div className="quick-sale-step"><span>3</span><div><strong>Classify the printing</strong><p>Never inferred automatically. Printing not identified is the safe default — only change it with direct evidence for this exact copy.</p></div></div>
       <div className="quick-sale-grid">

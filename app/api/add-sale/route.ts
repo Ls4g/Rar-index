@@ -85,7 +85,6 @@ export async function POST(request: Request) {
   if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
   const classifying = printClassification !== "printing_not_identified";
   if (classifying && !reviewer) return Response.json({ error: "A reviewer name is required to classify the printing — it is an audited decision." }, { status: 400 });
-  if (classifying && intakeNotes.length < 12) return Response.json({ error: "A classification note of at least 12 characters is required to explain the printing evidence." }, { status: 400 });
   if (printClassification === "first_print_proven" && !evidenceImageUrl) return Response.json({ error: "A first-print classification requires the copyright-page proof link." }, { status: 400 });
   if (knownPrintingNumberRaw && (!Number.isFinite(knownPrintingNumber) || (knownPrintingNumber as number) < 1)) return Response.json({ error: "Known printing number must be a positive number." }, { status: 400 });
 

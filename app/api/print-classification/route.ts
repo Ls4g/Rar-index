@@ -87,9 +87,6 @@ export async function POST(request: Request) {
   if (!reviewer) {
     return Response.json({ error: "Add your name or initials as the reviewer before saving." }, { status: 400 });
   }
-  if (notes.length < 12) {
-    return Response.json({ error: `Add an evidence note of at least 12 characters (currently ${notes.length}).` }, { status: 400 });
-  }
   if (classification === "first_print_proven" && !proofUrl) {
     return Response.json({ error: "A first-print classification requires a direct printing-proof URL." }, { status: 400 });
   }

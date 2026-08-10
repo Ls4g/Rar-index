@@ -2,7 +2,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ReviewDecisionForm from "@/components/ReviewDecisionForm";
-import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import PrintClassificationQueue from "@/components/PrintClassificationQueue";
 import StaffNav from "@/components/StaffNav";
 
@@ -184,12 +183,6 @@ export default async function ReviewQueuePage() {
                   <p>{record.match_notes ?? "Check the listing images, copyright-page proof and edition identifiers before verifying."}</p>
                 </div>
                 <ReviewDecisionForm observationId={record.observation_id} />
-                <PrintClassificationDecisionForm
-                  observationId={record.observation_id}
-                  currentClassification={record.print_classification}
-                  currentProofUrl={record.printing_proof_url}
-                  currentPrintingNumber={record.known_printing_number}
-                />
               </article>
             ))}
           </div>
@@ -203,9 +196,9 @@ export default async function ReviewQueuePage() {
 
       <section className="review-list-section">
         <div className="section-intro">
-          <p className="eyebrow">Edition confirmed, printing unresolved</p>
-          <h2>Sales awaiting print classification</h2>
-          <p className="section-copy">These sales already matched their exact edition and stay honestly at &quot;printing not identified&quot; until proven otherwise. Rows flagged below either read as a first-print claim in the listing title or already have an image nobody has reviewed for printing proof.</p>
+          <p className="eyebrow">Optional proof follow-up</p>
+          <h2>Copyright proof supplied</h2>
+          <p className="section-copy">Only sales with a direct copyright-page image you already captured appear here. A listing title claiming “first print” never creates extra work by itself. Every other matched sale can remain honestly “printing not identified”.</p>
         </div>
 
         {classificationQueue.length ? (
@@ -228,8 +221,8 @@ export default async function ReviewQueuePage() {
           />
         ) : (
           <div className="review-empty">
-            <strong>Nothing waiting on a printing decision.</strong>
-            <p>Every edition-confirmed sale is either classified or has no hint worth flagging yet.</p>
+            <strong>No copyright proof waiting to be classified.</strong>
+            <p>Verified sales without direct printing proof remain usable as “printing not identified” records and need no further action.</p>
           </div>
         )}
       </section>

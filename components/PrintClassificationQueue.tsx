@@ -82,8 +82,6 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
 
   async function save(observationIds: string[], classification: Classification, notes: string, options?: { proofUrl?: string; printingNumber?: string }) {
     if (!reviewer.trim()) { setBanner({ tone: "error", text: "Add your name or initials at the top before saving." }); return; }
-    if (notes.trim().length < 12) { setBanner({ tone: "error", text: `The evidence note needs at least 12 characters (currently ${notes.trim().length}).` }); return; }
-
     setBusy(true);
     setBanner(null);
     try {
@@ -173,7 +171,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
             <input
               className="print-queue-bulknote"
               onChange={(event) => setBulkNote(event.target.value)}
-              placeholder="Shared evidence note (12+ characters)"
+              placeholder="Shared note (optional)"
               value={bulkNote}
             />
             <button disabled={busy} onClick={() => void save([...selected], "printing_not_identified", bulkNote)} type="button">
@@ -234,7 +232,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
                     </div>
                   ) : null}
                   <label className="print-queue-note">
-                    Evidence note <small>{note.trim().length}/12 minimum</small>
+                    Evidence note <small>Optional</small>
                     <textarea onChange={(event) => setNote(event.target.value)} placeholder="What the listing photos show about the printing." value={note} />
                   </label>
                   <div className="print-queue-save">

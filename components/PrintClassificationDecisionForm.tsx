@@ -67,7 +67,7 @@ export default function PrintClassificationDecisionForm({ observationId, current
         <label>Printing-proof URL <small>{classification === "first_print_proven" ? "Required" : "Optional"}</small><input onChange={(event) => setProofUrl(event.target.value)} placeholder="https://... copyright-page image" type="url" value={proofUrl} /></label>
         <label>Known printing number <small>Optional</small><input inputMode="numeric" min={1} onChange={(event) => setPrintingNumber(event.target.value)} type="number" value={printingNumber} /></label>
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
-        <label>Evidence note (12+ characters)<textarea onChange={(event) => setNotes(event.target.value)} placeholder="What proves this printing, or why is it unproven?" value={notes} /></label>
+        <label>Evidence note <small>Optional</small><textarea onChange={(event) => setNotes(event.target.value)} placeholder="What proves this printing, or why is it unproven?" value={notes} /></label>
       </div>
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save classification"}</button>{message ? <p className={failed ? "is-error" : "is-ok"} role="status">{message}</p> : null}</div>
     </form>
