@@ -207,9 +207,10 @@ h2 { margin-bottom: 0; font-size: clamp(2.7rem, 5vw, 4.3rem); line-height: .9; l
 .manga-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
 .manga-card { display: grid; grid-template-columns: 114px minmax(0,1fr); min-height: 190px; background: var(--paper); transition: background .2s ease; }
 .manga-card:hover { background: #ece5d8; }
-.card-cover { display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; background: linear-gradient(150deg, #232019, #55421d); color: #f3e4ae; }
-.manga-card:nth-child(3n+2) .card-cover { background: linear-gradient(150deg, #273a38, #78947d); }
-.manga-card:nth-child(3n) .card-cover { background: linear-gradient(150deg, #3d2924, #9f5838); }
+.card-cover { display: block; width: 100%; min-height: 0; aspect-ratio: 2 / 3; align-self: start; padding: 0; background: transparent; color: #f3e4ae; }
+.card-cover .edition-cover { width: 100%; height: 100%; }
+.manga-card:nth-child(3n+2) .card-cover,
+.manga-card:nth-child(3n) .card-cover { background: transparent; }
 .card-cover span { font-family: var(--font-display); font-size: 2.8rem; line-height: 1; }
 .card-cover i { align-self: end; font-size: .65rem; font-style: normal; font-weight: 700; letter-spacing: .14em; }
 .card-body { padding: 1.4rem; }
@@ -1061,9 +1062,9 @@ h1 span { color: var(--gold-light); font-style: normal; }
 .section-heading > span { color: #5f5849; }
 .manga-card { border-color: #e2d7ba; background: #fbf7ec; box-shadow: 0 8px 22px rgba(33,29,24,.05); }
 .manga-card:hover { border-color: var(--orange); background: #fffcf3; box-shadow: 0 15px 30px rgba(201,105,44,.14); }
-.card-cover { background: linear-gradient(150deg, #26221b, var(--red-dark)); }
-.manga-card:nth-child(3n+2) .card-cover { background: linear-gradient(150deg, #1c2f2a, var(--verified)); }
-.manga-card:nth-child(3n) .card-cover { background: linear-gradient(150deg, #202a3d, var(--blue)); }
+.card-cover,
+.manga-card:nth-child(3n+2) .card-cover,
+.manga-card:nth-child(3n) .card-cover { background: transparent; }
 .card-cover span { font-family: var(--font-display); font-weight: 600; }
 .card-kicker, dt { color: var(--orange-dark); }
 .principle-section { background: linear-gradient(120deg, #f0e6cd, #f7f0e2); }
@@ -1606,6 +1607,13 @@ html[data-theme="day"] .public-page {
     max-width: 100%;
     overflow-wrap: anywhere;
   }
+}
+
+/* Homepage edition cards use the same full-cover treatment as Browse. The
+   grid no longer paints a thick coloured gutter between mobile cards. */
+@media (max-width: 600px) {
+  .manga-grid { gap: .65rem; border: 0; background: transparent; }
+  .manga-card { grid-template-columns: 124px minmax(0, 1fr); min-height: 0; }
 }
 
 /* Scout Triage Inbox: a practical, scannable queue — compact rows instead
