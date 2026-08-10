@@ -31,6 +31,23 @@ type SaleForGrouping = {
   edition_id: string;
   grading_company: string | null;
   grade_label: string | null;
+  match_status: string | null;
+  sale_status: string | null;
+};
+
+type PrintRunChild = {
+  id: string;
+  printing_of_edition_id: string | null;
+};
+
+type ActiveProfile = {
+  id: string;
+  edition_id: string;
+};
+
+type ScoutLead = {
+  profile_id: string;
+  review_status: string | null;
 };
 
 export default async function CoverageDashboardPage() {
@@ -44,25 +61,43 @@ export default async function CoverageDashboardPage() {
     .not("publisher", "is", null)
     .not("release_date", "is", null);
 
-  const rows = (readinessData ?? []) as unknown as ReadinessRow[];
-  const editionIds = rows.map((row) => row.edition_id);
+  // Public edition pages are publication pages. A print-run child redirects
+  // there and contributes its evidence to the parent, so this staff screen
+  // must use the same family scope. Otherwise a parent can misleadingly
+  // appear to have zero sales while its verified first-print child has five.
+  const rows = ((readinessData ?? []) as unknown as ReadinessRow[])
+    .filter((row) => !row.printing_of_edition_id);
+  const publicationIds = rows.map((row) => row.edition_id);
+
+  const { data: printRunData } = publicationIds.length
+    ? await admin
+      .from("manga_editions")
+      .select("id,printing_of_edition_id")
+      .in("printing_of_edition_id", publicationIds)
+      .eq("is_verified", true)
+    : { data: [] };
+  const printRuns = (printRunData ?? []) as PrintRunChild[];
+  const publicationByMember = new Map<string, string>();
+  for (const publicationId of publicationIds) publicationByMember.set(publicationId, publicationId);
+  for (const printRun of printRuns) {
+    if (printRun.printing_of_edition_id) publicationByMember.set(printRun.id, printRun.printing_of_edition_id);
+  }
+  const familyIds = [...publicationByMember.keys()];
 
   const [{ data: saleData }, { data: profileData }] = await Promise.all([
-    editionIds.length
+    familyIds.length
       ? admin
         .from("price_observations")
-        .select("edition_id,grading_company,grade_label")
-        .in("edition_id", editionIds)
-        .eq("sale_status", "confirmed")
-        .eq("match_status", "verified_match")
+        .select("edition_id,grading_company,grade_label,match_status,sale_status")
+        .in("edition_id", familyIds)
         .limit(5000)
       : Promise.resolve({ data: [] }),
-    editionIds.length
+    familyIds.length
       ? admin
         .from("marketplace_search_profiles")
         .select("id,edition_id")
         .eq("is_active", true)
-        .in("edition_id", editionIds)
+        .in("edition_id", familyIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -71,19 +106,47 @@ export default async function CoverageDashboardPage() {
   // the price chart and collection-profiles workbench.
   const comparableCountByEdition = new Map<string, number>();
   const groupCounts = new Map<string, Map<string, number>>();
+  const reviewSaleCountByPublication = new Map<string, number>();
+  const verifiedSaleCountByPublication = new Map<string, number>();
   for (const sale of (saleData ?? []) as SaleForGrouping[]) {
-    const groups = groupCounts.get(sale.edition_id) ?? new Map<string, number>();
+    const publicationId = publicationByMember.get(sale.edition_id) ?? sale.edition_id;
+    if (sale.match_status === "needs_review") {
+      reviewSaleCountByPublication.set(publicationId, (reviewSaleCountByPublication.get(publicationId) ?? 0) + 1);
+    }
+    if (sale.sale_status !== "confirmed" || sale.match_status !== "verified_match") continue;
+    verifiedSaleCountByPublication.set(publicationId, (verifiedSaleCountByPublication.get(publicationId) ?? 0) + 1);
+    const groups = groupCounts.get(publicationId) ?? new Map<string, number>();
     const { key } = comparisonGroup({ sold_date: null, sale_price: 0, currency: "", grading_company: sale.grading_company, grade_label: sale.grade_label });
     groups.set(key, (groups.get(key) ?? 0) + 1);
-    groupCounts.set(sale.edition_id, groups);
+    groupCounts.set(publicationId, groups);
   }
   for (const [editionId, groups] of groupCounts) {
     comparableCountByEdition.set(editionId, Math.max(...groups.values()));
   }
 
-  const profileByEdition = new Map<string, string>();
-  for (const profile of (profileData ?? []) as Array<{ id: string; edition_id: string }>) {
-    if (!profileByEdition.has(profile.edition_id)) profileByEdition.set(profile.edition_id, profile.id);
+  const profileByPublication = new Map<string, string>();
+  const activeProfiles = (profileData ?? []) as ActiveProfile[];
+  for (const profile of activeProfiles) {
+    const publicationId = publicationByMember.get(profile.edition_id) ?? profile.edition_id;
+    if (!profileByPublication.has(publicationId)) profileByPublication.set(publicationId, profile.id);
+  }
+
+  const profileIds = activeProfiles.map((profile) => profile.id);
+  const { data: leadData } = profileIds.length
+    ? await admin
+      .from("scout_listing_leads")
+      .select("profile_id,review_status")
+      .in("profile_id", profileIds)
+      .eq("review_status", "new")
+      .limit(5000)
+    : { data: [] };
+  const publicationByProfile = new Map(activeProfiles.map((profile) => [profile.id, publicationByMember.get(profile.edition_id) ?? profile.edition_id]));
+  const pendingLeadCountByPublication = new Map<string, number>();
+  for (const lead of (leadData ?? []) as ScoutLead[]) {
+    const publicationId = publicationByProfile.get(lead.profile_id);
+    if (publicationId && lead.review_status === "new") {
+      pendingLeadCountByPublication.set(publicationId, (pendingLeadCountByPublication.get(publicationId) ?? 0) + 1);
+    }
   }
 
   const coverageRows: CoverageRow[] = rows.map((row) => ({
@@ -100,11 +163,11 @@ export default async function CoverageDashboardPage() {
     collectibleType: row.collectible_type,
     coverStatus: (row.cover_verification_status ?? "missing") as CoverageRow["coverStatus"],
     printingOfEditionId: row.printing_of_edition_id,
-    verifiedSaleCount: row.verified_sale_count,
-    reviewSaleCount: row.review_sale_count,
+    verifiedSaleCount: verifiedSaleCountByPublication.get(row.edition_id) ?? 0,
+    reviewSaleCount: reviewSaleCountByPublication.get(row.edition_id) ?? 0,
     comparableSaleCount: comparableCountByEdition.get(row.edition_id) ?? 0,
-    profileId: profileByEdition.get(row.edition_id) ?? null,
-    pendingLeadCount: row.pending_lead_count,
+    profileId: profileByPublication.get(row.edition_id) ?? null,
+    pendingLeadCount: pendingLeadCountByPublication.get(row.edition_id) ?? 0,
   }));
 
   return (
@@ -125,7 +188,7 @@ export default async function CoverageDashboardPage() {
           <h1>Priority coverage dashboard</h1>
           <p>Ranks the public catalogue by what is actually missing — verified sales and verified covers — so staff work always removes a real gap instead of adding activity for its own sake. Nothing here treats a live listing as a sale or an unreviewed lead as evidence.</p>
         </div>
-        <div className="queue-total"><strong>{coverageRows.length}</strong><span>catalogue-ready editions tracked</span></div>
+        <div className="queue-total"><strong>{coverageRows.length}</strong><span>catalogue-ready publications tracked</span></div>
       </section>
       <section className="catalogue-content">
         <CoverageDashboardClient rows={coverageRows} />

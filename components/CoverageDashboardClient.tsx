@@ -96,7 +96,7 @@ function CoverageTable({ rows, emptyMessage }: { rows: CoverageRow[]; emptyMessa
       <table>
         <thead>
           <tr>
-            <th>Edition</th>
+            <th>Publication</th>
             <th>Verified sales</th>
             <th>Cover</th>
             <th>Profile</th>
@@ -194,8 +194,8 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
   return (
     <>
       <div className="readiness-summary coverage-counts">
-        <div><span>{counts.total}</span><strong>Verified catalogue editions</strong><p>Is_verified, with ISBN, publisher and release date on file.</p></div>
-        <div><span>{counts.withVerifiedSale}</span><strong>With a verified sale</strong><p>At least one completed sale RAR has proven matches this exact edition.</p></div>
+        <div><span>{counts.total}</span><strong>Verified catalogue publications</strong><p>Is_verified, with ISBN, publisher and release date on file.</p></div>
+        <div><span>{counts.withVerifiedSale}</span><strong>With a verified sale</strong><p>At least one completed sale RAR has proven for this publication, including a verified print-run record where one exists.</p></div>
         <div><span>{counts.chartReady}</span><strong>Chart-ready (3+ comparable)</strong><p>3+ verified sales in the same raw/graded group.</p></div>
         <div><span>{counts.withVerifiedCover}</span><strong>With a verified cover</strong><p>Cover art confirmed against a publisher or licensed catalogue record.</p></div>
         <div><span>{counts.missingBoth}</span><strong>Missing sales AND cover</strong><p>Weakest public pages — no market evidence, no confirmed cover.</p></div>
