@@ -1670,3 +1670,52 @@ html[data-theme="day"] .public-page {
   .scout-filters-grid { grid-template-columns: 1fr; }
   .scout-quick-views { gap: .4rem; }
 }
+
+/* ---------------------------------------------------------------------
+   Always-dark banner surfaces
+   ---------------------------------------------------------------------
+   These panels paint their own dark gradient and deliberately stay dark in
+   both Day and Night -- they are RAR's masthead, not themed canvas. Their
+   text, however, was inheriting --canvas-heading and --muted, which flip to
+   near-black in Day. The result was the homepage headline and the search
+   box rendering dark-on-dark: the first thing a visitor saw was unreadable.
+
+   Text inside these surfaces is therefore pinned to light values rather
+   than themed tokens. Accent colours (.eyebrow orange, .back-link gold) are
+   left alone -- they were already chosen against a dark background.
+
+   Last block in the file so it wins regardless of what the theme blocks
+   above set, and scoped tightly enough that it cannot leak onto the themed
+   page body below each banner. */
+.hero, .edition-hero, .browse-hero, .portfolio-hero, .tool-hero, .review-hero, footer { color: #f4f0e8; }
+.hero h1, .hero h2, .hero h3,
+.edition-hero h1, .edition-hero h2, .edition-hero h3,
+.browse-hero h1, .browse-hero h2, .browse-hero h3,
+.portfolio-hero h1, .portfolio-hero h2, .portfolio-hero h3,
+.tool-hero h1, .tool-hero h2, .tool-hero h3,
+.review-hero h1, .review-hero h2, .review-hero h3,
+.public-page .hero h1, .public-page .hero h2, .public-page .hero h3,
+.public-page .edition-hero h1, .public-page .edition-hero h2, .public-page .edition-hero h3,
+.public-page .browse-hero h1, .public-page .browse-hero h2, .public-page .browse-hero h3,
+.public-page .portfolio-hero h1, .public-page .portfolio-hero h2, .public-page .portfolio-hero h3,
+.public-page .tool-hero h1, .public-page .tool-hero h2, .public-page .tool-hero h3 { color: #f4f0e8; }
+.hero .hero-copy,
+.public-page .hero .hero-copy,
+.edition-hero .edition-variant, .public-page .edition-hero .edition-variant,
+.browse-hero > div > p:last-child, .public-page .browse-hero > div > p:last-child,
+.tool-hero > p:not(.eyebrow), .public-page .tool-hero > p:not(.eyebrow),
+.portfolio-hero p:not(.eyebrow), .public-page .portfolio-hero p:not(.eyebrow),
+.review-hero p:not(.eyebrow) { color: rgba(244,240,232,.7); }
+/* The hero search bar sits on that same constant dark masthead, so its
+   field and placeholder are pinned too rather than following the theme. */
+.public-page .hero .search-form input, .hero .search-form input { color: #f4f0e8; }
+.public-page .hero .search-form input::placeholder, .hero .search-form input::placeholder { color: rgba(244,240,232,.5); }
+.public-page .hero .search-results { background: #29251e; }
+.public-page .hero .search-result strong { color: #f4f0e8; }
+.public-page .hero .search-result span, .public-page .hero .search-result small, .public-page .hero .search-message { color: rgba(244,240,232,.6); }
+/* The shelf caption and edition subtitle live inside the hero block too. */
+.public-page .collector-shelf-heading p, .collector-shelf-heading p { color: rgba(244,240,232,.6); }
+.public-page .edition-hero .edition-subtitle { color: var(--gold-light); }
+.public-page .edition-hero .back-link { color: rgba(244,240,232,.62); }
+.public-page .edition-hero .edition-printing-relation { color: rgba(244,240,232,.78); }
+.public-page .queue-total span, .public-page .portfolio-count span { color: rgba(244,240,232,.66); }
