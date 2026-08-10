@@ -17,19 +17,24 @@ export default function ReviewDecisionForm({ observationId }: { observationId: s
   const [reviewer, setReviewer] = useState("");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
+  // A rejected save and a successful one previously rendered as identical
+  // muted text, so a validation failure read as "nothing happened".
+  const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function submitReview(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setMessage("");
+    setFailed(false);
     try {
       const response = await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ observationId, decision, reviewer, notes }) });
       const result = (await response.json()) as { error?: string };
-      if (!response.ok) { setMessage(result.error ?? "The decision could not be saved."); return; }
+      if (!response.ok) { setFailed(true); setMessage(result.error ?? "The decision could not be saved."); return; }
       setMessage("Decision recorded. The queue has been refreshed.");
       router.refresh();
     } catch {
+      setFailed(true);
       setMessage("The decision could not be saved. Check the connection and try again.");
     } finally {
       setSaving(false);
@@ -49,7 +54,7 @@ export default function ReviewDecisionForm({ observationId }: { observationId: s
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
         <label>Evidence note (optional)<textarea onChange={(event) => setNotes(event.target.value)} placeholder="What proves the edition match, or why is it excluded?" value={notes} /></label>
       </div>
-      <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
+      <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save decision"}</button>{message ? <p className={failed ? "is-error" : "is-ok"} role="status">{message}</p> : null}</div>
     </form>
   );
 }

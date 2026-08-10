@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import ReviewDecisionForm from "@/components/ReviewDecisionForm";
 import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
+import PrintClassificationQueue from "@/components/PrintClassificationQueue";
 import StaffNav from "@/components/StaffNav";
 
 // This is an operational queue: newly imported sales must appear immediately.
@@ -208,36 +209,23 @@ export default async function ReviewQueuePage() {
         </div>
 
         {classificationQueue.length ? (
-          <div className="review-list">
-            {classificationQueue.map((record) => (
-              <article className="review-card" key={record.observation_id}>
-                <div className="review-card-topline">
-                  <span>{record.has_unreviewed_evidence_hint ? "Worth a second look" : "Confirmed sale"}</span>
-                  <time>{formatDate(record.sold_date)}</time>
-                </div>
-                <div className="review-card-main">
-                  <div>
-                    <h3>{record.listing_title ?? "Untitled marketplace listing"}</h3>
-                    <strong className="review-price">{formatPrice(record.sale_price, record.currency)}</strong>
-                  </div>
-                  {record.source_listing_url ? (
-                    <a className="review-source-link" href={record.source_listing_url} target="_blank" rel="noreferrer">Open original listing ↗</a>
-                  ) : null}
-                </div>
-                <div className="review-match">
-                  <p className="eyebrow">Confirmed edition</p>
-                  <h4>{record.title ?? "Edition"}</h4>
-                  <p>{[record.series, record.volume_number ? `Vol. ${record.volume_number}` : null, record.language, record.publisher].filter(Boolean).join(" · ")}</p>
-                </div>
-                <PrintClassificationDecisionForm
-                  observationId={record.observation_id}
-                  currentClassification={record.print_classification}
-                  currentProofUrl={null}
-                  currentPrintingNumber={null}
-                />
-              </article>
-            ))}
-          </div>
+          <PrintClassificationQueue
+            records={classificationQueue.map((record) => ({
+              observation_id: record.observation_id,
+              edition_id: record.edition_id,
+              title: record.title,
+              series: record.series,
+              volume_number: record.volume_number,
+              language: record.language,
+              publisher: record.publisher,
+              listing_title: record.listing_title,
+              source_listing_url: record.source_listing_url,
+              sold_date: record.sold_date,
+              sale_price: record.sale_price ?? 0,
+              currency: record.currency ?? "USD",
+              has_unreviewed_evidence_hint: record.has_unreviewed_evidence_hint,
+            }))}
+          />
         ) : (
           <div className="review-empty">
             <strong>Nothing waiting on a printing decision.</strong>

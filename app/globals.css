@@ -451,6 +451,71 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .review-submit-row button { border: 0; padding: .8rem 1rem; background: var(--ink); color: var(--paper); cursor: pointer; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .review-submit-row button:disabled { cursor: wait; opacity: .65; }
 .review-submit-row p { margin: 0; color: var(--muted); font-size: .78rem; }
+/* A rejected save used to look exactly like a successful one -- same muted
+   grey sentence -- so a validation failure read as the button doing
+   nothing. Failure now announces itself. */
+.review-submit-row p.is-error { padding: .5rem .7rem; border-left: 3px solid #9a3c31; background: rgba(154,60,49,.1); color: #9a3c31; font-weight: 700; }
+.review-submit-row p.is-ok { color: #32623a; font-weight: 700; }
+
+/* Print classification queue: compact rows built for working through a
+   backlog, not one tall card per sale. Mirrors the Scout triage inbox --
+   reviewer entered once at the top, decisions applied in place. */
+.print-queue { display: grid; gap: 1rem; }
+.print-queue-reviewer { display: grid; gap: .35rem; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: .7rem; background: #fbf9f3; }
+.print-queue-reviewer label { display: flex; align-items: center; gap: .6rem; color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.print-queue-reviewer input { min-width: 220px; border: 1px solid var(--line); border-radius: .4rem; padding: .5rem .65rem; background: var(--paper); color: var(--ink); font: inherit; font-size: .84rem; letter-spacing: normal; text-transform: none; }
+.print-queue-reviewer small { color: var(--muted); font-size: .74rem; }
+
+.print-queue-banner { margin: 0; padding: .65rem .85rem; border-radius: .5rem; font-size: .8rem; font-weight: 700; }
+.print-queue-banner.is-ok { border-left: 3px solid #32623a; background: rgba(62,113,68,.1); color: #32623a; }
+.print-queue-banner.is-error { border-left: 3px solid #9a3c31; background: rgba(154,60,49,.1); color: #9a3c31; }
+
+.print-queue-bulkbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem; padding: .75rem 1rem; border: 1px solid var(--line); border-radius: .6rem; background: #f4ead4; }
+.print-queue-selectall { display: inline-flex; align-items: center; gap: .5rem; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.print-queue-bulknote { flex: 1 1 260px; min-width: 0; border: 1px solid var(--line); border-radius: .4rem; padding: .45rem .6rem; background: var(--paper); color: var(--ink); font: inherit; font-size: .8rem; }
+.print-queue-bulkbar button { border: 0; border-radius: .4rem; padding: .5rem .85rem; background: var(--ink); color: var(--paper); cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
+.print-queue-bulkbar button.is-clear { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.print-queue-bulkbar button:disabled { opacity: .5; cursor: default; }
+.print-queue-hint { color: var(--muted); font-size: .75rem; line-height: 1.45; }
+
+.print-queue-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: .6rem; background: var(--line); overflow: hidden; }
+.print-queue-row { background: #fbf9f3; }
+.print-queue-row.is-selected { background: #f4ead4; }
+.print-queue-main { display: flex; align-items: flex-start; gap: .85rem; padding: .85rem 1rem; }
+.print-queue-main > input { margin-top: .25rem; width: 1.05rem; height: 1.05rem; accent-color: var(--gold); }
+.print-queue-detail { flex: 1 1 auto; min-width: 0; display: grid; gap: .2rem; }
+.print-queue-topline { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem .8rem; }
+.print-queue-topline strong { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 700; }
+.print-queue-topline span { color: var(--muted); font-size: .74rem; }
+.print-queue-flag { padding: .15rem .4rem; border-radius: .3rem; background: rgba(176,122,36,.15); color: #84621c; font-size: .66rem; font-weight: 700; }
+.print-queue-listing { margin: 0; font-size: .85rem; line-height: 1.35; }
+.print-queue-edition { margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.4; }
+.print-queue-edition a { color: #6f5010; font-weight: 700; text-decoration: underline; }
+.print-queue-actions { flex: 0 0 auto; display: flex; gap: .35rem; }
+.print-queue-actions button { border: 1px solid var(--line); border-radius: .4rem; padding: .4rem .6rem; background: var(--paper); color: var(--ink); cursor: pointer; font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.print-queue-actions button:hover:not(:disabled) { border-color: var(--gold); }
+.print-queue-actions button.is-first-print:hover:not(:disabled) { border-color: var(--verified); color: var(--verified); }
+.print-queue-actions button:disabled { opacity: .45; cursor: default; }
+
+.print-queue-form { display: grid; gap: .7rem; padding: .9rem 1rem 1rem 3rem; border-top: 1px dashed var(--line); background: #fffcf3; }
+.print-queue-form label { display: grid; gap: .3rem; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.print-queue-form label small { font-weight: 500; letter-spacing: normal; text-transform: none; }
+.print-queue-form input, .print-queue-form textarea { width: 100%; border: 1px solid var(--line); border-radius: .4rem; padding: .5rem .65rem; background: var(--paper); color: var(--ink); font: inherit; font-size: .82rem; letter-spacing: normal; text-transform: none; }
+.print-queue-form textarea { min-height: 3.4rem; resize: vertical; line-height: 1.45; }
+.print-queue-presets { display: flex; flex-wrap: wrap; gap: .4rem; }
+.print-queue-presets button { border: 1px dashed var(--line); border-radius: 999px; padding: .32rem .65rem; background: transparent; color: #6f5010; cursor: pointer; font-size: .72rem; font-weight: 700; }
+.print-queue-presets button:hover { border-style: solid; border-color: var(--gold); }
+.print-queue-save { display: flex; flex-wrap: wrap; gap: .5rem; }
+.print-queue-save button { border: 0; border-radius: .4rem; padding: .55rem .9rem; background: var(--ink); color: var(--paper); cursor: pointer; font-size: .74rem; font-weight: 700; }
+.print-queue-save button.is-clear { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.print-queue-save button:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 700px) {
+  .print-queue-main { flex-wrap: wrap; }
+  .print-queue-actions { width: 100%; }
+  .print-queue-actions button { flex: 1 1 0; }
+  .print-queue-form { padding-left: 1rem; }
+}
 .review-empty { border: 1px dashed #c9bfad; padding: 2.5rem; background: #fbf9f3; }
 .review-empty p { margin: .5rem 0 0; color: var(--muted); }
 /* Cover review reuses .review-form-fields' label/input styling, only the
