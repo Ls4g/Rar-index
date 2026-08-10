@@ -1576,6 +1576,34 @@ html[data-theme="day"] .public-page {
   .profile-editor summary small { width: 100%; margin-left: 2.45rem; }
 }
 
+/* A sale can carry two evidence links. On narrow screens those links must
+   become their own full-width rows rather than extending the card horizontally
+   beside the price and match badges. */
+@media (max-width: 680px) {
+  .observed-sale {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .observed-sale > div,
+  .sale-classification,
+  .observed-sale-links { min-width: 0; }
+  .sale-classification { align-items: flex-start; max-width: 100%; }
+  .print-classification-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .observed-sale-links {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .7rem;
+    width: 100%;
+    margin-top: 0;
+  }
+  .observed-sale-links a {
+    width: fit-content;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Scout Triage Inbox: a practical, scannable queue — compact rows instead
    of 300 stacked full-height cards, with the reviewer entered once at the
    top rather than retyped per decision. */
