@@ -86,6 +86,29 @@ const hunterXHunterVol1English = {
   format: "Paperback",
 };
 
+// The real catalogue record spells the series with the multiplication sign.
+const hunterCrossHunterVol1English = {
+  title: "Hunter × Hunter",
+  series: "Hunter × Hunter",
+  volume_number: "1",
+  language: "English",
+  isbn_13: "9781591167532",
+  publisher: "VIZ Media",
+  format: "Paperback",
+};
+
+// The real catalogue record for the Japanese One Piece vol. 1 carries no
+// separate series and bakes the volume into the title.
+const onePieceTitleWithVolume = {
+  title: "ONE PIECE 1",
+  series: null,
+  volume_number: "1",
+  language: "Japanese",
+  isbn_13: "9784088725093",
+  publisher: "Shueisha",
+  format: "Tankobon",
+};
+
 /** @type {Array<{ label: string, edition: Edition, listingTitle: string, expectBand: "strong" | "partial" | "insufficient" | "conflict", expectConflict?: boolean, note: string }>} */
 const cases = [
   // --- Real titles pulled from RAR's live Scout data (2026-08-06 audit) ---
@@ -212,6 +235,40 @@ const cases = [
     expectBand: "conflict",
     expectConflict: true,
     note: "'Complete collection'/'lot' wording alone (no numeric range needed) still flags as a multi-volume lot.",
+  },
+
+  // --- Regressions for two matching bugs found in the live backlog ---
+  // Both made genuinely correct listings score 0 and sink into the
+  // low-confidence pile, including four-figure first-print One Piece
+  // listings. See lib/editionMatch.ts (CROSS_CHARACTERS, seriesNeedle).
+  {
+    label: "regression: series spelled with the multiplication sign",
+    edition: hunterCrossHunterVol1English,
+    listingTitle: "Hunter X Hunter #1 (VIZ Media March 2005)",
+    expectBand: "partial",
+    note: "Catalogue says 'Hunter × Hunter', the listing says 'Hunter X Hunter'. Stripping non-alphanumerics left 'hunterhunter' vs 'hunterxhunter', so this scored 0 despite naming the right series, volume and publisher.",
+  },
+  {
+    label: "regression: multiplication sign, lowercase x, no separator",
+    edition: hunterCrossHunterVol1English,
+    listingTitle: "HUNTERxHUNTER Manga Vol.1 English",
+    expectBand: "partial",
+    note: "Series 30 + volume 20 + language 15 = 65. Previously 0 for the same normalisation reason.",
+  },
+  {
+    label: "regression: catalogue title embeds the volume number",
+    edition: onePieceTitleWithVolume,
+    listingTitle: "ONE PIECE Vol.1 1997 First Print Japanese Manga Eiichiro Oda",
+    expectBand: "partial",
+    note: "Record has no separate series and is titled 'ONE PIECE 1', so the needle was 'onepiece1' -- absent from every real listing. A $658 first-print listing scored 0 because of it.",
+  },
+  {
+    label: "regression: volume-in-title record still rejects the wrong volume",
+    edition: onePieceTitleWithVolume,
+    listingTitle: "ONE PIECE Vol.8 1998 Japanese Manga Eiichiro Oda",
+    expectBand: "conflict",
+    expectConflict: true,
+    note: "Stripping the volume from the needle must not weaken volume checking -- vol. 8 on a vol. 1 record is still a conflict.",
   },
 
   // --- Deliberately weak/ambiguous listings, to confirm they do NOT score high ---

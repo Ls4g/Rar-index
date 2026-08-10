@@ -1,5 +1,26 @@
+// Titles like "Hunter × Hunter" use the multiplication sign, while listings
+// type the letter x. Without folding the lookalikes first, the catalogue
+// side normalises to "hunterhunter" and the listing side to "hunterxhunter"
+// -- they never match, and every listing for that series is silently ruled
+// out. Mirrors the same fix in lib/editionMatch.ts.
+const CROSS_CHARACTERS = /[×✕✖⨯╳]/g;
+
 export function normaliseListingText(value: string | null | undefined) {
-  return (value ?? "").toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+  return (value ?? "").toLocaleLowerCase().replace(CROSS_CHARACTERS, "x").replace(/[^a-z0-9]/g, "");
+}
+
+// A record with no separate series and a volume baked into its title
+// ("ONE PIECE 1") would otherwise demand listings contain "onepiece1".
+// Drop the trailing volume token, but only when it is this edition's own
+// volume, so titles that genuinely end in a number are untouched.
+export function seriesSearchName(edition: { series?: string | null; title?: string | null; volume_number?: string | number | null }) {
+  if (edition.series) return edition.series;
+  const title = (edition.title ?? "").trim();
+  const volume = edition.volume_number === null || edition.volume_number === undefined ? "" : String(edition.volume_number).trim();
+  if (!title || !volume) return title;
+  const escaped = volume.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const stripped = title.replace(new RegExp(`[,\\s]*(?:vol(?:ume)?\\.?\\s*)?#?\\s*${escaped}\\s*$`, "i"), "").trim();
+  return stripped.length >= 3 ? stripped : title;
 }
 
 // The numeric-range half also accepts "&"/"and"/"," between two volume
@@ -116,7 +137,7 @@ function formatContradicts(text: string, editionFormat: string | null | undefine
 // contradicts stays a staff-only Scout lead rather than a public listing.
 export function isPlausibleLiveListing(listing: PlausibilityListing, edition: PlausibilityEdition) {
   const listingTitle = listing.listing_title ?? "";
-  const seriesName = normaliseListingText(edition.series || edition.title);
+  const seriesName = normaliseListingText(seriesSearchName(edition));
   const seriesAndVolumeMatch = seriesName.length >= 3
     && normaliseListingText(listingTitle).includes(seriesName)
     && hasMatchingVolume(listingTitle, edition.volume_number);

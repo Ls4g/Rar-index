@@ -25,8 +25,34 @@ export type EditionMatchAssessment = {
   conflicts: string[];
 };
 
+// Titles like "Hunter × Hunter" use the multiplication sign, while every
+// real listing types the letter x. Stripping non-alphanumerics turned the
+// catalogue side into "hunterhunter" and the listing side into
+// "hunterxhunter", so they could never match and every lead for that series
+// scored zero on its strongest signal. Fold the lookalikes to "x" first.
+const CROSS_CHARACTERS = /[×✕✖⨯╳]/g;
+
 function normalise(value: string | number | null | undefined) {
-  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return String(value ?? "").toLowerCase().replace(CROSS_CHARACTERS, "x").replace(/[^a-z0-9]/g, "");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Some catalogue records carry no separate series and a title that already
+// embeds the volume ("ONE PIECE 1"). Used whole, that needle asks listings
+// to contain "onepiece1", which "ONE PIECE Vol.1 1997..." never does. Drop
+// the trailing volume token -- but only when it is this edition's own
+// volume number, so a title that genuinely ends in a number is left alone.
+function seriesNeedle(target: EditionMatchTarget) {
+  if (target.series) return target.series;
+  const title = (target.title ?? "").trim();
+  const volume = target.volume_number === null || target.volume_number === undefined ? "" : String(target.volume_number).trim();
+  if (!title || !volume) return title;
+  const trailingVolume = new RegExp(`[,\\s]*(?:vol(?:ume)?\\.?\\s*)?#?\\s*${escapeRegExp(volume)}\\s*$`, "i");
+  const stripped = title.replace(trailingVolume, "").trim();
+  return stripped.length >= 3 ? stripped : title;
 }
 
 function normaliseIsbn(value: string | null | undefined) {
@@ -70,7 +96,7 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
   const reasons: string[] = [];
   const conflicts: string[] = [];
 
-  const targetSeriesName = target.series || target.title;
+  const targetSeriesName = seriesNeedle(target);
   const seriesOrTitleMatches = titleMatches(target.title, candidate.title)
     || titleMatches(target.series, candidate.series)
     || containsNormalised(candidate.title, targetSeriesName);
