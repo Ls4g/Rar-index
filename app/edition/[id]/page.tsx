@@ -9,6 +9,7 @@ import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { editionDescriptor } from "@/lib/editionDisplay";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -204,6 +205,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     .filter((sale) => sale.print_classification !== "first_print_proven")
     .map((sale) => ({ ...sale, match_status: sale.match_status as "verified_match" | "needs_review" }));
   const verifiedSales = observedSales.filter((sale) => sale.match_status === "verified_match");
+  const saleFrequency = describeSaleFrequency(verifiedSales.map((sale) => sale.sold_date));
   const pendingSales = observedSales.filter((sale) => sale.match_status === "needs_review");
   const firstPrintVerifiedCount = firstPrintSales.filter((sale) => sale.match_status === "verified_match").length;
 
@@ -387,6 +389,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <div className="confidence-signal">
                 <span>Verified sales</span>
                 <strong>{verifiedSales.length}</strong>
+                {/* How often one actually turns up. A price with no sense of
+                    frequency invites a collector to treat a once-a-decade
+                    book and a weekly one as equally liquid. */}
+                {saleFrequency ? <small>Sells {saleFrequency.label}</small> : null}
               </div>
               <div className="confidence-signal">
                 <span>Under review</span>

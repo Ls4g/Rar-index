@@ -2,16 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
+import ChartRangeSelector from "@/components/ChartRangeSelector";
 import PortfolioValueChart, { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
-
-const RANGES = [
-  { key: "1M", label: "1 month", days: 30 },
-  { key: "3M", label: "3 months", days: 90 },
-  { key: "6M", label: "6 months", days: 182 },
-  { key: "MAX", label: "All time", days: null as number | null },
-] as const;
-
-type RangeKey = (typeof RANGES)[number]["key"];
+import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
 
 type PerformanceTabProps = {
   snapshots: PortfolioSnapshotPoint[];
@@ -23,14 +16,14 @@ type PerformanceTabProps = {
 // no manual "take a snapshot" step to show or trigger from this tab.
 export default function PerformanceTab({ snapshots }: PerformanceTabProps) {
   const { currency } = useMarketCurrency();
-  const [range, setRange] = useState<RangeKey>("3M");
+  const [range, setRange] = useState<ChartRangeKey>("3M");
 
-  const rangeMeta = RANGES.find((entry) => entry.key === range)!;
+  const meta = chartRange(range);
   const filtered = useMemo(() => {
-    if (rangeMeta.days === null) return snapshots;
-    const cutoff = new Date().getTime() - rangeMeta.days * 24 * 60 * 60 * 1000;
+    const cutoff = chartRangeCutoff(range);
+    if (cutoff === null) return snapshots;
     return snapshots.filter((snapshot) => new Date(snapshot.snapshot_at).getTime() >= cutoff);
-  }, [snapshots, rangeMeta]);
+  }, [snapshots, range]);
 
   // A range with no snapshots in it (but real history elsewhere) falls back
   // to showing everything recorded rather than firing the "tracking starts
@@ -38,7 +31,7 @@ export default function PerformanceTab({ snapshots }: PerformanceTabProps) {
   // has history just outside the selected window.
   const usingFallback = snapshots.length > 0 && filtered.length === 0;
   const chartSnapshots = usingFallback ? snapshots : filtered;
-  const rangeLabel = usingFallback ? "All time" : rangeMeta.label;
+  const rangePhrase = usingFallback ? chartRange("MAX").phrase : meta.phrase;
 
   return (
     <section aria-labelledby="portfolio-tab-performance" className="portfolio-performance" id="portfolio-panel-performance" role="tabpanel">
@@ -47,19 +40,15 @@ export default function PerformanceTab({ snapshots }: PerformanceTabProps) {
           <p className="eyebrow">Portfolio history</p>
           <h2>Performance</h2>
         </div>
-        <div aria-label="Time range" className="portfolio-range-selector" role="group">
-          {RANGES.map((entry) => (
-            <button className={range === entry.key ? "is-active" : ""} key={entry.key} onClick={() => setRange(entry.key)} type="button">{entry.key}</button>
-          ))}
-        </div>
+        <ChartRangeSelector label="Performance time range" onChange={setRange} value={range} />
       </div>
 
       <p className="portfolio-performance-explainer">
         Built automatically from your own recorded snapshots — never estimated, backdated, or drawn from active Scout listings. A new snapshot is recorded whenever a holding changes or verified evidence changes, and once daily otherwise. Gain or loss only appears when purchase price and evidence value are both fully comparable in one currency.
       </p>
-      {usingFallback ? <p className="portfolio-performance-note" role="status">No snapshots in the last {rangeMeta.label.toLowerCase()} — showing your full history instead.</p> : null}
+      {usingFallback ? <p className="portfolio-performance-note" role="status">No snapshots in {meta.phrase} — showing your full history instead.</p> : null}
 
-      <PortfolioValueChart currency={currency} rangeLabel={rangeLabel} snapshots={chartSnapshots} />
+      <PortfolioValueChart currency={currency} rangePhrase={rangePhrase} snapshots={chartSnapshots} />
     </section>
   );
 }

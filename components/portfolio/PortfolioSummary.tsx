@@ -56,7 +56,10 @@ export default function PortfolioSummary({ holdings, metricsByEdition, rates, on
           {summary.gainLoss !== null ? (
             <>
               <strong>{summary.gainLoss >= 0 ? "+" : ""}{formatPrice(summary.gainLoss, currency)}</strong>
-              <small>{summary.gainLossPercent !== null ? `${summary.gainLossPercent >= 0 ? "+" : ""}${summary.gainLossPercent.toFixed(1)}%` : null}</small>
+              {/* Named explicitly, because this is not a movement over a
+                  window like the chart's figure -- it is today's value set
+                  against what was paid, whenever that was. */}
+              <small>{summary.gainLossPercent !== null ? `${summary.gainLossPercent >= 0 ? "+" : ""}${summary.gainLossPercent.toFixed(1)}% against what you paid` : "Compared with what you paid"}</small>
             </>
           ) : (
             <strong className="is-muted">{summary.hasAnyPurchasePrice && summary.valuedCount ? "Currencies not fully comparable" : summary.hasAnyPurchasePrice ? "Market evidence still being researched" : "Add purchase price to compare"}</strong>

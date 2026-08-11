@@ -1,9 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { comparisonGroup, convertSale, formatPrice, type FxRate, type MarketSale } from "@/lib/fx";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
+import ChartRangeSelector from "@/components/ChartRangeSelector";
+import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
+import { describeSaleFrequency } from "@/lib/saleFrequency";
 
 type SalePoint = MarketSale;
 
@@ -59,6 +62,7 @@ function ComparableChart({ label, sales }: {
 }) {
   const { currency } = useMarketCurrency();
   const gradientId = useId();
+  const frequency = describeSaleFrequency(sales.map((sale) => sale.sold_date));
   const values = sales.map((sale) => sale.converted_price);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -140,7 +144,13 @@ function ComparableChart({ label, sales }: {
         </div>
         <span className="chart-status">{sales.length} sales</span>
       </div>
-      <p className="chart-comparable-label">{label} · shown in {currency}</p>
+      <p className="chart-comparable-label">
+        {label} · shown in {currency}
+        {/* How often a copy actually comes up. A median says nothing about
+            whether this is a monthly occurrence or a once-a-decade one, and
+            that is the difference between a usable price and a curiosity. */}
+        {frequency ? <span className="chart-frequency"> · sells {frequency.label}</span> : null}
+      </p>
       <div
         className="price-chart-wrap"
         tabIndex={0}
@@ -189,8 +199,10 @@ function ComparableChart({ label, sales }: {
   );
 }
 
-export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartProps) {
-  const { currency } = useMarketCurrency();
+// Groups the dated sales into raw/graded comparison groups and keeps only
+// those with enough evidence to draw. Shared by the full-history pass and
+// the selected-range pass so both apply exactly the same rules.
+function buildChartGroups(sales: SalePoint[], currency: ReturnType<typeof useMarketCurrency>["currency"], rates: FxRate[]) {
   const groups = new Map<string, { label: string; sales: SalePoint[] }>();
 
   sales.filter((sale): sale is SalePoint & { sold_date: string } => Boolean(sale.sold_date)).forEach((sale) => {
@@ -210,11 +222,34 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
     ...group,
     convertedSales: group.sales.map((sale) => convertSale(sale, currency, rates)).filter((sale): sale is NonNullable<typeof sale> => Boolean(sale)),
   }));
-  const chartGroups = convertedGroups.filter((group) => group.convertedSales.length >= MIN_COMPARABLE_SALES);
-  const bestGroupCount = comparableGroups[0]?.sales.length ?? 0;
-  const missingRates = comparableGroups.reduce((count, group) => count + group.sales.filter((sale) => !convertSale(sale, currency, rates)).length, 0);
 
-  if (!chartGroups.length) {
+  return {
+    chartGroups: convertedGroups.filter((group) => group.convertedSales.length >= MIN_COMPARABLE_SALES),
+    bestGroupCount: comparableGroups[0]?.sales.length ?? 0,
+    missingRates: comparableGroups.reduce((count, group) => count + group.sales.filter((sale) => !convertSale(sale, currency, rates)).length, 0),
+  };
+}
+
+export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartProps) {
+  const { currency } = useMarketCurrency();
+  const [range, setRange] = useState<ChartRangeKey>("MAX");
+
+  const full = useMemo(() => buildChartGroups(sales, currency, rates), [sales, currency, rates]);
+  const ranged = useMemo(() => {
+    const cutoff = chartRangeCutoff(range);
+    if (cutoff === null) return full;
+    const withinRange = sales.filter((sale) => sale.sold_date && new Date(`${sale.sold_date}T00:00:00`).getTime() >= cutoff);
+    return buildChartGroups(withinRange, currency, rates);
+  }, [sales, currency, rates, range, full]);
+
+  // Narrowing the window can leave a group below the three-sale minimum. RAR
+  // never draws a chart from fewer than that, so rather than showing an
+  // emptier or weaker chart the full history is shown again with the reason
+  // stated -- the alternative is a user believing the evidence vanished.
+  const usingFallback = range !== "MAX" && ranged.chartGroups.length === 0 && full.chartGroups.length > 0;
+  const shown = usingFallback ? full : ranged;
+
+  if (!full.chartGroups.length) {
     return (
       <div className="price-history-card price-history-empty">
         <div className="price-history-heading">
@@ -224,7 +259,7 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
           </div>
           <span className="chart-status">Evidence building</span>
         </div>
-        <GhostChart comparableCount={bestGroupCount} missingRates={missingRates} />
+        <GhostChart comparableCount={full.bestGroupCount} missingRates={full.missingRates} />
         <ThingsToKnow />
       </div>
     );
@@ -237,10 +272,15 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
           <p className="eyebrow">RAR market history</p>
           <h2>Price history</h2>
         </div>
-        <span className="chart-status">Comparable groups only</span>
+        <ChartRangeSelector label="Price history time range" onChange={setRange} value={range} />
       </div>
+      {usingFallback ? (
+        <p className="chart-range-note" role="status">
+          Not enough comparable sales in {chartRange(range).phrase} — RAR needs {MIN_COMPARABLE_SALES} in the same group, so the full history is shown instead.
+        </p>
+      ) : null}
       <div className="price-history-grid">
-        {chartGroups.map((group) => <ComparableChart key={group.label} label={group.label} sales={group.convertedSales} />)}
+        {shown.chartGroups.map((group) => <ComparableChart key={group.label} label={group.label} sales={group.convertedSales} />)}
       </div>
       <p className="chart-note">Each chart keeps raw and graded sales separate. Amounts are converted into {currency} using European Central Bank reference rates from each sale date; the original price and currency remain visible in the sale record below.</p>
       <ThingsToKnow />

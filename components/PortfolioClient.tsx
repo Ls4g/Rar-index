@@ -36,6 +36,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PortfolioTabKey>("overview");
+  const [valuesHidden, setValuesHidden] = useState(false);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [metrics, setMetrics] = useState<SummaryMetric[]>([]);
   const [otherSaleCounts, setOtherSaleCounts] = useState<Map<string, number>>(new Map());
@@ -344,8 +345,21 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       <PortfolioAuth authMessage={authMessage} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />
     ) : (
       <MarketCurrencyProvider>
-        <section className="portfolio-content">
-          <PortfolioTabs active={activeTab} onChange={setActiveTab} />
+        {/* A visual privacy screen, not a security boundary: it blurs every
+            money figure so the page can be screenshotted or shared on a call
+            without exposing what the collection is worth. */}
+        <section className={`portfolio-content${valuesHidden ? " portfolio-values-hidden" : ""}`}>
+          <div className="portfolio-content-head">
+            <PortfolioTabs active={activeTab} onChange={setActiveTab} />
+            <button
+              aria-pressed={valuesHidden}
+              className="portfolio-privacy-toggle"
+              onClick={() => setValuesHidden((hidden) => !hidden)}
+              type="button"
+            >
+              {valuesHidden ? "Show values" : "Hide values"}
+            </button>
+          </div>
 
           {activeTab === "overview" ? (
             <OverviewTab

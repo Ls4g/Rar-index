@@ -348,6 +348,9 @@ table { font-variant-numeric: tabular-nums; }
 .price-history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
 .comparable-chart-card { min-width: 0; }
 .chart-comparable-label { margin: -1rem 0 1rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+/* Liquidity, sat beside the price it qualifies. */
+.chart-frequency { color: var(--accent-label-text); font-weight: 600; }
+.chart-range-note { margin: 0 0 1rem; color: var(--accent-label-text); font-size: .78rem; line-height: 1.5; }
 .ghost-chart { min-height: 380px; }
 .ghost-chart svg { opacity: .45; }
 .ghost-chart path { fill: none; stroke: var(--gold); stroke-width: 3; stroke-dasharray: 8 9; }
@@ -825,7 +828,38 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .portfolio-overview { display: grid; gap: 3rem; }
 .portfolio-overview-chart .section-intro { margin-bottom: 1.1rem; }
 .portfolio-holdings-tab, .portfolio-performance { display: grid; gap: 0; }
-.portfolio-holdings-head, .portfolio-performance-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.35rem; }
+.portfolio-holdings-head, .portfolio-performance-head, .portfolio-overview-chart-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.35rem; }
+
+/* Tabs and the privacy toggle share one row, but the toggle stays outside
+   the tablist so it is never announced as a fourth tab. */
+.portfolio-content-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem 1rem; }
+.portfolio-content-head .portfolio-tabs { flex: 1 1 auto; margin-bottom: 0; }
+.portfolio-privacy-toggle { margin-bottom: .5rem; border: 1px solid var(--line); border-radius: 999px; padding: .5rem .9rem; background: var(--surface-chip); color: var(--muted); cursor: pointer; font: inherit; font-size: .7rem; font-weight: 700; letter-spacing: .04em; }
+.portfolio-privacy-toggle:hover { border-color: var(--orange); color: var(--canvas-heading); }
+.portfolio-privacy-toggle[aria-pressed="true"] { border-color: var(--orange); background: var(--surface-chip-active); color: var(--canvas-heading); }
+.portfolio-privacy-toggle:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.portfolio-content { margin-top: 0; }
+.portfolio-content-head + * { margin-top: 2rem; }
+
+/* Blurs the money without unmounting it, so layout never shifts when the
+   screen is toggled and nothing has to be re-fetched to bring it back. */
+.portfolio-values-hidden .portfolio-stat-card strong,
+.portfolio-values-hidden .portfolio-stat-card small,
+.portfolio-values-hidden .portfolio-chart-change,
+.portfolio-values-hidden .portfolio-chart-tooltip strong,
+.portfolio-values-hidden .portfolio-chart-active-summary,
+.portfolio-values-hidden .portfolio-chart-single strong,
+.portfolio-values-hidden .portfolio-chart-axis-value,
+.portfolio-values-hidden .portfolio-holding-value,
+.portfolio-values-hidden .portfolio-most-valuable-value,
+.portfolio-values-hidden .holding-price {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+}
+/* The value line itself carries the shape of the portfolio, so it is
+   flattened to a flat opacity rather than left legible behind a blur. */
+.portfolio-values-hidden .portfolio-chart-line { opacity: .18; }
 .portfolio-add-cta-secondary { border: 1px solid var(--line); background: transparent; color: var(--accent-label-text); }
 .portfolio-add-cta-secondary:hover { border-color: var(--red); background: transparent; color: var(--red); }
 
@@ -856,12 +890,12 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .most-valuable-list a:focus-visible, .most-valuable-cover:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 
 /* Performance tab: a read-only range selector over automatic snapshots. */
-.portfolio-range-selector { display: flex; border: 1px solid var(--line); border-radius: .6rem; overflow: hidden; }
-.portfolio-range-selector button { border: 0; border-right: 1px solid var(--line); padding: .6rem .9rem; background: var(--surface-chip); color: var(--muted); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
-.portfolio-range-selector button:last-child { border-right: 0; }
-.portfolio-range-selector button:hover { color: var(--canvas-heading); }
-.portfolio-range-selector button.is-active { background: var(--red); color: #fff; }
-.portfolio-range-selector button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.chart-range-selector { display: flex; border: 1px solid var(--line); border-radius: .6rem; overflow: hidden; }
+.chart-range-selector button { border: 0; border-right: 1px solid var(--line); padding: .6rem .9rem; background: var(--surface-chip); color: var(--muted); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
+.chart-range-selector button:last-child { border-right: 0; }
+.chart-range-selector button:hover { color: var(--canvas-heading); }
+.chart-range-selector button.is-active { background: var(--red); color: #fff; }
+.chart-range-selector button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .portfolio-performance-explainer { max-width: 760px; margin: 0 0 1rem; color: var(--muted); font-size: .8rem; line-height: 1.6; }
 .portfolio-performance-note { margin: 0 0 1rem; color: var(--accent-label-text); font-size: .78rem; }
 
@@ -870,6 +904,14 @@ a.coverage-badge:hover { filter: brightness(0.96); }
    ambiguous line, and never any invented "trend" commentary. */
 .portfolio-value-chart { border: 1px solid var(--line); border-radius: .9rem; padding: 1.25rem 1.4rem 1.5rem; background: var(--surface-card); }
 .portfolio-chart-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .9rem; }
+/* The movement across the window on show. The period is set in the same
+   line as the figure, never left to be inferred from the range buttons. */
+.portfolio-chart-change { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; margin: -.35rem 0 1rem; font-size: .82rem; }
+.portfolio-chart-change strong { font-family: var(--font-display); font-size: 1.32rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.portfolio-chart-change span { font-variant-numeric: tabular-nums; font-weight: 600; }
+.portfolio-chart-change em { color: var(--muted); font-style: normal; }
+.portfolio-chart-change.is-positive strong, .portfolio-chart-change.is-positive span { color: var(--accent-positive-text); }
+.portfolio-chart-change.is-negative strong, .portfolio-chart-change.is-negative span { color: var(--red); }
 .portfolio-chart-legend { display: flex; align-items: center; gap: .4rem; color: var(--canvas-muted-strong); font-size: .72rem; font-weight: 600; }
 .portfolio-chart-range { color: var(--muted); font-size: .72rem; }
 .portfolio-chart-wrap { position: relative; }
@@ -979,9 +1021,11 @@ a.coverage-badge:hover { filter: brightness(0.96); }
   .holding-modal { padding: 1.35rem; border-radius: .8rem; }
   .portfolio-tabs { gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .portfolio-tabs button { flex: 1 1 auto; padding: .85rem .6rem; white-space: nowrap; }
-  .portfolio-holdings-head, .portfolio-performance-head { flex-direction: column; align-items: stretch; }
-  .portfolio-range-selector { width: 100%; }
-  .portfolio-range-selector button { flex: 1 1 auto; }
+  .portfolio-holdings-head, .portfolio-performance-head, .portfolio-overview-chart-head { flex-direction: column; align-items: stretch; }
+  .portfolio-content-head { flex-direction: column; align-items: stretch; }
+  .portfolio-privacy-toggle { margin-bottom: 0; }
+  .chart-range-selector { width: 100%; }
+  .chart-range-selector button { flex: 1 1 auto; }
   .most-valuable-list li { flex-wrap: wrap; }
   .portfolio-value-chart { padding: 1rem; }
   .collector-handle-form { position: fixed; top: auto; right: .75rem; left: .75rem; bottom: .75rem; width: auto; max-width: none; }

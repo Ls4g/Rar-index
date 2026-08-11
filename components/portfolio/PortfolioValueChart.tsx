@@ -29,7 +29,10 @@ export type PortfolioSnapshotPoint = {
 type PortfolioValueChartProps = {
   snapshots: PortfolioSnapshotPoint[];
   currency: DisplayCurrency;
-  rangeLabel: string;
+  // Written to sit inside a sentence -- "the last 3 months". A change figure
+  // without the window it covers is not information, so the two are always
+  // rendered together.
+  rangePhrase: string;
 };
 
 const WIDTH = 760;
@@ -94,7 +97,7 @@ function SinglePointState({ snapshot, currency }: { snapshot: PortfolioSnapshotP
   );
 }
 
-export default function PortfolioValueChart({ snapshots, currency, rangeLabel }: PortfolioValueChartProps) {
+export default function PortfolioValueChart({ snapshots, currency, rangePhrase }: PortfolioValueChartProps) {
   const inRangeCurrency = snapshots.filter((snapshot) => snapshot.display_currency === currency);
   const ordered = [...inRangeCurrency].sort((a, b) => a.snapshot_at.localeCompare(b.snapshot_at));
   // One line: the portfolio's market value over time. What was paid is a
@@ -166,6 +169,16 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
     else if (event.key === "End") { event.preventDefault(); setHoverIndex(valued.length - 1); }
   }
 
+  const firstValue = valued[0].total_evidence_value as number;
+  const lastValue = valued[valued.length - 1].total_evidence_value as number;
+  const changeAmount = lastValue - firstValue;
+  // A percentage off a zero starting value is not meaningful, so the amount
+  // stands alone in that case rather than reporting an infinite gain.
+  const rangeChange = changeAmount === 0 ? null : {
+    amount: changeAmount,
+    percent: firstValue > 0 ? (changeAmount / firstValue) * 100 : null,
+  };
+
   const activeX = xFor(activeIdx);
   const activeY = yFor(activePoint.total_evidence_value as number);
   const tooltipLeft = Math.min(86, Math.max(14, (activeX / WIDTH) * 100));
@@ -179,8 +192,19 @@ export default function PortfolioValueChart({ snapshots, currency, rangeLabel }:
     <div className="portfolio-value-chart">
       <div className="portfolio-chart-heading">
         <span className="portfolio-chart-legend">Market value</span>
-        <span className="portfolio-chart-range">{rangeLabel} · shown in {currency}</span>
+        <span className="portfolio-chart-range">{rangePhrase} · shown in {currency}</span>
       </div>
+      {/* The movement across the window actually being shown -- first
+          recorded snapshot in range against the last. This is a market
+          movement, not gain against what was paid; that comparison lives in
+          the summary above and is deliberately worded differently. */}
+      {rangeChange ? (
+        <p className={`portfolio-chart-change ${rangeChange.amount >= 0 ? "is-positive" : "is-negative"}`}>
+          <strong>{rangeChange.amount >= 0 ? "+" : "−"}{formatPrice(Math.abs(rangeChange.amount), currency)}</strong>
+          {rangeChange.percent !== null ? <span>({rangeChange.amount >= 0 ? "+" : "−"}{Math.abs(rangeChange.percent).toFixed(1)}%)</span> : null}
+          <em>over {rangePhrase}</em>
+        </p>
+      ) : null}
       <div
         className="portfolio-chart-wrap"
         tabIndex={0}
