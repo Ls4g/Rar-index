@@ -465,7 +465,7 @@ export default async function Home() {
                 </div>
                 <div className="live-listing-meta">
                   <strong>{lead.listing_price !== null && lead.currency ? <HomePrice value={lead.listing_price} sourceCurrency={lead.currency} rateDate={homepageListingRateDate} rates={homepageFxRates} /> : "Price not listed"}</strong>
-                  <small>{formatListingEndLabel(lead.item_end_at)}</small>
+                  {formatListingEndLabel(lead.item_end_at) ? <small>{formatListingEndLabel(lead.item_end_at)}</small> : null}
                 </div>
               </a>
             ))}

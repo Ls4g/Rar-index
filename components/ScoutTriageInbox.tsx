@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { formatListingEnd, listingType } from "@/lib/liveListings";
+import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
 
 export type ScoutLead = {
   id: string;
@@ -384,7 +384,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                       <a className="scout-lead-title" href={lead.sourceListingUrl} rel="noreferrer" target="_blank">{lead.listingTitle}</a>
                     </div>
                     <p className="scout-lead-meta">
-                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {listingType(lead.rawPayload)} · ends {formatListingEnd(lead.itemEndAt)}{lead.isExpired ? " (expired)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
+                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {listingType(lead.rawPayload)} · {formatListingEndStaffLabel(lead.itemEndAt)}{lead.isExpired ? " (expired)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
                     </p>
                     <p className="scout-lead-meta">
                       <Link className="scout-lead-edition-link" href={`/edition/${lead.editionId}`} target="_blank">{lead.editionTitle ?? "Edition"}</Link>

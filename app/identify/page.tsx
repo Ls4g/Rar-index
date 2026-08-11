@@ -7,12 +7,12 @@ export default function IdentifyPage() {
   return <main className="public-page">
     <header className="site-header">
       <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-      <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/browse">Browse editions</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link><ThemeToggle /></nav>
+      <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/browse">Browse manga</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link><ThemeToggle /></nav>
     </header>
     <section className="tool-hero">
-      <p className="eyebrow">Collector research tool</p>
-      <h1>Identify this copy.</h1>
-      <p>Use the physical copyright page to work out what needs proving. RAR never confirms a first printing from a listing title alone.</p>
+      <p className="eyebrow">First-print check</p>
+      <h1>Is your copy a first print?</h1>
+      <p>Have the book in front of you and open the copyright page — that page, not the cover or the listing, is what settles it. A seller calling something a first edition is not evidence, and we never treat it as such.</p>
     </section>
     <section className="tool-content">
       <section className="identify-example" aria-labelledby="identify-example-heading">

@@ -42,7 +42,7 @@ export default async function BrowsePage() {
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/identify">Identify a copy</Link>
+          <Link className="header-note" href="/identify">First-print check</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
           <ThemeToggle />
@@ -50,11 +50,11 @@ export default async function BrowsePage() {
       </header>
       <section className="browse-hero">
         <div>
-          <p className="eyebrow">RAR alpha catalogue</p>
-          <h1>Browse the archive.</h1>
-          <p>Every publication here has a catalogue identity, ISBN, publisher, release date and linked source evidence. Open one to compare first-print and other sales.</p>
+          <p className="eyebrow">The catalogue</p>
+          <h1>Browse every manga we track.</h1>
+          <p>Each one is a specific edition — a known ISBN, publisher and release date, not just a title. Open one to see what real copies sold for and which printings we have proof of.</p>
         </div>
-        <div className="queue-total"><strong>{editions.length}</strong><span>publications indexed</span></div>
+        <div className="queue-total"><strong>{editions.length}</strong><span>manga in the catalogue</span></div>
       </section>
       <section className="browse-content">
         {error ? <p className="status-message">The catalogue could not be loaded. Please try again shortly.</p> : <BrowseEditions editions={editions} />}

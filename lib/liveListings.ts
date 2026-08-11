@@ -245,10 +245,21 @@ export function formatListingEnd(value: string | null) {
   }).format(date);
 }
 
-// Call sites used to prefix "Ends " themselves, which read as "Ends End
-// time unavailable" whenever eBay gave no end time -- common on fixed-price
-// listings. The whole phrase is built here so the two cases stay coherent.
-export function formatListingEndLabel(value: string | null) {
+// Public-facing end label. Returns null when eBay gave no end time, which
+// is the norm for fixed-price listings: a Buy It Now with no end date has
+// nothing to say about when it ends, and saying "End time unavailable" on
+// five of six cards read as breakage rather than as an honest blank.
+// Staff keep the explicit missing-value wording via formatListingEnd, where
+// knowing the field is absent is the point.
+export function formatListingEndLabel(value: string | null): string | null {
   const formatted = formatListingEnd(value);
-  return formatted === "End time unavailable" ? formatted : `Ends ${formatted}`;
+  return formatted === "End time unavailable" ? null : `Ends ${formatted}`;
+}
+
+// Staff variant. During triage the absence of an end time is itself worth
+// knowing, so it is stated rather than dropped -- but as a phrase that
+// stands on its own instead of composing into "ends End time unavailable".
+export function formatListingEndStaffLabel(value: string | null) {
+  const formatted = formatListingEnd(value);
+  return formatted === "End time unavailable" ? "no end time given" : `ends ${formatted}`;
 }

@@ -21,10 +21,10 @@ type PortfolioAuthProps = {
 // AGENTS.md forbids everywhere else on the site; the real dashboard earns
 // its numbers from verified evidence after sign-in.
 const PREVIEW_TILES = [
-  { icon: "◒", title: "Collection value", copy: "Total paid and RAR's evidence-backed market value, side by side." },
-  { icon: "↕", title: "Gain & loss, honestly", copy: "Only calculated when there is real verified evidence to compare against." },
-  { icon: "◈", title: "Print status, made clear", copy: "Every holding shows whether it is a proven first print or printing not identified." },
-  { icon: "◐", title: "Private by default", copy: "Your holdings and purchase details are visible only to you." },
+  { icon: "◒", title: "What it's all worth", copy: "What you paid and what copies are actually selling for, side by side." },
+  { icon: "↕", title: "Up or down, honestly", copy: "A gain is only shown when there are real sales to compare against." },
+  { icon: "◈", title: "First print or not", copy: "Every book says whether its printing is proven or still unknown." },
+  { icon: "◐", title: "Only you see it", copy: "Your books and what you paid for them stay private." },
 ];
 
 export default function PortfolioAuth({ mode, setMode, email, setEmail, password, setPassword, authMessage, onSubmit, initialEditionId }: PortfolioAuthProps) {
@@ -32,10 +32,10 @@ export default function PortfolioAuth({ mode, setMode, email, setEmail, password
     <section className="portfolio-auth">
       <div className="portfolio-auth-intro">
         <p className="eyebrow">RAR Portfolio</p>
-        <h1>Know what you own.</h1>
-        <p className="portfolio-auth-lede">Private holdings, linked to RAR&apos;s edition records and the verified market evidence behind them.</p>
+        <h1>What&apos;s your collection worth?</h1>
+        <p className="portfolio-auth-lede">Add the manga you own and see what real copies are selling for. Free, private, and priced from actual completed sales — never guesswork.</p>
         {initialEditionId ? (
-          <p className="portfolio-add-context">You&apos;re adding a specific RAR edition. Create an account or sign in, then it will be ready to add.</p>
+          <p className="portfolio-add-context">You&apos;re adding a specific manga. Create an account or sign in and it will be waiting for you.</p>
         ) : null}
         <div className="portfolio-preview-grid" aria-hidden="true">
           {PREVIEW_TILES.map((tile) => (

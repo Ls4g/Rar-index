@@ -300,8 +300,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <em>Index</em>
         </Link>
         <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/identify">Identify a copy</Link>
-          <Link className="header-note" href="/browse">Browse editions</Link>
+          <Link className="header-note" href="/identify">First-print check</Link>
+          <Link className="header-note" href="/browse">Browse manga</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
           <ThemeToggle />
@@ -313,7 +313,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           <div>
           <Link href="/" className="back-link">← Back to the index</Link>
-          <p className="eyebrow">Publication</p>
+          <p className="eyebrow">Manga</p>
           <h1>{edition.title}</h1>
           <p className="edition-subtitle">
             {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
@@ -326,8 +326,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               follow. */}
           <p className="edition-variant">
             {firstPrintSales.length || otherSales.length
-              ? <>RAR tracks this publication; select a printing group below to compare sales.{printRunChildren.length ? ` ${printRunChildren.length} specific print-run record${printRunChildren.length === 1 ? "" : "s"} contribute evidence here.` : ""}</>
-              : "RAR tracks this publication. No completed sale has been verified for it yet."}
+              ? <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
+              : "No completed sale has been confirmed for this one yet."}
           </p>
           </div>
         </div>
@@ -337,11 +337,11 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       <section className="edition-content">
         <div className="edition-layout">
           <details className="edition-disclosure catalogue-details-disclosure">
-            <summary><span><small>Catalogue record</small>Publication details</span><span className="disclosure-hint">Identifiers, publication and cover source</span></summary>
+            <summary><span><small>The specifics</small>Book details</span><span className="disclosure-hint">Identifiers, publisher and cover source</span></summary>
             <div className="edition-disclosure-content">
             <div className="section-intro">
-              <p className="eyebrow">Catalogue record</p>
-              <h2>Publication details</h2>
+              <p className="eyebrow">The specifics</p>
+              <h2>Book details</h2>
             </div>
             <dl className="edition-details">
               {details.map(([label, value]) => (
@@ -381,7 +381,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           </details>
 
           <aside className="valuation-panel">
-            <p className="eyebrow">RAR confidence</p>
+            <p className="eyebrow">How much we know</p>
             <strong className="confidence-label">{signalLabel(verifiedSales.length, verifiedSourceIds.size)}</strong>
             <div className="confidence-grid">
               <div className="confidence-signal">
@@ -404,8 +404,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               </div>
             </div>
             <details className="valuation-explainer">
-              <summary>How RAR values this publication</summary>
-              <p>RAR uses only completed sales that match this exact publication. First-print-proven sales, known-later printings and printing-not-identified sales are never combined into one value. Raw and graded results stay separate too. You can select a display currency; RAR keeps every original amount and converts it using the European Central Bank reference rate on the sale date. A median is market evidence, not a promise of resale value.</p>
+              <summary>How we work out this value</summary>
+              <p>Only completed sales of this exact book count. Proven first prints, known later printings and copies whose printing we could not identify are never mixed into one number, and graded copies stay separate from raw ones. Prices are stored in the currency they sold in and converted using the European Central Bank rate for that day. A median tells you what copies have sold for — not what yours will sell for.</p>
             </details>
             <div className="valuation-panel-live-teaser">
               <span><strong>{liveListings.length}</strong> live listing{liveListings.length === 1 ? "" : "s"} right now</span>
@@ -417,8 +417,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
 
         <section className="price-history-section">
           <div className="section-intro">
-            <p className="eyebrow">Market evidence</p>
-            <h2>Sales by print group</h2>
+            <p className="eyebrow">What copies actually sell for</p>
+            <h2>Sold prices, by printing</h2>
           </div>
           <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} editionId={edition.id} series={edition.series} />
         </section>
@@ -426,37 +426,37 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <section className="live-listings-section" aria-labelledby="live-listings-heading">
           <div className="section-intro live-listings-intro">
             <div>
-              <p className="eyebrow">RAR Scout · Can I buy one now?</p>
-              <h2 id="live-listings-heading">Live eBay listings</h2>
+              <p className="eyebrow">RAR Scout</p>
+              <h2 id="live-listings-heading">Can I buy one right now?</h2>
             </div>
             <span className="live-listings-status">{latestScoutCheck ? `Last Scout scan ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
-          <p className="section-copy">These are asking prices on current listings, not completed sales, shown across every printing RAR tracks for this publication. RAR only surfaces listings whose title clearly matches this series and volume; always inspect the source before buying. They never affect RAR&apos;s market value, verified-sale count, or chart above.</p>
+          <p className="section-copy">These are asking prices on eBay right now, not sold prices, covering every printing of this manga. We only show listings whose title clearly matches this series and volume — always check the listing yourself before buying. Nothing here affects the value or the chart above.</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
                 <a className="live-listing-card" href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
                   <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
-                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong><small>{formatListingEndLabel(listing.item_end_at)}</small></div>
+                  <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong>{formatListingEndLabel(listing.item_end_at) ? <small>{formatListingEndLabel(listing.item_end_at)}</small> : null}</div>
                 </a>
               ))}
             </div>
           ) : (
             <div className="live-listings-empty">
-              <strong>{liveProfileIds.length ? "No current listings from RAR Scout" : "Live listings are not being monitored for this publication yet"}</strong>
-              <p>{liveProfileIds.length ? "Scout stores only listings that are still live at the time of viewing. Check again after the next scheduled scan." : "RAR needs an exact-edition eBay search profile before it can surface live buying opportunities."}</p>
+              <strong>{liveProfileIds.length ? "Nothing on sale right now" : "We are not watching eBay for this one yet"}</strong>
+              <p>{liveProfileIds.length ? "We only show listings that are still live when you look. Check back after the next scan." : "This manga needs an exact-edition eBay search set up before listings can appear here."}</p>
             </div>
           )}
         </section>
 
         <details className="edition-disclosure edition-evidence-section" open={firstPrintVerifiedCount > 0}>
-          <summary><span><small>Why this publication is identified</small>Publication evidence</span><span className="disclosure-hint">{firstPrintVerifiedCount > 0 ? "First-print proof on file" : "Identifiers and proof"}</span></summary>
+          <summary><span><small>How we know this is what we say it is</small>The proof behind this page</span><span className="disclosure-hint">{firstPrintVerifiedCount > 0 ? "First-print proof on file" : "Identifiers and proof"}</span></summary>
           <div className="edition-disclosure-content">
-            <p className="section-copy">RAR separates the publisher&apos;s publication record from proof of a specific printing. A first-print claim requires copyright-page evidence tied to the exact sold copy, not the publication&apos;s reputation.</p>
+            <p className="section-copy">Knowing which book this is and proving a specific copy was a first printing are two different things. The second needs a photo of the copyright page from the exact copy that sold — a famous title is not proof, and neither is a seller saying so.</p>
           <div className="edition-evidence-grid">
-            <div><span>Publication identifiers</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
-            <div><span>First-print evidence</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has direct copyright-page proof yet."}</small></div>
-            <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Known later printings and printing-not-identified sales — see the Other tab above.</small></div>
+            <div><span>Which book this is</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
+            <div><span>First-print proof</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has a copyright-page photo yet."}</small></div>
+            <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Later printings, and copies whose printing we could not identify — see the Other tab above.</small></div>
           </div>
           <div className="evidence-checklist" aria-label="RAR evidence checklist">
             <p className="eyebrow">RAR evidence checklist</p>
@@ -493,7 +493,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <details className="edition-disclosure related-editions-section">
             <summary><span><small>Different language or publisher</small>Related publications</span><span className="disclosure-hint">{relatedEditions.length} publication{relatedEditions.length === 1 ? "" : "s"}</span></summary>
             <div className="edition-disclosure-content">
-              <p className="section-copy">These are separate RAR publications for the same series and volume — a different language or publisher edition, not a different printing of this publication. Printings of this exact publication are compared using the tabs above, not here.</p>
+              <p className="section-copy">Same series and volume, but a different book — another language or another publisher, not another printing of this one. Printings of this exact book are compared in the tabs above.</p>
             <div className="related-editions-list">
               {relatedEditions.map((related) => (
                 <Link href={`/edition/${related.id}`} key={related.id}>
@@ -511,7 +511,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <details className="edition-disclosure collector-context-section">
             <summary><span><small>Collector context</small>Why collectors care</span><span className="disclosure-hint">Research notes and tags</span></summary>
             <div className="edition-disclosure-content">
-              <p className="section-copy">RAR records why a specific publication may matter, without treating a historical note as a prediction of future value.</p>
+              <p className="section-copy">Why this particular book is worth knowing about. A note about its history is not a prediction about its price.</p>
             <div className="collector-context-card">
               <div>
                 <span>Collectible type</span>
