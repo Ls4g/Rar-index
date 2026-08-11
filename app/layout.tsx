@@ -16,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "RAR Index — Manga market intelligence",
-  description: "A growing index of manga editions, market history and collector knowledge.",
+  title: "RAR Index — What's your manga actually worth?",
+  description: "Real completed sale prices for specific manga editions, plus first-print checks — so you know what your copies are worth and which printing you own.",
 };
 
 // Sets data-theme on <html> before first paint so the visitor's saved (or

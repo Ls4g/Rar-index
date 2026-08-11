@@ -109,18 +109,18 @@ export default function MangaSearch() {
     <div className="search-panel">
       <form onSubmit={handleSearch} className="search-form">
         <label className="sr-only" htmlFor="manga-search">
-          Search the manga index
+          Search manga by title, publisher or ISBN
         </label>
         <input
           id="manga-search"
           name="manga-search"
           value={query}
           onChange={(event) => handleQueryChange(event.target.value)}
-          placeholder="Search title, edition, language or ISBN"
+          placeholder='Try "One Piece Vol. 1" — or a title, publisher or ISBN'
           autoComplete="off"
         />
         <button type="submit" disabled={isLoading}>
-          {isLoading ? "Searching…" : "Search index"}
+          {isLoading ? "Searching…" : "Search"}
         </button>
       </form>
 

@@ -44,17 +44,7 @@ export default async function Home() {
   // never a separate destination or a separate line in a counter; its
   // evidence already rolls up into its publication via
   // publication_print_readiness.
-  const [{ data, error }, { count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: readinessRows }] = await Promise.all([
-    supabase
-    .from("manga_editions")
-    .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
-    .eq("is_verified", true)
-    .eq("record_kind", "publication")
-    .not("isbn_13", "is", null)
-    .not("publisher", "is", null)
-    .not("release_date", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(6),
+  const [{ count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: readinessRows }] = await Promise.all([
     supabase
       .from("manga_editions")
       .select("id", { count: "exact", head: true })
@@ -85,7 +75,6 @@ export default async function Home() {
       .select("publication_id,first_print_proven_sale_count,total_verified_sale_count,has_first_print_evidence"),
   ]);
 
-  const manga = (data ?? []) as Manga[];
   const readinessById = new Map((readinessRows ?? []).map((row) => [row.publication_id, row]));
   const saleCounts = new Map<string, number>();
   for (const [publicationId, row] of readinessById) saleCounts.set(publicationId, row.total_verified_sale_count);
@@ -285,8 +274,8 @@ export default async function Home() {
           <em>Index</em>
         </a>
         <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/identify">Identify a copy</Link>
-          <Link className="header-note" href="/browse">Browse editions</Link>
+          <Link className="header-note" href="/identify">First-print check</Link>
+          <Link className="header-note" href="/browse">Browse manga</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
           <HomeMarketCurrencyControl />
@@ -297,16 +286,25 @@ export default async function Home() {
       <section id="top" className="hero">
         <div className="hero-grid" />
         <div className="hero-content">
-          <p className="eyebrow">Manga collecting, made legible</p>
+          <p className="eyebrow">Manga price &amp; printing research</p>
           <h1>
-            Know what you own.
-            <span>Find what matters.</span>
+            What&apos;s your manga
+            <span>actually worth?</span>
           </h1>
           <p className="hero-copy">
-            RAR Index is building the reference point for manga editions,
-            market history and collector knowledge.
+            RAR tracks real completed sales of specific manga editions — so you
+            know what your copies are worth, and whether yours is a first print.
           </p>
           <MangaSearch />
+          {/* Three plain steps, directly under the search. First-time visitors
+              were reading the old abstract hero and guessing the site was a
+              card tracker; this states the job in the visitor's own words
+              before they have to interpret anything else on the page. */}
+          <ol className="hero-steps">
+            <li><span>1</span>Search your manga</li>
+            <li><span>2</span>See what real copies sold for</li>
+            <li><span>3</span>Check if yours is a first print</li>
+          </ol>
         </div>
 
         {/* The shelf is the most collector-ish thing on the page, so it now
@@ -323,24 +321,24 @@ export default async function Home() {
         ) : null}
 
         <div className="hero-entry-points">
-          <Link className="is-primary" href="/browse?evidence=verified-sales">Browse verified prices</Link>
-          <Link className="is-live" href="#live-opportunities-heading">Explore live opportunities</Link>
-          <Link href="/identify">Identify a copy</Link>
+          <Link className="is-primary" href="/browse?evidence=verified-sales">Browse sold prices</Link>
+          <Link className="is-live" href="#live-opportunities-heading">See what&apos;s on sale now</Link>
+          <Link href="/identify">Is mine a first print?</Link>
         </div>
       </section>
 
       <section className="index-section market-evidence-section" aria-labelledby="market-evidence-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Start with evidence</p>
-            <h2 id="market-evidence-heading">Publications with verified prices</h2>
+            <p className="eyebrow">What copies actually sell for</p>
+            <h2 id="market-evidence-heading">Manga with real sold prices</h2>
           </div>
-          <span>{evidenceCount ?? pricedEditions.length} publication{(evidenceCount ?? pricedEditions.length) === 1 ? "" : "s"} with completed-sale evidence</span>
+          <span>{evidenceCount ?? pricedEditions.length} manga with confirmed sold prices</span>
         </div>
 
         {pricedEditions.length > 0 ? (
           <>
-            <p className="section-copy market-evidence-copy">Every sale links back to its original source. RAR only uses a sale in a valuation after its edition match has been verified. Publications with both a verified sale and a verified cover are shown first.</p>
+            <p className="section-copy market-evidence-copy">Every price here comes from a sale that actually completed, with a working link back to the original listing — never an asking price. A sale only counts once we have confirmed it was this exact edition.</p>
             <div className="manga-grid">
               {pricedEditions.map((item, index) => {
                 const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
@@ -366,7 +364,7 @@ export default async function Home() {
                 );
               })}
             </div>
-            <div className="index-section-action"><Link href="/browse?collection=best-documented">Browse the best-documented editions →</Link></div>
+            <div className="index-section-action"><Link href="/browse?collection=best-documented">See the manga we know most about →</Link></div>
           </>
         ) : (
           <div className="status-message">RAR is reviewing its first sale sources. Catalogue entries never receive a price until the source and edition match are confirmed.</div>
@@ -378,11 +376,11 @@ export default async function Home() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">First-print watch</p>
-              <h2 id="first-print-watch-heading">Proven first printings</h2>
+              <h2 id="first-print-watch-heading">First printings we can prove</h2>
             </div>
-            <span>{firstPrintCount ?? firstPrintWatch.length} publication{(firstPrintCount ?? firstPrintWatch.length) === 1 ? "" : "s"} currently {(firstPrintCount ?? firstPrintWatch.length) === 1 ? "has" : "have"} proven first-print evidence</span>
+            <span>{firstPrintCount ?? firstPrintWatch.length} manga with a proven first printing</span>
           </div>
-          <p className="section-copy">Every publication here has at least one sale with retained printing evidence or an SP-confirmed inspection, not a first-print claim inferred from a release date or the publication&apos;s own name. Open a publication to see exactly which sales qualify.</p>
+          <p className="section-copy">A first print is only claimed here when a real copy&apos;s printing line was actually checked — never guessed from a release date or from what the book calls itself. Open any one to see exactly which copy proved it.</p>
           <div className="manga-grid">
             {firstPrintWatch.map((item, index) => {
               const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
@@ -408,7 +406,7 @@ export default async function Home() {
               );
             })}
           </div>
-          <div className="index-section-action"><Link href="/browse?printing=first">Browse publications with first-print evidence →</Link></div>
+          <div className="index-section-action"><Link href="/browse?printing=first">See every proven first printing →</Link></div>
         </section>
       ) : null}
 
@@ -416,9 +414,9 @@ export default async function Home() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Recent activity</p>
-            <h2 id="recent-sales-heading">Recent verified sales</h2>
+            <h2 id="recent-sales-heading">Recently sold</h2>
           </div>
-          <span>Completed marketplace sales RAR has proven match an exact edition</span>
+          <span>Completed sales we have matched to an exact edition</span>
         </div>
 
         {recentSalesWithEdition.length ? (
@@ -444,7 +442,7 @@ export default async function Home() {
             ))}
           </div>
         ) : (
-          <div className="status-message">No verified sales have been recorded yet. Sales appear here only once RAR proves a listing matches an exact edition.</div>
+          <div className="status-message">No sales recorded yet. A sale only appears here once we have proven it was this exact edition.</div>
         )}
       </section>
 
@@ -452,11 +450,11 @@ export default async function Home() {
         <div className="section-heading live-listings-intro">
           <div>
             <p className="eyebrow">RAR Scout</p>
-            <h2 id="live-opportunities-heading">Live buying opportunities</h2>
+            <h2 id="live-opportunities-heading">On sale right now</h2>
           </div>
-          <span className="live-listings-status">Current listings, not completed sales</span>
+          <span className="live-listings-status">Listings you can still buy — not sold prices</span>
         </div>
-        <p className="section-copy">These are active eBay listings whose title clearly matches a catalogue edition. They are buying opportunities only and never affect RAR&apos;s verified-sale counts or market value.</p>
+        <p className="section-copy">Active eBay listings whose title clearly matches a manga in the catalogue. These are buying opportunities only — an asking price never counts as a sale and never moves a value on this site.</p>
         {liveOpportunities.length ? (
           <div className="live-listings-grid">
             {liveOpportunities.map(({ lead, edition }) => (
@@ -474,119 +472,32 @@ export default async function Home() {
           </div>
         ) : (
           <div className="live-listings-empty">
-            <strong>No current listings from RAR Scout</strong>
-            <p>Live opportunities appear here once Scout finds an active listing whose title clearly matches a catalogue edition and volume.</p>
+            <strong>Nothing on sale right now</strong>
+            <p>Listings appear here as soon as Scout finds an active one whose title clearly matches a manga and volume in the catalogue.</p>
           </div>
         )}
       </section>
 
-      <section className="index-section still-documenting-section" aria-labelledby="new-additions-heading">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Still being documented</p>
-            <h2 id="new-additions-heading">Recently added publications</h2>
-          </div>
-          <span>{count ?? manga.length} publication{(count ?? manga.length) === 1 ? "" : "s"} indexed</span>
+      {/* The homepage used to end in four more blocks — a "recently added"
+          grid of records with no cover and no sale, an eight-tile explore
+          wall, a three-step pathway list, and a slogan panel. Between them
+          they answered "what is this site" four different ways, which is
+          why first-time visitors could not answer it at all. One slim row
+          of destinations replaces the lot; nothing is orphaned, because
+          every page they linked to still has an entry here. */}
+      <section className="index-ways-in" aria-labelledby="ways-in-heading">
+        <h2 id="ways-in-heading" className="sr-only">More ways into the catalogue</h2>
+        <div className="index-ways-in-grid">
+          <Link href="/browse"><strong>Browse everything</strong><small>All {count ?? 0} manga in the catalogue</small></Link>
+          <Link href="/browse?collection=best-documented"><strong>Best documented</strong><small>{bestDocumentedCount} with a sold price and a confirmed cover</small></Link>
+          <Link href="/identify"><strong>Is mine a first print?</strong><small>Check your copy&apos;s printing line, step by step</small></Link>
+          <Link href="/request-edition"><strong>Missing something?</strong><small>Send us a manga to research and add</small></Link>
         </div>
-
-        {error ? (
-          <div className="status-message" role="alert">
-            We could not load the manga index right now. Please try again shortly.
-          </div>
-        ) : manga.length > 0 ? (
-          <>
-            <p className="section-copy">These are the newest publications, shown honestly: most do not have a verified sale or a verified cover yet. That evidence is added as RAR reviews it, never assumed.</p>
-            <div className="manga-grid">
-              {manga.slice(0, 3).map((item, index) => {
-                const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
-                return (
-                <Link className="manga-card" href={`/edition/${item.id}`} key={item.id}>
-                  <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
-                  <div className="card-body">
-                    <p className="card-kicker">{[item.collectible_type?.replaceAll("_", " "), item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ") || "Manga edition"}</p>
-                    <h3>{item.title || "Untitled manga"}</h3>
-                    <dl>
-                      <div>
-                        <dt>Series</dt>
-                        <dd>{item.series || "Not yet recorded"}</dd>
-                      </div>
-                      <div>
-                        <dt>Edition</dt>
-                        <dd>{editionDescriptor(item)}</dd>
-                      </div>
-                      <div>
-                        <dt>Publisher</dt>
-                        <dd>{publisherDisplayName(item.publisher)}</dd>
-                      </div>
-                    </dl>
-                    <small className="card-honest-note">{evidenceStatusLabel(item.cover_verification_status === "verified", verifiedSaleCount)}</small>
-                  </div>
-                </Link>
-                );
-              })}
-            </div>
-            <div className="index-section-action"><Link href="/browse">Browse the full catalogue →</Link></div>
-          </>
-        ) : (
-          <div className="status-message">
-            The index is ready for its first manga entries.
-          </div>
-        )}
-      </section>
-
-      <section className="index-explore" aria-labelledby="explore-index-heading">
-        <div className="section-intro">
-          <p className="eyebrow">Start with what you need</p>
-          <h2 id="explore-index-heading">Explore the archive</h2>
-          <p className="section-copy">Choose a useful starting point, then follow the original evidence behind every record.</p>
-        </div>
-        <div className="index-explore-grid">
-          <Link href="/browse"><span>Browse the archive</span><strong>All {count ?? manga.length} publications</strong><small>Search by title, publisher, language or ISBN.</small></Link>
-          <Link href="/browse?collection=best-documented"><span>Best documented</span><strong>{bestDocumentedCount} publication{bestDocumentedCount === 1 ? "" : "s"} with both</strong><small>A verified sale and a verified cover — RAR&apos;s strongest records.</small></Link>
-          <Link href="/browse?evidence=verified-sales"><span>Market evidence</span><strong>{evidenceCount ?? 0} publications with completed-sale evidence</strong><small>See only publications with confirmed matching sale evidence.</small></Link>
-          <Link href="/browse?printing=first"><span>Printing research</span><strong>{firstPrintCount ?? 0} publications with first-print evidence</strong><small>Check the specific sale and its linked proof before relying on a printing claim.</small></Link>
-          <a href="#recent-sales-heading"><span>Recent activity</span><strong>{recentSalesWithEdition.length} recent verified sale{recentSalesWithEdition.length === 1 ? "" : "s"}</strong><small>See the latest completed sales RAR has proven match an exact edition.</small></a>
-          <a href="#live-opportunities-heading"><span>RAR Scout</span><strong>{liveOpportunities.length} live buying opportunit{liveOpportunities.length === 1 ? "y" : "ies"}</strong><small>Active listings whose title clearly matches a catalogue edition.</small></a>
-          <a href="#new-additions-heading"><span>New research</span><strong>Recently documented editions</strong><small>See the newest records added to the growing catalogue.</small></a>
-          <Link href="/identify"><span>Get started</span><strong>Identify a copy</strong><small>Use the copyright page and identifiers before calling something a first print.</small></Link>
-        </div>
-      </section>
-
-      <section className="collector-pathways" aria-labelledby="collector-pathways-heading">
-        <div className="section-intro">
-          <p className="eyebrow">Start with the question</p>
-          <h2 id="collector-pathways-heading">Research with RAR</h2>
-          <p className="section-copy">A collector should be able to identify an item, understand the evidence, then decide what a recorded sale actually means.</p>
-        </div>
-        <div className="collector-pathway-list">
-          <Link href="/identify">
-            <span>01</span>
-            <div><strong>Identify a copy</strong><p>Use the copyright page and identifiers before calling something a first print.</p></div>
-            <b>→</b>
-          </Link>
-          <Link href="/browse">
-            <span>02</span>
-            <div><strong>Browse verified editions</strong><p>Search the growing catalogue by title, language, publisher, ISBN, or collectible type.</p></div>
-            <b>→</b>
-          </Link>
-          <Link href="/request-edition">
-            <span>03</span>
-            <div><strong>Request a missing edition</strong><p>Send RAR a sourced lead for review. A request never becomes a record automatically.</p></div>
-            <b>→</b>
-          </Link>
-        </div>
-      </section>
-
-      <section className="principle-section">
-        <p className="eyebrow">Built for collectors</p>
-        <p>
-          Database first. Price history next. Intelligence on top.
-        </p>
       </section>
 
       <footer>
         <span>RAR Index</span>
-        <span>Collectible intelligence, beginning with manga.</span>
+        <span>Real sold prices and printing research, for manga collectors.</span>
       </footer>
     </main>
     </MarketCurrencyProvider>
