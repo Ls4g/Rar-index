@@ -31,8 +31,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The bootstrap script stamps data-theme on <html> before React hydrates,
+  // which is the whole point of it — so the server markup deliberately does
+  // not match the client on that one attribute, and React should not warn
+  // about the difference it was always going to find.
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
       </head>
