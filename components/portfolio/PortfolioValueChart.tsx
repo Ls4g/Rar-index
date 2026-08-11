@@ -122,12 +122,13 @@ export default function PortfolioValueChart({ snapshots, currency, rangePhrase }
   const values = valued.map((point) => point.total_evidence_value as number);
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
-  // Padded around the real range rather than forced to zero, so genuine
-  // movement is visible rather than pressed flat against the top of the
-  // plot. Both ends are labelled, so the scale is never implied.
-  const span = rawMax - rawMin || Math.max(rawMax * 0.02, 1);
-  const min = rawMin - span * 0.25;
-  const max = rawMax + span * 0.25;
+  // Baselined at zero, which is the whole point of it. Padding the axis
+  // around the observed range instead made a 2.4% dip on £1,672 fall off a
+  // cliff -- technically scaled, but it reads as a crash. A portfolio that
+  // barely moved should look like a portfolio that barely moved, and the
+  // exact figures are on the axis and in the tooltip either way.
+  const min = 0;
+  const max = rawMax > 0 ? rawMax * 1.12 : 1;
   const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = PADDING_TOP + plotHeight;
@@ -135,7 +136,16 @@ export default function PortfolioValueChart({ snapshots, currency, rangePhrase }
   const yFor = (value: number) => PADDING_TOP + ((max - value) / (max - min)) * plotHeight;
 
   const linePath = valued.map((point, index) => `${index ? "L" : "M"} ${xFor(index)} ${yFor(point.total_evidence_value as number)}`).join(" ");
+  // Filled down to the zero baseline: with a true scale the line sits high
+  // and nearly flat, and an unfilled stroke up there reads as a stray rule
+  // rather than as the size of the portfolio.
+  const areaPath = `M ${xFor(0)} ${baselineY} ${valued.map((point, index) => `L ${xFor(index)} ${yFor(point.total_evidence_value as number)}`).join(" ")} L ${xFor(valued.length - 1)} ${baselineY} Z`;
   const sameDayRange = valued[0].snapshot_at.slice(0, 10) === valued[valued.length - 1].snapshot_at.slice(0, 10);
+  // High and low collapse into one line on a zero-based axis whenever the
+  // movement is small, so the low is only labelled when it can be read.
+  const maxLabelY = yFor(rawMax);
+  const minLabelY = yFor(rawMin);
+  const showMinLabel = minLabelY - maxLabelY > 26;
 
   function updateActiveFromClientX(clientX: number, wrap: HTMLDivElement) {
     const rect = wrap.getBoundingClientRect();
@@ -225,11 +235,13 @@ export default function PortfolioValueChart({ snapshots, currency, rangePhrase }
         <svg className="portfolio-chart-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
           <line className="portfolio-chart-axis" x1={PADDING_LEFT} x2={PADDING_LEFT} y1={PADDING_TOP - 8} y2={baselineY} />
           <line className="portfolio-chart-axis" x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={baselineY} y2={baselineY} />
+          <path d={areaPath} className="portfolio-chart-area" />
           <path d={linePath} className="portfolio-chart-line" fill="none" />
           <line className="portfolio-chart-active-guide" x1={activeX} x2={activeX} y1={PADDING_TOP} y2={baselineY} />
           <circle className="portfolio-chart-point is-active" cx={activeX} cy={activeY} r={5} />
-          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={yFor(rawMax) - 8}>{formatPrice(rawMax, currency)}</text>
-          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={yFor(rawMin) + 16}>{formatPrice(rawMin, currency)}</text>
+          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={maxLabelY - 8}>{formatPrice(rawMax, currency)}</text>
+          {showMinLabel ? <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={minLabelY + 16}>{formatPrice(rawMin, currency)}</text> : null}
+          <text className="portfolio-chart-axis-value" x={PADDING_LEFT + 6} y={baselineY - 7}>{formatPrice(0, currency)}</text>
           <text x={PADDING_LEFT} y={HEIGHT - 12}>{formatAxisLabel(valued[0].snapshot_at, sameDayRange)}</text>
           {sameDayRange ? <text x={WIDTH / 2} y={HEIGHT - 12} textAnchor="middle">{formatSnapshotDate(valued[0].snapshot_at)}</text> : null}
           <text x={WIDTH - PADDING_RIGHT} y={HEIGHT - 12} textAnchor="end">{formatAxisLabel(valued[valued.length - 1].snapshot_at, sameDayRange)}</text>

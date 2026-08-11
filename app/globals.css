@@ -860,6 +860,7 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 /* The value line itself carries the shape of the portfolio, so it is
    flattened to a flat opacity rather than left legible behind a blur. */
 .portfolio-values-hidden .portfolio-chart-line { opacity: .18; }
+.portfolio-values-hidden .portfolio-chart-area { opacity: .05; }
 .portfolio-add-cta-secondary { border: 1px solid var(--line); background: transparent; color: var(--accent-label-text); }
 .portfolio-add-cta-secondary:hover { border-color: var(--red); background: transparent; color: var(--red); }
 
@@ -922,6 +923,9 @@ a.coverage-badge:hover { filter: brightness(0.96); }
    as numbers in the summary above instead. */
 .portfolio-chart-axis { stroke: var(--canvas-heading); stroke-width: 1.5; opacity: .55; }
 .portfolio-chart-line { stroke: var(--accent-positive-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+/* Fills the value down to the zero baseline so the chart reads as a
+   quantity rather than as a stroke floating near the top of the plot. */
+.portfolio-chart-area { fill: var(--accent-positive-text); opacity: .13; stroke: none; }
 .portfolio-chart-active-guide { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
 .portfolio-chart-point.is-active { fill: var(--accent-positive-text); }
 .portfolio-chart-svg text { fill: var(--muted); font-size: 11px; }
