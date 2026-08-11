@@ -556,6 +556,45 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
    together with no gap or line break — force this one onto its own line. */
 .cover-review-sale-count { display: block; margin-top: .2rem; }
 .cover-review-focused-section .review-card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.cover-candidate-finder { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2rem; margin: 0 0 1.5rem; padding: 1.4rem; border: 1px solid rgba(38, 102, 160, .35); background: rgba(38, 102, 160, .07); }
+.cover-candidate-finder h2 { margin: .15rem 0 .35rem; font-size: 1.55rem; }
+.cover-candidate-finder p { margin: 0; color: var(--muted); max-width: 48rem; }
+.cover-candidate-finder button, .cover-candidate-actions button { border: 0; border-radius: .25rem; background: #245d8f; color: #fff; padding: .75rem 1rem; font: inherit; font-size: .75rem; font-weight: 750; cursor: pointer; }
+.cover-candidate-finder button:disabled, .cover-candidate-actions button:disabled { cursor: wait; opacity: .55; }
+.cover-candidate-finder > div:last-child { display: grid; gap: .55rem; justify-items: end; }
+.cover-candidate-finder > div:last-child p { max-width: 24rem; text-align: right; font-size: .74rem; }
+.cover-review-operator { display: flex; align-items: end; gap: 1rem; margin-bottom: 2.25rem; padding: 1rem 1.2rem; border: 1px solid var(--line); background: #fbf9f3; }
+.cover-review-operator label { display: grid; gap: .4rem; min-width: 16rem; color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.cover-review-operator input { min-height: 2.7rem; border: 1px solid var(--line); background: #fff; padding: .65rem .75rem; color: var(--ink); font: inherit; text-transform: none; letter-spacing: normal; }
+.cover-review-operator p { margin: 0 0 .65rem; color: var(--muted); font-size: .76rem; }
+.cover-candidate-results { display: grid; gap: .9rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.cover-candidate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .8rem; }
+.cover-candidate-card { display: grid; grid-template-columns: 106px minmax(0, 1fr); gap: 1rem; padding: .9rem; border: 1px solid rgba(38, 102, 160, .28); background: rgba(38, 102, 160, .045); }
+.cover-candidate-image { display: grid; place-items: center; min-height: 150px; background: #fff; border: 1px solid var(--line); }
+.cover-candidate-image img { display: block; width: 100%; max-height: 170px; object-fit: contain; }
+.cover-candidate-copy { min-width: 0; }
+.cover-candidate-topline { display: flex; justify-content: space-between; gap: .5rem; color: #245d8f; font-size: .62rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.cover-candidate-copy h4 { margin: .45rem 0 .2rem; font-size: 1rem; }
+.cover-candidate-copy > p { margin: 0; color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.cover-candidate-copy ul { margin: .55rem 0; padding-left: 1rem; color: var(--muted); font-size: .7rem; }
+.cover-candidate-copy > a { color: #245d8f; font-size: .72rem; font-weight: 700; }
+.cover-candidate-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.cover-candidate-actions button { padding: .58rem .72rem; font-size: .68rem; }
+.cover-candidate-actions .secondary-action { border: 1px solid var(--line); background: transparent; color: var(--ink); }
+.cover-candidate-message { margin-top: .55rem !important; color: var(--ink) !important; }
+.cover-candidate-empty { margin: 1rem 0 0; color: var(--muted); font-size: .75rem; }
+.cover-manual-review { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .9rem; }
+.cover-manual-review > summary { color: var(--gold); cursor: pointer; font-size: .7rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.cover-manual-review .review-decision { margin-top: .9rem; }
+@media (max-width: 700px) {
+  .cover-candidate-finder { grid-template-columns: 1fr; gap: 1rem; }
+  .cover-candidate-finder > div:last-child { justify-items: stretch; }
+  .cover-candidate-finder > div:last-child p { max-width: none; text-align: left; }
+  .cover-review-operator { align-items: stretch; flex-direction: column; }
+  .cover-review-operator label { min-width: 0; }
+  .cover-candidate-card { grid-template-columns: 84px minmax(0, 1fr); }
+  .cover-candidate-image { min-height: 125px; }
+}
 .catalogue-content { max-width: 1120px; margin: auto; padding: 4.5rem 1.5rem 5.5rem; }
 .catalogue-import-form { display: grid; grid-template-columns: minmax(220px, .5fr) minmax(260px, 1fr); gap: 1rem; padding: 1.3rem; border: 1px solid var(--line); background: #fbf9f3; }
 .catalogue-import-form label { display: grid; gap: .42rem; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }

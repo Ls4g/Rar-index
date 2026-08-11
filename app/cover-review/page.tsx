@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import CoverReviewClient, { type CoverQueueRow } from "@/components/CoverReviewClient";
+import CoverReviewClient, { type CoverCandidateRow, type CoverQueueRow } from "@/components/CoverReviewClient";
 import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,22 @@ type EditionRow = {
   cover_verification_status: CoverQueueRow["coverStatus"];
   cover_verified_at: string | null;
   printing_of_edition_id: string | null;
+};
+
+type CandidateRow = {
+  id: string;
+  edition_id: string;
+  source_name: string;
+  cover_image_url: string;
+  source_record_url: string;
+  candidate_title: string | null;
+  candidate_publisher: string | null;
+  candidate_language: string | null;
+  candidate_isbn_13: string | null;
+  match_score: number;
+  match_confidence: CoverCandidateRow["matchConfidence"];
+  match_reasons: string[] | null;
+  discovered_at: string;
 };
 
 function mapQueueRow(row: QueueRow): CoverQueueRow {
@@ -126,6 +142,33 @@ export default async function CoverReviewPage({
     })
     : null;
 
+  const editionIds = [...new Set([...queueRows.map((row) => row.editionId), ...(focusedRow ? [focusedRow.editionId] : [])])];
+  const { data: candidateData } = editionIds.length
+    ? await admin
+      .from("cover_candidates")
+      .select("id,edition_id,source_name,cover_image_url,source_record_url,candidate_title,candidate_publisher,candidate_language,candidate_isbn_13,match_score,match_confidence,match_reasons,discovered_at")
+      .in("edition_id", editionIds)
+      .eq("status", "pending")
+      .order("match_score", { ascending: false })
+      .order("discovered_at", { ascending: false })
+    : { data: [] };
+
+  const candidates: CoverCandidateRow[] = ((candidateData ?? []) as CandidateRow[]).map((candidate) => ({
+    id: candidate.id,
+    editionId: candidate.edition_id,
+    sourceName: candidate.source_name,
+    coverImageUrl: candidate.cover_image_url,
+    sourceRecordUrl: candidate.source_record_url,
+    candidateTitle: candidate.candidate_title,
+    candidatePublisher: candidate.candidate_publisher,
+    candidateLanguage: candidate.candidate_language,
+    candidateIsbn13: candidate.candidate_isbn_13,
+    matchScore: candidate.match_score,
+    matchConfidence: candidate.match_confidence,
+    matchReasons: candidate.match_reasons ?? [],
+    discoveredAt: candidate.discovered_at,
+  }));
+
   return (
     <main className="review-page catalogue-page">
       <header className="site-header">
@@ -144,7 +187,7 @@ export default async function CoverReviewPage({
         <div className="queue-total"><strong>{queueRows.length}</strong><span>editions without a verified cover</span></div>
       </section>
       <section className="catalogue-content">
-        <CoverReviewClient rows={queueRows} focusedRow={focusedRow} />
+        <CoverReviewClient rows={queueRows} focusedRow={focusedRow} candidates={candidates} />
       </section>
     </main>
   );
