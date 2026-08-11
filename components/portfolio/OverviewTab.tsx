@@ -36,10 +36,11 @@ export default function OverviewTab({ holdings, metricsByEdition, rates, snapsho
     () => computeHoldingMarketValues(holdings, metricsByEdition, rates, currency, today),
     [holdings, metricsByEdition, rates, currency, today],
   );
-  const chartSnapshots = useMemo(() => {
+  const shownSnapshots = useMemo(() => {
     const cutoff = chartRangeCutoff(range);
     if (cutoff === null) return snapshots;
-    return snapshots.filter((snapshot) => new Date(snapshot.snapshot_at).getTime() >= cutoff);
+    const withinRange = snapshots.filter((snapshot) => new Date(snapshot.snapshot_at).getTime() >= cutoff);
+    return withinRange.length ? withinRange : snapshots;
   }, [snapshots, range]);
 
   return (
@@ -54,11 +55,13 @@ export default function OverviewTab({ holdings, metricsByEdition, rates, snapsho
           </div>
           <ChartRangeSelector label="Portfolio value time range" onChange={setRange} value={range} />
         </div>
-        {/* Same fallback rule as the Performance tab: a window with nothing
-            in it shows the full history rather than the "tracking starts
-            today" state, which would be untrue of a portfolio whose history
-            simply sits outside the chosen window. */}
-        <PortfolioValueChart currency={currency} rangePhrase={chartRange(chartSnapshots.length ? range : "MAX").phrase} snapshots={chartSnapshots.length ? chartSnapshots : snapshots} />
+        {/* Two rules, both about never letting the button describe the data.
+            A window with nothing in it shows the full history rather than
+            the "tracking starts today" state; and a window that turned out
+            to contain everything is labelled as the full history too, so
+            pressing 1M on a portfolio three hours old does not claim a
+            month of it. */}
+        <PortfolioValueChart currency={currency} rangePhrase={chartRange(shownSnapshots.length === snapshots.length ? "MAX" : range).phrase} snapshots={shownSnapshots} />
       </div>
 
       <MostValuableHoldings currency={currency} holdings={holdings} marketTotal={summary.marketTotal} values={holdingValues} />

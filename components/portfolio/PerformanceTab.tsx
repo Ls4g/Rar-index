@@ -31,7 +31,11 @@ export default function PerformanceTab({ snapshots }: PerformanceTabProps) {
   // has history just outside the selected window.
   const usingFallback = snapshots.length > 0 && filtered.length === 0;
   const chartSnapshots = usingFallback ? snapshots : filtered;
-  const rangePhrase = usingFallback ? chartRange("MAX").phrase : meta.phrase;
+  // A window that turned out to hold every snapshot there is describes
+  // itself as the full history, not as the window. Otherwise a portfolio
+  // whose whole history is one evening reads "the last year" on 1Y.
+  const showingEverything = chartSnapshots.length === snapshots.length;
+  const rangePhrase = chartRange(showingEverything ? "MAX" : range).phrase;
 
   return (
     <section aria-labelledby="portfolio-tab-performance" className="portfolio-performance" id="portfolio-panel-performance" role="tabpanel">

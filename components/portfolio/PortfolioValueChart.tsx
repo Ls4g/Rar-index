@@ -172,6 +172,13 @@ export default function PortfolioValueChart({ snapshots, currency, rangePhrase }
   const firstValue = valued[0].total_evidence_value as number;
   const lastValue = valued[valued.length - 1].total_evidence_value as number;
   const changeAmount = lastValue - firstValue;
+  // The period comes from the snapshots actually plotted, never from the
+  // range button. A portfolio whose whole history is one evening was
+  // reporting "-£39.65 over the last year" on the 1Y button, because the
+  // window contained all of it -- true of the filter, false of the data.
+  const changePeriod = sameDayRange
+    ? `on ${formatSnapshotDate(valued[0].snapshot_at)}`
+    : `since ${formatSnapshotDate(valued[0].snapshot_at)}`;
   // A percentage off a zero starting value is not meaningful, so the amount
   // stands alone in that case rather than reporting an infinite gain.
   const rangeChange = changeAmount === 0 ? null : {
@@ -202,7 +209,7 @@ export default function PortfolioValueChart({ snapshots, currency, rangePhrase }
         <p className={`portfolio-chart-change ${rangeChange.amount >= 0 ? "is-positive" : "is-negative"}`}>
           <strong>{rangeChange.amount >= 0 ? "+" : "−"}{formatPrice(Math.abs(rangeChange.amount), currency)}</strong>
           {rangeChange.percent !== null ? <span>({rangeChange.amount >= 0 ? "+" : "−"}{Math.abs(rangeChange.percent).toFixed(1)}%)</span> : null}
-          <em>over {rangePhrase}</em>
+          <em>{changePeriod}</em>
         </p>
       ) : null}
       <div
