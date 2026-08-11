@@ -92,14 +92,33 @@ export default async function Home() {
   // Best-documented first: a verified cover alongside a verified sale is
   // what actually makes a record useful to a collector browsing right now,
   // so it outranks a higher sale count with no confirmed cover art.
-  const pricedEditions = ((allCatalogue ?? []) as Manga[])
+  const pricedRanked = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) > 0)
     .sort((a, b) => {
       const coverRank = Number(b.cover_verification_status === "verified") - Number(a.cover_verification_status === "verified");
       if (coverRank !== 0) return coverRank;
       return (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0);
-    })
-    .slice(0, 6);
+    });
+  // Evidence clusters on a handful of series, and the same volume is often
+  // catalogued in two languages -- so a straight top-six filled six slots
+  // with four series, showing Black Clover and Jujutsu Kaisen twice each.
+  // Take the strongest edition per series first, then backfill from what is
+  // left if there are fewer series than slots. This changes which of RAR's
+  // priced publications are shown, never how many exist: the count beside
+  // the heading still comes straight from the evidence table.
+  const HOMEPAGE_PRICED_SLOTS = 6;
+  const seriesKey = (edition: Manga) => (edition.series || edition.title || String(edition.id)).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const seenSeries = new Set<string>();
+  const oneEachSeries = pricedRanked.filter((edition) => {
+    const key = seriesKey(edition);
+    if (seenSeries.has(key)) return false;
+    seenSeries.add(key);
+    return true;
+  });
+  const pricedEditions = [
+    ...oneEachSeries,
+    ...pricedRanked.filter((edition) => !oneEachSeries.includes(edition)),
+  ].slice(0, HOMEPAGE_PRICED_SLOTS);
   const bestDocumentedCount = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) > 0 && edition.cover_verification_status === "verified")
     .length;
