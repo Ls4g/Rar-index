@@ -1189,18 +1189,27 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
    grid, not a deliberate break. */
 .market-evidence-section { padding-top: 2.5rem; padding-bottom: 3.5rem; }
 .market-evidence-copy { margin: -0.45rem 0 1.45rem; }
+/* These cards used to carry a "Verified source" pill pinned to the card's
+   top-right, with 7rem reserved on the kicker to clear it. Once cards
+   showed a full 2:3 cover the body narrowed to ~178px, so that reservation
+   left roughly 22px for text and "5 verified sales · Vol. 1 · Japanese"
+   stacked over five lines.
+   The pill is gone rather than merely reshuffled: it sat in a section
+   headed "Publications with verified prices", on cards whose own kicker
+   already reads "N verified sales". It was true of every card here, so it
+   distinguished nothing while costing most of the text column. */
 .priced-edition-card { position: relative; }
-.priced-edition-card::after { content: "Verified source"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid #d8c494; border-radius: 999px; background: #fff9eb; color: #72531a; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.priced-edition-card .card-kicker { padding-right: 7rem; line-height: 1.35; }
+.priced-edition-card .card-kicker { line-height: 1.35; }
 /* A distinct thematic colour per homepage section, so a collector can tell
    "strongest evidence," "first-print proof" and "still cataloguing" apart
    at a glance, not just by reading the heading text. */
 .market-evidence-section .eyebrow { color: var(--verified); }
 .first-print-watch-section .eyebrow { color: var(--orange); }
 .still-documenting-section .eyebrow { color: var(--pending); }
+/* Same problem, same reasoning: a "1st print" pill reserving 6rem of a
+   178px column, on cards inside a section already headed "Proven first
+   printings". */
 .first-print-card { position: relative; }
-.first-print-card::after { content: "1st print"; position: absolute; top: .85rem; right: .85rem; padding: .32rem .5rem; border: 1px solid rgba(201,105,44,.4); border-radius: 999px; background: rgba(201,105,44,.12); color: var(--orange-dark); font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.first-print-card .card-kicker { padding-right: 6rem; }
 .card-honest-note { display: block; margin-top: .6rem; color: var(--muted); font-size: .68rem; font-style: italic; line-height: 1.4; }
 .still-documenting-section { padding-top: 3.5rem; border-top: 1px dashed var(--line); }
 .index-explore { width: min(100% - 4rem, 1320px); margin: 0 auto 5.5rem; padding-top: 3.5rem; border-top: 1px solid #dfd6c6; }

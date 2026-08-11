@@ -158,6 +158,11 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
     chartReady: rows.filter((row) => row.comparableSaleCount >= 3).length,
     withVerifiedCover: rows.filter((row) => row.coverStatus === "verified").length,
     missingBoth: rows.filter((row) => row.verifiedSaleCount === 0 && row.coverStatus !== "verified").length,
+    // Every other tile counts publications, so counting them here too made
+    // the label "Live Scout leads waiting" read as a lead total and
+    // disagree with the Scout inbox by an order of magnitude. Report the
+    // real number of leads, and say how many publications they span.
+    pendingLeads: rows.reduce((total, row) => total + row.pendingLeadCount, 0),
     withPendingLeads: rows.filter((row) => row.pendingLeadCount > 0).length,
   }), [rows]);
 
@@ -199,7 +204,7 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
         <div><span>{counts.chartReady}</span><strong>Chart-ready (3+ comparable)</strong><p>3+ verified sales in the same raw/graded group.</p></div>
         <div><span>{counts.withVerifiedCover}</span><strong>With a verified cover</strong><p>Cover art confirmed against a publisher or licensed catalogue record.</p></div>
         <div><span>{counts.missingBoth}</span><strong>Missing sales AND cover</strong><p>Weakest public pages — no market evidence, no confirmed cover.</p></div>
-        <div><span>{counts.withPendingLeads}</span><strong>Live Scout leads waiting</strong><p>New listing leads not yet reviewed by staff.</p></div>
+        <div><span>{counts.pendingLeads}</span><strong>Live Scout leads waiting</strong><p>New listing leads not yet reviewed by staff, across {counts.withPendingLeads} publication{counts.withPendingLeads === 1 ? "" : "s"}.</p></div>
       </div>
 
       <section className="review-list-section coverage-target-sprint">
