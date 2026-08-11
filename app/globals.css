@@ -108,7 +108,9 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 .search-result { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: .8rem; align-items: center; padding: .75rem 1rem; border-top: 1px solid rgba(244,240,232,.14); }
 .search-result:hover { background: rgba(244,240,232,.08); }
 
-.hero-entry-points { display: flex; flex-wrap: wrap; justify-content: center; gap: .65rem; margin-top: 1.35rem; }
+/* Sits below the shelf now, so it needs its own breathing room and page
+   padding rather than inheriting the hero-content column. */
+.hero-entry-points { position: relative; z-index: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: .65rem; margin: 0 auto; padding: 0 1.5rem 3.25rem; }
 .hero-entry-points a { padding: .68rem 1.05rem; border: 1px solid rgba(244,240,232,.22); border-radius: 999px; color: rgba(244,240,232,.88); font-size: .74rem; font-weight: 700; letter-spacing: .03em; transition: border-color .18s ease, background .18s ease, color .18s ease; }
 .hero-entry-points a:hover { border-color: var(--gold-light); background: rgba(244,240,232,.08); }
 .hero-entry-points a.is-primary { border-color: var(--red); background: var(--red); color: #fff; }
@@ -119,20 +121,23 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 /* Collector's shelf: verified covers arranged like books on a shelf, browsed
    manually (no autoplay). Books tilt slightly and the selected one lifts
    and squares up, echoing a shelf without any 3D engine or heavy animation. */
-.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 1.5rem; }
-.collector-shelf-heading { max-width: 960px; margin: 0 auto 1.25rem; padding: 0 2rem; text-align: center; }
+.collector-shelf-section { position: relative; z-index: 1; padding: 0 0 1.25rem; }
+.collector-shelf-heading { max-width: 960px; margin: 0 auto .75rem; padding: 0 2rem; text-align: center; }
 .collector-shelf-heading p { margin: 0; color: rgba(244,240,232,.6); font-size: .82rem; }
 /* overflow-x stays functional (wheel/touch/drag scroll, plus the
    scrollIntoView the component uses to bring a selected cover into view) —
    only the native scrollbar chrome is hidden, across engines. */
-.collector-shelf-track { display: flex; align-items: flex-end; gap: 0; max-width: 1320px; margin: 0 auto; padding: 2.25rem 2.5rem 3rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; background-image: linear-gradient(rgba(244,240,232,.16), rgba(244,240,232,.16)); background-repeat: no-repeat; background-size: 100% 3px; background-position: 0 bottom 2.85rem; }
+.collector-shelf-track { display: flex; align-items: flex-end; gap: 0; max-width: 1320px; margin: 0 auto; padding: 2.9rem 2.5rem 3rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; background-image: linear-gradient(rgba(244,240,232,.16), rgba(244,240,232,.16)); background-repeat: no-repeat; background-size: 100% 3px; background-position: 0 bottom 2.85rem; }
 .collector-shelf-track::-webkit-scrollbar { display: none; height: 0; }
-.collector-shelf-item { flex: 0 0 auto; width: 144px; margin-left: -14px; border: 0; padding: 0; background: transparent; cursor: pointer; scroll-snap-align: center; transform: rotate(var(--shelf-tilt, 0deg)); transition: transform .22s ease, filter .22s ease; filter: brightness(.88); }
+/* 144px read as a thumbnail strip. At 210px a cover is an object you look
+   at rather than an entry you scan past -- fewer visible at once, which is
+   the point. */
+.collector-shelf-item { flex: 0 0 auto; width: 210px; margin-left: -20px; border: 0; padding: 0; background: transparent; cursor: pointer; scroll-snap-align: center; transform: rotate(var(--shelf-tilt, 0deg)); transition: transform .22s ease, filter .22s ease; filter: brightness(.86); }
 .collector-shelf-item:first-child { margin-left: 0; }
-.collector-shelf-item:hover { filter: brightness(1); transform: translateY(-8px) rotate(0deg); z-index: 2; }
-.collector-shelf-item.is-active { filter: brightness(1); transform: translateY(-22px) rotate(0deg) scale(1.1); z-index: 3; }
+.collector-shelf-item:hover { filter: brightness(1); transform: translateY(-10px) rotate(0deg); z-index: 2; }
+.collector-shelf-item.is-active { filter: brightness(1); transform: translateY(-26px) rotate(0deg) scale(1.08); z-index: 3; }
 .collector-shelf-item:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 4px; filter: brightness(1); }
-.collector-shelf-cover { width: 144px; aspect-ratio: 2 / 3; border-radius: .35rem; overflow: hidden; box-shadow: 0 14px 28px rgba(0,0,0,.42); }
+.collector-shelf-cover { width: 210px; aspect-ratio: 2 / 3; border-radius: .35rem; overflow: hidden; box-shadow: 0 18px 34px rgba(0,0,0,.46); }
 .collector-shelf-item.is-active .collector-shelf-cover { box-shadow: 0 22px 40px rgba(0,0,0,.5), 0 0 0 3px var(--red); }
 .collector-shelf-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: -.5rem; }
 .collector-shelf-nav { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgba(244,240,232,.28); border-radius: 50%; background: rgba(244,240,232,.06); color: var(--paper); cursor: pointer; font-size: 1.05rem; line-height: 1; transition: background .18s ease, border-color .18s ease; }
@@ -154,15 +159,32 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
   .price-chart-point, .chart-tooltip { transition: none; }
 }
 @media (max-width: 700px) {
-  .collector-shelf-track { padding: 1.5rem 1.25rem 2rem; background-position: 0 bottom 1.85rem; }
-  .collector-shelf-item { width: 108px; margin-left: -10px; }
-  .collector-shelf-item.is-active { transform: translateY(-14px) rotate(0deg) scale(1.08); }
-  .collector-shelf-cover { width: 108px; }
+  .collector-shelf-track { padding: 1.75rem 1.25rem 2.25rem; background-position: 0 bottom 2.1rem; }
+  .collector-shelf-item { width: 150px; margin-left: -14px; }
+  .collector-shelf-item.is-active { transform: translateY(-16px) rotate(0deg) scale(1.06); }
+  .collector-shelf-cover { width: 150px; }
   .collector-shelf-detail { flex-direction: column; align-items: stretch; }
   .collector-shelf-detail-evidence { justify-content: space-between; }
 }
 .edition-cover { position: relative; overflow: hidden; background: linear-gradient(150deg, #2c2924, #4a453c); }
 .edition-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Real artwork gets a printed-object edge: a warm hairline plus a hint of
+   depth down the spine side, so a cover reads as a book rather than an
+   image in a cell. Deliberately scoped to .has-image -- giving a
+   placeholder the same treatment would dress up a cover RAR does not have,
+   which is exactly what the fallback exists to avoid. Drawn as an inset
+   shadow because these covers sit flush in their card column, where an
+   outer shadow would simply be clipped. */
+.edition-cover.has-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(244,226,190,.22),
+    inset 7px 0 12px -8px rgba(0,0,0,.55),
+    inset -1px 0 0 rgba(0,0,0,.25);
+}
 /* Archive-card fallback: a record without a confirmed cover should read as
    "not yet documented," not "broken." Missing is a restrained neutral grey;
    candidate ("under review") is amber; rejected is a muted red — the same

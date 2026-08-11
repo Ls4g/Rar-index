@@ -288,22 +288,26 @@ export default async function Home() {
             market history and collector knowledge.
           </p>
           <MangaSearch />
-          <div className="hero-entry-points">
-            <Link className="is-primary" href="/browse?evidence=verified-sales">Browse verified prices</Link>
-            <Link className="is-live" href="#live-opportunities-heading">Explore live opportunities</Link>
-            <Link href="/identify">Identify a copy</Link>
-          </div>
         </div>
 
+        {/* The shelf is the most collector-ish thing on the page, so it now
+            follows the search directly instead of sitting behind another
+            block of navigation. The entry points move below it: they are
+            wayfinding, and do not need to precede the collection itself. */}
         {shelfEditions.length ? (
           <div className="collector-shelf-section">
             <div className="collector-shelf-heading">
               <p className="eyebrow">The collector&apos;s shelf</p>
-              <p>Verified covers only. Select one to see its evidence — nothing here plays or scrolls on its own.</p>
             </div>
             <CollectorShelf editions={shelfEditions} rates={homepageFxRates} />
           </div>
         ) : null}
+
+        <div className="hero-entry-points">
+          <Link className="is-primary" href="/browse?evidence=verified-sales">Browse verified prices</Link>
+          <Link className="is-live" href="#live-opportunities-heading">Explore live opportunities</Link>
+          <Link href="/identify">Identify a copy</Link>
+        </div>
       </section>
 
       <section className="index-section market-evidence-section" aria-labelledby="market-evidence-heading">
