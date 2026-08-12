@@ -241,8 +241,12 @@ covers.
 
 ## Order of work
 
-1. Migration — `magazine_titles`, the five columns, both partial unique
-   indexes, the extended review guard, MADB in `sources`.
+1. **Shipped 12 Aug 2026** — `20260816_zasshi_identity_model.sql`:
+   `magazine_titles`, the five columns, both partial unique indexes, the
+   extended review guard, MADB in `sources`. Applied live and verified by
+   `scripts/test-zasshi-constraints.mjs` (20 assertions against real Weekly
+   Shonen Jump data, all rows torn down). The catalogue still holds zero
+   magazine records — the model exists, nothing has been catalogued into it.
 2. MADB import script → `catalogue_import_queue`. Weekly Shonen Jump only.
    Validate against real issues before it touches the queue.
 3. `magazine_issue_contents` and the edition-page display.
