@@ -23,6 +23,7 @@ import HoldingModal from "@/components/portfolio/HoldingModal";
 import { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
 import { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
 import CollectorUsernameControl from "@/components/portfolio/CollectorUsernameControl";
+import type { CatalogueVolume } from "@/lib/seriesCompletion";
 
 const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
@@ -37,6 +38,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PortfolioTabKey>("overview");
   const [valuesHidden, setValuesHidden] = useState(false);
+  const [seriesCatalogue, setSeriesCatalogue] = useState<CatalogueVolume[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [metrics, setMetrics] = useState<SummaryMetric[]>([]);
   const [otherSaleCounts, setOtherSaleCounts] = useState<Map<string, number>>(new Map());
@@ -103,6 +105,29 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       setLoading(false);
       return;
     }
+    // Every catalogued volume of the series this collector has started, so
+    // "you own 3 of 7" can be counted. Scoped to their own series rather than
+    // the whole catalogue: it is the only part that can tell them anything,
+    // and it keeps the query small as the catalogue grows.
+    const ownedSeries = [...new Set(nextHoldings.map((holding) => holding.edition?.series).filter((series): series is string => Boolean(series)))];
+    const { data: seriesData } = ownedSeries.length
+      ? await supabase
+        .from("manga_editions")
+        .select("id,title,series,volume_number,language,cover_image_url,cover_verification_status")
+        .in("series", ownedSeries)
+        .eq("is_verified", true)
+        .eq("record_kind", "publication")
+      : { data: [] };
+    setSeriesCatalogue(((seriesData ?? []) as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_image_url: string | null; cover_verification_status: string | null }>).map((row) => ({
+      id: row.id,
+      title: row.title,
+      series: row.series,
+      volumeNumber: row.volume_number,
+      language: row.language,
+      coverImageUrl: row.cover_image_url,
+      coverStatus: row.cover_verification_status,
+    })));
+
     const publicationIds = [...new Set(nextHoldings.map((holding) => holding.edition?.printing_of_edition_id ?? holding.edition_id))];
     const { data: childrenData } = await supabase.from("manga_editions").select("id,printing_of_edition_id").in("printing_of_edition_id", publicationIds);
     const children = (childrenData ?? []) as Array<{ id: string; printing_of_edition_id: string | null }>;
@@ -371,6 +396,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
               rates={rates}
               recentHoldings={recentHoldingsActivity}
               recentSales={recentSales}
+              seriesCatalogue={seriesCatalogue}
               snapshots={snapshots}
             />
           ) : null}

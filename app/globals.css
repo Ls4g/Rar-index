@@ -628,6 +628,52 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
    together with no gap or line break — force this one onto its own line. */
 .cover-review-sale-count { display: block; margin-top: .2rem; }
 .cover-review-focused-section .review-card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+/* ---------------------------------------------------------------------
+   Series progress — "you own 3 of 7". Counted against what RAR catalogues,
+   never against the published run, which the copy states plainly.
+   --------------------------------------------------------------------- */
+.series-progress { margin-top: 3rem; }
+.series-progress-list { display: grid; gap: .75rem; margin-top: 1.3rem; }
+.series-progress-row { padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: .8rem; background: var(--surface-card); box-shadow: var(--card-shadow); }
+.series-progress-row.is-complete { border-color: color-mix(in srgb, var(--accent-positive-text) 45%, transparent); }
+.series-progress-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
+.series-progress-head h3 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; color: var(--canvas-heading); }
+.series-progress-lang { color: var(--muted); font-size: .74rem; }
+.series-progress-count { margin: 0; color: var(--muted); font-size: .82rem; font-variant-numeric: tabular-nums; }
+.series-progress-count strong { color: var(--canvas-heading); font-size: 1.5rem; font-weight: 700; letter-spacing: -.03em; }
+.series-progress-track { height: .45rem; margin: .8rem 0 .9rem; border-radius: 999px; background: var(--surface-chip); overflow: hidden; }
+.series-progress-fill { display: block; height: 100%; background: var(--accent-positive-text); }
+.series-progress-volumes { display: flex; flex-wrap: wrap; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.series-progress-volumes a { display: grid; place-items: center; min-width: 2.1rem; height: 2.1rem; padding: 0 .35rem; border: 1px solid var(--line); border-radius: .35rem; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; text-decoration: none; }
+.series-progress-volumes a.is-owned { border-color: var(--accent-positive-text); background: color-mix(in srgb, var(--accent-positive-text) 16%, transparent); color: var(--accent-positive-text); }
+.series-progress-volumes a.is-missing { color: var(--muted); }
+.series-progress-volumes a.is-missing:hover { border-color: var(--orange); color: var(--canvas-heading); }
+.series-progress-note { margin: .8rem 0 0; color: var(--muted); font-size: .78rem; }
+.series-progress-note.is-complete-note { color: var(--accent-positive-text); font-weight: 600; }
+
+/* Publishing a shelf is a separate act from claiming a handle, so the
+   control reads as a decision rather than a setting. */
+.collector-shelf-visibility { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--line); display: grid; gap: .45rem; }
+.collector-shelf-visibility label { display: flex; align-items: flex-start; gap: .55rem; color: var(--canvas-heading); font-size: .82rem; font-weight: 600; cursor: pointer; }
+.collector-shelf-visibility input { width: 1.05rem; height: 1.05rem; margin-top: .1rem; accent-color: var(--red); }
+.collector-shelf-visibility code { font-family: var(--font-mono); font-size: .92em; }
+.collector-shelf-visibility p { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.collector-shelf-visibility a { font-size: .78rem; font-weight: 600; }
+
+/* Public collector shelf */
+.collector-shelf-hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); }
+.collector-shelf-content { width: min(100% - 3rem, 1180px); }
+.collector-shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 1.4rem 1rem; }
+.collector-shelf-card { display: grid; gap: .3rem; align-content: start; text-decoration: none; }
+.collector-shelf-card-cover { width: 100%; aspect-ratio: 2 / 3; border-radius: .2rem; box-shadow: 0 2px 3px rgba(0,0,0,.18), 0 10px 24px rgba(0,0,0,.16); }
+.collector-shelf-card-title { margin-top: .5rem; color: var(--canvas-heading); font-size: .84rem; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.collector-shelf-card-meta { color: var(--muted); font-size: .72rem; line-height: 1.35; }
+.collector-shelf-footnote { max-width: 46rem; margin: 2.4rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.collector-shelf-cta { margin-top: 1.6rem; }
+.collector-shelf-cta a { display: inline-block; padding: .8rem 1.1rem; border: 1px solid var(--red); border-radius: .5rem; background: var(--red); color: #fff; font-size: .82rem; font-weight: 700; text-decoration: none; }
+.collector-shelf-cta a:hover { background: var(--red-dark); border-color: var(--red-dark); }
+@media (max-width: 600px) { .collector-shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } }
+
 /* Bulk catalogue review: the queue as a scannable table rather than a stack
    of forms, so obvious approvals go together and the odd ones stand out. */
 .catalogue-bulk-panel { margin: 0 0 2rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }

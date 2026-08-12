@@ -7,6 +7,8 @@ import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRan
 import PortfolioSummary from "@/components/portfolio/PortfolioSummary";
 import PortfolioValueChart, { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
 import MostValuableHoldings from "@/components/portfolio/MostValuableHoldings";
+import SeriesProgress from "@/components/portfolio/SeriesProgress";
+import type { CatalogueVolume } from "@/lib/seriesCompletion";
 import ActivityFeed, { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
 import type { Holding } from "@/components/portfolio/HoldingCard";
 import { computeHoldingMarketValues, computePortfolioSummary, type EditionMarketMetric } from "@/lib/portfolioValuation";
@@ -22,9 +24,10 @@ type OverviewTabProps = {
   recentSales: RecentSaleActivity[];
   liveListings: LiveListingActivity[];
   listingsLoading: boolean;
+  seriesCatalogue: CatalogueVolume[];
 };
 
-export default function OverviewTab({ holdings, metricsByEdition, rates, snapshots, onAddClick, recentHoldings, recentSales, liveListings, listingsLoading }: OverviewTabProps) {
+export default function OverviewTab({ holdings, metricsByEdition, rates, snapshots, onAddClick, recentHoldings, recentSales, liveListings, listingsLoading, seriesCatalogue }: OverviewTabProps) {
   const { currency } = useMarketCurrency();
   const [range, setRange] = useState<ChartRangeKey>("MAX");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -63,6 +66,8 @@ export default function OverviewTab({ holdings, metricsByEdition, rates, snapsho
             month of it. */}
         <PortfolioValueChart currency={currency} rangePhrase={chartRange(shownSnapshots.length === snapshots.length ? "MAX" : range).phrase} snapshots={shownSnapshots} />
       </div>
+
+      <SeriesProgress catalogue={seriesCatalogue} ownedEditionIds={holdings.map((holding) => holding.edition_id)} />
 
       <MostValuableHoldings currency={currency} holdings={holdings} marketTotal={summary.marketTotal} values={holdingValues} />
 

@@ -17,6 +17,9 @@ type CollectorUsernameControlProps = {
 // anything else about the account.
 export default function CollectorUsernameControl({ userId }: CollectorUsernameControlProps) {
   const [username, setUsername] = useState<string | null>(null);
+  const [shelfPublic, setShelfPublic] = useState(false);
+  const [shelfSaving, setShelfSaving] = useState(false);
+  const [shelfMessage, setShelfMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -28,12 +31,14 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
     let active = true;
     supabase
       .from("collector_profiles")
-      .select("username")
+      .select("username,shelf_is_public")
       .eq("user_id", userId)
       .maybeSingle()
       .then(({ data }) => {
         if (!active) return;
-        setUsername((data as { username: string } | null)?.username ?? null);
+        const row = data as { username: string; shelf_is_public: boolean } | null;
+        setUsername(row?.username ?? null);
+        setShelfPublic(Boolean(row?.shelf_is_public));
         setLoading(false);
       });
     return () => { active = false; };
@@ -92,6 +97,22 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
     setSaving(false);
   }
 
+  async function toggleShelf(next: boolean) {
+    setShelfSaving(true);
+    setShelfMessage("");
+    const { error } = await supabase
+      .from("collector_profiles")
+      .update({ shelf_is_public: next, updated_at: new Date().toISOString() })
+      .eq("user_id", userId);
+    if (error) {
+      setShelfMessage("Could not change that right now.");
+    } else {
+      setShelfPublic(next);
+      setShelfMessage(next ? "Your shelf is public." : "Your shelf is private again.");
+    }
+    setShelfSaving(false);
+  }
+
   if (loading) return null;
 
   const disableSubmit = saving || status === "checking" || status === "blocked" || !draft.trim();
@@ -111,11 +132,35 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
           {status === "checking" ? <small className="collector-handle-status">Checking availability…</small> : null}
           {status === "available" ? <small className="collector-handle-status is-positive">Available</small> : null}
           {message ? <small className="collector-handle-status is-negative">{message}</small> : null}
-          <p className="collector-handle-note">This is your public collector handle. A public collector page isn&apos;t live yet — claiming it now just reserves it for when one is.</p>
+          <p className="collector-handle-note">Your public collector handle. Your shelf lives at <code>/collectors/{draft.trim() || username || "handle"}</code> once you publish it below.</p>
           <div className="collector-handle-actions">
             <button disabled={disableSubmit} type="submit">{saving ? "Saving…" : "Save"}</button>
             <button className="portfolio-text-button" onClick={() => setEditing(false)} type="button">Cancel</button>
           </div>
+
+          {/* Publishing is a separate, explicit act from claiming a handle,
+              and the copy has to say exactly what becomes visible. What is
+              shared is which editions you own -- never a price, a date, a
+              note or a quantity, none of which the public view can even
+              select. */}
+          {username ? (
+            <div className="collector-shelf-visibility">
+              <label>
+                <input
+                  checked={shelfPublic}
+                  disabled={shelfSaving}
+                  onChange={(event) => void toggleShelf(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>Publish my shelf at <code>/collectors/{username}</code></span>
+              </label>
+              <p>
+                Anyone with the link sees <strong>which editions you own</strong>. They never see what you paid, when you bought it, your notes, or how many copies you have.
+              </p>
+              {shelfMessage ? <small className={shelfMessage.startsWith("Could not") ? "collector-handle-status is-negative" : "collector-handle-status is-positive"}>{shelfMessage}</small> : null}
+              {shelfPublic ? <a href={`/collectors/${username}`} rel="noreferrer" target="_blank">View your shelf ↗</a> : null}
+            </div>
+          ) : null}
         </form>
       ) : null}
     </div>
