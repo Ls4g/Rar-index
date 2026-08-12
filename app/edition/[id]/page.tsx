@@ -421,7 +421,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <div className="cover-provenance">
               <span>Publication cover</span>
               {edition.cover_verification_status === "verified" ? (
-                <p>Catalogue cover sourced from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a>. Cover art identifies this publication; sale photos remain linked with their individual sales.</p>
+                <p>Cover art from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a> — the publisher&apos;s own artwork for this book, never a photo from a listing. Photos of individual copies stay attached to the sales they came from.</p>
               ) : edition.cover_verification_status === "candidate" ? (
                 <p>A candidate cover has been found for this publication but is not yet confirmed against a publisher or licensed catalogue record.</p>
               ) : edition.cover_verification_status === "rejected" ? (

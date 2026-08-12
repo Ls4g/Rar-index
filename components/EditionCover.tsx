@@ -62,7 +62,10 @@ export default function EditionCover({
           </div>
         </div>
       )}
-      {hasVerifiedCover ? <span className="edition-cover-badge">Catalogue cover</span> : null}
+      {/* No "Catalogue cover" badge. A cover does not need labelling as a
+          cover — and where it mattered (that this is publisher art rather
+          than a seller's photo) the provenance block says so properly, with
+          the source record linked. */}
     </div>
   );
 }
