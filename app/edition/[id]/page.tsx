@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import { describeSaleFrequency } from "@/lib/saleFrequency";
+import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -308,6 +309,34 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => right.localeCompare(left))[0] ?? null;
 
+  // "Can I still buy this?" answered from RAR's own observation record rather
+  // than from a publisher feed it does not have. Rolled up across the whole
+  // publication family, because a proven first-printing child being on sale
+  // still means a copy of this book is available.
+  const { data: availabilityData } = familyIds.length
+    ? await admin
+      .from("publication_availability")
+      .select("edition_id,active_profiles,completed_scans,last_scan_at,leads_ever_seen,last_lead_seen_at,live_now")
+      .in("edition_id", familyIds)
+    : { data: [] };
+  const availabilityRows = (availabilityData ?? []) as Array<{
+    active_profiles: number; completed_scans: number; last_scan_at: string | null;
+    leads_ever_seen: number; last_lead_seen_at: string | null; live_now: number;
+  }>;
+  const latestOf = (values: Array<string | null>) => values
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0] ?? null;
+  const availability = describeAvailability({
+    activeProfiles: availabilityRows.reduce((total, row) => total + Number(row.active_profiles ?? 0), 0),
+    completedScans: availabilityRows.reduce((total, row) => total + Number(row.completed_scans ?? 0), 0),
+    lastScanAt: latestOf(availabilityRows.map((row) => row.last_scan_at)),
+    leadsEverSeen: availabilityRows.reduce((total, row) => total + Number(row.leads_ever_seen ?? 0), 0),
+    lastLeadSeenAt: latestOf(availabilityRows.map((row) => row.last_lead_seen_at)),
+    // The plausibility filter above is stricter than the view's freshness
+    // rule, so the count actually shown to a reader is the one used here.
+    liveNow: liveListings.length,
+  });
+
   const initialTab: "first" | "other" = search.printing === "other" ? "other" : search.printing === "first" ? "first" : firstPrintSales.length ? "first" : "other";
 
   const details = [
@@ -502,6 +531,18 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             </div>
             <span className="live-listings-status">{latestScoutCheck ? `Last Scout scan ${formatDate(latestScoutCheck)}` : liveProfileIds.length ? "Waiting for first scan" : "Not monitored yet"}</span>
           </div>
+          {/* The observation record, stated before the listings themselves,
+              because on a book with nothing live it is the answer. RAR never
+              says "out of print" — it says how often it looked and when it
+              last saw one, which is a fact rather than an inference. */}
+          <div className={`availability-callout is-${availability.status}`}>
+            <div>
+              <span className="lab">Availability</span>
+              <strong>{availability.label}</strong>
+            </div>
+            <p>{availability.detail}</p>
+          </div>
+
           <p className="section-copy">These are asking prices on eBay right now, not sold prices, covering every printing of this manga. We only show listings whose title clearly matches this series and volume — always check the listing yourself before buying. Nothing here affects the value or the chart above.</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
@@ -518,6 +559,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <p>{liveProfileIds.length ? "We only show listings that are still live when you look. Check back after the next scan." : "This manga needs an exact-edition eBay search set up before listings can appear here."}</p>
             </div>
           )}
+          <p className="availability-caveat">{AVAILABILITY_CAVEAT}</p>
         </section>
 
         <details className="edition-disclosure edition-evidence-section" open={firstPrintVerifiedCount > 0}>

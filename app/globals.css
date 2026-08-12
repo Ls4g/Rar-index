@@ -628,6 +628,24 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
    together with no gap or line break — force this one onto its own line. */
 .cover-review-sale-count { display: block; margin-top: .2rem; }
 .cover-review-focused-section .review-card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+/* Availability: RAR's own observation record, never an out-of-print claim.
+   Tone follows what was observed — green when a copy is buyable, amber when
+   RAR has looked enough times for silence to mean something, neutral when it
+   has not looked enough to say anything at all. */
+.availability-callout { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); gap: .5rem 1.6rem; align-items: baseline; margin: 0 0 1.2rem; padding: 1rem 1.15rem; border: 1px solid var(--line); border-left-width: 3px; border-radius: .6rem; background: var(--surface-card); }
+.availability-callout .lab { display: block; color: var(--muted); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; }
+.availability-callout strong { display: block; margin-top: .2rem; color: var(--canvas-heading); font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
+.availability-callout p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.55; }
+.availability-callout.is-on_sale_now { border-left-color: var(--accent-positive-text); }
+.availability-callout.is-on_sale_now strong { color: var(--accent-positive-text); }
+.availability-callout.is-seen_recently { border-left-color: var(--accent-info-text); }
+.availability-callout.is-not_seen_recently, .availability-callout.is-never_seen { border-left-color: var(--accent-warning-text); }
+.availability-callout.is-not_seen_recently strong, .availability-callout.is-never_seen strong { color: var(--accent-warning-text); }
+.availability-callout.is-not_monitored, .availability-callout.is-awaiting_first_scan { border-left-color: var(--line); }
+.availability-callout.is-not_monitored strong, .availability-callout.is-awaiting_first_scan strong { color: var(--muted); }
+.availability-caveat { max-width: 48rem; margin: 1rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; font-style: italic; }
+@media (max-width: 640px) { .availability-callout { grid-template-columns: minmax(0, 1fr); } }
+
 /* ---------------------------------------------------------------------
    Series progress — "you own 3 of 7". Counted against what RAR catalogues,
    never against the published run, which the copy states plainly.
