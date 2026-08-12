@@ -260,6 +260,62 @@ table { font-variant-numeric: tabular-nums; }
 .edition-hero-inner { padding-top: 4.2rem; padding-bottom: 4.4rem; }
 .edition-hero-with-cover { display: grid; grid-template-columns: 172px minmax(0, 1fr); gap: 2.5rem; align-items: end; }
 .edition-hero-cover { width: 172px; aspect-ratio: 2 / 3; border: 1px solid rgba(244,240,232,.24); box-shadow: 14px 18px 36px rgba(0,0,0,.28); }
+
+/* ---------------------------------------------------------------------
+   Edition stage: the book is the page.
+
+   The cover runs at 268px with a real drop shadow rather than a bordered
+   thumbnail, and its own artwork — blurred — becomes the banner, so every
+   edition page is coloured by the book it is about instead of by one fixed
+   gradient. The masthead stays dark in both themes, which is already RAR's
+   rule, so the veil fades toward that dark and never toward the canvas.
+   --------------------------------------------------------------------- */
+.edition-stage { position: relative; overflow: hidden; }
+.edition-stage-art { position: absolute; inset: -12% -6% auto -6%; height: 132%; background-size: cover; background-position: center 32%; filter: blur(46px) saturate(1.3); transform: scale(1.08); opacity: .5; }
+.edition-stage-veil { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(33,29,24,.58), rgba(33,29,24,.30) 48%, rgba(33,29,24,.68) 100%); }
+/* Without real cover art there is nothing to blur, so the veil would only
+   flatten the existing hero gradient. Skip it. */
+.edition-stage:not(.has-art) .edition-stage-veil { display: none; }
+.edition-stage-inner { position: relative; z-index: 1; display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 2.8rem; align-items: end; }
+.edition-stage-book { align-self: start; }
+/* Shown whole, at the book's own proportions. Cards elsewhere crop to a
+   uniform 2:3 so grids line up, but a manga is not 2:3 — this one is 317x500
+   — and cropping the page's main subject was slicing the Jump Comics band off
+   the bottom of the artwork. Here the aspect ratio is released and the image
+   sizes naturally; only the fallback keeps a fixed box, since it has no real
+   proportions of its own to honour. */
+.edition-stage .edition-hero-cover { width: 268px; height: auto; aspect-ratio: auto; border: 0; box-shadow: 0 2px 3px rgba(0,0,0,.28), 0 20px 48px rgba(0,0,0,.45); }
+.edition-stage .edition-hero-cover img { height: auto; object-fit: contain; }
+.edition-stage .edition-hero-cover:not(.has-image) { aspect-ratio: 2 / 3; }
+.edition-stage-copy { min-width: 0; }
+.edition-imprint { margin: 0 0 .45rem; color: rgba(244,240,232,.66); font-size: .82rem; }
+.edition-byline { margin: .55rem 0 0; color: rgba(244,240,232,.72); font-size: .92rem; }
+.edition-stage .edition-variant { margin-top: 1.15rem; }
+
+/* Volume navigation — manga is a series-and-volume medium and the page
+   previously offered no way to move along it. */
+.volume-nav { display: inline-flex; flex-wrap: wrap; margin-top: 1.15rem; border: 1px solid rgba(244,240,232,.22); background: rgba(244,240,232,.06); }
+.volume-nav a, .volume-nav span { padding: .55rem 1rem; border-right: 1px solid rgba(244,240,232,.18); color: #f7f1e4; font-size: .8rem; font-weight: 500; text-decoration: none; white-space: nowrap; }
+.volume-nav > *:last-child { border-right: 0; }
+.volume-nav a:hover { background: rgba(244,240,232,.12); }
+.volume-nav .is-off { color: rgba(244,240,232,.4); }
+.volume-nav .is-index { font-weight: 700; }
+
+/* Facts, open and first. Grouped by space with two rules rather than a
+   hairline under every row, and weight doing the label/value contrast. */
+.edition-facts-section { margin-bottom: 2.6rem; }
+.edition-facts-section h2 { margin: 0 0 1.1rem; font-size: 1.45rem; }
+.edition-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 1.5rem 2rem; margin: 0; padding: 1.5rem 0; border-top: 2px solid var(--canvas-heading); border-bottom: 1px solid var(--line); }
+.edition-facts > div { min-width: 0; }
+.edition-facts dt { color: var(--muted); font-family: var(--font-mono); font-size: .625rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
+.edition-facts dd { margin: .3rem 0 0; color: var(--canvas-heading); font-size: 1rem; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.edition-facts dd.is-identifier { font-family: var(--font-mono); font-size: .9rem; font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+@media (max-width: 760px) {
+  .edition-stage-inner { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .edition-stage-book { justify-self: start; }
+  .edition-stage .edition-hero-cover { width: 190px; }
+}
 .edition-hero-cover .edition-cover-fallback { background: linear-gradient(155deg, #322816, #80652d); }
 .back-link { display: inline-block; margin-bottom: 3.5rem; color: rgba(244,240,232,.62); font-size: .78rem; letter-spacing: .04em; }
 .back-link:hover { color: var(--gold-light); }

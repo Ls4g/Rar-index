@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import { describeSaleFrequency } from "@/lib/saleFrequency";
-import { editionDescriptor } from "@/lib/editionDisplay";
+import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 
 // Valuations are live market intelligence, not deployment-time content.
 export const dynamic = "force-dynamic";
@@ -168,6 +168,23 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const printRunChildren = (printRunChildrenData ?? []) as PrintRunChild[];
   const familyIds = [id, ...printRunChildren.map((child) => child.id)];
 
+  // Sibling volumes in the same series and language. Manga is a
+  // series-and-volume medium and the page offered no way to move along it,
+  // which is the most natural thing a collector wants to do. Matched on
+  // language too, so an English Vol. 2 is never offered as the next volume
+  // of a Japanese Vol. 1 -- those are different books, not neighbours.
+  const siblingVolumesResult = edition.series
+    ? await supabase
+      .from("manga_editions")
+      .select("id,volume_number,language")
+      .eq("series", edition.series)
+      .eq("language", edition.language)
+      .eq("is_verified", true)
+      .eq("record_kind", "publication")
+      .not("volume_number", "is", null)
+      .limit(400)
+    : { data: [] as Array<{ id: string; volume_number: string | null; language: string | null }> };
+
   const relatedEditionsResult = edition.series && edition.volume_number
     ? await supabase
       .from("manga_editions")
@@ -235,6 +252,22 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const sourceNamesObject = Object.fromEntries(sourceNames);
   const observedSourceNames = [...new Set([...observedSourceIds].map((sourceId) => sourceNames.get(sourceId) ?? "Marketplace").filter(Boolean))];
   const relatedEditions = (relatedEditionsResult.data ?? []) as RelatedEdition[];
+
+  // Volume numbers are free text ("1", "01", "Vol. 3"), so sort on the first
+  // number found and drop anything with none rather than guessing an order.
+  const volumeOf = (value: string | null) => {
+    const match = String(value ?? "").match(/\d+(\.\d+)?/);
+    return match ? Number(match[0]) : null;
+  };
+  const siblingVolumes = ((siblingVolumesResult.data ?? []) as Array<{ id: string; volume_number: string | null }>)
+    .flatMap((row) => {
+      const number = volumeOf(row.volume_number);
+      return number === null ? [] : [{ id: row.id, number, label: row.volume_number as string }];
+    })
+    .sort((left, right) => left.number - right.number);
+  const currentVolume = volumeOf(edition.volume_number);
+  const previousVolume = currentVolume === null ? null : [...siblingVolumes].reverse().find((entry) => entry.number < currentVolume) ?? null;
+  const nextVolume = currentVolume === null ? null : siblingVolumes.find((entry) => entry.number > currentVolume) ?? null;
 
   // Live Scout leads answer "can I buy one now?" They deliberately use a
   // server-only read and are never included in verified sales, market value,
@@ -310,27 +343,56 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         </nav>
       </header>
 
-      <section className="edition-hero">
-        <div className="edition-hero-inner edition-hero-with-cover">
-          <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
-          <div>
-          <Link href="/" className="back-link">← Back to the index</Link>
-          <p className="eyebrow">Manga</p>
-          <h1>{edition.title}</h1>
-          <p className="edition-subtitle">
-            {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          {/* Telling a reader to "select a printing group below" is only
-              useful when groups with sales exist. On a record RAR has no
-              completed sales for, that was an instruction they could not
-              follow. */}
-          <p className="edition-variant">
-            {firstPrintSales.length || otherSales.length
-              ? <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
-              : "No completed sale has been confirmed for this one yet."}
-          </p>
+      {/* The book is the page. The cover sits large and undecorated, and its
+          own artwork — blurred — is the banner, so every edition looks
+          different because the art drives it rather than a fixed gradient.
+          Only a real verified cover is used as the ground; a placeholder
+          would just be a grey smear. */}
+      <section className={`edition-hero edition-stage${edition.cover_image_url && edition.cover_verification_status === "verified" ? " has-art" : ""}`}>
+        {edition.cover_image_url && edition.cover_verification_status === "verified" ? (
+          <div aria-hidden="true" className="edition-stage-art" style={{ backgroundImage: `url(${JSON.stringify(edition.cover_image_url)})` }} />
+        ) : null}
+        <div aria-hidden="true" className="edition-stage-veil" />
+        <div className="edition-hero-inner edition-stage-inner">
+          <div className="edition-stage-book">
+            <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
+          </div>
+          <div className="edition-stage-copy">
+            <Link href="/" className="back-link">← Back to the index</Link>
+            {edition.imprint ? <p className="edition-imprint">{edition.imprint}</p> : null}
+            <h1>{edition.title}</h1>
+            <p className="edition-subtitle">
+              {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            <p className="edition-byline">
+              {[edition.author, publisherDisplayName(edition.publisher), edition.release_date ? formatDate(edition.release_date) : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {previousVolume || nextVolume ? (
+              <nav aria-label="Volume navigation" className="volume-nav">
+                {previousVolume
+                  ? <Link href={`/edition/${previousVolume.id}`}>‹ Vol. {previousVolume.label}</Link>
+                  : <span className="is-off">‹ First volume tracked</span>}
+                <Link className="is-index" href={`/browse?q=${encodeURIComponent(edition.series ?? "")}`}>
+                  All {siblingVolumes.length} volume{siblingVolumes.length === 1 ? "" : "s"}
+                </Link>
+                {nextVolume
+                  ? <Link href={`/edition/${nextVolume.id}`}>Vol. {nextVolume.label} ›</Link>
+                  : <span className="is-off">Latest tracked ›</span>}
+              </nav>
+            ) : null}
+            {/* Telling a reader to "select a printing group below" is only
+                useful when groups with sales exist. On a record RAR has no
+                completed sales for, that was an instruction they could not
+                follow. */}
+            <p className="edition-variant">
+              {firstPrintSales.length || otherSales.length
+                ? <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
+                : "No completed sale has been confirmed for this one yet."}
+            </p>
           </div>
         </div>
       </section>
@@ -338,21 +400,24 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       <MarketCurrencyProvider>
       <section className="edition-content">
         <div className="edition-layout">
-          <details className="edition-disclosure catalogue-details-disclosure">
-            <summary><span><small>The specifics</small>Book details</span><span className="disclosure-hint">Identifiers, publisher and cover source</span></summary>
-            <div className="edition-disclosure-content">
-            <div className="section-intro">
-              <p className="eyebrow">The specifics</p>
-              <h2>Book details</h2>
-            </div>
-            <dl className="edition-details">
+          {/* Identity is the product, so it is open and first rather than
+              folded behind a disclosure. Grouped by space with two rules,
+              not fenced by a hairline under every row. */}
+          <section className="edition-facts-section">
+            <h2>This book</h2>
+            <dl className="edition-facts">
               {details.map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
-                  <dd>{value}</dd>
+                  <dd className={label.startsWith("ISBN") ? "is-identifier" : undefined}>{value}</dd>
                 </div>
               ))}
             </dl>
+          </section>
+
+          <details className="edition-disclosure catalogue-details-disclosure">
+            <summary><span><small>Provenance</small>Cover source</span><span className="disclosure-hint">Where the cover art came from, and collector notes</span></summary>
+            <div className="edition-disclosure-content">
             <div className="cover-provenance">
               <span>Publication cover</span>
               {edition.cover_verification_status === "verified" ? (
