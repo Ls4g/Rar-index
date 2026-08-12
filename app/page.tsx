@@ -108,10 +108,6 @@ export default async function Home() {
     ...oneEachSeries,
     ...pricedRanked.filter((edition) => !oneEachSeries.includes(edition)),
   ].slice(0, HOMEPAGE_PRICED_SLOTS);
-  const bestDocumentedCount = ((allCatalogue ?? []) as Manga[])
-    .filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) > 0 && edition.cover_verification_status === "verified")
-    .length;
-
   // First-print watch reuses the same catalogue fetch — no new query, just a
   // different lens on data RAR already verified: a publication with at
   // least one sale proven a first print via direct copyright-page evidence,
@@ -489,7 +485,7 @@ export default async function Home() {
         <h2 id="ways-in-heading" className="sr-only">More ways into the catalogue</h2>
         <div className="index-ways-in-grid">
           <Link href="/browse"><strong>Browse everything</strong><small>All {count ?? 0} manga in the catalogue</small></Link>
-          <Link href="/browse?collection=best-documented"><strong>Best documented</strong><small>{bestDocumentedCount} with a sold price and a confirmed cover</small></Link>
+          <Link href="/collection"><strong>Track your collection</strong><small>See how far through each series you are</small></Link>
           <Link href="/identify"><strong>Is mine a first print?</strong><small>Check your copy&apos;s printing line, step by step</small></Link>
           <Link href="/request-edition"><strong>Missing something?</strong><small>Send us a manga to research and add</small></Link>
         </div>
