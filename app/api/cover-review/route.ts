@@ -5,10 +5,32 @@ function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+// A reviewer working a screenful of candidates side by side is still deciding
+// each one -- comparing several against their catalogue records at once is
+// what makes a mismatch obvious. Each id below gets its own call to the same
+// function a single decision uses, so each lands its own audit row, and the
+// "already has a human decision" guard inside it still holds per candidate.
+const MAX_BULK_CANDIDATES = 40;
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await work(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   let payload: {
     candidateId?: unknown;
+    candidateIds?: unknown;
     editionId?: unknown;
     decision?: unknown;
     coverImageUrl?: unknown;
@@ -25,6 +47,9 @@ export async function POST(request: Request) {
 
   const editionId = clean(payload.editionId);
   const candidateId = clean(payload.candidateId);
+  const candidateIds = Array.isArray(payload.candidateIds)
+    ? [...new Set(payload.candidateIds.map(clean).filter(Boolean))]
+    : [];
   const decision = clean(payload.decision);
   const coverImageUrl = clean(payload.coverImageUrl);
   const coverSourceUrl = clean(payload.coverSourceUrl);
@@ -32,17 +57,41 @@ export async function POST(request: Request) {
   const reviewer = clean(payload.reviewer);
   const notes = clean(payload.notes);
 
-  if (!editionId || !["candidate", "verified", "rejected"].includes(decision)) {
-    return Response.json({ error: "Choose candidate, verified, or rejected for one exact edition." }, { status: 400 });
-  }
   if (!reviewer) {
     return Response.json({ error: "Reviewer is required." }, { status: 400 });
   }
-  if (notes.length < 12) {
-    return Response.json({ error: "Add a review note of at least 12 characters." }, { status: 400 });
-  }
 
   const admin = getSupabaseAdmin();
+
+  // Bulk path: many candidates, one decision, no edition id -- each candidate
+  // already knows the edition it belongs to.
+  if (candidateIds.length) {
+    if (!["verified", "rejected"].includes(decision)) {
+      return Response.json({ error: "A discovered candidate can be verified or rejected." }, { status: 400 });
+    }
+    if (candidateIds.length > MAX_BULK_CANDIDATES) {
+      return Response.json({ error: `Decide at most ${MAX_BULK_CANDIDATES} candidates at a time.` }, { status: 400 });
+    }
+    const outcomes = await mapWithConcurrency(candidateIds, 5, async (id) => {
+      const { error } = await admin.rpc("apply_cover_candidate_decision", {
+        p_candidate_id: id,
+        p_decision: decision,
+        p_decision_notes: notes,
+        p_reviewed_by: reviewer,
+      });
+      return { id, error: error?.message ?? null };
+    });
+    const failures = outcomes.filter((outcome) => outcome.error);
+    return Response.json({
+      ok: failures.length === 0,
+      saved: outcomes.length - failures.length,
+      failed: failures.map((failure) => ({ id: failure.id, error: failure.error })),
+    }, { status: failures.length && failures.length === outcomes.length ? 500 : 200 });
+  }
+
+  if (!editionId || !["candidate", "verified", "rejected"].includes(decision)) {
+    return Response.json({ error: "Choose candidate, verified, or rejected for one exact edition." }, { status: 400 });
+  }
   if (candidateId) {
     if (!["verified", "rejected"].includes(decision)) {
       return Response.json({ error: "A discovered candidate can be verified or rejected." }, { status: 400 });

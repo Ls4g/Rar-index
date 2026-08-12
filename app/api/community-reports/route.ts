@@ -60,8 +60,8 @@ export async function POST(request: Request) {
   const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   const decisions: Decision[] = ["reviewed", "rejected", "converted"];
-  if (!reportId || !decisions.includes(decision as Decision) || notes.length < 12 || !reviewer) {
-    return Response.json({ error: "Choose a decision, add at least 12 characters of evidence, and identify the reviewer." }, { status: 400 });
+  if (!reportId || !decisions.includes(decision as Decision) || !reviewer) {
+    return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
   }
 
   const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });

@@ -60,8 +60,8 @@ export async function POST(request: Request) {
   const existingEditionId = typeof payload.existingEditionId === "string" && payload.existingEditionId.trim() ? payload.existingEditionId.trim() : null;
   const metadata = cleanMetadata(payload.metadata);
 
-  if (!catalogueImportId || !decisions.includes(decision as CatalogueDecision) || notes.length < 12 || !reviewer) {
-    return Response.json({ error: "Choose a decision, add at least 12 characters of evidence, and identify the reviewer." }, { status: 400 });
+  if (!catalogueImportId || !decisions.includes(decision as CatalogueDecision) || !reviewer) {
+    return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
   }
   if (decision === "link_existing" && !existingEditionId) {
     return Response.json({ error: "Linking requires the exact existing edition ID." }, { status: 400 });

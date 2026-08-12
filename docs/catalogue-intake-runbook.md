@@ -51,8 +51,8 @@ signed/graded status must never be inferred from a generic catalogue record.
 
 ## 4. Make a named, auditable decision
 
-In **Catalogue review**, a named staff reviewer chooses one outcome and writes
-an evidence note of at least 12 characters:
+In **Catalogue review**, a named staff reviewer chooses one outcome, and may
+add an evidence note (optional):
 
 - `approve_new` — creates one RAR edition;
 - `link_existing` — adds source evidence to an already exact match;

@@ -106,7 +106,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
       <div className="review-form-fields">
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" required value={reviewer} /></label>
         {decision === "link_existing" ? <label>Existing RAR edition ID<input onChange={(event) => setExistingEditionId(event.target.value)} placeholder="UUID from the exact edition page" required value={existingEditionId} /></label> : null}
-        <label className={decision === "link_existing" ? "catalogue-notes" : "catalogue-notes-wide"}>Evidence note<textarea minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What does this source prove about the edition, or why is it not acceptable?" required value={notes} /></label>
+        <label className={decision === "link_existing" ? "catalogue-notes" : "catalogue-notes-wide"}>Evidence note<textarea onChange={(event) => setNotes(event.target.value)} placeholder="Optional — add anything a future reader would need that the source record does not already show." value={notes} /></label>
       </div>
       {decision === "approve_new" ? <fieldset className="catalogue-metadata">
         <legend>Verified edition details</legend>

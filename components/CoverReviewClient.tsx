@@ -63,8 +63,8 @@ const decisionOptions: Array<{ value: Decision; label: string; hint: string }> =
   { value: "rejected", label: "Reject cover", hint: "This candidate did not match this exact edition." },
 ];
 
-function canSubmit(decision: Decision, imageUrl: string, sourceUrl: string, sourceName: string, reviewer: string, notes: string) {
-  if (!reviewer.trim() || notes.trim().length < 12) return false;
+function canSubmit(decision: Decision, imageUrl: string, sourceUrl: string, sourceName: string, reviewer: string) {
+  if (!reviewer.trim()) return false;
   if (decision === "verified") return Boolean(imageUrl.trim() && sourceUrl.trim() && sourceName.trim());
   if (decision === "candidate") return Boolean(imageUrl.trim() || sourceUrl.trim());
   return true;
@@ -81,7 +81,7 @@ function CoverDecisionForm({ edition, reviewer, onReviewerChange }: { edition: C
   const [saving, setSaving] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  const ready = canSubmit(decision, imageUrl, sourceUrl, sourceName, reviewer, notes);
+  const ready = canSubmit(decision, imageUrl, sourceUrl, sourceName, reviewer);
 
   async function submitDecision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,7 +148,7 @@ function CoverDecisionForm({ edition, reviewer, onReviewerChange }: { edition: C
 
       <div className="review-submit-row">
         <button disabled={saving || !ready} type="submit">{saving ? "Saving…" : "Save decision"}</button>
-        {!ready && !saving ? <p className="cover-review-hint">Reviewer, a note of 12+ characters, and the URLs required by the selected decision are all needed before this can save.</p> : null}
+        {!ready && !saving ? <p className="cover-review-hint">A reviewer name and the URLs required by the selected decision are needed before this can save. The note is optional.</p> : null}
         {message ? <p role="status">{message}</p> : null}
       </div>
     </form>
@@ -212,6 +212,107 @@ function CoverCandidateCard({ candidate, edition, reviewer }: { candidate: Cover
         {message ? <p className="cover-candidate-message" role="status">{message}</p> : null}
       </div>
     </article>
+  );
+}
+
+// Every pending candidate on one screen, each beside the record it claims to
+// match. A reviewer still decides each one -- ticking is the decision -- but
+// comparing a screenful at once is what makes a wrong cover obvious, which
+// reviewing them one form at a time actively hides.
+function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
+  candidates: CoverCandidateRow[];
+  editionsById: Map<string, CoverQueueRow>;
+  reviewer: string;
+  onDecided: (ids: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState<"verified" | "rejected" | null>(null);
+  const [banner, setBanner] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
+
+  const visible = candidates.filter((candidate) => editionsById.has(candidate.editionId));
+  if (!visible.length) return null;
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function decideSelected(decision: "verified" | "rejected") {
+    if (!reviewer.trim()) { setBanner({ tone: "error", text: "Add your name or initials above before saving." }); return; }
+    const ids = [...selected];
+    if (!ids.length) { setBanner({ tone: "error", text: "Tick at least one candidate first." }); return; }
+    setSaving(decision);
+    setBanner(null);
+    try {
+      const response = await fetch("/api/cover-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateIds: ids,
+          decision,
+          reviewer,
+          notes: decision === "verified" ? "Exact ISBN and source record reviewed by staff." : "Candidate rejected after exact-edition review.",
+        }),
+      });
+      const result = (await response.json()) as { saved?: number; failed?: Array<{ id: string; error: string }>; error?: string };
+      if (result.error && !result.saved) { setBanner({ tone: "error", text: result.error }); return; }
+      const failedIds = new Set((result.failed ?? []).map((failure) => failure.id));
+      const succeeded = ids.filter((id) => !failedIds.has(id));
+      // Removed from view without a server round trip, so a reviewer can see
+      // progress through a long queue instead of waiting on a refresh.
+      onDecided(succeeded);
+      setSelected(new Set(failedIds));
+      setBanner(failedIds.size
+        ? { tone: "error", text: `${succeeded.length} saved. ${failedIds.size} could not be saved and are still selected: ${(result.failed ?? [])[0]?.error ?? ""}` }
+        : { tone: "ok", text: `${succeeded.length} candidate${succeeded.length === 1 ? "" : "s"} ${decision === "verified" ? "verified and published" : "rejected"}.` });
+    } catch {
+      setBanner({ tone: "error", text: "The decisions could not be saved. Check the connection and try again." });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  const strongIds = visible.filter((candidate) => candidate.matchConfidence === "strong").map((candidate) => candidate.id);
+
+  return (
+    <section className="cover-bulk-panel">
+      <div className="section-intro">
+        <p className="eyebrow">Review a screenful at once</p>
+        <h2>{visible.length} candidate{visible.length === 1 ? "" : "s"} waiting</h2>
+        <p className="section-copy">Each cover sits beside the record it claims to match. Tick the ones that are right, then save. Nothing is decided for you — an untouched candidate stays pending.</p>
+      </div>
+      <div className="cover-bulk-actions">
+        <button onClick={() => setSelected(new Set(strongIds))} type="button" disabled={!strongIds.length}>Select {strongIds.length} strong match{strongIds.length === 1 ? "" : "es"}</button>
+        <button onClick={() => setSelected(new Set())} type="button" disabled={!selected.size}>Clear</button>
+        <span className="cover-bulk-count">{selected.size} selected</span>
+        <button className="cover-bulk-verify" disabled={Boolean(saving) || !selected.size} onClick={() => void decideSelected("verified")} type="button">{saving === "verified" ? "Verifying…" : "Verify selected"}</button>
+        <button className="secondary-action" disabled={Boolean(saving) || !selected.size} onClick={() => void decideSelected("rejected")} type="button">{saving === "rejected" ? "Rejecting…" : "Reject selected"}</button>
+      </div>
+      {banner ? <p className={`cover-bulk-banner ${banner.tone === "error" ? "is-error" : "is-ok"}`} role="status">{banner.text}</p> : null}
+      <div className="cover-bulk-grid">
+        {visible.map((candidate) => {
+          const edition = editionsById.get(candidate.editionId)!;
+          const isSelected = selected.has(candidate.id);
+          return (
+            <label className={`cover-bulk-item${isSelected ? " is-selected" : ""}`} key={candidate.id}>
+              <input checked={isSelected} onChange={() => toggle(candidate.id)} type="checkbox" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img alt={`Candidate cover for ${edition.title ?? "this edition"}`} src={candidate.coverImageUrl} />
+              <div className="cover-bulk-meta">
+                <strong>{edition.title ?? "Untitled edition"}</strong>
+                <span>{[edition.series, edition.volumeNumber ? `Vol. ${edition.volumeNumber}` : null, edition.language].filter(Boolean).join(" · ")}</span>
+                <span className="cover-bulk-isbn">{edition.isbn13 ?? "ISBN pending"}</span>
+                <em className={candidate.matchConfidence === "strong" ? "is-strong" : ""}>{candidate.sourceName} · {candidate.matchScore}/100 · {candidate.matchConfidence}</em>
+                <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Source record ↗</Link>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -293,12 +394,18 @@ export default function CoverReviewClient({ rows, focusedRow, candidates }: { ro
   const [status, setStatus] = useState("all");
   const [onlyWithSales, setOnlyWithSales] = useState(false);
   const [onlyWithCandidates, setOnlyWithCandidates] = useState(false);
+  // Decided in this session. Kept here rather than refetching so a long queue
+  // visibly shrinks as it is worked through.
+  const [decidedIds, setDecidedIds] = useState<Set<string>>(new Set());
+
+  const liveCandidates = useMemo(() => candidates.filter((candidate) => !decidedIds.has(candidate.id)), [candidates, decidedIds]);
+  const editionsById = useMemo(() => new Map(rows.map((row) => [row.editionId, row])), [rows]);
 
   const candidatesByEdition = useMemo(() => {
     const grouped = new Map<string, CoverCandidateRow[]>();
-    for (const candidate of candidates) grouped.set(candidate.editionId, [...(grouped.get(candidate.editionId) ?? []), candidate]);
+    for (const candidate of liveCandidates) grouped.set(candidate.editionId, [...(grouped.get(candidate.editionId) ?? []), candidate]);
     return grouped;
-  }, [candidates]);
+  }, [liveCandidates]);
 
   const seriesOptions = useMemo(() => [...new Set(rows.map((row) => row.series).filter((value): value is string => Boolean(value)))].sort(), [rows]);
   const languageOptions = useMemo(() => [...new Set(rows.map((row) => row.language).filter((value): value is string => Boolean(value)))].sort(), [rows]);
@@ -321,8 +428,14 @@ export default function CoverReviewClient({ rows, focusedRow, candidates }: { ro
       <CandidateFinder />
       <section className="cover-review-operator">
         <label>Reviewer name or initials<input onChange={(event) => setReviewer(event.target.value)} placeholder="Type once for this session" value={reviewer} /></label>
-        <p>This name is used for the candidate decisions below. Every verification or rejection remains auditable.</p>
+        <p>Typed once and used for every decision below. A note is optional — every decision is stamped with this name and a timestamp regardless.</p>
       </section>
+      <CandidateBulkPanel
+        candidates={liveCandidates}
+        editionsById={editionsById}
+        onDecided={(ids) => setDecidedIds((current) => new Set([...current, ...ids]))}
+        reviewer={reviewer}
+      />
       {focusedRow ? (
         <section className="review-list-section cover-review-focused-section">
           <div className="section-intro"><p className="eyebrow">Reviewing one edition</p><h2>{focusedRow.title ?? "Untitled edition"}</h2></div>

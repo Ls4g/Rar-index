@@ -563,6 +563,34 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
    together with no gap or line break — force this one onto its own line. */
 .cover-review-sale-count { display: block; margin-top: .2rem; }
 .cover-review-focused-section .review-card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+/* Bulk candidate review: every pending cover beside the record it claims to
+   match, so a wrong one is caught by comparison rather than by reading. */
+.cover-bulk-panel { margin: 0 0 2rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }
+.cover-bulk-panel .section-intro { margin-bottom: 1rem; }
+.cover-bulk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-bottom: .9rem; }
+.cover-bulk-actions button { border: 1px solid var(--line); border-radius: .5rem; padding: .55rem .85rem; background: var(--surface-chip); color: var(--canvas-heading); cursor: pointer; font: inherit; font-size: .74rem; font-weight: 700; }
+.cover-bulk-actions button:hover:not(:disabled) { border-color: var(--orange); }
+.cover-bulk-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.cover-bulk-actions .cover-bulk-verify { border-color: var(--red); background: var(--red); color: #fff; }
+.cover-bulk-actions .cover-bulk-verify:hover:not(:disabled) { background: var(--red-dark); border-color: var(--red-dark); }
+.cover-bulk-count { margin-right: auto; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.cover-bulk-banner { margin: 0 0 .9rem; font-size: .78rem; font-weight: 600; }
+.cover-bulk-banner.is-error { color: var(--red); }
+.cover-bulk-banner.is-ok { color: var(--accent-positive-text); }
+.cover-bulk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: .7rem; }
+.cover-bulk-item { display: grid; grid-template-columns: auto 62px minmax(0, 1fr); align-items: start; gap: .6rem; padding: .65rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--surface-chip); cursor: pointer; }
+.cover-bulk-item.is-selected { border-color: var(--orange); background: var(--surface-chip-active); }
+.cover-bulk-item:focus-within { outline: 2px solid var(--orange); outline-offset: 2px; }
+.cover-bulk-item img { width: 62px; height: 93px; object-fit: cover; border-radius: .2rem; background: var(--line); }
+.cover-bulk-meta { display: grid; gap: .12rem; min-width: 0; font-size: .72rem; line-height: 1.35; }
+.cover-bulk-meta strong { color: var(--canvas-heading); font-size: .8rem; }
+.cover-bulk-meta span { color: var(--muted); overflow-wrap: anywhere; }
+.cover-bulk-meta .cover-bulk-isbn { font-variant-numeric: tabular-nums; }
+.cover-bulk-meta em { color: var(--muted); font-style: normal; font-weight: 600; }
+.cover-bulk-meta em.is-strong { color: var(--accent-positive-text); }
+.cover-bulk-meta a { color: var(--accent-label-text); font-weight: 600; }
+@media (max-width: 600px) { .cover-bulk-grid { grid-template-columns: 1fr; } }
+
 .cover-candidate-finder { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2rem; margin: 0 0 1.5rem; padding: 1.4rem; border: 1px solid rgba(38, 102, 160, .35); background: rgba(38, 102, 160, .07); }
 .cover-candidate-finder h2 { margin: .15rem 0 .35rem; font-size: 1.55rem; }
 .cover-candidate-finder p { margin: 0; color: var(--muted); max-width: 48rem; }

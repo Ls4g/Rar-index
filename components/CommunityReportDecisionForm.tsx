@@ -51,7 +51,7 @@ export default function CommunityReportDecisionForm({ reportId }: { reportId: st
       </div>
       <div className="review-form-fields">
         <label>Reviewer<input required onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
-        <label>Evidence note<textarea required minLength={12} onChange={(event) => setNotes(event.target.value)} placeholder="What you checked and why this decision is correct." value={notes} /></label>
+        <label>Evidence note<textarea onChange={(event) => setNotes(event.target.value)} placeholder="Optional — what you checked, if it is not obvious from the report." value={notes} /></label>
       </div>
       <div className="review-submit-row"><button disabled={saving} type="submit">{saving ? "Saving…" : "Save decision"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </form>

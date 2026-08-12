@@ -21,7 +21,7 @@ Every catalogue candidate must preserve:
 3. National Diet Library Search is an independent bibliographic cross-check. Its records are candidates, not proof of a specific printing.
 4. Open Library records are **candidates**, not proof. A reviewer verifies physical-edition fields before approval.
 5. MangaDex records are `series_reference` candidates. They can support research but cannot create a physical edition.
-6. Every decision requires a named reviewer and an evidence note of at least 12 characters.
+6. Every decision requires a named reviewer. An evidence note is optional — write one when it records something the source record does not already show.
 7. Only `approve_new` creates a verified edition. `link_existing` attaches source evidence to a known exact RAR edition.
 8. Rejected, duplicate and unresolved candidates retain their audit trail rather than disappearing.
 

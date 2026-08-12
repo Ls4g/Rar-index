@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const decision = typeof payload.decision === "string" ? payload.decision : "";
   const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
-  if (!requestId || !decisions.includes(decision as typeof decisions[number]) || notes.length < 12 || !reviewer) return Response.json({ error: "Choose a decision and add a review note of at least 12 characters." }, { status: 400 });
+  if (!requestId || !decisions.includes(decision as typeof decisions[number]) || !reviewer) return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
   try {
     const { error } = await getSupabaseAdmin().rpc("apply_catalogue_request_decision", { p_request_id: requestId, p_decision: decision, p_decision_notes: notes, p_reviewed_by: reviewer });
     if (error) return Response.json({ error: "RAR could not save this decision." }, { status: 500 });

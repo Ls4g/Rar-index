@@ -1,0 +1,24 @@
+-- NOT YET APPLIED — needs a human go-ahead before running.
+--
+-- Two overloads of apply_catalogue_review are live:
+--
+--   apply_catalogue_review(uuid, text, text, text, uuid)          -- 2026-07-23
+--   apply_catalogue_review(uuid, text, text, text, uuid, jsonb)   -- 2026-07-29 onwards
+--
+-- Only the six-argument form is ever called: the catalogue review API always
+-- sends p_metadata, so PostgREST resolves to it by named arguments. The
+-- five-argument form has been dead since the metadata-overrides migration.
+--
+-- It is worth removing rather than leaving, because `create or replace`
+-- matches an exact signature and every later fix therefore landed only on the
+-- six-argument body. The dead overload is frozen at its 2026-07-23 form, which
+-- means it never received the 2026-08-04 duplicate-ISBN printing guard — the
+-- fix added after the One Piece and Hunter x Hunter Japanese Vol. 1 duplicate
+-- pairs were created. Anything that ever reached it would bypass that guard
+-- and could recreate exactly those duplicates.
+--
+-- Dropping a function is a schema change rather than a data change, and no
+-- data is touched. The definition being removed remains in git at
+-- 20260723_catalogue_import_pipeline.sql if it is ever needed back.
+
+drop function if exists public.apply_catalogue_review(uuid, text, text, text, uuid);
