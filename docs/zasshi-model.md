@@ -67,6 +67,26 @@ come through the existing `cover_candidates` intake like everything else.
 MADB is added to `public.sources` at `trust_tier 1`, alongside Shueisha Direct
 and NDL Search, following `20260728_add_japanese_catalogue_sources.sql`.
 
+**There is no public page for a magazine issue.** `/id/<record>` is the
+identifier MADB's own listing pages link to, and it renders a full record for
+a book — but for a magazine issue *or* a magazine title it returns an empty
+shell carrying nothing but an RDF download button. Confirmed on `M543439`
+(the One Piece debut) and `C119459` (Weekly Shonen Jump itself), against a
+book record that renders correctly. The old `mediaarts-db.bunka.go.jp`
+domain, which did serve those pages, now fails TLS with an expired
+certificate.
+
+Magazine data is therefore reachable only through the query endpoint, so RAR
+stores two links per candidate:
+
+- `source_record_url` is a SPARQL `DESCRIBE` of the exact record. It resolves
+  permanently and returns precisely what was imported — verified for all 13
+  queued candidates, each returning its own record id. It is JSON, not a page.
+- `raw_payload.human_readable_url` points at the National Diet Library's
+  search, scoped to the magazine and year. NDL holds these issues, is already
+  a registered RAR source at trust tier 1, and renders a real page, so a
+  reviewer has something to check the claim against.
+
 ### Rejected: Comic Vine
 
 https://comicvine.gamespot.com/weekly-shonen-jump/4050-43519/ holds 2,853 WSJ

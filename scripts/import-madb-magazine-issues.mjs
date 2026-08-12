@@ -326,7 +326,17 @@ for (const issue of candidates) {
   const row = {
     source_id: sourceId,
     external_id: issue.madbId,
-    source_record_url: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,
+    // NOT https://mediaarts-db.artmuseums.go.jp/id/<id>. That is the record's
+    // linked-data identifier and it is what the database's own listing pages
+    // link to, but the public site only renders it for books: for a magazine
+    // issue or a magazine title it returns an empty shell with nothing on it
+    // but an RDF download button. A reviewer following it sees nothing, which
+    // makes it useless as a source link.
+    //
+    // This URL resolves, permanently, to exactly the record RAR imported.
+    // It is JSON rather than a page, so a human-readable corroboration link
+    // goes in the payload below alongside it.
+    source_record_url: `https://mediaarts-db.artmuseums.go.jp/sparql?query=${encodeURIComponent(`DESCRIBE <https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}>`)}`,
     candidate_kind: "edition_candidate",
     candidate_title: MAGAZINE.nameJa,
     // Romaji deliberately, not the Japanese name again: the matcher checks
@@ -350,8 +360,16 @@ for (const issue of candidates) {
         cumulative_issue_no: String(issue.cumulative),
         madb_id: issue.madbId,
       },
+      // The Media Arts Database has no public page for a magazine issue, so
+      // this is where a reviewer goes to check the claim against a second
+      // source. The National Diet Library holds these issues, is already a
+      // registered RAR source, and its search renders a real page. Scoped to
+      // the magazine and the year so it lands on the right shelf rather than
+      // 2,000 results.
+      human_readable_url: `https://ndlsearch.ndl.go.jp/search?cs=bib&keyword=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}`)}`,
       madb: {
         id: issue.madbId,
+        record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,
         published_on: issue.publishedOn,
         cover_price_yen: issue.price,
         pages: issue.pages,
