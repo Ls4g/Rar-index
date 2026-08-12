@@ -203,16 +203,36 @@ The importer may pre-fill and it may flag conflicts. It may not verify.
 
 ## What gets harder
 
-**Scout matching.** `assessEditionMatch` weights ISBN at 20 and volume at 20.
-For a zasshi, ISBN is always null and `volume_number` is `1997年34号`, which no
-eBay listing types. A real listing — *"Shonen Jump 1997 One Piece 1st
-appearance"* — would score series 30 + language 15 + publisher 15 and land at
-"insufficient", sending every lead to human review.
+Nothing about existing Scout behaviour changes. Search profiles are scoped per
+edition, so zasshi adds new searches rather than altering book ones, and a
+scan of all 2,385 leads in the queue on 12 August found **zero** genuine
+Japanese magazine listings — Scout is not mismatching them today because
+nothing asks it to look. The cost is confined to the new category.
 
-That is the correct outcome under the rules, but it means a triage backlog
-rather than automatic coverage. A zasshi-aware normaliser is needed: extract
-year and issue number from listing text, fold `4・5` / `4-5` / `4&5` to one
-form, and treat a 通巻 match as the ISBN-strength signal.
+**Within that category, auto-matching starts weak.** `assessEditionMatch`
+weights ISBN at 20 and volume at 20. For a zasshi, ISBN is always null and
+`volume_number` is `1997年34号`, which no eBay listing types. A real listing —
+*"Shonen Jump 1997 One Piece 1st appearance"* — scores series 30 + language 15
++ publisher 15 and lands at "insufficient", sending every lead to human
+review. Correct under the rules, but a triage backlog rather than coverage.
+
+The fix is a zasshi-aware normaliser: extract year and issue number from
+listing text, fold `4・5` / `4-5` / `4&5` to one form, and treat a 通巻 or
+year+issue match as the ISBN-strength signal. That lifts a good listing back
+into the 65–80 band books occupy now.
+
+**Two naming traps, both measured in the live queue and both certain to break
+a naive implementation:**
+
+*"Shonen Jump" is a VIZ imprint, not the magazine.* 99 of the 2,385 leads
+contain the phrase and every one is an English paperback — *"Hunter x Hunter
+Vol 1 Paperback ... Shonen Jump Viz Media"*. A search profile keyed on the
+magazine's name would return 99 books and no magazines. The name is close to
+worthless as a signal; year plus issue number is the signal.
+
+*"Issue" does not mean issue.* Ten leads read *"Vol 1 Issue 1"*, all of them
+sellers restating the volume number of a tankobon. Matching on the word sends
+books into the magazine queue.
 
 **Covers.** MADB supplies none. Until the cover intake catches up, zasshi
 edition pages render without the blurred-artwork banner that
