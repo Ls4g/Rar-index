@@ -556,7 +556,7 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .cover-review-preview img { display: block; max-width: 160px; max-height: 220px; width: auto; height: auto; border: 1px solid var(--line); border-radius: .3rem; object-fit: contain; background: #fff; }
 .cover-review-preview-error { margin: 0; padding: .6rem .8rem; border: 1px solid rgba(154,60,49,.4); background: rgba(154,60,49,.08); color: #9a3c31; font-size: .78rem; }
 .cover-review-hint { margin: 0; color: var(--muted); font-size: .74rem; max-width: 32rem; }
-.cover-review-sales-filter { display: inline-flex; align-items: center; gap: .45rem; margin-top: .85rem; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.cover-review-sales-filter { display: inline-flex; align-items: center; gap: .45rem; margin: .85rem 1.4rem 0 0; color: var(--muted); font-size: .78rem; font-weight: 600; }
 .cover-review-sales-filter input { width: 1.05rem; height: 1.05rem; accent-color: var(--gold); }
 .cover-review-focused-section { padding-bottom: 1.5rem; }
 /* .review-condition is inline-block, so two consecutive instances run
@@ -721,7 +721,15 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .coverage-counts strong { display: block; margin-top: .5rem; font-size: .78rem; }
 .coverage-counts p { margin: .35rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .coverage-filters-section { margin-bottom: 3rem; }
-.coverage-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* This block only ever set grid-template-columns, and the container it sits
+   on (.browse-controls) is not a grid -- on /browse the grid lives on an
+   inner .browse-controls-grid that these screens do not have. So the columns
+   were never applied and the labels ran together as inline text with no
+   padding. auto-fit rather than a fixed count because the two screens using
+   it carry different numbers of filters (four here, six on the dashboard). */
+.coverage-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; padding: 1.1rem; }
+.coverage-filters label { display: grid; gap: .42rem; min-width: 0; color: var(--muted); font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.coverage-filters select { width: 100%; min-height: 2.8rem; border: 1px solid var(--line); border-radius: .5rem; padding: .65rem; background: var(--paper); color: var(--ink); font: inherit; letter-spacing: normal; text-transform: none; }
 .coverage-filter-count { margin-top: 1rem; color: var(--muted); font-size: .78rem; }
 .coverage-filter-count strong { color: var(--ink); }
 .coverage-row-identity small, .coverage-row-identity strong { display: block; }
@@ -734,8 +742,10 @@ a.coverage-badge:hover { filter: brightness(0.96); }
 .coverage-badge.coverage-good { border-color: rgba(62,113,68,.45); color: #32623a; background: rgba(62,113,68,.08); }
 .coverage-badge.coverage-neutral { border-color: var(--line); color: var(--muted); background: transparent; }
 .coverage-badge.coverage-live { border-color: rgba(44,90,160,.5); color: #204581; background: rgba(44,90,160,.09); }
-@media (max-width: 850px) { .coverage-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .coverage-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .coverage-counts { grid-template-columns: 1fr; } .coverage-filters { grid-template-columns: 1fr; } }
+/* .coverage-filters is auto-fit, so it reflows on its own — overriding the
+   column count here would only fight it. */
+@media (max-width: 850px) { .coverage-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .coverage-counts { grid-template-columns: 1fr; } }
 .import-status.valuation_ready { border-color: rgba(62,113,68,.45); color: #32623a; }
 .portfolio-page { min-height: 100vh; background: var(--paper); }
 .portfolio-signout, .portfolio-text-button { border: 0; padding: 0; background: transparent; color: var(--accent-label-text, #6f5010); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
