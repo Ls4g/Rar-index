@@ -269,11 +269,11 @@ table { font-variant-numeric: tabular-nums; }
    rule, so the veil fades toward that dark and never toward the canvas.
    --------------------------------------------------------------------- */
 .edition-stage { position: relative; overflow: hidden; }
-/* 20px, not 46px. At 46 the artwork dissolved into coloured fog that could
-   have come from any book; the point is that you recognise this cover behind
-   its own page. 20 keeps the composition readable while the veil below still
-   protects the title. */
-.edition-stage-art { position: absolute; inset: -12% -6% auto -6%; height: 132%; background-size: cover; background-position: center 32%; filter: blur(20px) saturate(1.15); transform: scale(1.08); opacity: .58; }
+/* 15px, down from 46. At 46 the artwork dissolved into coloured fog that
+   could have come from any book; the point is that you recognise this cover
+   behind its own page. The veil below is what protects the title, so the
+   blur only has to soften detail, not erase it. */
+.edition-stage-art { position: absolute; inset: -12% -6% auto -6%; height: 132%; background-size: cover; background-position: center 32%; filter: blur(15px) saturate(1.15); transform: scale(1.08); opacity: .58; }
 .edition-stage-veil { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(33,29,24,.58), rgba(33,29,24,.30) 48%, rgba(33,29,24,.68) 100%); }
 /* Without real cover art there is nothing to blur, so the veil would only
    flatten the existing hero gradient. Skip it. */
