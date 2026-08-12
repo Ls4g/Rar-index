@@ -266,6 +266,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       return number === null ? [] : [{ id: row.id, number, label: row.volume_number as string }];
     })
     .sort((left, right) => left.number - right.number);
+  const distinctVolumeCount = new Set(siblingVolumes.map((entry) => entry.number)).size;
   const currentVolume = volumeOf(edition.volume_number);
   const previousVolume = currentVolume === null ? null : [...siblingVolumes].reverse().find((entry) => entry.number < currentVolume) ?? null;
   const nextVolume = currentVolume === null ? null : siblingVolumes.find((entry) => entry.number > currentVolume) ?? null;
@@ -405,8 +406,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 {previousVolume
                   ? <Link href={`/edition/${previousVolume.id}`}>‹ Vol. {previousVolume.label}</Link>
                   : <span className="is-off">‹ First volume tracked</span>}
+                {/* Distinct volume numbers, not records. A series can hold
+                    two legitimate editions of the same volume -- One Piece
+                    Vol. 1 exists as both a single volume and an omnibus, on
+                    different ISBNs -- and counting records would advertise
+                    eleven volumes of a ten-volume run. */}
                 <Link className="is-index" href={`/browse?q=${encodeURIComponent(edition.series ?? "")}`}>
-                  All {siblingVolumes.length} volume{siblingVolumes.length === 1 ? "" : "s"}
+                  All {distinctVolumeCount} volume{distinctVolumeCount === 1 ? "" : "s"}
                 </Link>
                 {nextVolume
                   ? <Link href={`/edition/${nextVolume.id}`}>Vol. {nextVolume.label} ›</Link>
