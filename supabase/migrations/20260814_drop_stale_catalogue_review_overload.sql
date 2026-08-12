@@ -1,4 +1,6 @@
--- NOT YET APPLIED — needs a human go-ahead before running.
+-- Applied to production 2026-08-12 after confirmation. Verified afterwards:
+-- one overload of apply_catalogue_review remains, and it still carries the
+-- duplicate-ISBN printing guard.
 --
 -- Two overloads of apply_catalogue_review are live:
 --

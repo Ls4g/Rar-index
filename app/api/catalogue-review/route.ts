@@ -42,10 +42,26 @@ function isStaffRequest(request: Request) {
   }
 }
 
+const MAX_BULK_RECORDS = 40;
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await work(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { catalogueImportId?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown };
+  let payload: { catalogueImportId?: unknown; catalogueImportIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -54,14 +70,55 @@ export async function POST(request: Request) {
 
   const decisions: CatalogueDecision[] = ["approve_new", "link_existing", "needs_review", "rejected", "duplicate"];
   const catalogueImportId = typeof payload.catalogueImportId === "string" ? payload.catalogueImportId : "";
+  const catalogueImportIds = Array.isArray(payload.catalogueImportIds)
+    ? [...new Set(payload.catalogueImportIds.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean))]
+    : [];
   const decision = typeof payload.decision === "string" ? payload.decision : "";
   const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   const existingEditionId = typeof payload.existingEditionId === "string" && payload.existingEditionId.trim() ? payload.existingEditionId.trim() : null;
   const metadata = cleanMetadata(payload.metadata);
 
-  if (!catalogueImportId || !decisions.includes(decision as CatalogueDecision) || !reviewer) {
-    return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
+  if (!reviewer) {
+    return Response.json({ error: "Identify the reviewer." }, { status: 400 });
+  }
+
+  // Bulk path. Deliberately excludes link_existing, which needs a different
+  // existing edition named per row and so cannot be one decision applied to
+  // many. Approvals carry no metadata override: the reviewer is confirming
+  // the source record as it stands, and the database then reads title,
+  // publisher, language and ISBN from that candidate's own row. Every other
+  // guard still runs per row -- a missing language or a duplicate ISBN fails
+  // that row alone and is reported back for individual handling.
+  if (catalogueImportIds.length) {
+    if (!decisions.includes(decision as CatalogueDecision) || decision === "link_existing") {
+      return Response.json({ error: "Bulk decisions can approve, reject, mark duplicate, or send back for review — linking needs one exact edition per record." }, { status: 400 });
+    }
+    if (catalogueImportIds.length > MAX_BULK_RECORDS) {
+      return Response.json({ error: `Decide at most ${MAX_BULK_RECORDS} records at a time.` }, { status: 400 });
+    }
+    const admin = getSupabaseAdmin();
+    const outcomes = await mapWithConcurrency(catalogueImportIds, 4, async (id) => {
+      const { error } = await admin.rpc("apply_catalogue_review", {
+        p_catalogue_import_id: id,
+        p_decision: decision,
+        p_decision_notes: notes,
+        p_reviewed_by: reviewer,
+        p_existing_edition_id: null,
+        p_metadata: null,
+      });
+      return { id, error: error?.message ?? null };
+    });
+    const failed = outcomes.filter((outcome) => outcome.error);
+    return Response.json({
+      ok: failed.length === 0,
+      saved: outcomes.length - failed.length,
+      failed: failed.map((outcome) => ({ id: outcome.id, error: outcome.error })),
+    });
+  }
+
+  if (!catalogueImportId || !decisions.includes(decision as CatalogueDecision)) {
+    return Response.json({ error: "Choose a decision for one exact record." }, { status: 400 });
   }
   if (decision === "link_existing" && !existingEditionId) {
     return Response.json({ error: "Linking requires the exact existing edition ID." }, { status: 400 });

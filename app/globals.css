@@ -563,6 +563,42 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
    together with no gap or line break — force this one onto its own line. */
 .cover-review-sale-count { display: block; margin-top: .2rem; }
 .cover-review-focused-section .review-card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+/* Bulk catalogue review: the queue as a scannable table rather than a stack
+   of forms, so obvious approvals go together and the odd ones stand out. */
+.catalogue-bulk-panel { margin: 0 0 2rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }
+.catalogue-bulk-panel .section-intro { margin-bottom: 1rem; }
+.catalogue-bulk-operator { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: .75rem; margin-bottom: .9rem; }
+.catalogue-bulk-operator label { display: grid; gap: .3rem; color: var(--muted); font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.catalogue-bulk-operator input { border: 1px solid var(--line); border-radius: .5rem; padding: .55rem .7rem; background: var(--surface-chip); color: var(--canvas-heading); font: inherit; font-size: .82rem; }
+.catalogue-bulk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .9rem; }
+.catalogue-bulk-actions button { border: 1px solid var(--line); border-radius: .5rem; padding: .55rem .8rem; background: var(--surface-chip); color: var(--canvas-heading); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; }
+.catalogue-bulk-actions button:hover:not(:disabled) { border-color: var(--orange); }
+.catalogue-bulk-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.catalogue-bulk-actions .catalogue-bulk-approve { border-color: var(--red); background: var(--red); color: #fff; }
+.catalogue-bulk-actions .catalogue-bulk-approve:hover:not(:disabled) { background: var(--red-dark); border-color: var(--red-dark); }
+.catalogue-bulk-count { margin-right: auto; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.catalogue-bulk-banner { margin: 0 0 .9rem; font-size: .78rem; font-weight: 600; line-height: 1.5; }
+.catalogue-bulk-banner.is-error { color: var(--red); }
+.catalogue-bulk-banner.is-ok { color: var(--accent-positive-text); }
+.catalogue-bulk-table { display: grid; gap: .35rem; }
+.catalogue-bulk-row { display: grid; grid-template-columns: auto minmax(0, 1.6fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: .8rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--surface-chip); cursor: pointer; font-size: .76rem; }
+.catalogue-bulk-row.is-selected { border-color: var(--orange); background: var(--surface-chip-active); }
+.catalogue-bulk-row.is-not-approvable { opacity: .72; }
+.catalogue-bulk-row:focus-within { outline: 2px solid var(--orange); outline-offset: 2px; }
+.catalogue-bulk-title { display: grid; gap: .1rem; min-width: 0; }
+.catalogue-bulk-title strong { color: var(--canvas-heading); font-size: .84rem; overflow-wrap: anywhere; }
+.catalogue-bulk-title small { color: var(--muted); }
+.catalogue-bulk-facts { display: flex; flex-wrap: wrap; gap: .2rem .75rem; color: var(--muted); }
+.catalogue-bulk-facts .catalogue-bulk-isbn { font-variant-numeric: tabular-nums; }
+.catalogue-bulk-source { display: grid; gap: .15rem; justify-items: end; text-align: right; }
+.catalogue-bulk-source em { color: var(--accent-warning-text); font-style: normal; font-weight: 600; font-size: .68rem; }
+.catalogue-bulk-source a { color: var(--accent-label-text); font-weight: 600; }
+@media (max-width: 900px) {
+  .catalogue-bulk-operator { grid-template-columns: 1fr; }
+  .catalogue-bulk-row { grid-template-columns: auto minmax(0, 1fr); }
+  .catalogue-bulk-facts, .catalogue-bulk-source { grid-column: 2; justify-items: start; text-align: left; }
+}
+
 /* Bulk candidate review: every pending cover beside the record it claims to
    match, so a wrong one is caught by comparison rather than by reading. */
 .cover-bulk-panel { margin: 0 0 2rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CatalogueBulkPanel, { type CatalogueBulkRecord } from "@/components/CatalogueBulkPanel";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
 import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
 import StaffNav from "@/components/StaffNav";
@@ -34,6 +35,19 @@ export default async function CatalogueReviewPage() {
     .order("imported_at", { ascending: false })
     .limit(50);
   const records = (data ?? []) as CatalogueRecord[];
+  const bulkRecords: CatalogueBulkRecord[] = records.map((record) => ({
+    id: record.id,
+    kind: record.candidate_kind,
+    title: record.candidate_title,
+    series: record.candidate_series,
+    volumeNumber: record.candidate_volume_number,
+    publisher: record.candidate_publisher,
+    language: record.candidate_language,
+    isbn13: record.candidate_isbn_13,
+    releaseDate: record.candidate_release_date,
+    sourceName: record.source_name,
+    sourceRecordUrl: record.source_record_url,
+  }));
 
   return (
     <main className="review-page catalogue-page">
@@ -53,6 +67,7 @@ export default async function CatalogueReviewPage() {
         <div className="queue-total"><strong>{records.length}</strong><span>candidates awaiting review</span></div>
       </section>
       <section className="review-list-section">
+        <CatalogueBulkPanel records={bulkRecords} />
         {records.length ? <div className="review-list">{records.map((record) => (
           <article className="review-card catalogue-card" key={record.id}>
             <div className="review-card-topline"><span>{record.source_name ?? "Catalogue source"} · {record.candidate_kind === "edition_candidate" ? "Edition candidate" : "Series reference"}</span><time>Imported {formatDate(record.imported_at)}</time></div>
