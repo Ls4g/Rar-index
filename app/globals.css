@@ -14,12 +14,16 @@
   --config-soft: rgba(44,90,160,.09);
   --line: rgba(33, 29, 24, 0.14);
 
-  /* Space Grotesk for display/headings, Inter for body/data. Both are
-     Latin-only, so a system CJK stack rides behind them — Japanese author
-     names, publishers and series text fall through to it automatically
-     instead of being forced into missing glyphs. */
-  --font-display: var(--font-space-grotesk), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", Arial, sans-serif;
-  --font-sans: var(--font-inter), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", Arial, sans-serif;
+  /* Archivo for both display and body. The two tokens are kept so every
+     existing rule still resolves, but they now point at one family —
+     weight carries hierarchy instead of a second typeface.
+     Archivo is Latin-only, so the same system CJK stack rides behind it:
+     Japanese author names, publishers and series text fall through
+     automatically rather than being forced into missing glyphs. */
+  --font-display: var(--font-archivo), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", Arial, sans-serif;
+  --font-sans: var(--font-archivo), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", Arial, sans-serif;
+  /* Identifiers, labels and figures where fixed width does a job. */
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -92,8 +96,11 @@ button, input { font: inherit; }
 .hero-content { position: relative; z-index: 1; max-width: 960px; margin: auto; padding: 3.75rem 2rem 3.25rem; text-align: center; }
 .eyebrow { margin: 0 0 1.15rem; color: var(--gold); font-size: .7rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 h1, h2, h3, p { margin-top: 0; }
-h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.02em; }
-h1 { margin-bottom: 1rem; font-size: clamp(2.9rem, 5.8vw, 4.8rem); line-height: .96; letter-spacing: -.025em; }
+/* Archivo is a grotesque rather than a geometric display face: it wants more
+   weight and tighter tracking at large sizes than Space Grotesk did, or the
+   headings read loose and under-set. */
+h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: -.028em; }
+h1 { margin-bottom: 1rem; font-size: clamp(2.9rem, 5.8vw, 4.8rem); line-height: .96; letter-spacing: -.038em; }
 h1 span { display: block; color: var(--gold-light); font-style: normal; }
 .hero-copy { max-width: 590px; margin: 0 auto 2rem; color: rgba(244,240,232,.68); font-size: 1.02rem; line-height: 1.6; }
 
@@ -1233,7 +1240,10 @@ a.coverage-badge:hover { filter: brightness(0.96); }
   --config-soft: var(--blue-soft);
 }
 body { background: var(--paper); }
-h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.02em; }
+/* This block used to restate `h1, h2 { font-weight: 600; letter-spacing: -.02em }`,
+   duplicating the base rule near the top of the file and silently winning by
+   coming later — so every heading weight change made up there did nothing.
+   The theme block only needs to set colour and family, which it does below. */
 h3, .confidence-label { font-family: var(--font-display); }
 .site-header { background: var(--paper); }
 .brand-mark { background: linear-gradient(135deg, var(--red), var(--red-dark)); box-shadow: 0 6px 16px rgba(131,40,34,.22); }
