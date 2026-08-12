@@ -247,8 +247,46 @@ covers.
    `scripts/test-zasshi-constraints.mjs` (20 assertions against real Weekly
    Shonen Jump data, all rows torn down). The catalogue still holds zero
    magazine records — the model exists, nothing has been catalogued into it.
-2. MADB import script → `catalogue_import_queue`. Weekly Shonen Jump only.
-   Validate against real issues before it touches the queue.
+2. **Shipped 12 Aug 2026** — `scripts/import-madb-magazine-issues.mjs`.
+   Dry run by default; `--write` queues candidates and nothing else. First
+   batch: 13 issues carrying the first appearance of a series RAR already
+   catalogues, including the Dragon Ball, One Piece, Hunter × Hunter, Naruto
+   and Bleach debuts. All sit at `pending_review`; zero magazines are
+   catalogued.
+
+   What the source data actually turned out to be, measured across all
+   2,388 Weekly Shonen Jump issues:
+
+   - **通巻 is 100% populated and not reliable.** Five values are wrong,
+     two badly: 2000年52号 carries 通巻52 (the issue number typed into the
+     wrong field) and 1998年12号 carries 通巻485. The importer withholds
+     anything whose 通巻 drifts far from its date-ordered position, and
+     reports why, rather than importing it as fact. 14 records withheld.
+   - **Two records are not issues.** A flip-book whose second cover MADB
+     catalogued separately (2012年18号) and a bound-in supplement given its
+     own issue record (2012年36号). Both collide on year+issue and are
+     withheld with that reason stated.
+   - **Numeric fields are not numeric.** Price appears as `210円` as often
+     as `210`, pages as `476p` as often as `476`, and some older records use
+     full-width digits. `Number()` yields NaN on all three and would have
+     written NaN into the review payload.
+   - **Coverage is 1969-11-03 to 2018-06-25**, not the full run. The
+     magazine began July 1968 and is still going, so roughly the first 35
+     issues and everything after June 2018 is absent.
+   - **Combined issues lose their printed label.** MADB records a 合併号
+     under a single number: 1997 runs 3号 then 5号, with no 4号, where the
+     cover reads 4・5合併号. The label RAR stores will not be the label a
+     seller types, which matters for step 4.
+   - **Debuts are derived, not flagged.** Only 7 parts in the entire run
+     carry a 新連載 note, so a debut is taken as a work's earliest
+     appearance in the contents. That reproduces the known debuts exactly
+     (One Piece 1997年34号, Hunter × Hunter 1998年14号, Naruto 1999年43号,
+     Bleach 2001年36号, Dragon Ball 1984年51号, Kuroko no Basuke 2009年2号).
+     It is also **left-censored**: every series already running in November
+     1969 appears to debut in the first issue of the data. 男一匹ガキ大将
+     began in 1968 and would have been claimed as a 1969 debut. Anything
+     first seen inside the opening window is dropped rather than reported,
+     because claiming those would be inventing an edition claim.
 3. `magazine_issue_contents` and the edition-page display.
 4. Zasshi-aware Scout matching.
 
