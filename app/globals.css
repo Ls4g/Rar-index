@@ -577,6 +577,8 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-bulk-actions .catalogue-bulk-approve { border-color: var(--red); background: var(--red); color: #fff; }
 .catalogue-bulk-actions .catalogue-bulk-approve:hover:not(:disabled) { background: var(--red-dark); border-color: var(--red-dark); }
 .catalogue-bulk-count { margin-right: auto; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.catalogue-bulk-caution { max-width: 62rem; margin: 0 0 .9rem; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+.catalogue-bulk-facts .is-thin { color: var(--accent-warning-text); font-weight: 600; }
 .catalogue-bulk-banner { margin: 0 0 .9rem; font-size: .78rem; font-weight: 600; line-height: 1.5; }
 .catalogue-bulk-banner.is-error { color: var(--red); }
 .catalogue-bulk-banner.is-ok { color: var(--accent-positive-text); }
