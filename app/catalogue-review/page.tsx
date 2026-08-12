@@ -20,8 +20,20 @@ type CatalogueRecord = {
   candidate_release_date: string | null;
   source_name: string | null;
   source_record_url: string;
+  raw_payload: { human_readable_url?: string | null } | null;
   imported_at: string;
 };
+
+// Some sources have no browsable page for the record they hold. The Media
+// Arts Database is one: it renders a full page for a book but nothing at all
+// for a magazine issue, so RAR stores its query endpoint as the source record
+// and a second, readable link to check the claim against. Where that exists,
+// the reviewer gets both -- a source link that opens onto raw data is not
+// much use for deciding whether a record is right.
+function readableSourceUrl(record: CatalogueRecord) {
+  const url = record.raw_payload?.human_readable_url;
+  return typeof url === "string" && url.length ? url : null;
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
@@ -31,7 +43,7 @@ export default async function CatalogueReviewPage() {
   const admin = getSupabaseAdmin();
   const { data } = await admin
     .from("catalogue_review_queue")
-    .select("id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, source_name, source_record_url, imported_at")
+    .select("id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, source_name, source_record_url, raw_payload, imported_at")
     .order("imported_at", { ascending: false })
     .limit(50);
   const records = (data ?? []) as CatalogueRecord[];
@@ -71,7 +83,7 @@ export default async function CatalogueReviewPage() {
         {records.length ? <div className="review-list">{records.map((record) => (
           <article className="review-card catalogue-card" key={record.id}>
             <div className="review-card-topline"><span>{record.source_name ?? "Catalogue source"} · {record.candidate_kind === "edition_candidate" ? "Edition candidate" : "Series reference"}</span><time>Imported {formatDate(record.imported_at)}</time></div>
-            <div className="review-card-main"><div><h3>{record.candidate_title}</h3><p className="review-condition">{[record.candidate_series, record.candidate_volume_number ? `Vol. ${record.candidate_volume_number}` : null, record.candidate_language].filter(Boolean).join(" · ") || "Details still needed"}</p></div><a className="review-source-link" href={record.source_record_url} target="_blank" rel="noreferrer">Open source record ↗</a></div>
+            <div className="review-card-main"><div><h3>{record.candidate_title}</h3><p className="review-condition">{[record.candidate_series, record.candidate_volume_number ? `Vol. ${record.candidate_volume_number}` : null, record.candidate_language].filter(Boolean).join(" · ") || "Details still needed"}</p></div><div className="review-source-links">{readableSourceUrl(record) ? <a className="review-source-link" href={readableSourceUrl(record) as string} target="_blank" rel="noreferrer">Look it up ↗</a> : null}<a className="review-source-link is-raw" href={record.source_record_url} target="_blank" rel="noreferrer">{readableSourceUrl(record) ? "Source data ↗" : "Open source record ↗"}</a></div></div>
             <dl className="catalogue-details">
               {record.candidate_author ? <div><dt>Author</dt><dd>{record.candidate_author}</dd></div> : null}
               {record.candidate_publisher ? <div><dt>Publisher</dt><dd>{record.candidate_publisher}</dd></div> : null}

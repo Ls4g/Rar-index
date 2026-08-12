@@ -84,7 +84,23 @@ button, input { font: inherit; }
 .staff-nav-panel a { padding: .42rem .5rem; border-radius: .35rem; color: var(--ink); font-size: .82rem; }
 .staff-nav-panel a:hover { background: #eee6d7; }
 .staff-nav-panel a.is-current { background: var(--action-soft); color: var(--action-dark); font-weight: 700; pointer-events: none; }
-@media (max-width: 850px) { .staff-nav-panel { min-width: 0; width: min(90vw, 420px); grid-template-columns: repeat(2, minmax(0, 1fr)); right: -1rem; } }
+/* The panel is anchored to the right edge of its trigger, which is correct on
+   desktop where the trigger sits at the right of the masthead. On a phone the
+   masthead wraps and the trigger moves to the LEFT, so a right-anchored panel
+   extends off the left of the screen: the box renders, but its contents are
+   past x=0 and unreachable. Anchor to the trigger's left edge instead, and
+   cap the width against the viewport rather than a fixed 90vw, since the
+   trigger already sits inside the masthead's own padding. */
+@media (max-width: 850px) {
+  .staff-nav-panel {
+    right: auto;
+    left: 0;
+    min-width: 0;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 @media (max-width: 600px) { .staff-nav-panel { grid-template-columns: 1fr; } }
 
 /* The hero used to be a tall, mostly-empty dark panel. It now holds real
@@ -517,6 +533,12 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .review-price { display: inline-block; margin-right: .6rem; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 700; }
 .review-condition { display: inline-block; margin: 0; color: var(--muted); font-size: .85rem; }
 .review-source-link { align-self: start; color: #6f5010; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+/* A candidate can carry two source links: one a reviewer can read, one the
+   raw record it was imported from. The raw one is demoted so the readable
+   one is what the eye lands on first. */
+.review-source-links { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; }
+.review-source-links .review-source-link.is-raw { color: var(--muted); font-weight: 600; }
+@media (max-width: 600px) { .review-source-links { align-items: flex-start; } }
 .review-match { margin-top: 1.25rem; padding: 1rem; background: #eee6d7; }
 .review-match .eyebrow { margin-bottom: .45rem; }
 .review-match h4 { margin: 0 0 .25rem; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; }
