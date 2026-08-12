@@ -329,7 +329,12 @@ for (const issue of candidates) {
     source_record_url: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,
     candidate_kind: "edition_candidate",
     candidate_title: MAGAZINE.nameJa,
-    candidate_series: MAGAZINE.nameJa,
+    // Romaji deliberately, not the Japanese name again: the matcher checks
+    // the title one way and the series the other, so carrying both names
+    // lets a listing in either language reach the same record. A Japanese
+    // seller writes 週刊少年ジャンプ, an English one writes Weekly Shonen Jump,
+    // and neither string contains the other.
+    candidate_series: MAGAZINE.nameRomaji,
     candidate_volume_number: `${issue.year}年${issue.issueLabel}号`,
     candidate_publisher: MAGAZINE.publisher,
     candidate_language: "Japanese",

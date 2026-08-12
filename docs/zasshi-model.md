@@ -288,7 +288,37 @@ covers.
      first seen inside the opening window is dropped rather than reported,
      because claiming those would be inventing an edition claim.
 3. `magazine_issue_contents` and the edition-page display.
-4. Zasshi-aware Scout matching.
+4. **Shipped 12 Aug 2026** — issue parsing and scoring in
+   `lib/editionMatch.ts`, covered by `scripts/test-zasshi-matching.mjs`.
+
+   A magazine target scores on 通巻 (40), issue number (25) and year (20) in
+   place of the volume and ISBN components it has neither of, so a listing
+   naming the year and issue reaches the same "strong" band a matched ISBN
+   gives a book. Combined issues match either half, and 4・5合併号 parses.
+
+   Cross-contamination is refused in both directions, because the live queue
+   showed both going wrong: a listing shaped like a book never matches a
+   magazine, and a listing naming a magazine issue never matches a book. An
+   issue number alone is never enough — it must be anchored to a year or a
+   通巻, since ten real leads read "Vol 1 Issue 1" meaning volume one.
+
+   Two things this turned up:
+
+   - **`normalise()` erased Japanese entirely.** It stripped to `[a-z0-9]`,
+     so 週刊少年ジャンプ became the empty string and could not match itself.
+     Every Japanese-titled record has been scoring zero on its strongest
+     signal — the same class of bug as the × / x fold already documented
+     there, one alphabet over. Kana and kanji are now kept.
+   - **A magazine needs both its names.** The matcher checks the title one
+     way and the series the other, so the importer stores 週刊少年ジャンプ as
+     the title and Weekly Shonen Jump as the series. Neither string contains
+     the other, and a seller writes one or the other, never both.
+
+   Regression checked against 1,650 real lead titles scored as books: one
+   newly conflicts (`Demon Slayer: Kimetsu No Yaiba #1 (Viz 2018)`, which is
+   genuinely ambiguous and belongs in front of a human), and none of the 87
+   "Shonen Jump" book listings are misread as magazines. The five existing
+   standalone test scripts all still pass.
 
 Steps 1 and 2 are the schema decision. Steps 3 and 4 are separate pieces of
 work and should not be bundled into the same change.
