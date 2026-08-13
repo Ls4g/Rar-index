@@ -20,19 +20,46 @@ type CatalogueRecord = {
   candidate_release_date: string | null;
   source_name: string | null;
   source_record_url: string;
-  raw_payload: { human_readable_url?: string | null } | null;
+  raw_payload: {
+    human_readable_url?: string | null;
+    human_readable_url_label?: string | null;
+    review_metadata?: { cumulative_issue_no?: string | null } | null;
+    derived_first_appearances?: string[] | null;
+    madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
+  } | null;
   imported_at: string;
 };
 
 // Some sources have no browsable page for the record they hold. The Media
 // Arts Database is one: it renders a full page for a book but nothing at all
-// for a magazine issue, so RAR stores its query endpoint as the source record
-// and a second, readable link to check the claim against. Where that exists,
-// the reviewer gets both -- a source link that opens onto raw data is not
-// much use for deciding whether a record is right.
+// for a magazine issue, so its source link opens onto raw JSON.
+//
+// Pointing the reviewer somewhere else to hunt did not fix that. The National
+// Diet Library holds an exact record for only 1 of the 13 queued issues, and
+// a keyword search there returns exhibition catalogues beside the magazine --
+// 48 results to answer one question. So the facts that actually decide the
+// record are printed on the row, and the link is labelled for what it really
+// reaches rather than promising a lookup it cannot do.
 function readableSourceUrl(record: CatalogueRecord) {
   const url = record.raw_payload?.human_readable_url;
   return typeof url === "string" && url.length ? url : null;
+}
+
+function sourceFacts(record: CatalogueRecord): string[] {
+  const payload = record.raw_payload;
+  if (!payload) return [];
+  const facts: string[] = [];
+  const cumulative = payload.review_metadata?.cumulative_issue_no;
+  if (cumulative) facts.push(`通巻 ${cumulative}`);
+  if (payload.madb?.cover_price_yen) facts.push(`¥${payload.madb.cover_price_yen} cover`);
+  if (payload.madb?.pages) facts.push(`${payload.madb.pages} pages`);
+  // The note is free text and carries the binding, plus the zasshi code when
+  // the record has one. Only the first clause is short enough to sit in a row.
+  const note = payload.madb?.note?.split("／")[0]?.trim();
+  if (note) facts.push(note);
+  const debuts = payload.derived_first_appearances ?? [];
+  if (debuts.length) facts.push(`first appearance: ${debuts.slice(0, 2).join(", ")}${debuts.length > 2 ? ` +${debuts.length - 2}` : ""}`);
+  return facts;
 }
 
 function formatDate(value: string) {
@@ -60,6 +87,8 @@ export default async function CatalogueReviewPage() {
     sourceName: record.source_name,
     sourceRecordUrl: record.source_record_url,
     readableUrl: readableSourceUrl(record),
+    readableUrlLabel: record.raw_payload?.human_readable_url_label ?? null,
+    sourceFacts: sourceFacts(record),
   }));
 
   return (

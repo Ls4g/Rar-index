@@ -791,10 +791,16 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-bulk-source a { color: var(--accent-label-text); font-weight: 600; }
 /* The raw-record link is the fallback, not the one to reach for first. */
 .catalogue-bulk-source a.is-raw { color: var(--muted); font-weight: 500; }
+/* The facts that decide the record, on the row. A source whose own site has
+   no page for the record cannot be checked by following a link, so what a
+   reviewer needs is printed rather than linked. */
+.catalogue-bulk-sourcefacts { display: flex; flex-wrap: wrap; gap: .3rem .7rem; margin-top: .2rem; color: var(--muted); font-size: .72rem; }
+.catalogue-bulk-sourcefacts span { white-space: nowrap; }
+.catalogue-bulk-sourcefacts span:last-child { white-space: normal; }
 @media (max-width: 900px) {
   .catalogue-bulk-operator { grid-template-columns: 1fr; }
   .catalogue-bulk-row { grid-template-columns: auto minmax(0, 1fr); }
-  .catalogue-bulk-facts, .catalogue-bulk-source { grid-column: 2; justify-items: start; text-align: left; }
+  .catalogue-bulk-facts, .catalogue-bulk-source, .catalogue-bulk-sourcefacts { grid-column: 2; justify-items: start; text-align: left; }
 }
 
 /* Bulk candidate review: every pending cover beside the record it claims to

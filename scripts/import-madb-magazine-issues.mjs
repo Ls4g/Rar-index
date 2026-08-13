@@ -316,11 +316,40 @@ if (!magazineTitleId) {
 const existing = await rest("GET", `catalogue_import_queue?select=external_id&source_id=eq.${sourceId}&limit=10000`);
 const alreadyQueued = new Set((existing.json ?? []).map((r) => r.external_id));
 
+// The magazine's serial record at NDL. Used when no issue-level record
+// exists, which is the common case -- it is at least a real bibliographic
+// record for the right magazine rather than a keyword search.
+const NDL_SERIAL_URL = "https://ndlsearch.ndl.go.jp/books/R100000002-I028362920";
+
+async function resolveNdl(issue) {
+  try {
+    const url = `https://ndlsearch.ndl.go.jp/api/opensearch?title=${encodeURIComponent(MAGAZINE.nameJa)}&from=${issue.publishedOn}&until=${issue.publishedOn}&cnt=20`;
+    const xml = await (await fetch(url)).text();
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
+    const issueItem = items.find((it) => /<link>[^<]*-i\d+<\/link>/.test(it));
+    if (issueItem) {
+      const link = issueItem.match(/<link>([^<]*)<\/link>/)[1];
+      const volume = (issueItem.match(/<dcndl:volume[^>]*>([^<]*)<\/dcndl:volume>/) || [])[1] ?? "";
+      const tsuukan = (volume.match(/通号\s*(\d+)/) || [])[1];
+      return {
+        url: link,
+        label: "NDL record for this issue",
+        agrees: tsuukan ? Number(tsuukan) === issue.cumulative : null,
+      };
+    }
+  } catch { /* fall through to the serial record */ }
+  return { url: NDL_SERIAL_URL, label: "NDL record for the magazine", agrees: null };
+}
+
 let queued = 0;
 let skipped = 0;
 let failed = 0;
 for (const issue of candidates) {
   if (alreadyQueued.has(issue.madbId)) { skipped += 1; continue; }
+  const ndl = await resolveNdl(issue);
+  if (ndl.agrees === false) {
+    console.log(`  NOTE ${issue.year}年${issue.issueLabel}号: NDL disagrees with MADB on 通巻${issue.cumulative} — flagged in the payload for the reviewer`);
+  }
   const debuts = debutByIssue.get(issue.madbId) ?? [];
   const zasshiCodeMatch = issue.note.match(/雑誌コード\s*(\d{5})/);
   const row = {
@@ -360,13 +389,16 @@ for (const issue of candidates) {
         cumulative_issue_no: String(issue.cumulative),
         madb_id: issue.madbId,
       },
-      // The Media Arts Database has no public page for a magazine issue, so
-      // this is where a reviewer goes to check the claim against a second
-      // source. The National Diet Library holds these issues, is already a
-      // registered RAR source, and its search renders a real page. Scoped to
-      // the magazine and the year so it lands on the right shelf rather than
-      // 2,000 results.
-      human_readable_url: `https://ndlsearch.ndl.go.jp/search?cs=bib&keyword=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}`)}`,
+      // Resolved per issue against the National Diet Library, not guessed.
+      // Their OpenSearch API exposes an issue-level record for some dates and
+      // only the magazine-level serial record for the rest -- 1 of the first
+      // 13 issues resolved exactly -- so this link says which one it is
+      // rather than sending a reviewer into a keyword search. Where an exact
+      // record exists, NDL's 通号 is cross-checked against MADB's 通巻: the
+      // One Piece debut agrees on 1458 from both sources independently.
+      human_readable_url: ndl.url,
+      human_readable_url_label: ndl.label,
+      ndl_cumulative_agrees: ndl.agrees,
       madb: {
         id: issue.madbId,
         record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,

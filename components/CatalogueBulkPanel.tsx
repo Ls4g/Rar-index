@@ -15,10 +15,17 @@ export type CatalogueBulkRecord = {
   sourceName: string | null;
   sourceRecordUrl: string;
   // Some sources hold no browsable page for the record — the Media Arts
-  // Database renders nothing for a magazine issue — so the source link opens
-  // onto raw data. Where a readable stand-in exists it leads instead, and the
-  // raw record follows it.
+  // Database renders nothing at all for a magazine issue — so its source link
+  // opens onto raw data. Sending the reviewer elsewhere to hunt did not fix
+  // that: the National Diet Library has an exact record for only 1 of the 13
+  // queued issues, and a keyword search returns exhibition books alongside
+  // the magazine. So the facts that decide the record are printed here
+  // instead, and the links are what they are.
   readableUrl: string | null;
+  readableUrlLabel: string | null;
+  // Cover price, page count and binding as the source states them: enough to
+  // tell a real issue record from a wrong one without leaving the page.
+  sourceFacts: string[];
 };
 
 type BulkDecision = "approve_new" | "rejected" | "duplicate" | "needs_review";
@@ -141,10 +148,15 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
                 <span className={`catalogue-bulk-isbn${record.isbn13 ? "" : " is-thin"}`}>{record.isbn13 ?? "No ISBN"}</span>
                 <span className={record.releaseDate ? "" : "is-thin"}>{record.releaseDate ?? "No date"}</span>
               </span>
+              {record.sourceFacts.length ? (
+                <span className="catalogue-bulk-sourcefacts">
+                  {record.sourceFacts.map((fact) => <span key={fact}>{fact}</span>)}
+                </span>
+              ) : null}
               <span className="catalogue-bulk-source">
                 {record.kind === "series_reference" ? <em>Series reference — cannot create an edition</em> : null}
                 {record.kind === "edition_candidate" && !isApprovable ? <em>Missing a title or language</em> : null}
-                {record.readableUrl ? <a href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">Look it up ↗</a> : null}
+                {record.readableUrl ? <a href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrlLabel ?? "Library record"} ↗</a> : null}
                 <a className={record.readableUrl ? "is-raw" : undefined} href={record.sourceRecordUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrl ? "Source data" : (record.sourceName ?? "Source")} ↗</a>
               </span>
             </label>
