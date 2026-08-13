@@ -14,6 +14,11 @@ export type CatalogueBulkRecord = {
   releaseDate: string | null;
   sourceName: string | null;
   sourceRecordUrl: string;
+  // Some sources hold no browsable page for the record — the Media Arts
+  // Database renders nothing for a magazine issue — so the source link opens
+  // onto raw data. Where a readable stand-in exists it leads instead, and the
+  // raw record follows it.
+  readableUrl: string | null;
 };
 
 type BulkDecision = "approve_new" | "rejected" | "duplicate" | "needs_review";
@@ -139,7 +144,8 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
               <span className="catalogue-bulk-source">
                 {record.kind === "series_reference" ? <em>Series reference — cannot create an edition</em> : null}
                 {record.kind === "edition_candidate" && !isApprovable ? <em>Missing a title or language</em> : null}
-                <a href={record.sourceRecordUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.sourceName ?? "Source"} ↗</a>
+                {record.readableUrl ? <a href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">Look it up ↗</a> : null}
+                <a className={record.readableUrl ? "is-raw" : undefined} href={record.sourceRecordUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrl ? "Source data" : (record.sourceName ?? "Source")} ↗</a>
               </span>
             </label>
           );

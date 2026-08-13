@@ -32,6 +32,8 @@ Automation (Scout auto-triage, matching scorers, etc.) may only ever narrow *wha
 - **`preview_start` browser tool**: has a persistent stale-PATH bug on this machine. Workaround: run `pnpm run dev` via a background shell after prepending `$env:PATH = "C:\Program Files\nodejs;$env:APPDATA\npm;" + $env:PATH`, then open a browser tab to `http://localhost:3000` directly.
 - **Local `.env.local`** has Supabase creds and local-only throwaway staff creds, but no eBay API creds — Scout/eBay-dependent code can't be exercised live from local dev; verify eBay-touching logic with a standalone script instead.
 - Browser automation tools default to the "active" tab when `tabId` is omitted — always pass an explicit `tabId` once more than one tab is open.
+- **Mobile layout cannot be verified in-browser on this machine.** `resize_window` reports success while `window.innerWidth` stays 1920, so media queries never fire and a responsive bug is invisible. Staff pages also sit behind a login whose password must not be typed into a form. So for a mobile/staff UI change: verify via `pnpm run build` plus grepping the compiled CSS under `.next/**/*.css` for the rule and its declarations, say plainly in the commit that rendering is unverified, and ask for a phone check. Two real bugs (a right-anchored nav panel opening off the left edge, an unrendered link) were both found by the user on a phone, not locally.
+- **Corepack, not a global `pnpm`.** `pnpm` is not on PATH; `corepack pnpm ...` is (after the PATH prepend above).
 - `CLAUDE.md` at the repo root just points here via `@AGENTS.md` — edit this file, not that one.
 
 ## Workflow expectations

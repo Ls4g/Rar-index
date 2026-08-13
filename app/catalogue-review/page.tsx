@@ -59,6 +59,7 @@ export default async function CatalogueReviewPage() {
     releaseDate: record.candidate_release_date,
     sourceName: record.source_name,
     sourceRecordUrl: record.source_record_url,
+    readableUrl: readableSourceUrl(record),
   }));
 
   return (

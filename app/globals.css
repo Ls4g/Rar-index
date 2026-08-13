@@ -789,6 +789,8 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-bulk-source { display: grid; gap: .15rem; justify-items: end; text-align: right; }
 .catalogue-bulk-source em { color: var(--accent-warning-text); font-style: normal; font-weight: 600; font-size: .68rem; }
 .catalogue-bulk-source a { color: var(--accent-label-text); font-weight: 600; }
+/* The raw-record link is the fallback, not the one to reach for first. */
+.catalogue-bulk-source a.is-raw { color: var(--muted); font-weight: 500; }
 @media (max-width: 900px) {
   .catalogue-bulk-operator { grid-template-columns: 1fr; }
   .catalogue-bulk-row { grid-template-columns: auto minmax(0, 1fr); }
