@@ -5,6 +5,11 @@ type EBayItem = {
   price?: { value?: string; currency?: string };
   condition?: string;
   itemEndDate?: string;
+  // Already present in every stored lead payload, just never surfaced. A
+  // photograph of a real copy is the only way to *see* a magazine issue:
+  // its cover art is copyrighted, so no catalogue source carries a picture.
+  image?: { imageUrl?: string };
+  thumbnailImages?: Array<{ imageUrl?: string }>;
 };
 
 type EBaySearchResponse = { itemSummaries?: EBayItem[] };
@@ -17,6 +22,7 @@ export type ActiveEbayListing = {
   currency: string | null;
   condition: string | null;
   itemEndAt: string | null;
+  imageUrl: string | null;
   rawPayload: EBayItem;
 };
 
@@ -70,6 +76,7 @@ export async function findActiveEbayListings(query: string, applicationToken?: s
       currency: item.price?.currency ?? null,
       condition: item.condition ?? null,
       itemEndAt: item.itemEndDate ?? null,
+      imageUrl: item.image?.imageUrl ?? item.thumbnailImages?.[0]?.imageUrl ?? null,
       rawPayload: item,
     }];
   });

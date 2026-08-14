@@ -25,6 +25,7 @@ type CatalogueRecord = {
     human_readable_url_label?: string | null;
     marketplace_lookup_url?: string | null;
     marketplace_lookup_alt_url?: string | null;
+    listing_photo?: { image_url?: string | null; listing_url?: string | null; listing_title?: string | null } | null;
     review_metadata?: { cumulative_issue_no?: string | null } | null;
     derived_first_appearances?: string[] | null;
     madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
@@ -66,6 +67,16 @@ function marketplaceLookupUrl(record: CatalogueRecord) {
 function marketplaceLookupAltUrl(record: CatalogueRecord) {
   const url = record.raw_payload?.marketplace_lookup_alt_url;
   return typeof url === "string" && url.length ? url : null;
+}
+
+// A photograph of a copy someone is selling, attached by /api/catalogue-photos
+// only when the listing's own title names the same year and issue. It exists
+// so a magazine can be seen at all -- its cover art is copyrighted and no
+// catalogue source carries a picture. It is never a cover and never evidence.
+function listingPhoto(record: CatalogueRecord) {
+  const photo = record.raw_payload?.listing_photo;
+  if (!photo?.image_url) return null;
+  return { imageUrl: photo.image_url, listingUrl: photo.listing_url ?? null, listingTitle: photo.listing_title ?? null };
 }
 
 function sourceFacts(record: CatalogueRecord): string[] {
@@ -113,6 +124,7 @@ export default async function CatalogueReviewPage() {
     readableUrlLabel: record.raw_payload?.human_readable_url_label ?? null,
     marketplaceUrl: marketplaceLookupUrl(record),
     marketplaceAltUrl: marketplaceLookupAltUrl(record),
+    listingPhoto: listingPhoto(record),
     sourceFacts: sourceFacts(record),
   }));
 

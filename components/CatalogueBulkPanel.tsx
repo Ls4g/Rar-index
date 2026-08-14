@@ -29,6 +29,9 @@ export type CatalogueBulkRecord = {
   // sellers write either the Japanese or the romanised title.
   marketplaceUrl: string | null;
   marketplaceAltUrl: string | null;
+  // A photo of a copy on sale, matched to this exact issue. Shown so the
+  // reviewer can see the magazine without leaving the page. Not a cover.
+  listingPhoto: { imageUrl: string; listingUrl: string | null; listingTitle: string | null } | null;
   // Cover price, page count and binding as the source states them: enough to
   // tell a real issue record from a wrong one without leaving the page.
   sourceFacts: string[];
@@ -141,7 +144,23 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
           return (
             <label className={`catalogue-bulk-row${isSelected ? " is-selected" : ""}${isApprovable ? "" : " is-not-approvable"}`} key={record.id}>
               <input checked={isSelected} onChange={() => toggle(record.id)} type="checkbox" />
+              {/* The photo sits inside the title block rather than becoming a
+                  fifth grid column: it is only present on some rows, and a
+                  conditional column would knock every other row out of
+                  alignment. */}
               <span className="catalogue-bulk-title">
+                {record.listingPhoto ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- a
+                     third-party marketplace CDN, not a configured next/image
+                     host, and this is a small review thumbnail. */
+                  <img
+                    alt={record.listingPhoto.listingTitle ?? "A copy of this issue offered for sale"}
+                    className="catalogue-bulk-photo"
+                    loading="lazy"
+                    src={record.listingPhoto.imageUrl}
+                    title={record.listingPhoto.listingTitle ?? undefined}
+                  />
+                ) : null}
                 <strong>{record.title}</strong>
                 <small>{[record.series, record.volumeNumber ? `Vol. ${record.volumeNumber}` : null].filter(Boolean).join(" · ") || "No series recorded"}</small>
               </span>
