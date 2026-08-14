@@ -17,6 +17,13 @@ type Profile = {
     isbn_13: string | null;
     publisher: string | null;
     format: string | null;
+    printing_number: number | null;
+    edition_statement: string | null;
+    variant_name: string | null;
+    collectible_type: string | null;
+    issue_year: number | null;
+    issue_number_label: string | null;
+    cumulative_issue_no: number | null;
   } | null;
 };
 
@@ -40,7 +47,7 @@ export async function POST(request: Request) {
   const limit = cleanLimit(payload.limit);
   const { data, error } = await admin
     .from("marketplace_search_profiles")
-    .select("id,search_query,source:sources!inner(id,name),edition:manga_editions(title,series,volume_number,language,isbn_13,publisher,format)")
+    .select("id,search_query,source:sources!inner(id,name),edition:manga_editions(title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no)")
     .eq("is_active", true)
     .eq("source.name", "eBay Sold")
     .order("last_checked_at", { ascending: true, nullsFirst: true })

@@ -11,6 +11,13 @@ export type ScoutEdition = {
   isbn_13: string | null;
   publisher: string | null;
   format?: string | null;
+  printing_number?: number | null;
+  edition_statement?: string | null;
+  variant_name?: string | null;
+  collectible_type?: string | null;
+  issue_year?: number | null;
+  issue_number_label?: string | null;
+  cumulative_issue_no?: number | null;
 };
 
 export type ScoutLeadRow = {
@@ -90,12 +97,12 @@ export function buildScoutLeadRow(profileId: string, sourceId: string, edition: 
     last_seen_at: checkedAt,
     updated_at: checkedAt,
   };
-  return { row, conflictsWithEdition: listingConflictsWithEdition(listing.title, edition) };
+  return { row, conflictsWithEdition: row.match_assessment.confidence === "conflict" || listingConflictsWithEdition(listing.title, edition) };
 }
 
 // Stores this scan's leads, then auto-dismisses only the ones a title-text
 // contradiction rules out (a multi-volume lot/set, wrong ISBN, wrong
-// publisher, wrong language, or wrong binding) and that no human has touched
+// publisher, language, binding, printing, or series identity) and that no human has touched
 // yet. A lead a staff member has already set to
 // "watching" or manually "dismissed" is left alone — auto-triage never
 // overwrites a human decision, and it never verifies anything as a sale.
@@ -106,7 +113,7 @@ export async function storeScoutLeads(admin: SupabaseClient, profileId: string, 
 
   const conflictExternalIds = builds.filter((build) => build.conflictsWithEdition).map((build) => build.row.external_id);
   if (conflictExternalIds.length) {
-    const decisionNotes = "Auto-dismissed: the listing title is a multi-volume lot/set, names a different volume, or conflicts with this edition's ISBN, publisher, language, or binding.";
+    const decisionNotes = "Auto-dismissed: the listing title is a multi-volume lot/set, names a different volume/printing/series, or conflicts with this edition's ISBN, publisher, language, or binding.";
     const { data: dismissed } = await admin
       .from("scout_listing_leads")
       .update({ review_status: "dismissed", review_notes: decisionNotes, reviewed_by: "RAR Auto-Triage" })

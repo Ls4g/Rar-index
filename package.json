@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:workflows": "node --experimental-strip-types scripts/test-workflow-regressions.mjs && node --experimental-strip-types scripts/test-scout-scoring.mjs && node --experimental-strip-types scripts/test-zasshi-matching.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

@@ -13,6 +13,12 @@ type CandidateMetadata = {
   language: string | null;
   isbn13: string | null;
   releaseDate: string | null;
+  collectibleType: string | null;
+  magazineTitleId: string | null;
+  issueYear: string | null;
+  issueNumberLabel: string | null;
+  cumulativeIssueNo: string | null;
+  madbId: string | null;
 };
 
 const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }> = [
@@ -37,6 +43,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   const [metadata, setMetadata] = useState<CandidateMetadata>(candidate);
   const [isbnMatches, setIsbnMatches] = useState<EditionSuggestion[]>([]);
   const [printingOfEditionId, setPrintingOfEditionId] = useState("");
+  const isMagazine = candidate.collectibleType === "zasshi";
 
   useEffect(() => {
     if (decision !== "link_existing" || candidateTitle.trim().length < 2) return;
@@ -110,7 +117,9 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
       </div>
       {decision === "approve_new" ? <fieldset className="catalogue-metadata">
         <legend>Verified edition details</legend>
-        <p>Clean these before publishing. RAR records the standard Volume 1 here; a specific printing is added separately later.</p>
+        <p>{isMagazine
+          ? "Clean the descriptive fields before publishing. The magazine, year and printed issue identifiers below come from the queued source record and are preserved automatically."
+          : "Clean these before publishing. RAR records the standard volume here; a specific printing is added separately later."}</p>
         <div className="review-form-fields">
           <label>Title<input onChange={(event) => setMetadata({ ...metadata, title: event.target.value })} required value={metadata.title} /></label>
           <label>Series<input onChange={(event) => setMetadata({ ...metadata, series: event.target.value || null })} value={metadata.series ?? ""} /></label>
@@ -121,6 +130,12 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
           <label>ISBN-13<input inputMode="numeric" onChange={(event) => { setMetadata({ ...metadata, isbn13: event.target.value || null }); setPrintingOfEditionId(""); }} value={metadata.isbn13 ?? ""} /></label>
           <label>Release date<input onChange={(event) => setMetadata({ ...metadata, releaseDate: event.target.value || null })} type="date" value={metadata.releaseDate ?? ""} /></label>
         </div>
+        {isMagazine ? <dl className="catalogue-details">
+          <div><dt>Collectible type</dt><dd>Magazine issue (zasshi)</dd></div>
+          <div><dt>Issue</dt><dd>{[candidate.issueYear, candidate.issueNumberLabel ? `No. ${candidate.issueNumberLabel}` : null].filter(Boolean).join(" · ")}</dd></div>
+          {candidate.cumulativeIssueNo ? <div><dt>Cumulative issue</dt><dd>{candidate.cumulativeIssueNo}</dd></div> : null}
+          {candidate.madbId ? <div><dt>Media Arts ID</dt><dd>{candidate.madbId}</dd></div> : null}
+        </dl> : null}
       </fieldset> : null}
       {decision === "approve_new" && currentIsbnMatches.length ? <div className="catalogue-isbn-warning" role="alert">
         <p>ISBN {metadata.isbn13} already exists in the catalogue. This will be blocked unless you either use &quot;Link existing edition&quot; instead, or confirm this candidate is a specific printing of one of the records below.</p>

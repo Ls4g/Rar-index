@@ -27,7 +27,14 @@ type CatalogueRecord = {
     marketplace_lookup_url?: string | null;
     marketplace_lookup_alt_url?: string | null;
     listing_photo?: { image_url?: string | null; listing_url?: string | null; listing_title?: string | null; graded?: boolean | null } | null;
-    review_metadata?: { cumulative_issue_no?: string | null } | null;
+    review_metadata?: {
+      collectible_type?: string | null;
+      magazine_title_id?: string | null;
+      issue_year?: string | null;
+      issue_number_label?: string | null;
+      cumulative_issue_no?: string | null;
+      madb_id?: string | null;
+    } | null;
     derived_first_appearances?: string[] | null;
     madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
   } | null;
@@ -127,6 +134,12 @@ export default async function CatalogueReviewPage() {
     marketplaceAltUrl: marketplaceLookupAltUrl(record),
     listingPhoto: listingPhoto(record),
     sourceFacts: sourceFacts(record),
+    reviewMetadata: {
+      collectibleType: record.raw_payload?.review_metadata?.collectible_type ?? null,
+      magazineTitleId: record.raw_payload?.review_metadata?.magazine_title_id ?? null,
+      issueYear: record.raw_payload?.review_metadata?.issue_year ?? null,
+      issueNumberLabel: record.raw_payload?.review_metadata?.issue_number_label ?? null,
+    },
   }));
 
   return (
@@ -180,6 +193,12 @@ export default async function CatalogueReviewPage() {
                 language: record.candidate_language,
                 isbn13: record.candidate_isbn_13,
                 releaseDate: record.candidate_release_date,
+                collectibleType: record.raw_payload?.review_metadata?.collectible_type ?? null,
+                magazineTitleId: record.raw_payload?.review_metadata?.magazine_title_id ?? null,
+                issueYear: record.raw_payload?.review_metadata?.issue_year ?? null,
+                issueNumberLabel: record.raw_payload?.review_metadata?.issue_number_label ?? null,
+                cumulativeIssueNo: record.raw_payload?.review_metadata?.cumulative_issue_no ?? null,
+                madbId: record.raw_payload?.review_metadata?.madb_id ?? null,
               }}
             />
           </article>

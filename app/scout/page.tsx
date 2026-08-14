@@ -5,6 +5,7 @@ import ScoutRunButton from "@/components/ScoutRunButton";
 import ScoutTriageInbox, { type ScoutLead } from "@/components/ScoutTriageInbox";
 import StaffNav from "@/components/StaffNav";
 import { assessScoutListing, type ScoutEdition } from "@/lib/scoutIngest";
+import { scoutListingGroupKey } from "@/lib/scoutGrouping";
 import { isPrioritySeries } from "@/lib/prioritySeries";
 
 function formatLastChecked(value: string | null) {
@@ -74,7 +75,7 @@ export default async function ScoutPage() {
   const admin = getSupabaseAdmin();
   const { data: profileData } = await admin
     .from("marketplace_search_profiles")
-    .select("id,search_query,last_checked_at,edition_id,edition:manga_editions(id,title,series,volume_number,language,isbn_13,publisher,format),source:sources(name)")
+    .select("id,search_query,last_checked_at,edition_id,edition:manga_editions(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no),source:sources(name)")
     .eq("is_active", true)
     .order("last_checked_at", { ascending: false, nullsFirst: false });
   const profiles = (profileData ?? []) as unknown as Profile[];
@@ -87,14 +88,16 @@ export default async function ScoutPage() {
     : { count: 0 };
 
   // The same real eBay listing can be captured by more than one collection
-  // profile (e.g. a raw-copy profile and a graded-copy profile both scoping
-  // to "Bleach Vol. 1"). Each profile relationship stays a separate row in
+  // profile for the same exact RAR edition. Each profile relationship stays a separate row in
   // scout_listing_leads (and a separate audit trail on decision) — this
   // only groups them for display, and for applying one decision to the
-  // whole cluster at once so staff never triage the same listing twice.
+  // same-edition cluster at once so staff never triage the same listing twice.
+  // The edition ID is part of the key: one listing matched to two different
+  // editions must receive two independent decisions.
   const groupsByListing = new Map<string, LeadRow[]>();
   for (const lead of leadRows) {
-    const key = `${lead.source_id}:${lead.external_id}`;
+    const edition = editionByProfile.get(lead.profile_id);
+    const key = scoutListingGroupKey(lead.source_id, lead.external_id, edition?.id, lead.profile_id);
     const group = groupsByListing.get(key) ?? [];
     group.push(lead);
     groupsByListing.set(key, group);
@@ -159,7 +162,7 @@ export default async function ScoutPage() {
         <div>
           <p className="eyebrow">RAR Scout</p>
           <h1>Scout triage inbox</h1>
-          <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. On every scan, RAR Auto-Triage dismisses leads that are a multi-volume lot/set, name a different volume, or whose title text clearly conflicts with the target edition&apos;s ISBN, publisher, language, or binding ({autoDismissedCount ?? 0} dismissed so far) — it never touches a lead a staff member has already reviewed, and it never verifies a sale.</p>
+          <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. On every scan, RAR Auto-Triage dismisses leads that are a multi-volume lot/set, name a different volume, printing, or series, or whose title text clearly conflicts with the target edition&apos;s ISBN, publisher, language, or binding ({autoDismissedCount ?? 0} dismissed so far) — it never touches a lead a staff member has already reviewed, and it never verifies a sale.</p>
           <ScoutBatchRunButton />
         </div>
         <div className="queue-total"><strong>{leads.length}</strong><span>unique active listings across {profiles.length} profiles</span></div>

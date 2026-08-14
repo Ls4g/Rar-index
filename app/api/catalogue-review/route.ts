@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { catalogueMetadataProblem, queuedReviewMetadata } from "@/lib/catalogueReviewMetadata";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
 type ApprovedMetadata = {
@@ -85,11 +86,9 @@ export async function POST(request: Request) {
 
   // Bulk path. Deliberately excludes link_existing, which needs a different
   // existing edition named per row and so cannot be one decision applied to
-  // many. Approvals carry no metadata override: the reviewer is confirming
-  // the source record as it stands, and the database then reads title,
-  // publisher, language and ISBN from that candidate's own row. Every other
-  // guard still runs per row -- a missing language or a duplicate ISBN fails
-  // that row alone and is reported back for individual handling.
+  // many. Ordinary book fields come from each candidate row. Source-owned
+  // identity fields are loaded again on the server and sent to the RPC, so a
+  // magazine cannot lose its year/issue identity during bulk approval.
   if (catalogueImportIds.length) {
     if (!decisions.includes(decision as CatalogueDecision) || decision === "link_existing") {
       return Response.json({ error: "Bulk decisions can approve, reject, mark duplicate, or send back for review — linking needs one exact edition per record." }, { status: 400 });
@@ -98,14 +97,24 @@ export async function POST(request: Request) {
       return Response.json({ error: `Decide at most ${MAX_BULK_RECORDS} records at a time.` }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
+    const { data: queuedRows, error: queueError } = await admin
+      .from("catalogue_import_queue")
+      .select("id,raw_payload")
+      .in("id", catalogueImportIds);
+    if (queueError) return Response.json({ error: "RAR could not load the selected catalogue candidates." }, { status: 500 });
+    const queuedById = new Map((queuedRows ?? []).map((row) => [row.id as string, row.raw_payload]));
     const outcomes = await mapWithConcurrency(catalogueImportIds, 4, async (id) => {
+      if (!queuedById.has(id)) return { id, error: "This catalogue candidate no longer exists." };
+      const sourceMetadata = queuedReviewMetadata(queuedById.get(id));
+      const metadataProblem = decision === "approve_new" ? catalogueMetadataProblem(sourceMetadata) : null;
+      if (metadataProblem) return { id, error: metadataProblem };
       const { error } = await admin.rpc("apply_catalogue_review", {
         p_catalogue_import_id: id,
         p_decision: decision,
         p_decision_notes: notes,
         p_reviewed_by: reviewer,
         p_existing_edition_id: null,
-        p_metadata: null,
+        p_metadata: decision === "approve_new" ? sourceMetadata : null,
       });
       return { id, error: error?.message ?? null };
     });
@@ -128,13 +137,22 @@ export async function POST(request: Request) {
   }
 
   const admin = getSupabaseAdmin();
+  const { data: queuedRow, error: queueError } = await admin
+    .from("catalogue_import_queue")
+    .select("raw_payload")
+    .eq("id", catalogueImportId)
+    .maybeSingle();
+  if (queueError || !queuedRow) return Response.json({ error: "This catalogue candidate no longer exists." }, { status: 404 });
+  const sourceMetadata = queuedReviewMetadata(queuedRow.raw_payload);
+  const metadataProblem = decision === "approve_new" ? catalogueMetadataProblem(sourceMetadata) : null;
+  if (metadataProblem) return Response.json({ error: metadataProblem }, { status: 400 });
   const { error } = await admin.rpc("apply_catalogue_review", {
     p_catalogue_import_id: catalogueImportId,
     p_decision: decision,
     p_decision_notes: notes,
     p_reviewed_by: reviewer,
     p_existing_edition_id: existingEditionId,
-    p_metadata: decision === "approve_new" ? metadata : null,
+    p_metadata: decision === "approve_new" ? { ...metadata, ...sourceMetadata } : null,
   });
   if (error) {
     const message = error.message?.startsWith("ISBN ") || error.message?.startsWith("The selected general edition")

@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
-import { findActiveEbayListings } from "@/lib/ebayScout";
-import { looksGraded, parseIssueReference } from "@/lib/editionMatch";
+import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
+import { looksGraded, parseIssueReference, splitIssueNumbers } from "@/lib/editionMatch";
 
 // Attaches a photograph of a real copy to a pending magazine candidate, so a
 // reviewer can see the issue on the review page instead of taking the record
@@ -60,16 +60,16 @@ function usableSeriesName(value: string | null | undefined) {
   return name;
 }
 
-function buildQueries(year: number, issueNumber: number, seriesNames: string[]) {
+function buildQueries(year: number, issueLabel: string, seriesNames: string[]) {
   const queries = [
-    `週刊少年ジャンプ ${year}年${issueNumber}号`,
-    `Weekly Shonen Jump ${year} issue ${issueNumber}`,
-    `Shonen Jump ${year} #${issueNumber}`,
+    `週刊少年ジャンプ ${year}年${issueLabel}号`,
+    `Weekly Shonen Jump ${year} issue ${issueLabel}`,
+    `Shonen Jump ${year} #${issueLabel}`,
   ];
   const series = seriesNames.map(usableSeriesName).find(Boolean);
   if (series) {
-    queries.push(`Weekly Shonen Jump ${year} issue ${issueNumber} ${series}`);
-    queries.push(`週刊少年ジャンプ ${year}年${issueNumber}号 ${series}`);
+    queries.push(`Weekly Shonen Jump ${year} issue ${issueLabel} ${series}`);
+    queries.push(`週刊少年ジャンプ ${year}年${issueLabel}号 ${series}`);
   }
   return queries;
 }
@@ -82,11 +82,11 @@ type Attached = {
   graded: boolean;
 };
 
-function confirmsIssue(listingTitle: string, year: number, issueNumber: number) {
+function confirmsIssue(listingTitle: string, year: number, issueNumbers: number[]) {
   const reference = parseIssueReference(listingTitle);
   if (reference.looksLikeBook) return false;
   if (reference.year !== year) return false;
-  return reference.issueNumbers.includes(issueNumber);
+  return reference.issueNumbers.some((number) => issueNumbers.includes(number));
 }
 
 export async function POST(request: Request) {
@@ -109,13 +109,20 @@ export async function POST(request: Request) {
   const attached: Attached[] = [];
   const unmatched: string[] = [];
   const errors: string[] = [];
+  let applicationToken: string;
+  try {
+    applicationToken = await getEbayApplicationToken();
+  } catch {
+    return Response.json({ error: "eBay did not issue RAR an application token." }, { status: 503 });
+  }
 
   for (const candidate of candidates) {
     const metadata = candidate.raw_payload?.review_metadata;
     const year = Number(metadata?.issue_year);
-    const issueNumber = Number(metadata?.issue_number_label);
+    const issueLabel = String(metadata?.issue_number_label ?? "").trim();
+    const issueNumbers = splitIssueNumbers(issueLabel);
     const label = candidate.candidate_volume_number ?? candidate.id;
-    if (!Number.isInteger(year) || !Number.isInteger(issueNumber)) {
+    if (!Number.isInteger(year) || !issueNumbers.length) {
       unmatched.push(`${label} — no usable year/issue on the candidate`);
       continue;
     }
@@ -125,7 +132,7 @@ export async function POST(request: Request) {
     const existing = candidate.raw_payload?.listing_photo as { graded?: boolean } | undefined;
     if (existing && existing.graded === false) continue;
 
-    const queries = buildQueries(year, issueNumber, candidate.raw_payload?.catalogue_series_matched ?? []);
+    const queries = buildQueries(year, issueLabel, candidate.raw_payload?.catalogue_series_matched ?? []);
     // A raw copy is a better look at a magazine than a slab, where the cover
     // sits behind plastic under a grader's label. Both searches are run and
     // every confirmed listing collected before choosing, so a raw copy found
@@ -137,9 +144,9 @@ export async function POST(request: Request) {
       // nothing better to find and the remaining searches are skipped.
       if (confirmed.some((found) => !found.graded)) break;
       try {
-        const listings = await findActiveEbayListings(query);
+        const listings = await findActiveEbayListings(query, applicationToken);
         for (const listing of listings) {
-          if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumber)) continue;
+          if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumbers)) continue;
           confirmed.push({
             issue: label,
             listingTitle: listing.title,

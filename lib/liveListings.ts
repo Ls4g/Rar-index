@@ -26,7 +26,7 @@ export function seriesSearchName(edition: { series?: string | null; title?: stri
 // The numeric-range half also accepts "&"/"and"/"," between two volume
 // numbers ("Volume 1 & 2", "Vol 1, 2, 3") — just as unambiguous a lot/set
 // signal as an explicit dash range, and a real, observed listing pattern.
-const MULTI_VOLUME_WORDS = /\b(?:vol(?:ume)?\.?|book|part)\s*\d+\s*(?:-|–|to|&|and|,)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
+const MULTI_VOLUME_WORDS = /(?:\b(?:vol(?:ume)?\.?|book|part)|#)\s*\d+\s*(?:-|–|to|&|and|,)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
 
 export function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
   if (!volumeNumber) return true;

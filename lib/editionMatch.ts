@@ -50,7 +50,7 @@ function toHalfWidth(value: string) {
   return value.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
 }
 
-function splitIssueNumbers(raw: string): number[] {
+export function splitIssueNumbers(raw: string): number[] {
   return toHalfWidth(raw)
     .split(/[・･,、\-–/&\s]+/)
     .map((part) => Number(part))
@@ -192,6 +192,9 @@ export type EditionMatchTarget = {
   issue_year?: number | null;
   issue_number_label?: string | null;
   cumulative_issue_no?: number | null;
+  printing_number?: number | null;
+  edition_statement?: string | null;
+  variant_name?: string | null;
 };
 
 export type EditionMatchCandidate = {
@@ -278,6 +281,37 @@ function formatCategory(value: string | null | undefined): "hardcover" | "paperb
 }
 
 const FIRST_PRINTING_WORDS = /\b(?:1st|first)\s*print(?:ing)?\b|\bfirst\s*edition\b/i;
+const NUMBERED_PRINTING = /\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:print(?:ing)?|impression)\b/i;
+const WORD_PRINTINGS: Record<string, number> = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
+};
+
+export function explicitPrintingNumber(value: string | null | undefined) {
+  const text = String(value ?? "");
+  const numbered = text.match(NUMBERED_PRINTING);
+  if (numbered) return Number(numbered[1]);
+  const word = text.match(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s*(?:print(?:ing)?|impression)\b/i);
+  return word ? WORD_PRINTINGS[word[1].toLowerCase()] : null;
+}
+
+const SERIES_FAMILY_EXTENSIONS: Record<string, string[]> = {
+  dragonball: ["dragonballz", "dragonballsuper", "dragonballgt"],
+};
+
+function seriesFamilyConflict(targetSeries: string | null, listingTitle: string | null) {
+  const target = normalise(targetSeries);
+  const listing = normalise(listingTitle);
+  return Boolean(target && listing && (SERIES_FAMILY_EXTENSIONS[target] ?? []).some((variant) => listing.includes(variant)));
+}
 
 // Weighted for how often each field is actually present in real listing
 // text: a clear series/volume match is common and meaningful even with no
@@ -303,9 +337,11 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
   }
 
   const targetSeriesName = seriesNeedle(target);
-  const seriesOrTitleMatches = titleMatches(target.title, candidate.title)
+  const differentSeriesVariant = seriesFamilyConflict(targetSeriesName, candidate.title);
+  if (differentSeriesVariant) conflicts.push("listing names a different series in the same franchise");
+  const seriesOrTitleMatches = !differentSeriesVariant && (titleMatches(target.title, candidate.title)
     || titleMatches(target.series, candidate.series)
-    || containsNormalised(candidate.title, targetSeriesName);
+    || containsNormalised(candidate.title, targetSeriesName));
   if (seriesOrTitleMatches) {
     score += 30;
     reasons.push("series/title matches");
@@ -390,7 +426,15 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
     conflicts.push("binding/format conflicts with the selected edition");
   }
 
-  if (candidate.title && FIRST_PRINTING_WORDS.test(candidate.title)) {
+  const targetPrinting = target.printing_number ?? explicitPrintingNumber(target.edition_statement);
+  const candidatePrinting = explicitPrintingNumber(candidate.title);
+  const printingConflicts = targetPrinting !== null && candidatePrinting !== null && targetPrinting !== candidatePrinting;
+  if (printingConflicts) {
+    conflicts.push(`listing states printing ${candidatePrinting}, not printing ${targetPrinting}`);
+  } else if (targetPrinting !== null && candidatePrinting === targetPrinting) {
+    score += 5;
+    reasons.push(`printing ${targetPrinting} matches`);
+  } else if (candidate.title && FIRST_PRINTING_WORDS.test(candidate.title) && (candidatePrinting === null || candidatePrinting === 1) && (targetPrinting === null || targetPrinting === 1)) {
     score += 5;
     reasons.push("listing states first printing / first edition");
   }
