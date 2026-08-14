@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { findActiveEbayListings } from "@/lib/ebayScout";
-import { parseIssueReference } from "@/lib/editionMatch";
+import { looksGraded, parseIssueReference } from "@/lib/editionMatch";
 
 // Attaches a photograph of a real copy to a pending magazine candidate, so a
 // reviewer can see the issue on the review page instead of taking the record
@@ -40,6 +40,7 @@ type Attached = {
   listingTitle: string;
   imageUrl: string;
   listingUrl: string;
+  graded: boolean;
 };
 
 function confirmsIssue(listingTitle: string, year: number, issueNumber: number) {
@@ -79,26 +80,41 @@ export async function POST(request: Request) {
       unmatched.push(`${label} — no usable year/issue on the candidate`);
       continue;
     }
-    if (candidate.raw_payload?.listing_photo) continue;
+    // Already has a raw photo -- leave it alone. A graded one is retried, so
+    // an earlier run that could only find a slab gets upgraded if a loose
+    // copy has since been listed.
+    const existing = candidate.raw_payload?.listing_photo as { graded?: boolean } | undefined;
+    if (existing && existing.graded === false) continue;
 
     // Sellers write one form or the other, almost never both.
     const queries = [
       `週刊少年ジャンプ ${year}年${issueNumber}号`,
       `Weekly Shonen Jump ${year} ${issueNumber}`,
     ];
-    let match: Attached | null = null;
+    // A raw copy is a better look at a magazine than a slab, where the cover
+    // sits behind plastic under a grader's label. Both searches are run and
+    // every confirmed listing collected before choosing, so a raw copy found
+    // by the second query still beats a graded one found by the first. A slab
+    // is used only when nothing else was found -- some picture beats none.
+    const confirmed: Attached[] = [];
     for (const query of queries) {
-      if (match) break;
       try {
         const listings = await findActiveEbayListings(query);
-        const hit = listings.find((listing) => listing.imageUrl && confirmsIssue(listing.title, year, issueNumber));
-        if (hit) {
-          match = { issue: label, listingTitle: hit.title, imageUrl: hit.imageUrl as string, listingUrl: hit.url };
+        for (const listing of listings) {
+          if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumber)) continue;
+          confirmed.push({
+            issue: label,
+            listingTitle: listing.title,
+            imageUrl: listing.imageUrl,
+            listingUrl: listing.url,
+            graded: looksGraded(listing.title),
+          });
         }
       } catch (error) {
         errors.push(`${label}: ${error instanceof Error ? error.message : "eBay search failed"}`);
       }
     }
+    const match = confirmed.find((candidateMatch) => !candidateMatch.graded) ?? confirmed[0] ?? null;
 
     if (!match) { unmatched.push(label); continue; }
 
@@ -108,6 +124,7 @@ export async function POST(request: Request) {
         image_url: match.imageUrl,
         listing_url: match.listingUrl,
         listing_title: match.listingTitle,
+        graded: match.graded,
         captured_at: new Date().toISOString(),
         // Stated on the record itself so it cannot drift into being treated
         // as provenance for a cover.
@@ -122,6 +139,9 @@ export async function POST(request: Request) {
   return Response.json({
     checked: candidates.length,
     attached: attached.length,
+    // Reported so a run that could only find slabs is visible rather than
+    // silently producing hard-to-read thumbnails.
+    graded: attached.filter((photo) => photo.graded).length,
     photos: attached,
     noListingFound: unmatched,
     errors,

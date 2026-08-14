@@ -26,7 +26,7 @@ type CatalogueRecord = {
     human_readable_url_label?: string | null;
     marketplace_lookup_url?: string | null;
     marketplace_lookup_alt_url?: string | null;
-    listing_photo?: { image_url?: string | null; listing_url?: string | null; listing_title?: string | null } | null;
+    listing_photo?: { image_url?: string | null; listing_url?: string | null; listing_title?: string | null; graded?: boolean | null } | null;
     review_metadata?: { cumulative_issue_no?: string | null } | null;
     derived_first_appearances?: string[] | null;
     madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
@@ -77,7 +77,7 @@ function marketplaceLookupAltUrl(record: CatalogueRecord) {
 function listingPhoto(record: CatalogueRecord) {
   const photo = record.raw_payload?.listing_photo;
   if (!photo?.image_url) return null;
-  return { imageUrl: photo.image_url, listingUrl: photo.listing_url ?? null, listingTitle: photo.listing_title ?? null };
+  return { imageUrl: photo.image_url, listingUrl: photo.listing_url ?? null, listingTitle: photo.listing_title ?? null, graded: photo.graded === true };
 }
 
 function sourceFacts(record: CatalogueRecord): string[] {

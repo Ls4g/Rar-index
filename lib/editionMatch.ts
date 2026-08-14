@@ -99,6 +99,16 @@ export function namesAnIssue(reference: IssueReference) {
   return reference.issueNumbers.length > 0 && reference.year !== null;
 }
 
+// A slabbed copy is sealed in plastic behind a grader's label, so it is a
+// poorer look at a magazine than a loose copy: part of the cover is covered
+// and the rest is behind perspex. Used to prefer raw copies when picking a
+// photograph, and to pick graded leads out of the Scout queue.
+const GRADED_TITLE = /\b(cgc|cbcs|bgs|beckett|psa|graded|slab(bed)?)\b/i;
+
+export function looksGraded(title: string | null | undefined) {
+  return GRADED_TITLE.test(String(title ?? ""));
+}
+
 export type ZasshiTarget = {
   issue_year: number | null;
   issue_number_label: string | null;

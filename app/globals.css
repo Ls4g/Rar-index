@@ -792,6 +792,10 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-bulk-title:has(.catalogue-bulk-photo) strong,
 .catalogue-bulk-title:has(.catalogue-bulk-photo) small { grid-column: 2; }
 .catalogue-bulk-photo { grid-row: 1 / span 2; width: 44px; height: 60px; object-fit: cover; border: 1px solid var(--line); border-radius: .2rem; background: var(--surface-chip); }
+/* A slab is a worse look at the issue -- cover behind plastic, part of it
+   under a label -- so it is marked rather than passed off as a clean shot.
+   Only used when no loose copy was listed. */
+.catalogue-bulk-photo.is-graded { border-color: var(--accent-warning-text); border-style: dashed; }
 .catalogue-bulk-title strong { color: var(--canvas-heading); font-size: .84rem; overflow-wrap: anywhere; }
 .catalogue-bulk-title small { color: var(--muted); }
 .catalogue-bulk-facts { display: flex; flex-wrap: wrap; gap: .2rem .75rem; color: var(--muted); }

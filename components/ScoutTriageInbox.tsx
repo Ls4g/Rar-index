@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
+import { looksGraded } from "@/lib/editionMatch";
 
 export type ScoutLead = {
   id: string;
@@ -148,10 +149,9 @@ const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
 // filter on a listing title, so it only ever narrows what a human looks at;
 // the grading company and grade still have to be read off the listing and
 // recorded by hand, exactly as any other sale is.
-const GRADED_TITLE = /\b(cgc|cbcs|bgs|beckett|psa|graded|slab(bed)?)\b/i;
-function looksGraded(title: string) {
-  return GRADED_TITLE.test(title);
-}
+// looksGraded now lives in lib/editionMatch.ts, shared with the magazine
+// photo picker, which prefers a raw copy for the same reason a slab is hard
+// to read: the cover sits behind plastic and a grader's label.
 
 export default function ScoutTriageInbox({ leads: initialLeads }: { leads: ScoutLead[] }) {
   const [leads, setLeads] = useState(initialLeads);

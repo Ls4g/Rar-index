@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type PhotoResult = {
   checked?: number;
   attached?: number;
+  graded?: number;
   noListingFound?: string[];
   errors?: string[];
   error?: string;
@@ -30,6 +31,9 @@ export default function CataloguePhotoButton() {
       const attached = result.attached ?? 0;
       const missed = result.noListingFound?.length ?? 0;
       const parts = [`${attached} photo${attached === 1 ? "" : "s"} attached`];
+      // Worth saying out loud: a graded copy is a poorer look at the issue,
+      // and those are only used when no loose copy was listed.
+      if (result.graded) parts.push(`${result.graded} only available as a graded copy`);
       if (missed) parts.push(`${missed} with no matching listing`);
       if (result.errors?.length) parts.push(`${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`);
       setMessage(`${parts.join(", ")}.${result.errors?.length ? ` First: ${result.errors[0]}` : ""}`);

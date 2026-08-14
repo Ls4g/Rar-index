@@ -31,7 +31,7 @@ export type CatalogueBulkRecord = {
   marketplaceAltUrl: string | null;
   // A photo of a copy on sale, matched to this exact issue. Shown so the
   // reviewer can see the magazine without leaving the page. Not a cover.
-  listingPhoto: { imageUrl: string; listingUrl: string | null; listingTitle: string | null } | null;
+  listingPhoto: { imageUrl: string; listingUrl: string | null; listingTitle: string | null; graded: boolean } | null;
   // Cover price, page count and binding as the source states them: enough to
   // tell a real issue record from a wrong one without leaving the page.
   sourceFacts: string[];
@@ -155,7 +155,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
                      host, and this is a small review thumbnail. */
                   <img
                     alt={record.listingPhoto.listingTitle ?? "A copy of this issue offered for sale"}
-                    className="catalogue-bulk-photo"
+                    className={`catalogue-bulk-photo${record.listingPhoto.graded ? " is-graded" : ""}`}
                     loading="lazy"
                     src={record.listingPhoto.imageUrl}
                     title={record.listingPhoto.listingTitle ?? undefined}
