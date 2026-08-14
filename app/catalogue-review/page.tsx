@@ -23,6 +23,7 @@ type CatalogueRecord = {
   raw_payload: {
     human_readable_url?: string | null;
     human_readable_url_label?: string | null;
+    marketplace_lookup_url?: string | null;
     review_metadata?: { cumulative_issue_no?: string | null } | null;
     derived_first_appearances?: string[] | null;
     madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
@@ -42,6 +43,16 @@ type CatalogueRecord = {
 // reaches rather than promising a lookup it cannot do.
 function readableSourceUrl(record: CatalogueRecord) {
   const url = record.raw_payload?.human_readable_url;
+  return typeof url === "string" && url.length ? url : null;
+}
+
+// The only link that shows the object rather than describing it. Jump cover
+// art is copyrighted, so no bibliographic source publishes it -- but the
+// Japanese back-issue market is full of photographs of these exact issues.
+// A look, never evidence: nothing is imported from it and no price derives
+// from it.
+function marketplaceLookupUrl(record: CatalogueRecord) {
+  const url = record.raw_payload?.marketplace_lookup_url;
   return typeof url === "string" && url.length ? url : null;
 }
 
@@ -88,6 +99,7 @@ export default async function CatalogueReviewPage() {
     sourceRecordUrl: record.source_record_url,
     readableUrl: readableSourceUrl(record),
     readableUrlLabel: record.raw_payload?.human_readable_url_label ?? null,
+    marketplaceUrl: marketplaceLookupUrl(record),
     sourceFacts: sourceFacts(record),
   }));
 

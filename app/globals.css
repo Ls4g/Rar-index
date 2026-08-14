@@ -791,6 +791,8 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .catalogue-bulk-source a { color: var(--accent-label-text); font-weight: 600; }
 /* The raw-record link is the fallback, not the one to reach for first. */
 .catalogue-bulk-source a.is-raw { color: var(--muted); font-weight: 500; }
+/* Seeing the object beats reading about it, so this link leads. */
+.catalogue-bulk-source a.is-visual { color: var(--action-dark); font-weight: 700; }
 /* The facts that decide the record, on the row. A source whose own site has
    no page for the record cannot be checked by following a link, so what a
    reviewer needs is printed rather than linked. */

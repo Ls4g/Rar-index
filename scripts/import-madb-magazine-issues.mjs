@@ -399,6 +399,14 @@ for (const issue of candidates) {
       human_readable_url: ndl.url,
       human_readable_url_label: ndl.label,
       ndl_cumulative_agrees: ndl.agrees,
+      // The one link that actually shows the object. No licensed source
+      // publishes Jump cover art -- it is Shueisha's copyright, MADB carries
+      // no image field, and cover discovery is ISBN-keyed so it cannot reach
+      // a magazine at all. The Japanese back-issue market is full of photos
+      // of these exact issues; those sites refuse automated requests but
+      // serve a browser normally. So this is a look, not evidence: it never
+      // touches valuation and nothing is imported from it.
+      marketplace_lookup_url: `https://auctions.yahoo.co.jp/search/search?p=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}年${issue.issueLabel}号`)}`,
       madb: {
         id: issue.madbId,
         record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,
