@@ -31,7 +31,7 @@ type Candidate = {
   candidate_volume_number: string | null;
   raw_payload: {
     review_metadata?: { issue_year?: string; issue_number_label?: string; cumulative_issue_no?: string };
-    derived_first_appearances?: string[] | null;
+    catalogue_series_matched?: string[] | null;
     listing_photo?: unknown;
   } | null;
 };
@@ -43,20 +43,33 @@ type Candidate = {
 // Scout queue say "Vol 1 Issue 1" meaning volume one. So the search asks for
 // the same shape the matcher can actually verify.
 //
-// The debut series is added last where one is known. Sellers name it on every
-// valuable issue -- nobody lists 1997年34号 without writing One Piece -- and
-// it costs nothing to try, since a listing still has to name the right year
-// and issue before its photo is used.
-function buildQueries(year: number, issueNumber: number, debuts: string[]) {
+// The series name is added last where one is known -- sellers name it on
+// every issue anyone cares about.
+//
+// It must be the catalogue's own series name ("One Piece"), never the raw
+// contents entry from the source. Those entries are whatever the magazine
+// printed in its table of contents, which for 2016年30号 is
+// 「ONE PIECE」公式スピンオフコメディ!!「ワンピースパーティー」JC2巻発売記念SP漫画劇場!! --
+// a promotional headline for a spin-off, pasted straight into a search box.
+// Anything that long or punctuated is a feature title, not a series, so it is
+// rejected outright as a second line of defence.
+function usableSeriesName(value: string | null | undefined) {
+  const name = String(value ?? "").trim();
+  if (name.length < 2 || name.length > 30) return null;
+  if (/[「」『』!！?？。、,]|\d{2,}/.test(name)) return null;
+  return name;
+}
+
+function buildQueries(year: number, issueNumber: number, seriesNames: string[]) {
   const queries = [
     `週刊少年ジャンプ ${year}年${issueNumber}号`,
     `Weekly Shonen Jump ${year} issue ${issueNumber}`,
     `Shonen Jump ${year} #${issueNumber}`,
   ];
-  const debut = debuts[0]?.trim();
-  if (debut) {
-    queries.push(`Weekly Shonen Jump ${year} issue ${issueNumber} ${debut}`);
-    queries.push(`週刊少年ジャンプ ${year}年${issueNumber}号 ${debut}`);
+  const series = seriesNames.map(usableSeriesName).find(Boolean);
+  if (series) {
+    queries.push(`Weekly Shonen Jump ${year} issue ${issueNumber} ${series}`);
+    queries.push(`週刊少年ジャンプ ${year}年${issueNumber}号 ${series}`);
   }
   return queries;
 }
@@ -112,7 +125,7 @@ export async function POST(request: Request) {
     const existing = candidate.raw_payload?.listing_photo as { graded?: boolean } | undefined;
     if (existing && existing.graded === false) continue;
 
-    const queries = buildQueries(year, issueNumber, candidate.raw_payload?.derived_first_appearances ?? []);
+    const queries = buildQueries(year, issueNumber, candidate.raw_payload?.catalogue_series_matched ?? []);
     // A raw copy is a better look at a magazine than a slab, where the cover
     // sits behind plastic under a grader's label. Both searches are run and
     // every confirmed listing collected before choosing, so a raw copy found

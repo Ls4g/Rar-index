@@ -243,8 +243,11 @@ function fold(value) {
     .replace(/[×✕✖⨯╳]/g, "x")
     .replace(/[^a-z0-9぀-ヿ一-鿿]/g, "");
 }
+// Loaded whenever anything will be written, not only for --debuts: every
+// queued candidate stores the catalogue's own series names for its search
+// terms, and without this list that comes out empty.
 let catalogued = [];
-if (DEBUTS_ONLY) {
+if (DEBUTS_ONLY || WRITE) {
   const res = await rest("GET", "manga_editions?select=series");
   catalogued = [...new Set((res.json ?? []).map((r) => r.series).filter(Boolean))];
 }
@@ -351,6 +354,7 @@ for (const issue of candidates) {
     console.log(`  NOTE ${issue.year}年${issue.issueLabel}号: NDL disagrees with MADB on 通巻${issue.cumulative} — flagged in the payload for the reviewer`);
   }
   const debuts = debutByIssue.get(issue.madbId) ?? [];
+  const seriesMatched = [...new Set(debuts.map((work) => matchesCatalogue(work)).filter(Boolean))];
   const zasshiCodeMatch = issue.note.match(/雑誌コード\s*(\d{5})/);
   const row = {
     source_id: sourceId,
@@ -418,7 +422,7 @@ for (const issue of candidates) {
       // mean something, and the debut series is added where one is known --
       // sellers name it on every issue anyone cares about.
       marketplace_lookup_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}年${issue.issueLabel}号`)}`,
-      marketplace_lookup_alt_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent([`${MAGAZINE.nameRomaji} ${issue.year} issue ${issue.issueLabel}`, debuts[0] ?? ""].join(" ").trim())}`,
+      marketplace_lookup_alt_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent([`${MAGAZINE.nameRomaji} ${issue.year} issue ${issue.issueLabel}`, seriesMatched[0] ?? ""].join(" ").trim())}`,
       madb: {
         id: issue.madbId,
         record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,
@@ -431,6 +435,12 @@ for (const issue of candidates) {
       // Catalogue facts explaining why an issue is significant. Never price
       // evidence, and never a substitute for a verified sale.
       derived_first_appearances: debuts,
+      // The catalogue's own names for whatever of the above it recognises.
+      // Search terms must come from here, never from `debuts`: those are raw
+      // contents entries, and 2016年30号's reads
+      // 「ONE PIECE」公式スピンオフコメディ!!「ワンピースパーティー」JC2巻発売記念SP漫画劇場!!
+      // -- a promotional headline that is useless in a search box.
+      catalogue_series_matched: seriesMatched,
       attribution: "独立行政法人国立美術館国立アートリサーチセンター「メディア芸術データベース」 (https://mediaarts-db.artmuseums.go.jp/)",
     },
   };
