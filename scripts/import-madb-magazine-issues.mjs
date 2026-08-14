@@ -413,8 +413,12 @@ for (const issue of candidates) {
       //
       // A look, never evidence: nothing is imported from it and no price
       // derives from it.
+      // "Weekly Shonen Jump 1997 34" is two loose numbers to a search engine
+      // and returns noise. The word "issue" is what makes the second number
+      // mean something, and the debut series is added where one is known --
+      // sellers name it on every issue anyone cares about.
       marketplace_lookup_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}年${issue.issueLabel}号`)}`,
-      marketplace_lookup_alt_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${MAGAZINE.nameRomaji} ${issue.year} ${issue.issueLabel}`)}`,
+      marketplace_lookup_alt_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent([`${MAGAZINE.nameRomaji} ${issue.year} issue ${issue.issueLabel}`, debuts[0] ?? ""].join(" ").trim())}`,
       madb: {
         id: issue.madbId,
         record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,

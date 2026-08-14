@@ -31,9 +31,35 @@ type Candidate = {
   candidate_volume_number: string | null;
   raw_payload: {
     review_metadata?: { issue_year?: string; issue_number_label?: string; cumulative_issue_no?: string };
+    derived_first_appearances?: string[] | null;
     listing_photo?: unknown;
   } | null;
 };
+
+// "Weekly Shonen Jump 1997 34" hands eBay two loose numbers and returns
+// noise. Worse, a listing titled that way cannot be confirmed either -- the
+// reader below needs "issue", "no." or "#" in front of the number before it
+// will believe a number is an issue at all, because ten real listings in the
+// Scout queue say "Vol 1 Issue 1" meaning volume one. So the search asks for
+// the same shape the matcher can actually verify.
+//
+// The debut series is added last where one is known. Sellers name it on every
+// valuable issue -- nobody lists 1997年34号 without writing One Piece -- and
+// it costs nothing to try, since a listing still has to name the right year
+// and issue before its photo is used.
+function buildQueries(year: number, issueNumber: number, debuts: string[]) {
+  const queries = [
+    `週刊少年ジャンプ ${year}年${issueNumber}号`,
+    `Weekly Shonen Jump ${year} issue ${issueNumber}`,
+    `Shonen Jump ${year} #${issueNumber}`,
+  ];
+  const debut = debuts[0]?.trim();
+  if (debut) {
+    queries.push(`Weekly Shonen Jump ${year} issue ${issueNumber} ${debut}`);
+    queries.push(`週刊少年ジャンプ ${year}年${issueNumber}号 ${debut}`);
+  }
+  return queries;
+}
 
 type Attached = {
   issue: string;
@@ -86,11 +112,7 @@ export async function POST(request: Request) {
     const existing = candidate.raw_payload?.listing_photo as { graded?: boolean } | undefined;
     if (existing && existing.graded === false) continue;
 
-    // Sellers write one form or the other, almost never both.
-    const queries = [
-      `週刊少年ジャンプ ${year}年${issueNumber}号`,
-      `Weekly Shonen Jump ${year} ${issueNumber}`,
-    ];
+    const queries = buildQueries(year, issueNumber, candidate.raw_payload?.derived_first_appearances ?? []);
     // A raw copy is a better look at a magazine than a slab, where the cover
     // sits behind plastic under a grader's label. Both searches are run and
     // every confirmed listing collected before choosing, so a raw copy found
@@ -98,6 +120,9 @@ export async function POST(request: Request) {
     // is used only when nothing else was found -- some picture beats none.
     const confirmed: Attached[] = [];
     for (const query of queries) {
+      // Queries run best-first, so once a loose copy is confirmed there is
+      // nothing better to find and the remaining searches are skipped.
+      if (confirmed.some((found) => !found.graded)) break;
       try {
         const listings = await findActiveEbayListings(query);
         for (const listing of listings) {
