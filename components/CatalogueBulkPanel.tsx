@@ -25,8 +25,10 @@ export type CatalogueBulkRecord = {
   readableUrlLabel: string | null;
   // Photographs of the actual issue, on the market where it is traded. The
   // only way to *see* a magazine RAR catalogues, since its cover art is
-  // copyrighted and no bibliographic source carries it.
+  // copyrighted and no bibliographic source carries it. Two searches, because
+  // sellers write either the Japanese or the romanised title.
   marketplaceUrl: string | null;
+  marketplaceAltUrl: string | null;
   // Cover price, page count and binding as the source states them: enough to
   // tell a real issue record from a wrong one without leaving the page.
   sourceFacts: string[];
@@ -160,7 +162,8 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
               <span className="catalogue-bulk-source">
                 {record.kind === "series_reference" ? <em>Series reference — cannot create an edition</em> : null}
                 {record.kind === "edition_candidate" && !isApprovable ? <em>Missing a title or language</em> : null}
-                {record.marketplaceUrl ? <a className="is-visual" href={record.marketplaceUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies for sale ↗</a> : null}
+                {record.marketplaceUrl ? <a className="is-visual" href={record.marketplaceUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (JP title) ↗</a> : null}
+                {record.marketplaceAltUrl ? <a className="is-visual" href={record.marketplaceAltUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (EN title) ↗</a> : null}
                 {record.readableUrl ? <a className="is-raw" href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrlLabel ?? "Library record"} ↗</a> : null}
                 <a className={record.readableUrl ? "is-raw" : undefined} href={record.sourceRecordUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrl ? "Source data" : (record.sourceName ?? "Source")} ↗</a>
               </span>

@@ -399,14 +399,22 @@ for (const issue of candidates) {
       human_readable_url: ndl.url,
       human_readable_url_label: ndl.label,
       ndl_cumulative_agrees: ndl.agrees,
-      // The one link that actually shows the object. No licensed source
-      // publishes Jump cover art -- it is Shueisha's copyright, MADB carries
-      // no image field, and cover discovery is ISBN-keyed so it cannot reach
-      // a magazine at all. The Japanese back-issue market is full of photos
-      // of these exact issues; those sites refuse automated requests but
-      // serve a browser normally. So this is a look, not evidence: it never
-      // touches valuation and nothing is imported from it.
-      marketplace_lookup_url: `https://auctions.yahoo.co.jp/search/search?p=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}年${issue.issueLabel}号`)}`,
+      // The one link that shows the object rather than describing it. No
+      // licensed source publishes Jump cover art -- it is Shueisha's
+      // copyright, MADB carries no image field, and cover discovery is
+      // ISBN-keyed so it cannot reach a magazine at all.
+      //
+      // eBay, not Yahoo Auctions. Yahoo Auctions has far deeper back-issue
+      // stock but blocks visitors from the EU and UK outright, so the link
+      // was useless to the person who has to use it. eBay is viewable there,
+      // is the marketplace RAR already runs on, and carries Japanese sellers
+      // shipping these issues internationally. Both search terms are included
+      // because sellers write one or the other, rarely both.
+      //
+      // A look, never evidence: nothing is imported from it and no price
+      // derives from it.
+      marketplace_lookup_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${MAGAZINE.nameJa} ${issue.year}年${issue.issueLabel}号`)}`,
+      marketplace_lookup_alt_url: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${MAGAZINE.nameRomaji} ${issue.year} ${issue.issueLabel}`)}`,
       madb: {
         id: issue.madbId,
         record_uri: `https://mediaarts-db.artmuseums.go.jp/id/${issue.madbId}`,

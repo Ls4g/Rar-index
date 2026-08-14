@@ -24,6 +24,7 @@ type CatalogueRecord = {
     human_readable_url?: string | null;
     human_readable_url_label?: string | null;
     marketplace_lookup_url?: string | null;
+    marketplace_lookup_alt_url?: string | null;
     review_metadata?: { cumulative_issue_no?: string | null } | null;
     derived_first_appearances?: string[] | null;
     madb?: { cover_price_yen?: number | null; pages?: number | null; note?: string | null } | null;
@@ -46,13 +47,24 @@ function readableSourceUrl(record: CatalogueRecord) {
   return typeof url === "string" && url.length ? url : null;
 }
 
-// The only link that shows the object rather than describing it. Jump cover
+// The only links that show the object rather than describing it. Jump cover
 // art is copyrighted, so no bibliographic source publishes it -- but the
-// Japanese back-issue market is full of photographs of these exact issues.
-// A look, never evidence: nothing is imported from it and no price derives
-// from it.
+// second-hand market is full of photographs of these exact issues.
+//
+// eBay rather than Yahoo Auctions, which has deeper stock but refuses
+// visitors from the EU and UK, making it worthless to the person who has to
+// use it. Two searches because sellers write either the Japanese or the
+// romanised title and almost never both.
+//
+// A look, never evidence: nothing is imported from these and no price
+// derives from them.
 function marketplaceLookupUrl(record: CatalogueRecord) {
   const url = record.raw_payload?.marketplace_lookup_url;
+  return typeof url === "string" && url.length ? url : null;
+}
+
+function marketplaceLookupAltUrl(record: CatalogueRecord) {
+  const url = record.raw_payload?.marketplace_lookup_alt_url;
   return typeof url === "string" && url.length ? url : null;
 }
 
@@ -100,6 +112,7 @@ export default async function CatalogueReviewPage() {
     readableUrl: readableSourceUrl(record),
     readableUrlLabel: record.raw_payload?.human_readable_url_label ?? null,
     marketplaceUrl: marketplaceLookupUrl(record),
+    marketplaceAltUrl: marketplaceLookupAltUrl(record),
     sourceFacts: sourceFacts(record),
   }));
 
