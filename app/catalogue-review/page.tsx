@@ -1,5 +1,6 @@
 import Link from "next/link";
 import CatalogueBulkPanel, { type CatalogueBulkRecord } from "@/components/CatalogueBulkPanel";
+import CataloguePhotoButton from "@/components/CataloguePhotoButton";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
 import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
 import StaffNav from "@/components/StaffNav";
@@ -146,6 +147,10 @@ export default async function CatalogueReviewPage() {
         <div className="queue-total"><strong>{records.length}</strong><span>candidates awaiting review</span></div>
       </section>
       <section className="review-list-section">
+        {/* Only magazines need this: a book candidate arrives with a cover
+            from its own source, while a magazine's cover art is copyrighted
+            and no catalogue source carries a picture at all. */}
+        {bulkRecords.some((record) => record.listingPhoto === null && record.sourceFacts.length) ? <CataloguePhotoButton /> : null}
         <CatalogueBulkPanel records={bulkRecords} />
         {records.length ? <div className="review-list">{records.map((record) => (
           <article className="review-card catalogue-card" key={record.id}>
