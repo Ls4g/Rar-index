@@ -50,6 +50,15 @@ type ClassificationQueueRecord = {
   has_unreviewed_evidence_hint: boolean;
 };
 
+type PrintingSuggestionAction = {
+  id: string;
+  target_id: string | null;
+  rationale: string;
+  confidence: number | null;
+  evidence: Record<string, unknown> | null;
+  proposed_payload: Record<string, unknown> | null;
+};
+
 function formatPrice(value: number | null, currency: string | null) {
   if (value === null || !currency) return "Price not recorded";
   return new Intl.NumberFormat("en-GB", {
@@ -103,6 +112,19 @@ export default async function ReviewQueuePage() {
     .select("*")
     .limit(30);
   const classificationQueue = (classificationQueueData ?? []) as ClassificationQueueRecord[];
+  const classificationIds = classificationQueue.map((record) => record.observation_id);
+  const { data: suggestionData } = classificationIds.length
+    ? await admin
+      .from("agent_actions")
+      .select("id,target_id,rationale,confidence,evidence,proposed_payload")
+      .eq("agent_key", "evidence_auditor")
+      .eq("action_type", "suggest_print_classification")
+      .eq("status", "proposed")
+      .in("target_id", classificationIds)
+    : { data: [] };
+  const suggestionByObservation = new Map(
+    ((suggestionData ?? []) as PrintingSuggestionAction[]).map((suggestion) => [suggestion.target_id, suggestion]),
+  );
 
   return (
     <main className="review-page">
@@ -203,21 +225,36 @@ export default async function ReviewQueuePage() {
 
         {classificationQueue.length ? (
           <PrintClassificationQueue
-            records={classificationQueue.map((record) => ({
-              observation_id: record.observation_id,
-              edition_id: record.edition_id,
-              title: record.title,
-              series: record.series,
-              volume_number: record.volume_number,
-              language: record.language,
-              publisher: record.publisher,
-              listing_title: record.listing_title,
-              source_listing_url: record.source_listing_url,
-              sold_date: record.sold_date,
-              sale_price: record.sale_price ?? 0,
-              currency: record.currency ?? "USD",
-              has_unreviewed_evidence_hint: record.has_unreviewed_evidence_hint,
-            }))}
+            records={classificationQueue.map((record) => {
+              const suggestion = suggestionByObservation.get(record.observation_id);
+              const payload = suggestion?.proposed_payload;
+              const evidence = suggestion?.evidence;
+              const suggestedClassification = payload?.classification;
+              return {
+                observation_id: record.observation_id,
+                edition_id: record.edition_id,
+                title: record.title,
+                series: record.series,
+                volume_number: record.volume_number,
+                language: record.language,
+                publisher: record.publisher,
+                listing_title: record.listing_title,
+                source_listing_url: record.source_listing_url,
+                sold_date: record.sold_date,
+                sale_price: record.sale_price ?? 0,
+                currency: record.currency ?? "USD",
+                has_unreviewed_evidence_hint: record.has_unreviewed_evidence_hint,
+                suggestion: suggestion && (suggestedClassification === "first_print_proven" || suggestedClassification === "known_later_print") ? {
+                  action_id: suggestion.id,
+                  classification: suggestedClassification,
+                  proof_url: typeof payload?.proof_url === "string" ? payload.proof_url : "",
+                  printing_number: typeof payload?.printing_number === "number" ? payload.printing_number : null,
+                  evidence_image_url: typeof evidence?.evidence_image_url === "string" ? evidence.evidence_image_url : "",
+                  rationale: suggestion.rationale,
+                  confidence: suggestion.confidence,
+                } : null,
+              };
+            })}
           />
         ) : (
           <div className="review-empty">

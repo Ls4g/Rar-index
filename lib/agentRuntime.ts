@@ -3,6 +3,7 @@ import { AGENT_LABELS, type AgentKey, type AgentMetrics, planAgentActions } from
 import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
+import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -59,16 +60,21 @@ async function collectScoutMetrics(admin: SupabaseClient): Promise<AgentMetrics>
 }
 
 async function collectEvidenceMetrics(admin: SupabaseClient): Promise<AgentMetrics> {
-  const [sales, printing, reports] = await Promise.all([
+  const [sales, printingProof, printingUnidentified, reports, suggestions] = await Promise.all([
     admin.from("price_observations").select("id", { count: "exact", head: true }).eq("match_status", "needs_review"),
+    admin.from("print_classification_queue").select("observation_id", { count: "exact", head: true }),
     admin.from("price_observations").select("id", { count: "exact", head: true })
       .eq("match_status", "verified_match").eq("sale_status", "confirmed").eq("print_classification", "printing_not_identified"),
     admin.from("community_sale_reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    admin.from("agent_actions").select("id", { count: "exact", head: true })
+      .eq("agent_key", "evidence_auditor").eq("action_type", "suggest_print_classification").eq("status", "proposed"),
   ]);
   return {
     sales_needing_review: countOrThrow(sales, "Sale review count failed"),
-    sales_needing_print_classification: countOrThrow(printing, "Print classification count failed"),
+    sales_with_print_proof_waiting: countOrThrow(printingProof, "Print proof queue count failed"),
+    sales_printing_not_identified: countOrThrow(printingUnidentified, "Unidentified printing count failed"),
     community_reports_pending: countOrThrow(reports, "Community report count failed"),
+    printing_suggestions_open: countOrThrow(suggestions, "Printing suggestion count failed"),
   };
 }
 
@@ -141,6 +147,7 @@ export async function runAgentObservation(
   try {
     let safeActionResult: AutoTriageResult | null = null;
     let availabilityResult: ScoutAvailabilityResult | null = null;
+    let printingSuggestionResult: PrintingSuggestionRun | null = null;
     const autonomyLevel = Number(system?.autonomy_level ?? 1);
     if (agentKey === "market_scout" && autonomyLevel >= 2 && typedControl.mode === "safe_actions") {
       safeActionResult = await autoDismissDefinitiveScoutConflicts(admin, run.id);
@@ -190,6 +197,9 @@ export async function runAgentObservation(
         if (actionError) throw new Error(`Market Scout could not audit its availability refresh: ${actionError.message}`);
       }
     }
+    if (agentKey === "evidence_auditor" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
+      printingSuggestionResult = await preparePrintingEvidenceSuggestions(admin, run.id);
+    }
 
     const metrics = await collectMetrics(admin, agentKey);
     if (safeActionResult) {
@@ -204,6 +214,15 @@ export async function runAgentObservation(
       metrics.availability_archived = availabilityResult.unavailable;
       metrics.availability_inconclusive = availabilityResult.inconclusive;
       metrics.availability_race_protected = availabilityResult.protectedByRace;
+    }
+    if (printingSuggestionResult) {
+      metrics.printing_suggestions_examined = printingSuggestionResult.examined;
+      metrics.printing_suggestions_eligible = printingSuggestionResult.eligible;
+      metrics.printing_suggestions_created = printingSuggestionResult.created;
+      metrics.printing_suggestions_already_open = printingSuggestionResult.alreadyOpen;
+      metrics.printing_suggestions_first_print = printingSuggestionResult.firstPrint;
+      metrics.printing_suggestions_later_print = printingSuggestionResult.laterPrint;
+      metrics.printing_suggestions_ambiguous = printingSuggestionResult.ambiguous;
     }
     const plan = planAgentActions(agentKey, metrics);
     let proposalsCreated = 0;

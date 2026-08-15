@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Print classification actions are not configured yet." }, { status: 503 });
   }
 
-  let payload: { observationId?: unknown; observationIds?: unknown; classification?: unknown; proofUrl?: unknown; printingNumber?: unknown; notes?: unknown; reviewer?: unknown };
+  let payload: { observationId?: unknown; observationIds?: unknown; classification?: unknown; proofUrl?: unknown; printingNumber?: unknown; notes?: unknown; reviewer?: unknown; suggestionActionId?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -80,6 +80,7 @@ export async function POST(request: Request) {
   const printingNumber = printingNumberRaw ? Number(printingNumberRaw) : null;
   const notes = clean(payload.notes);
   const reviewer = clean(payload.reviewer);
+  const suggestionActionId = clean(payload.suggestionActionId);
 
   if (!observationIds.length || !classifications.includes(classification as Classification)) {
     return Response.json({ error: "Choose a classification for at least one sale." }, { status: 400 });
@@ -128,6 +129,26 @@ export async function POST(request: Request) {
   // move a sale in or out of a portfolio's evidence set, so affected holders
   // get the same immediate re-snapshot a review decision triggers.
   const affectedEditions = [...new Set(saved.map((result) => editionByObservation.get(result.observationId)).filter((id): id is string => Boolean(id)))];
+
+  // Resolving a row also closes any open Evidence Auditor suggestion for it.
+  // The human print decision above remains the authoritative audit record;
+  // this status update only records that the prepared task was handled.
+  if (saved.length) {
+    const savedIds = saved.map((result) => result.observationId);
+    let suggestionUpdate = supabaseAdmin.from("agent_actions").update({
+      status: "executed",
+      reviewed_by: reviewer,
+      review_notes: `Staff resolved the prepared printing suggestion as ${classification}.`,
+      reviewed_at: new Date().toISOString(),
+      executed_at: new Date().toISOString(),
+    })
+      .eq("agent_key", "evidence_auditor")
+      .eq("action_type", "suggest_print_classification")
+      .eq("status", "proposed")
+      .in("target_id", savedIds);
+    if (suggestionActionId && savedIds.length === 1) suggestionUpdate = suggestionUpdate.eq("id", suggestionActionId);
+    await suggestionUpdate;
+  }
   await Promise.all(affectedEditions.map(async (editionId) => {
     try {
       await snapshotHoldersOfEdition(supabaseAdmin, editionId);

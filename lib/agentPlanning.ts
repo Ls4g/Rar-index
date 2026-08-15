@@ -147,13 +147,13 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
         metrics,
       ));
     }
-    if (metrics.sales_needing_print_classification > 0) {
+    if (metrics.sales_with_print_proof_waiting > 0) {
       proposals.push(proposal(
         "classify_printing_evidence",
         "price_observations",
         "evidence:classify-printing",
-        `Classify ${metrics.sales_needing_print_classification} verified sales by print run`,
-        "Edition matches are verified, but their printing evidence is still unresolved and cannot support a first-print chart.",
+        `Check ${metrics.sales_with_print_proof_waiting} sales with captured printing proof`,
+        `${metrics.printing_suggestions_open ?? 0} cautious Evidence Auditor suggestion${metrics.printing_suggestions_open === 1 ? " is" : "s are"} ready. A person must inspect each copyright-page image before accepting it.`,
         0.98,
         metrics,
       ));
@@ -171,7 +171,7 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
     }
     return {
       summary: proposals.length
-        ? `Found ${proposals.length} evidence queue${proposals.length === 1 ? "" : "s"} requiring human judgement.`
+        ? `Prepared ${metrics.printing_suggestions_created ?? 0} new printing suggestion${metrics.printing_suggestions_created === 1 ? "" : "s"}; found ${proposals.length} evidence queue${proposals.length === 1 ? "" : "s"} requiring human judgement.`
         : "Sales, print classification and community-report queues are clear.",
       proposals,
     };

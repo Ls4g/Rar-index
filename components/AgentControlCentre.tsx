@@ -42,6 +42,7 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   tune_low_yield_profiles: { href: "/collection-profiles", label: "Tune search profiles" },
   review_sales_evidence: { href: "/review", label: "Open sale review" },
   classify_printing_evidence: { href: "/review", label: "Open print queue" },
+  suggest_print_classification: { href: "/review", label: "Review prepared proof" },
   review_community_reports: { href: "/community-reports", label: "Open community reports" },
   resolve_readiness_bottleneck: { href: "/data-readiness", label: "Open readiness queue" },
   investigate_agent_failures: { href: "/agents#run-log", label: "Open run log" },
@@ -106,8 +107,8 @@ export default function AgentControlCentre({
         <div>
           <span className="agent-status-light" />
           <p className="eyebrow">Global safety control</p>
-          <h2>{globalPaused ? "All RAR agents are paused" : "Phase 3 safety system active"}</h2>
-          <p>{globalPaused ? pauseReason ?? "No scheduled or manual agent runs can proceed." : "Market Scout may archive explicit conflicts and conclusively unavailable eBay listings. Plausible leads, sale verification and catalogue publication remain human-controlled."}</p>
+          <h2>{globalPaused ? "All RAR agents are paused" : "Phase 4 safety system active"}</h2>
+          <p>{globalPaused ? pauseReason ?? "No scheduled or manual agent runs can proceed." : "Market Scout may perform its bounded safe cleanup. Evidence Auditor may prepare printing suggestions, but only staff can classify a sold copy, verify a sale or publish catalogue data."}</p>
         </div>
         <button className={globalPaused ? "staff-action-link agent-control-button" : "agent-danger-button"} disabled={busy === "global"} onClick={() => command("global", { command: "set_global_paused", paused: !globalPaused })} type="button">
           {busy === "global" ? "Updating..." : globalPaused ? "Resume all agents" : "Pause all agents"}
@@ -144,7 +145,7 @@ export default function AgentControlCentre({
               </div>
               {run?.metrics ? <div className="agent-metrics">{Object.entries(run.metrics).slice(0, 8).map(([label, value]) => <span key={label}><b>{value}</b>{label.replaceAll("_", " ")}</span>)}</div> : null}
               <div className="agent-card-actions">
-                <button disabled={Boolean(busy) || globalPaused || control.is_paused} onClick={() => command(`run-${control.agent_key}`, { command: "run_agent", agentKey: control.agent_key })} type="button">{busy === `run-${control.agent_key}` ? "Running..." : control.mode === "safe_actions" ? "Run safe triage" : "Run observation"}</button>
+                <button disabled={Boolean(busy) || globalPaused || control.is_paused} onClick={() => command(`run-${control.agent_key}`, { command: "run_agent", agentKey: control.agent_key })} type="button">{busy === `run-${control.agent_key}` ? "Running..." : control.mode === "safe_actions" ? "Run safe triage" : control.mode === "prepare" ? "Prepare evidence" : "Run observation"}</button>
                 <button className="secondary" disabled={Boolean(busy)} onClick={() => command(`pause-${control.agent_key}`, { command: "set_agent_paused", agentKey: control.agent_key, paused: !control.is_paused })} type="button">{control.is_paused ? "Resume" : "Pause"}</button>
               </div>
             </article>
@@ -171,7 +172,7 @@ export default function AgentControlCentre({
       </section>
 
       <section className="agent-safe-action-log">
-        <div className="section-intro"><p className="eyebrow">Safe autonomous work</p><h2>Recently executed actions</h2><p className="section-copy">Phase 3 records definitive conflict dismissals and bounded eBay availability refreshes here. Every archived listing also receives a normal Scout audit record.</p></div>
+        <div className="section-intro"><p className="eyebrow">Safe autonomous work</p><h2>Recently executed actions</h2><p className="section-copy">Scout cleanup and staff-resolved Evidence Auditor suggestions appear here. Prepared evidence never becomes a classification until a named staff reviewer confirms it.</p></div>
         {executed.length ? <div className="agent-executed-list">{executed.map((action) => <article key={action.id}><div><span>Executed · {formatTime(action.created_at)}</span><strong>{action.title}</strong><p>{action.rationale}</p></div><Link href="/scout?includeDismissed=1">Inspect Scout archive →</Link></article>)}</div> : <div className="review-empty"><strong>No safe actions executed yet.</strong><p>The next Market Scout run will examine untouched leads for explicit conflicts.</p></div>}
       </section>
 

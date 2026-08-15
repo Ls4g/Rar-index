@@ -23,7 +23,9 @@ assert.ok(scout.summary.includes("18 current plausible leads"));
 
 const evidence = planAgentActions("evidence_auditor", {
   sales_needing_review: 0,
-  sales_needing_print_classification: 5,
+  sales_with_print_proof_waiting: 5,
+  printing_suggestions_open: 3,
+  printing_suggestions_created: 2,
   community_reports_pending: 1,
 });
 assert.equal(evidence.proposals.length, 2);
@@ -40,7 +42,9 @@ assert.ok(operator.proposals[0].title.includes("profile needed"));
 
 const clear = planAgentActions("evidence_auditor", {
   sales_needing_review: 0,
-  sales_needing_print_classification: 0,
+  sales_with_print_proof_waiting: 0,
+  printing_suggestions_open: 0,
+  printing_suggestions_created: 0,
   community_reports_pending: 0,
 });
 assert.equal(clear.proposals.length, 0);

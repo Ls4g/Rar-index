@@ -612,7 +612,15 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .print-queue-actions button { border: 1px solid var(--line); border-radius: .4rem; padding: .4rem .6rem; background: var(--paper); color: var(--ink); cursor: pointer; font-size: .7rem; font-weight: 700; white-space: nowrap; }
 .print-queue-actions button:hover:not(:disabled) { border-color: var(--gold); }
 .print-queue-actions button.is-first-print:hover:not(:disabled) { border-color: var(--verified); color: var(--verified); }
+.print-queue-actions button.is-suggestion { border-color: #6b72cf; background: rgba(107,114,207,.08); color: #3f478f; }
 .print-queue-actions button:disabled { opacity: .45; cursor: default; }
+
+.print-queue-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 1rem .85rem 3rem; padding: .7rem .85rem; border: 1px solid rgba(107,114,207,.35); border-radius: .5rem; background: rgba(107,114,207,.07); }
+.print-queue-suggestion div { display: grid; gap: .15rem; }
+.print-queue-suggestion span { color: #5960a9; font-size: .65rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.print-queue-suggestion strong { font-size: .82rem; }
+.print-queue-suggestion p { margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.4; }
+.print-queue-suggestion a { flex: 0 0 auto; color: #3f478f; font-size: .72rem; font-weight: 800; }
 
 .print-queue-form { display: grid; gap: .7rem; padding: .9rem 1rem 1rem 3rem; border-top: 1px dashed var(--line); background: #fffcf3; }
 .print-queue-form label { display: grid; gap: .3rem; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
@@ -631,6 +639,7 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
   .print-queue-main { flex-wrap: wrap; }
   .print-queue-actions { width: 100%; }
   .print-queue-actions button { flex: 1 1 0; }
+  .print-queue-suggestion { align-items: flex-start; flex-direction: column; margin-left: 1rem; }
   .print-queue-form { padding-left: 1rem; }
 }
 .review-empty { border: 1px dashed #c9bfad; padding: 2.5rem; background: #fbf9f3; }

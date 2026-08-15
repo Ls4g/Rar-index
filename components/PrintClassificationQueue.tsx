@@ -16,6 +16,15 @@ export type PrintClassificationRecord = {
   sale_price: number;
   currency: string;
   has_unreviewed_evidence_hint: boolean;
+  suggestion: {
+    action_id: string;
+    classification: "known_later_print" | "first_print_proven";
+    proof_url: string;
+    printing_number: number | null;
+    evidence_image_url: string;
+    rationale: string;
+    confidence: number | null;
+  } | null;
 };
 
 type Classification = "printing_not_identified" | "known_later_print" | "first_print_proven";
@@ -55,6 +64,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
   const [proofUrl, setProofUrl] = useState("");
   const [printingNumber, setPrintingNumber] = useState("");
   const [note, setNote] = useState("");
+  const [suggestionActionId, setSuggestionActionId] = useState("");
   const [bulkNote, setBulkNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -69,6 +79,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
     setProofUrl("");
     setPrintingNumber("");
     setNote("");
+    setSuggestionActionId("");
   }
 
   function openFor(observationId: string, classification: Classification) {
@@ -77,6 +88,18 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
     setProofUrl("");
     setPrintingNumber("");
     setNote("");
+    setSuggestionActionId("");
+    setBanner(null);
+  }
+
+  function openSuggestion(row: PrintClassificationRecord) {
+    if (!row.suggestion) return;
+    setOpenRow(row.observation_id);
+    setDraftClassification(row.suggestion.classification);
+    setProofUrl(row.suggestion.proof_url);
+    setPrintingNumber(row.suggestion.printing_number?.toString() ?? "");
+    setNote("");
+    setSuggestionActionId(row.suggestion.action_id);
     setBanner(null);
   }
 
@@ -93,6 +116,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
           classification,
           notes,
           reviewer,
+          suggestionActionId,
           proofUrl: options?.proofUrl ?? "",
           printingNumber: options?.printingNumber ?? "",
         }),
@@ -204,11 +228,23 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
                   </p>
                 </div>
                 <div className="print-queue-actions">
+                  {row.suggestion ? <button className="is-suggestion" disabled={busy} onClick={() => openSuggestion(row)} type="button">Review suggestion</button> : null}
                   <button disabled={busy} onClick={() => openFor(row.observation_id, "printing_not_identified")} type="button">Not identified</button>
                   <button disabled={busy} onClick={() => openFor(row.observation_id, "known_later_print")} type="button">Later print</button>
                   <button className="is-first-print" disabled={busy} onClick={() => openFor(row.observation_id, "first_print_proven")} type="button">First print</button>
                 </div>
               </div>
+
+              {row.suggestion ? (
+                <div className="print-queue-suggestion">
+                  <div>
+                    <span>Evidence Auditor · {row.suggestion.confidence == null ? "unscored" : `${Math.round(row.suggestion.confidence * 100)}% confidence`}</span>
+                    <strong>{row.suggestion.classification === "first_print_proven" ? "Likely first-print proof" : "Likely later-print proof"}</strong>
+                    <p>{row.suggestion.rationale}</p>
+                  </div>
+                  {row.suggestion.evidence_image_url ? <a href={row.suggestion.evidence_image_url} target="_blank" rel="noreferrer">Inspect copyright page ↗</a> : null}
+                </div>
+              ) : null}
 
               {isOpen ? (
                 <div className="print-queue-form">
