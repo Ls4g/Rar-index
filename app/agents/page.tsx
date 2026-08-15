@@ -24,8 +24,8 @@ export default async function AgentControlPage() {
         <StaffNav current="/agents" />
       </header>
       <section className="review-hero catalogue-hero agent-hero">
-        <div><p className="eyebrow">RAR autonomy · phase two</p><h1>Agent Control Centre</h1><p>Market Scout may dismiss definitive listing conflicts. Every plausible lead stays human-controlled, and no agent can verify a sale or publish catalogue data.</p></div>
-        <div className="queue-total"><strong>2</strong><span>safe-action autonomy level</span></div>
+        <div><p className="eyebrow">RAR autonomy · phase three</p><h1>Agent Control Centre</h1><p>Market Scout removes definitive conflicts, separates stale records and rechecks a bounded batch directly with eBay. Every plausible current lead stays human-controlled, and no agent can verify a sale or publish catalogue data.</p></div>
+        <div className="queue-total"><strong>{systemResult.data?.autonomy_level ?? 1}</strong><span>safe-action autonomy level</span></div>
       </section>
       {setupError ? <section className="catalogue-content"><div className="review-empty"><strong>The autonomy database is not ready.</strong><p>Apply the 20260817 agent control-plane migration, then reload this page. {setupError.message}</p></div></section> : <AgentControlCentre actions={(actionsResult.data ?? []) as never[]} controls={(controlsResult.data ?? []) as never[]} globalPaused={Boolean(systemResult.data?.global_paused)} pauseReason={systemResult.data?.pause_reason ?? null} runs={(runsResult.data ?? []) as never[]} />}
     </main>

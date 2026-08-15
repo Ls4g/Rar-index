@@ -10,6 +10,8 @@ type EBayItem = {
   // its cover art is copyrighted, so no catalogue source carries a picture.
   image?: { imageUrl?: string };
   thumbnailImages?: Array<{ imageUrl?: string }>;
+  estimatedAvailabilities?: Array<{ estimatedAvailabilityStatus?: string }>;
+  buyingOptions?: string[];
 };
 
 type EBaySearchResponse = { itemSummaries?: EBayItem[] };
@@ -25,6 +27,74 @@ export type ActiveEbayListing = {
   imageUrl: string | null;
   rawPayload: EBayItem;
 };
+
+export type EbayAvailabilityCheck = {
+  outcome: "active" | "unavailable" | "inconclusive";
+  itemEndAt: string | null;
+  reason: string;
+};
+
+type EbayErrorPayload = { errors?: Array<{ errorId?: number; message?: string; longMessage?: string }> };
+
+export function interpretEbayAvailabilityResponse(
+  status: number,
+  payload: EBayItem | EbayErrorPayload | null,
+  now = Date.now(),
+): EbayAvailabilityCheck {
+  if (status === 200) {
+    const item = (payload ?? {}) as EBayItem;
+    const itemEndAt = item.itemEndDate ?? null;
+    if (itemEndAt && new Date(itemEndAt).getTime() <= now) {
+      return { outcome: "unavailable", itemEndAt, reason: `eBay reports that the listing ended on ${itemEndAt}.` };
+    }
+    const availability = item.estimatedAvailabilities?.[0]?.estimatedAvailabilityStatus?.toUpperCase();
+    if (availability === "OUT_OF_STOCK") {
+      return { outcome: "unavailable", itemEndAt, reason: "eBay reports that the listing is out of stock." };
+    }
+    return { outcome: "active", itemEndAt, reason: "eBay confirms that the listing remains available." };
+  }
+
+  if (status === 404) {
+    return { outcome: "unavailable", itemEndAt: null, reason: "The previously valid eBay item ID is no longer available from the Browse item endpoint." };
+  }
+
+  const errors = (payload as EbayErrorPayload | null)?.errors ?? [];
+  const detail = errors[0]?.longMessage ?? errors[0]?.message;
+  return {
+    outcome: "inconclusive",
+    itemEndAt: null,
+    reason: detail ? `eBay availability check was inconclusive: ${detail}` : `eBay availability check returned HTTP ${status}; the lead was left untouched.`,
+  };
+}
+
+export async function checkEbayListingAvailability(
+  itemId: string,
+  marketplaceId: string,
+  applicationToken?: string,
+): Promise<EbayAvailabilityCheck> {
+  const token = applicationToken ?? await getEbayApplicationToken();
+  const url = new URL(`https://api.ebay.com/buy/browse/v1/item/${encodeURIComponent(itemId)}`);
+  url.searchParams.set("fieldgroups", "COMPACT");
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+      },
+      cache: "no-store",
+    });
+    let payload: EBayItem | EbayErrorPayload | null = null;
+    try {
+      payload = await response.json() as EBayItem | EbayErrorPayload;
+    } catch {
+      // An empty or non-JSON response is inconclusive unless the HTTP status
+      // itself is the authoritative 404 used for ended/unavailable items.
+    }
+    return interpretEbayAvailabilityResponse(response.status, payload);
+  } catch {
+    return { outcome: "inconclusive", itemEndAt: null, reason: "The eBay availability request failed; the lead was left untouched." };
+  }
+}
 
 export async function getEbayApplicationToken() {
   const clientId = process.env.EBAY_CLIENT_ID;

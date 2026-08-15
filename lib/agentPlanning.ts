@@ -96,14 +96,25 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
   }
 
   if (agentKey === "market_scout") {
-    if (metrics.new_scout_leads > 0) {
+    if (metrics.scout_review_now > 0) {
       proposals.push(proposal(
         "triage_scout_leads",
         "scout_listing_leads",
         "scout:triage-new-leads",
-        `Triage ${metrics.new_scout_leads} new marketplace leads`,
-        "These active listings have not received a staff watch-or-dismiss decision.",
+        `Review ${metrics.scout_review_now} current, plausible marketplace leads`,
+        "These leads were seen recently, score at least 50 and have not received a staff watch-or-dismiss decision.",
         0.99,
+        metrics,
+      ));
+    }
+    if (metrics.scout_profiles_needing_tuning > 0) {
+      proposals.push(proposal(
+        "tune_low_yield_profiles",
+        "marketplace_search_profiles",
+        "scout:tune-low-yield-profiles",
+        `Tune ${metrics.scout_profiles_needing_tuning} low-yield search profiles`,
+        "Each profile has produced at least ten leads but fewer than one in four scores high enough for the current review queue.",
+        0.96,
         metrics,
       ));
     }
@@ -119,7 +130,7 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
       ));
     }
     return {
-      summary: `${metrics.auto_dismissed_leads ?? 0} definitive conflicts safely dismissed; ${metrics.new_scout_leads ?? 0} plausible or uncertain leads remain for people; ${metrics.stale_search_profiles ?? 0} profiles are stale.`,
+      summary: `${metrics.auto_dismissed_leads ?? 0} conflicts dismissed; ${metrics.availability_archived ?? 0} unavailable listings archived; ${metrics.scout_review_now ?? 0} current plausible leads need people; ${metrics.scout_stale_backlog ?? 0} stale leads are separated from the default queue.`,
       proposals,
     };
   }

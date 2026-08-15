@@ -13,10 +13,13 @@ const scout = planAgentActions("market_scout", {
   active_search_profiles: 20,
   stale_search_profiles: 3,
   new_scout_leads: 18,
+  scout_review_now: 18,
+  scout_stale_backlog: 4,
+  scout_profiles_needing_tuning: 0,
   watching_scout_leads: 2,
 });
 assert.equal(scout.proposals.length, 2);
-assert.ok(scout.summary.includes("18 plausible or uncertain leads"));
+assert.ok(scout.summary.includes("18 current plausible leads"));
 
 const evidence = planAgentActions("evidence_auditor", {
   sales_needing_review: 0,

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AGENT_LABELS, type AgentKey, type AgentMetrics, planAgentActions } from "@/lib/agentPlanning";
+import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
+import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -25,9 +27,9 @@ async function collectCatalogueMetrics(admin: SupabaseClient): Promise<AgentMetr
 }
 
 async function collectScoutMetrics(admin: SupabaseClient): Promise<AgentMetrics> {
-  const [{ data: profiles, error: profileError }, newLeads, watching] = await Promise.all([
+  const [{ data: profiles, error: profileError }, backlog, watching] = await Promise.all([
     admin.from("marketplace_search_profiles").select("last_checked_at,collection_interval_days").eq("is_active", true),
-    admin.from("scout_listing_leads").select("id", { count: "exact", head: true }).eq("review_status", "new"),
+    readScoutBacklog(admin),
     admin.from("scout_listing_leads").select("id", { count: "exact", head: true }).eq("review_status", "watching"),
   ]);
   if (profileError) throw new Error(`Search profile scan failed: ${profileError.message}`);
@@ -37,10 +39,21 @@ async function collectScoutMetrics(admin: SupabaseClient): Promise<AgentMetrics>
     const interval = Number(profile.collection_interval_days ?? 7) * 86_400_000;
     return now - new Date(profile.last_checked_at).getTime() >= interval;
   }).length;
+  const diagnostics = diagnoseScoutBacklog(backlog);
   return {
     active_search_profiles: profiles?.length ?? 0,
     stale_search_profiles: stale,
-    new_scout_leads: countOrThrow(newLeads, "New Scout lead count failed"),
+    new_scout_leads: diagnostics.total,
+    scout_review_now: diagnostics.reviewNow,
+    scout_strong_matches: diagnostics.strong,
+    scout_partial_matches: diagnostics.partial,
+    scout_stale_backlog: diagnostics.stale,
+    scout_low_confidence: diagnostics.lowConfidence,
+    scout_duplicate_rows_grouped: diagnostics.duplicateRows,
+    scout_profiles_needing_tuning: diagnostics.profilesNeedingTuning,
+    scout_expired_with_end_date: diagnostics.expiredWithEndDate,
+    scout_unresolved_conflicts: diagnostics.unresolvedConflicts,
+    scout_graded_leads: diagnostics.graded,
     watching_scout_leads: countOrThrow(watching, "Watching Scout lead count failed"),
   };
 }
@@ -127,7 +140,9 @@ export async function runAgentObservation(
 
   try {
     let safeActionResult: AutoTriageResult | null = null;
-    if (agentKey === "market_scout" && Number(system?.autonomy_level ?? 1) >= 2 && typedControl.mode === "safe_actions") {
+    let availabilityResult: ScoutAvailabilityResult | null = null;
+    const autonomyLevel = Number(system?.autonomy_level ?? 1);
+    if (agentKey === "market_scout" && autonomyLevel >= 2 && typedControl.mode === "safe_actions") {
       safeActionResult = await autoDismissDefinitiveScoutConflicts(admin, run.id);
       if (safeActionResult.dismissed > 0) {
         const now = new Date().toISOString();
@@ -151,6 +166,30 @@ export async function runAgentObservation(
         if (actionError) throw new Error(`Market Scout could not audit its safe action: ${actionError.message}`);
       }
     }
+    if (agentKey === "market_scout" && autonomyLevel >= 3 && typedControl.mode === "safe_actions") {
+      availabilityResult = await refreshStaleScoutAvailability(admin, run.id);
+      if (availabilityResult.examined > 0) {
+        const now = new Date().toISOString();
+        const { error: actionError } = await admin.from("agent_actions").insert({
+          run_id: run.id,
+          agent_key: agentKey,
+          action_type: "refresh_scout_availability",
+          target_type: "scout_listing_leads",
+          dedupe_key: `scout:availability:${run.id}`,
+          title: `Rechecked ${availabilityResult.examined} stale eBay leads`,
+          rationale: `${availabilityResult.active} were confirmed active, ${availabilityResult.unavailable} were conclusively unavailable and ${availabilityResult.inconclusive} were left untouched.`,
+          risk_level: "low",
+          confidence: 1,
+          status: "executed",
+          evidence: availabilityResult,
+          reviewed_by: "RAR Market Scout",
+          review_notes: "Phase 3 bounded availability refresh. Inconclusive API results never change a lead decision.",
+          reviewed_at: now,
+          executed_at: now,
+        });
+        if (actionError) throw new Error(`Market Scout could not audit its availability refresh: ${actionError.message}`);
+      }
+    }
 
     const metrics = await collectMetrics(admin, agentKey);
     if (safeActionResult) {
@@ -158,6 +197,13 @@ export async function runAgentObservation(
       metrics.auto_dismiss_candidates = safeActionResult.candidates;
       metrics.auto_dismissed_leads = safeActionResult.dismissed;
       metrics.auto_dismiss_race_protected = safeActionResult.protectedByRace;
+    }
+    if (availabilityResult) {
+      metrics.availability_examined = availabilityResult.examined;
+      metrics.availability_confirmed_active = availabilityResult.active;
+      metrics.availability_archived = availabilityResult.unavailable;
+      metrics.availability_inconclusive = availabilityResult.inconclusive;
+      metrics.availability_race_protected = availabilityResult.protectedByRace;
     }
     const plan = planAgentActions(agentKey, metrics);
     let proposalsCreated = 0;

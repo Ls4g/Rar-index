@@ -39,6 +39,7 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   source_missing_covers: { href: "/cover-review", label: "Open cover review" },
   triage_scout_leads: { href: "/scout", label: "Open Scout inbox" },
   scan_stale_profiles: { href: "/collection-profiles", label: "Open profiles" },
+  tune_low_yield_profiles: { href: "/collection-profiles", label: "Tune search profiles" },
   review_sales_evidence: { href: "/review", label: "Open sale review" },
   classify_printing_evidence: { href: "/review", label: "Open print queue" },
   review_community_reports: { href: "/community-reports", label: "Open community reports" },
@@ -97,6 +98,7 @@ export default function AgentControlCentre({
   const proposed = actions.filter((action) => action.status === "proposed");
   const executed = actions.filter((action) => action.status === "executed").slice(0, 10);
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
+  const marketScoutRun = runs.find((run) => run.agent_key === "market_scout");
 
   return (
     <div className="agent-control-content">
@@ -104,13 +106,23 @@ export default function AgentControlCentre({
         <div>
           <span className="agent-status-light" />
           <p className="eyebrow">Global safety control</p>
-          <h2>{globalPaused ? "All RAR agents are paused" : "Phase 2 safety system active"}</h2>
-          <p>{globalPaused ? pauseReason ?? "No scheduled or manual agent runs can proceed." : "Market Scout may dismiss explicit listing conflicts. Plausible leads, sale verification and catalogue publication remain human-controlled."}</p>
+          <h2>{globalPaused ? "All RAR agents are paused" : "Phase 3 safety system active"}</h2>
+          <p>{globalPaused ? pauseReason ?? "No scheduled or manual agent runs can proceed." : "Market Scout may archive explicit conflicts and conclusively unavailable eBay listings. Plausible leads, sale verification and catalogue publication remain human-controlled."}</p>
         </div>
         <button className={globalPaused ? "staff-action-link agent-control-button" : "agent-danger-button"} disabled={busy === "global"} onClick={() => command("global", { command: "set_global_paused", paused: !globalPaused })} type="button">
           {busy === "global" ? "Updating..." : globalPaused ? "Resume all agents" : "Pause all agents"}
         </button>
       </section>
+
+      {marketScoutRun?.metrics ? <section className="agent-daily-briefing">
+        <div><p className="eyebrow">Scout workload after automation</p><h2>{marketScoutRun.metrics.scout_review_now ?? 0} current leads are ready for human review</h2><p>Stale records no longer crowd the default inbox. Scout rechecks 25 per run and leaves every inconclusive response untouched.</p></div>
+        <div className="agent-briefing-metrics">
+          <span><b>{marketScoutRun.metrics.scout_strong_matches ?? 0}</b>strong matches</span>
+          <span><b>{marketScoutRun.metrics.scout_partial_matches ?? 0}</b>partial matches</span>
+          <span><b>{marketScoutRun.metrics.scout_stale_backlog ?? 0}</b>stale / recheck</span>
+          <span><b>{marketScoutRun.metrics.scout_profiles_needing_tuning ?? 0}</b>profiles to tune</span>
+        </div>
+      </section> : null}
 
       <section className="agent-identity-bar">
         <label><span>Staff name</span><input onChange={(event) => setReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
@@ -159,7 +171,7 @@ export default function AgentControlCentre({
       </section>
 
       <section className="agent-safe-action-log">
-        <div className="section-intro"><p className="eyebrow">Safe autonomous work</p><h2>Recently executed actions</h2><p className="section-copy">Only definitive lead dismissals can appear here in Phase 2. Every underlying listing also receives a normal Scout audit record.</p></div>
+        <div className="section-intro"><p className="eyebrow">Safe autonomous work</p><h2>Recently executed actions</h2><p className="section-copy">Phase 3 records definitive conflict dismissals and bounded eBay availability refreshes here. Every archived listing also receives a normal Scout audit record.</p></div>
         {executed.length ? <div className="agent-executed-list">{executed.map((action) => <article key={action.id}><div><span>Executed · {formatTime(action.created_at)}</span><strong>{action.title}</strong><p>{action.rationale}</p></div><Link href="/scout?includeDismissed=1">Inspect Scout archive →</Link></article>)}</div> : <div className="review-empty"><strong>No safe actions executed yet.</strong><p>The next Market Scout run will examine untouched leads for explicit conflicts.</p></div>}
       </section>
 

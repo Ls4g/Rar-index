@@ -33,6 +33,7 @@ export type ScoutLead = {
   reviewedBy: string | null;
   isPriority: boolean;
   isExpired: boolean;
+  isStale: boolean;
   duplicateCount: number;
   duplicateProfiles: Array<{ profileId: string; editionId: string; editionLabel: string }>;
 };
@@ -42,9 +43,11 @@ type ScoreBand = "all" | "75plus" | "50plus" | "below50" | "50to74" | "25to49" |
 type ConfidenceFilter = "all" | "strong" | "partial" | "insufficient" | "conflict";
 type ListingTypeFilter = "all" | "Auction" | "Buy it now";
 type SortMode = "scoreThenEnd" | "endThenScore";
+type FreshnessFilter = "current" | "stale" | "all";
 
 type Filters = {
   status: StatusFilter;
+  freshness: FreshnessFilter;
   includeExpired: boolean;
   scoreBand: ScoreBand;
   confidence: ConfidenceFilter;
@@ -64,6 +67,7 @@ type Filters = {
 
 const DEFAULT_FILTERS: Filters = {
   status: "new",
+  freshness: "current",
   includeExpired: false,
   scoreBand: "50plus",
   confidence: "all",
@@ -132,13 +136,14 @@ function formatSeenDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(value));
 }
 
-type QuickView = "reviewNow" | "highConfidence" | "endsSoon" | "graded" | "watching" | "lowConfidenceBacklog" | "dismissed";
+type QuickView = "reviewNow" | "highConfidence" | "endsSoon" | "graded" | "watching" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
 const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
   { key: "reviewNow", label: "Review now" },
   { key: "highConfidence", label: "High-confidence" },
   { key: "endsSoon", label: "Ends soon" },
   { key: "graded", label: "Graded copies" },
   { key: "watching", label: "Watching" },
+  { key: "staleBacklog", label: "Stale / recheck" },
   { key: "lowConfidenceBacklog", label: "Low-confidence backlog" },
   { key: "dismissed", label: "Dismissed / archive" },
 ];
@@ -196,6 +201,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
 
   const filteredLeads = useMemo(() => leads.filter((lead) => {
     if (filters.status !== "all" && lead.reviewStatus !== filters.status) return false;
+    if (filters.freshness === "current" && lead.isStale) return false;
+    if (filters.freshness === "stale" && !lead.isStale) return false;
     if (!filters.includeExpired && lead.isExpired) return false;
     if (!matchesScoreBand(lead.score, filters.scoreBand)) return false;
     if (filters.confidence !== "all" && lead.confidence !== filters.confidence) return false;
@@ -232,12 +239,13 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   // totals a reviewer can trust regardless of whatever the filters below
   // are currently narrowed to.
   const quickViewCounts: Record<QuickView, number> = useMemo(() => ({
-    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && lead.score >= 50).length,
-    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && lead.score >= 75).length,
-    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && isEndingSoon(lead.itemEndAt, now)).length,
+    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score >= 50).length,
+    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score >= 75).length,
+    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && isEndingSoon(lead.itemEndAt, now)).length,
     watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
-    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && looksGraded(lead.listingTitle)).length,
-    lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && lead.score < 50).length,
+    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && looksGraded(lead.listingTitle)).length,
+    staleBacklog: leads.filter((lead) => lead.reviewStatus === "new" && lead.isStale).length,
+    lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score < 50).length,
     dismissed: leads.filter((lead) => lead.reviewStatus === "dismissed").length,
   }), [leads, now]);
 
@@ -245,10 +253,11 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     if (view === "reviewNow") updateFilters(DEFAULT_FILTERS, view);
     else if (view === "highConfidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "75plus" }, view);
     else if (view === "endsSoon") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" }, view);
-    else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true }, view);
+    else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
     else if (view === "graded") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", gradedOnly: true }, view);
+    else if (view === "staleBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", freshness: "stale", includeExpired: true }, view);
     else if (view === "lowConfidenceBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "below50" }, view);
-    else if (view === "dismissed") updateFilters({ ...DEFAULT_FILTERS, status: "dismissed", scoreBand: "all", includeExpired: true }, view);
+    else if (view === "dismissed") updateFilters({ ...DEFAULT_FILTERS, status: "dismissed", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
   }
 
   function onManualFilterChange(partial: Partial<Filters>) {
@@ -343,6 +352,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
           <label>Review status<select onChange={(event) => onManualFilterChange({ status: event.target.value as StatusFilter })} value={filters.status}>
             <option value="all">Any</option><option value="new">New</option><option value="watching">Watching</option><option value="dismissed">Dismissed</option>
           </select></label>
+          <label>Freshness<select onChange={(event) => onManualFilterChange({ freshness: event.target.value as FreshnessFilter })} value={filters.freshness}>
+            <option value="current">Seen in the last 8 days</option><option value="stale">Needs availability recheck</option><option value="all">Any freshness</option>
+          </select></label>
           <label>Match score<select onChange={(event) => onManualFilterChange({ scoreBand: event.target.value as ScoreBand })} value={filters.scoreBand}>
             <option value="all">Any score</option><option value="75plus">75+ (strong)</option><option value="50plus">50+ (review now)</option><option value="50to74">50–74 only</option><option value="25to49">25–49 only</option><option value="below25">Below 25</option>
           </select></label>
@@ -402,7 +414,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                       <a className="scout-lead-title" href={lead.sourceListingUrl} rel="noreferrer" target="_blank">{lead.listingTitle}</a>
                     </div>
                     <p className="scout-lead-meta">
-                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {listingType(lead.rawPayload)} · {formatListingEndStaffLabel(lead.itemEndAt)}{lead.isExpired ? " (expired)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
+                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {listingType(lead.rawPayload)} · {formatListingEndStaffLabel(lead.itemEndAt)}{lead.isExpired ? " (expired)" : lead.isStale ? " (stale — awaiting eBay recheck)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
                     </p>
                     <p className="scout-lead-meta">
                       <Link className="scout-lead-edition-link" href={`/edition/${lead.editionId}`} target="_blank">{lead.editionTitle ?? "Edition"}</Link>

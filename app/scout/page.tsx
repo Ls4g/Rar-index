@@ -6,6 +6,7 @@ import ScoutTriageInbox, { type ScoutLead } from "@/components/ScoutTriageInbox"
 import StaffNav from "@/components/StaffNav";
 import { assessScoutListing, type ScoutEdition } from "@/lib/scoutIngest";
 import { scoutListingGroupKey } from "@/lib/scoutGrouping";
+import { isScoutLeadStale } from "@/lib/scoutDiagnostics";
 import { isPrioritySeries } from "@/lib/prioritySeries";
 
 function formatLastChecked(value: string | null) {
@@ -145,6 +146,7 @@ export default async function ScoutPage() {
       reviewedBy: primary.reviewed_by,
       isPriority: isPrioritySeries(edition.series),
       isExpired: Boolean(primary.item_end_at) && new Date(primary.item_end_at as string).getTime() < now,
+      isStale: isScoutLeadStale(primary.last_seen_at, now),
       duplicateCount: otherProfiles.length,
       duplicateProfiles: otherProfiles,
     });
@@ -162,7 +164,7 @@ export default async function ScoutPage() {
         <div>
           <p className="eyebrow">RAR Scout</p>
           <h1>Scout triage inbox</h1>
-          <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. On every scan, RAR Auto-Triage dismisses leads that are a multi-volume lot/set, name a different volume, printing, or series, or whose title text clearly conflicts with the target edition&apos;s ISBN, publisher, language, or binding ({autoDismissedCount ?? 0} dismissed so far) — it never touches a lead a staff member has already reviewed, and it never verifies a sale.</p>
+          <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. Definitive edition conflicts are safely archived, stale leads are separated from the current queue, and a bounded availability refresh rechecks old records directly with eBay. No agent can verify a sale or overwrite a staff decision ({autoDismissedCount ?? 0} earlier ingestion conflicts archived).</p>
           <ScoutBatchRunButton />
         </div>
         <div className="queue-total"><strong>{leads.length}</strong><span>unique active listings across {profiles.length} profiles</span></div>
