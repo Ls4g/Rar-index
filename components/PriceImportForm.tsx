@@ -105,6 +105,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   const [handoffPrice, setHandoffPrice] = useState("");
   const [handoffCurrency, setHandoffCurrency] = useState("");
   const [handoffSoldDate, setHandoffSoldDate] = useState("");
+  const [handoffEvidenceImageUrl, setHandoffEvidenceImageUrl] = useState("");
   const [handoffLoading, setHandoffLoading] = useState(Boolean(communityReportId));
 
   useEffect(() => {
@@ -236,7 +237,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
     // — a community report is never enough on its own to claim a printing;
     // staff add that separately, with proof, if they establish it later.
     const row = [
-      source.id, handoffExternalId.trim(), communityReport.sourceListingUrl, communityReport.listingTitle ?? "", "confirmed", handoffSaleType, handoffSoldDate, handoffPrice, handoffCurrency.toUpperCase(), "", "", JSON.stringify(payload), communityReport.edition.title ?? "", communityReport.edition.series ?? "", communityReport.edition.volume_number ?? "", communityReport.edition.language ?? "", communityReport.edition.isbn_13 ?? "", communityReport.edition.publisher ?? "", communityReport.edition.format ?? "", "", "",
+      source.id, handoffExternalId.trim(), communityReport.sourceListingUrl, communityReport.listingTitle ?? "", "confirmed", handoffSaleType, handoffSoldDate, handoffPrice, handoffCurrency.toUpperCase(), "", handoffEvidenceImageUrl.trim(), JSON.stringify(payload), communityReport.edition.title ?? "", communityReport.edition.series ?? "", communityReport.edition.volume_number ?? "", communityReport.edition.language ?? "", communityReport.edition.isbn_13 ?? "", communityReport.edition.publisher ?? "", communityReport.edition.format ?? "", "", "",
     ];
     setCsv(`${headers.join(",")}\n${row.map(csvCell).join(",")}`);
     setResult(null);
@@ -301,6 +302,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
               <label>Price<input inputMode="decimal" value={handoffPrice} onChange={(event) => setHandoffPrice(event.target.value)} placeholder="0.00" /></label>
               <label>Currency<input value={handoffCurrency} maxLength={3} onChange={(event) => setHandoffCurrency(event.target.value.toUpperCase())} placeholder="USD" /></label>
               <label>Sale date<input type="date" value={handoffSoldDate} onChange={(event) => setHandoffSoldDate(event.target.value)} /></label>
+              <label>Copyright-page image URL <span>(optional)</span><input type="url" value={handoffEvidenceImageUrl} onChange={(event) => setHandoffEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
             </div>
             <button type="button" onClick={generateCommunityReportCsv}>Create preflight CSV</button>
           </> : <p>That report cannot be handed off. It must be a completed-sale report marked for import first.</p>}
@@ -377,7 +379,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
                   <tr key={row.rowNumber}>
                     <td>{row.rowNumber}</td>
                     <td><span className={`import-status ${row.status}`}>{row.status}</span></td>
-                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.evidenceImageUrl ? "Copyright-page reference supplied" : "No copyright-page reference yet — this sale cannot be verified."}</small></td>
+                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.evidenceImageUrl ? "Copyright-page proof supplied" : "No copyright-page proof — printing remains unidentified."}</small></td>
                     <td>{row.price && row.currency ? `${row.currency} ${row.price}` : "Not usable"}<small>{row.soldDate || "No sale date"}</small></td>
                     <td>{row.issues.length ? row.issues.join("; ") : <><strong>{row.match ? `${row.match.confidence} match signal (${row.match.score}/100)` : "Ready for staff review"}</strong><small>{row.match?.reasons.join("; ") || "No match signal recorded"}</small></>}</td>
                   </tr>

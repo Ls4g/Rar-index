@@ -1,3 +1,5 @@
+import { collectEbayEvidenceImageUrls } from "./ebayEvidence.ts";
+
 type EBayItem = {
   itemId?: string;
   itemWebUrl?: string;
@@ -9,6 +11,7 @@ type EBayItem = {
   // photograph of a real copy is the only way to *see* a magazine issue:
   // its cover art is copyrighted, so no catalogue source carries a picture.
   image?: { imageUrl?: string };
+  additionalImages?: Array<{ imageUrl?: string }>;
   thumbnailImages?: Array<{ imageUrl?: string }>;
   estimatedAvailabilities?: Array<{ estimatedAvailabilityStatus?: string }>;
   buyingOptions?: string[];
@@ -32,6 +35,12 @@ export type EbayAvailabilityCheck = {
   outcome: "active" | "unavailable" | "inconclusive";
   itemEndAt: string | null;
   reason: string;
+};
+
+export type EbayListingEvidence = {
+  externalId: string;
+  title: string;
+  imageUrls: string[];
 };
 
 type EbayErrorPayload = { errors?: Array<{ errorId?: number; message?: string; longMessage?: string }> };
@@ -118,6 +127,34 @@ export async function getEbayApplicationToken() {
   const payload = await response.json() as { access_token?: string };
   if (!payload.access_token) throw new Error("eBay returned no application token.");
   return payload.access_token;
+}
+
+export async function getEbayListingEvidence(
+  legacyItemId: string,
+  marketplaceId: string,
+  applicationToken?: string,
+): Promise<EbayListingEvidence> {
+  const token = applicationToken ?? await getEbayApplicationToken();
+  const url = new URL("https://api.ebay.com/buy/browse/v1/item/get_item_by_legacy_id");
+  url.searchParams.set("legacy_item_id", legacyItemId);
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(response.status === 404
+      ? "eBay no longer exposes photos for this completed listing. Paste a direct copyright-page image link instead."
+      : "eBay could not load this listing's photos. The manual proof-link field is still available.");
+  }
+  const item = await response.json() as EBayItem;
+  return {
+    externalId: legacyItemId,
+    title: item.title?.trim() ?? "",
+    imageUrls: collectEbayEvidenceImageUrls(item),
+  };
 }
 
 export async function findActiveEbayListings(query: string, applicationToken?: string): Promise<ActiveEbayListing[]> {

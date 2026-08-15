@@ -42,6 +42,8 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [currency, setCurrency] = useState("GBP");
   const [saleType, setSaleType] = useState("unknown");
   const [evidenceImageUrl, setEvidenceImageUrl] = useState("");
+  const [listingImageUrls, setListingImageUrls] = useState<string[]>([]);
+  const [loadingListingImages, setLoadingListingImages] = useState(false);
   const [intakeNotes, setIntakeNotes] = useState("");
   const [reviewer, setReviewer] = useState("");
   const [printClassification, setPrintClassification] = useState<"printing_not_identified" | "known_later_print" | "first_print_proven">("printing_not_identified");
@@ -112,6 +114,37 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     setSourceId("");
   }
 
+  function changeListingUrl(value: string) {
+    if (listingImageUrls.includes(evidenceImageUrl)) setEvidenceImageUrl("");
+    setListingImageUrls([]);
+    setSourceListingUrl(value);
+  }
+
+  async function loadListingPhotos() {
+    if (!sourceListingUrl.trim()) {
+      setMessage("Paste the original eBay item link before loading its photos.");
+      return;
+    }
+    setLoadingListingImages(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/add-sale?listingUrl=${encodeURIComponent(sourceListingUrl.trim())}`);
+      const data = await response.json() as { externalId?: string; title?: string; imageUrls?: string[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "The listing photos could not be loaded.");
+      setListingImageUrls(data.imageUrls ?? []);
+      if (!externalId.trim() && data.externalId) setExternalId(data.externalId);
+      if (!listingTitle.trim() && data.title) setListingTitle(data.title);
+      setMessage(data.imageUrls?.length
+        ? "Choose the photo that visibly proves the printing. RAR will never choose one automatically."
+        : "eBay returned the listing but no photos. Paste a direct copyright-page image link instead.");
+    } catch (error) {
+      setListingImageUrls([]);
+      setMessage(error instanceof Error ? error.message : "The listing photos could not be loaded.");
+    } finally {
+      setLoadingListingImages(false);
+    }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedEdition) { setMessage("Choose the exact RAR edition first."); return; }
@@ -149,6 +182,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       setSoldDate("");
       setSalePrice("");
       setEvidenceImageUrl("");
+      setListingImageUrls([]);
       setIntakeNotes("");
       setPrintClassification("printing_not_identified");
       setKnownPrintingNumber("");
@@ -173,13 +207,25 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       <div className="quick-sale-grid">
         <label>Marketplace source<select required value={sourceId} onChange={(event) => setSourceId(event.target.value)}><option value="">Choose source</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.name ?? "Unnamed marketplace"}</option>)}</select></label>
         <label>Sale type<select value={saleType} onChange={(event) => setSaleType(event.target.value)}><option value="unknown">Unknown</option><option value="auction">Auction</option><option value="fixed_price">Fixed price</option><option value="best_offer">Best offer</option></select></label>
-        <label className="quick-sale-wide">Original completed-listing link<input required type="url" value={sourceListingUrl} onChange={(event) => setSourceListingUrl(event.target.value)} placeholder="https://..." /></label>
+        <label className="quick-sale-wide">Original completed-listing link<input required type="url" value={sourceListingUrl} onChange={(event) => changeListingUrl(event.target.value)} placeholder="https://..." /></label>
+        <div className="quick-sale-wide evidence-photo-loader">
+          <button type="button" disabled={loadingListingImages || !sourceListingUrl.trim()} onClick={loadListingPhotos}>{loadingListingImages ? "Loading eBay photos..." : "Load eBay listing photos"}</button>
+          <p>Select only a photo that clearly shows the copyright or printing page for this exact sold copy. If eBay no longer exposes the photos, use the proof-link field below.</p>
+        </div>
+        {listingImageUrls.length ? <div className="quick-sale-wide evidence-photo-grid" aria-label="eBay listing photos">
+          {listingImageUrls.map((imageUrl, index) => <button className={evidenceImageUrl === imageUrl ? "selected" : ""} type="button" key={imageUrl} onClick={() => setEvidenceImageUrl(imageUrl)} aria-pressed={evidenceImageUrl === imageUrl}>
+            {/* Seller listing photos are remote evidence, not RAR catalogue artwork. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt={`eBay listing photo ${index + 1}`} />
+            <span>{evidenceImageUrl === imageUrl ? "Selected as proof" : "Use as copyright proof"}</span>
+          </button>)}
+        </div> : null}
         <label>Marketplace listing ID<input value={externalId} onChange={(event) => setExternalId(event.target.value)} placeholder="Auto-read from eBay link when possible" /></label>
         <label>Sold date<input required type="date" value={soldDate} onChange={(event) => setSoldDate(event.target.value)} /></label>
         <label className="quick-sale-wide">Listing title<input required value={listingTitle} onChange={(event) => setListingTitle(event.target.value)} placeholder="Copy the title exactly as shown" /></label>
         <label>Sold price<input required inputMode="decimal" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="0.00" /></label>
         <label>Currency<input required maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="GBP" /></label>
-        <label className="quick-sale-wide">Copyright-page proof link <small>Required to classify this sale as a proven first print.</small><input type="url" value={evidenceImageUrl} onChange={(event) => setEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
+        <label className="quick-sale-wide">Copyright-page proof link <small>Selected eBay photos appear here automatically. Required to classify this sale as a proven first print.</small><input type="url" value={evidenceImageUrl} onChange={(event) => setEvidenceImageUrl(event.target.value)} placeholder="https://..." /></label>
         <label className="quick-sale-wide">Intake note <small>Optional; add context only when the source does not make the decision clear.</small><textarea value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="What did you check before adding this?" rows={3} /></label>
       </div>
       <div className="quick-sale-step"><span>3</span><div><strong>Classify the printing</strong><p>Never inferred automatically. Printing not identified is the safe default — only change it with direct evidence for this exact copy.</p></div></div>

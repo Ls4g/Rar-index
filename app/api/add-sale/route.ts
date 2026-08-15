@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
+import { extractEbayLegacyItemId, ebayMarketplaceFromUrl } from "@/lib/ebayEvidence";
+import { getEbayListingEvidence } from "@/lib/ebayScout";
 
 type Edition = {
   id: string;
@@ -24,8 +26,6 @@ function validDate(value: string) {
 function validUrl(value: string) {
   try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; }
 }
-function extractEbayId(url: string) { return url.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/i)?.[1] ?? ""; }
-
 async function exactEdition(id: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.from("manga_editions")
@@ -39,7 +39,23 @@ export async function GET(request: NextRequest) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   const query = text(request.nextUrl.searchParams.get("q"));
   const editionId = text(request.nextUrl.searchParams.get("editionId"));
+  const listingUrl = text(request.nextUrl.searchParams.get("listingUrl"));
   const admin = getSupabaseAdmin();
+
+  if (listingUrl) {
+    if (!validUrl(listingUrl)) return Response.json({ error: "Paste a valid eBay item link first." }, { status: 400 });
+    const legacyItemId = extractEbayLegacyItemId(listingUrl);
+    if (!legacyItemId) return Response.json({ error: "RAR could not find the numeric item ID in that eBay link." }, { status: 400 });
+    try {
+      const listing = await getEbayListingEvidence(
+        legacyItemId,
+        ebayMarketplaceFromUrl(listingUrl) ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US",
+      );
+      return Response.json(listing);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "eBay listing photos could not be loaded." }, { status: 502 });
+    }
+  }
 
   if (editionId) {
     const [edition, sourceResult] = await Promise.all([
@@ -94,7 +110,7 @@ export async function POST(request: Request) {
     const admin = getSupabaseAdmin();
     const { data: source, error: sourceError } = await admin.from("sources").select("id,name").eq("id", sourceId).eq("is_active", true).maybeSingle();
     if (sourceError || !source) return Response.json({ error: "Choose an active RAR marketplace source." }, { status: 400 });
-    const externalId = suppliedExternalId || (source.name === "eBay Sold" ? extractEbayId(sourceListingUrl) : "");
+    const externalId = suppliedExternalId || (source.name === "eBay Sold" ? extractEbayLegacyItemId(sourceListingUrl) : "");
     if (!externalId) return Response.json({ error: "Add the marketplace listing ID. For eBay, it is normally the number in the item link." }, { status: 400 });
     const { data: duplicate, error: duplicateError } = await admin.from("price_observations").select("id").eq("source_id", source.id).eq("external_id", externalId).maybeSingle();
     if (duplicateError) return Response.json({ error: "RAR could not check for an existing sale." }, { status: 500 });
