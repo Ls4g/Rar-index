@@ -69,12 +69,17 @@ button, input { font: inherit; }
 .theme-toggle button:hover { color: var(--canvas-heading); }
 .theme-toggle button.is-active, .theme-toggle button.is-active:hover { background: var(--red); color: #fff; }
 
-/* Staff tools menu: every staff-gated page in one disclosure instead of a
-   hand-picked handful of links per page. Plain <details> — no client JS,
-   works pre-hydration, and a link click just navigates away so there is no
-   open state to reset. */
+/* Staff navigation is deliberately consistent on every internal page. The
+   four everyday destinations stay visible; lower-frequency tools live in one
+   small disclosure. This replaces the growing set of page-specific links. */
+.review-page .site-header > .header-note { display: none; }
+.staff-workspace-nav { display: flex; align-items: center; gap: .55rem; margin-left: auto; }
+.staff-primary-links { display: flex; align-items: center; gap: .18rem; padding: .2rem; border: 1px solid var(--line); border-radius: .55rem; }
+.staff-primary-links a { padding: .46rem .62rem; border-radius: .38rem; color: var(--muted); font-size: .69rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.staff-primary-links a:hover { color: var(--ink); }
+.staff-primary-links a.is-current { background: var(--action); color: #fff; pointer-events: none; }
 .staff-nav-menu { position: relative; }
-.staff-nav-menu summary { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: .45rem; color: var(--muted); cursor: pointer; font-size: .7rem; font-weight: 700; letter-spacing: .06em; list-style: none; text-transform: uppercase; }
+.staff-nav-menu summary { display: inline-flex; align-items: center; gap: .4rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: .45rem; color: var(--muted); cursor: pointer; font-size: .69rem; font-weight: 700; letter-spacing: .06em; list-style: none; text-transform: uppercase; }
 .staff-nav-menu summary::-webkit-details-marker { display: none; }
 .staff-nav-menu summary::after { content: "▾"; font-size: .6rem; }
 .staff-nav-menu[open] summary { border-color: var(--gold); color: var(--ink); }
@@ -92,16 +97,23 @@ button, input { font: inherit; }
    cap the width against the viewport rather than a fixed 90vw, since the
    trigger already sits inside the masthead's own padding. */
 @media (max-width: 850px) {
+  .review-page .site-header { flex-wrap: wrap; gap: .8rem; }
+  .staff-workspace-nav { width: 100%; margin-left: 0; justify-content: space-between; order: 3; }
   .staff-nav-panel {
     right: auto;
-    left: 0;
+    left: auto;
+    right: 0;
     min-width: 0;
     width: max-content;
     max-width: calc(100vw - 2rem);
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (max-width: 600px) { .staff-nav-panel { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .staff-primary-links { min-width: 0; overflow-x: auto; }
+  .staff-primary-links a { white-space: nowrap; }
+  .staff-nav-panel { grid-template-columns: 1fr; }
+}
 
 /* The hero used to be a tall, mostly-empty dark panel. It now holds real
    content immediately (search, entry points, the shelf) instead of acting
@@ -2219,7 +2231,18 @@ html[data-theme="day"] .public-page {
    healthy observer; red is reserved for the global kill switch. */
 .agent-control-page { min-height: 100vh; background: #12110f; color: #f5eee4; }
 .agent-hero { background: radial-gradient(circle at 88% 20%, rgba(200,76,50,.18), transparent 28%), #1a1815; border-bottom-color: rgba(255,255,255,.09); }
-.agent-control-content { display: grid; gap: 1.5rem; padding: 2rem clamp(1rem, 4vw, 4rem) 5rem; background: #12110f; }
+.agent-control-content { display: grid; gap: 1.25rem; width: 100%; max-width: 1240px; margin: auto; padding: 2rem clamp(1rem, 4vw, 4rem) 5rem; background: #12110f; }
+.agent-workbench { display: grid; gap: 1rem; padding: 1.4rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: #1b1916; }
+.agent-workbench-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.agent-workbench-heading h2 { margin: .15rem 0 .35rem; color: #f5eee4; font: 700 1.7rem/1.1 var(--font-display); }
+.agent-workbench-heading p { margin: 0; max-width: 70ch; color: #a99f94; font-size: .82rem; line-height: 1.5; }
+.agent-workbench-heading > a { flex: 0 0 auto; color: #7fe0b9; font-size: .74rem; font-weight: 800; }
+.agent-workbench-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; }
+.agent-workbench-grid > a { display: grid; gap: .18rem; padding: 1rem; border: 1px solid rgba(255,255,255,.09); border-radius: .65rem; background: #211e1a; transition: border-color .15s ease, transform .15s ease; }
+.agent-workbench-grid > a:hover { border-color: rgba(223,118,95,.55); transform: translateY(-1px); }
+.agent-workbench-grid strong { color: #f5eee4; font-size: 1.9rem; line-height: 1; }
+.agent-workbench-grid span { color: #ddd3c7; font-size: .75rem; font-weight: 800; text-transform: uppercase; }
+.agent-workbench-grid small { margin-top: .25rem; color: #8f877e; font-size: .7rem; }
 .agent-kill-switch { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.35rem 1.5rem; border: 1px solid rgba(93,204,159,.35); border-radius: .85rem; background: rgba(93,204,159,.06); }
 .agent-kill-switch.is-paused { border-color: rgba(238,91,75,.6); background: rgba(238,91,75,.09); }
 .agent-kill-switch h2 { margin: .18rem 0 .35rem; font: 650 1.35rem/1.15 var(--font-display); }
@@ -2234,25 +2257,31 @@ html[data-theme="day"] .public-page {
 .agent-identity-bar input { padding: .7rem .8rem; border: 1px solid rgba(255,255,255,.18); border-radius: .4rem; background: #11100e; color: #fff; }
 .agent-identity-bar p { margin: 0 0 .7rem; color: #bdb4a9; font-size: .8rem; }
 .agent-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.agent-card { display: grid; align-content: start; gap: 1rem; padding: 1.4rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: linear-gradient(145deg, #211e1a, #181613); box-shadow: 0 18px 45px rgba(0,0,0,.18); }
+.agent-team-section { display: grid; gap: 1rem; padding-top: .4rem; }
+.agent-card { display: grid; align-content: start; gap: .85rem; padding: 1.2rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: linear-gradient(145deg, #211e1a, #181613); }
 .agent-card.is-paused { opacity: .72; }
 .agent-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
 .agent-card-heading span, .agent-proposal-list span { color: #df765f; font-size: .67rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .agent-card-heading h2 { margin: .25rem 0 0; font: 650 1.45rem/1.1 var(--font-display); }
 .agent-card-heading > b, .agent-run-status { padding: .3rem .48rem; border: 1px solid rgba(93,204,159,.4); border-radius: 999px; color: #7fe0b9; font-size: .65rem; text-transform: uppercase; }
 .agent-card > p { margin: 0; color: #bdb4a9; line-height: 1.55; }
-.agent-last-run { display: grid; gap: .35rem; padding: .85rem; border-left: 2px solid #c84c32; background: rgba(255,255,255,.025); }
+.agent-last-run { display: grid; gap: .35rem; padding: .75rem .8rem; border-left: 2px solid #c84c32; background: rgba(255,255,255,.025); }
 .agent-last-run small, .agent-last-run span { color: #8f877e; font-size: .7rem; }
 .agent-last-run strong { font-size: .87rem; line-height: 1.45; }
 .agent-last-run em { color: #ff8f82; font-size: .75rem; font-style: normal; }
 .agent-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
 .agent-metrics span { display: grid; gap: .18rem; color: #978f85; font-size: .6rem; line-height: 1.25; text-transform: uppercase; }
 .agent-metrics b { color: #f5eee4; font-size: 1.1rem; }
+.agent-run-details { border-top: 1px solid rgba(255,255,255,.08); padding-top: .65rem; }
+.agent-run-details summary { color: #a99f94; cursor: pointer; font-size: .7rem; font-weight: 800; list-style: none; text-transform: uppercase; }
+.agent-run-details summary::after { content: " +"; color: #df765f; }
+.agent-run-details[open] summary::after { content: " −"; }
+.agent-run-details .agent-metrics { margin-top: .75rem; }
 .agent-card-actions, .agent-proposal-list article > div:last-child { display: flex; flex-wrap: wrap; gap: .5rem; }
 .agent-card button, .agent-proposal-list button { padding: .64rem .82rem; border: 1px solid #c84c32; border-radius: .4rem; background: #c84c32; color: #fff; font-weight: 750; cursor: pointer; }
 .agent-card button.secondary, .agent-proposal-list button.secondary { border-color: rgba(255,255,255,.16); background: transparent; color: #ddd3c7; }
 .agent-card button:disabled, .agent-proposal-list button:disabled { cursor: not-allowed; opacity: .45; }
-.agent-proposals, .agent-run-log { padding: 1.5rem; border: 1px solid rgba(255,255,255,.1); border-radius: .85rem; background: #191714; }
+.agent-proposals { padding: 1.35rem; border: 1px solid rgba(255,255,255,.1); border-radius: .85rem; background: #191714; }
 .agent-control-content .section-intro h2 { color: #f5eee4; }
 .agent-control-content .section-copy { color: #a99f94; }
 .agent-proposal-list { display: grid; gap: .7rem; margin-top: 1rem; }
@@ -2266,9 +2295,24 @@ html[data-theme="day"] .public-page {
 .agent-run-log td, .agent-run-log th { border-color: rgba(255,255,255,.09); }
 .agent-run-status.failed, .agent-run-status.blocked { border-color: rgba(238,91,75,.45); color: #ff8f82; }
 .agent-control-page .review-empty { border-color: rgba(255,255,255,.1); background: #1b1916; }
+.agent-empty-compact { margin-top: 1rem; padding: 1rem; }
+.agent-history-panel { border: 1px solid rgba(255,255,255,.1); border-radius: .8rem; background: #191714; }
+.agent-history-panel > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; cursor: pointer; list-style: none; }
+.agent-history-panel > summary::-webkit-details-marker { display: none; }
+.agent-history-panel > summary span { display: grid; gap: .15rem; }
+.agent-history-panel > summary small { color: #8f877e; font-size: .61rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.agent-history-panel > summary strong { color: #f5eee4; font-size: .95rem; }
+.agent-history-panel > summary > b { display: grid; place-items: center; min-width: 2rem; height: 2rem; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; color: #df765f; font-size: .75rem; }
+.agent-history-panel[open] > summary { border-bottom: 1px solid rgba(255,255,255,.08); }
+.agent-history-content { padding: 1rem; }
+.agent-history-panel table { color: #ddd3c7; }
+.agent-history-panel th { color: #8f877e; }
+.agent-history-panel td, .agent-history-panel th { border-color: rgba(255,255,255,.09); }
 
 @media (max-width: 800px) {
-  .agent-card-grid { grid-template-columns: 1fr; }
+  .agent-workbench-heading, .agent-card-grid { grid-template-columns: 1fr; }
+  .agent-workbench-heading { align-items: flex-start; flex-direction: column; }
+  .agent-workbench-grid { grid-template-columns: 1fr; }
   .agent-kill-switch, .agent-identity-bar, .agent-proposal-list article { align-items: stretch; flex-direction: column; }
   .agent-identity-bar label { min-width: 0; }
   .agent-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

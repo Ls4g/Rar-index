@@ -3,67 +3,75 @@ import Link from "next/link";
 type NavLink = { href: string; label: string };
 type NavGroup = { label: string; links: NavLink[] };
 
-const NAV_GROUPS: NavGroup[] = [
+const PRIMARY_LINKS: NavLink[] = [
+  { href: "/review", label: "Review" },
+  { href: "/scout", label: "Scout" },
+  { href: "/add-sale", label: "Add sale" },
+  { href: "/agents", label: "Agents" },
+];
+
+const MORE_GROUPS: NavGroup[] = [
   {
-    label: "Autonomy",
+    label: "Add and collect data",
     links: [
-      { href: "/agents", label: "Agent control centre" },
-    ],
-  },
-  {
-    label: "Evidence & pricing",
-    links: [
-      { href: "/review", label: "Review queue" },
-      { href: "/scout", label: "RAR Scout" },
-      { href: "/collection-profiles", label: "Collection profiles" },
-      { href: "/price-import", label: "Price import" },
-      { href: "/add-sale", label: "Add one sale" },
-    ],
-  },
-  {
-    label: "Catalogue",
-    links: [
+      { href: "/price-import", label: "Price batch import" },
       { href: "/catalogue-import", label: "Catalogue import" },
-      { href: "/catalogue-review", label: "Catalogue review" },
-      { href: "/catalogue-requests", label: "Catalogue requests" },
-      { href: "/cover-review", label: "Cover review" },
+      { href: "/collection-profiles", label: "Search profiles" },
     ],
   },
   {
-    label: "Insight & community",
+    label: "Review queues",
     links: [
-      { href: "/coverage-dashboard", label: "Coverage dashboard" },
-      { href: "/data-readiness", label: "Data readiness" },
+      { href: "/catalogue-review", label: "Catalogue candidates" },
+      { href: "/cover-review", label: "Cover images" },
+      { href: "/catalogue-requests", label: "Edition requests" },
       { href: "/community-reports", label: "Community reports" },
+    ],
+  },
+  {
+    label: "Monitor RAR",
+    links: [
+      { href: "/coverage-dashboard", label: "Catalogue coverage" },
+      { href: "/data-readiness", label: "Data readiness" },
     ],
   },
 ];
 
-// A native <details> disclosure needs no client JS: it works before
-// hydration, and clicking a link inside just navigates (unmounting it),
-// so there is no open state to reset.
 export default function StaffNav({ current }: { current: string }) {
   return (
-    <details className="staff-nav-menu">
-      <summary>All staff tools</summary>
-      <div className="staff-nav-panel" role="menu">
-        {NAV_GROUPS.map((group) => (
-          <div className="staff-nav-group" key={group.label}>
-            <span className="staff-nav-group-label">{group.label}</span>
-            {group.links.map((link) => (
-              <Link
-                aria-current={link.href === current ? "page" : undefined}
-                className={link.href === current ? "is-current" : ""}
-                href={link.href}
-                key={link.href}
-                role="menuitem"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
+    <nav className="staff-workspace-nav" aria-label="Staff workspace">
+      <div className="staff-primary-links">
+        {PRIMARY_LINKS.map((link) => (
+          <Link
+            aria-current={link.href === current ? "page" : undefined}
+            className={link.href === current ? "is-current" : ""}
+            href={link.href}
+            key={link.href}
+          >
+            {link.label}
+          </Link>
         ))}
       </div>
-    </details>
+      <details className="staff-nav-menu">
+        <summary>More</summary>
+        <div className="staff-nav-panel">
+          {MORE_GROUPS.map((group) => (
+            <div className="staff-nav-group" key={group.label}>
+              <span className="staff-nav-group-label">{group.label}</span>
+              {group.links.map((link) => (
+                <Link
+                  aria-current={link.href === current ? "page" : undefined}
+                  className={link.href === current ? "is-current" : ""}
+                  href={link.href}
+                  key={link.href}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      </details>
+    </nav>
   );
 }
