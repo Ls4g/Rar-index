@@ -5,6 +5,12 @@ type NavGroup = { label: string; links: NavLink[] };
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    label: "Autonomy",
+    links: [
+      { href: "/agents", label: "Agent control centre" },
+    ],
+  },
+  {
     label: "Evidence & pricing",
     links: [
       { href: "/review", label: "Review queue" },

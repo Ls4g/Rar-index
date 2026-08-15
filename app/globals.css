@@ -2196,3 +2196,63 @@ html[data-theme="day"] .public-page {
 .publication-no-sales-actions a.is-primary { border-color: var(--red); background: var(--red); color: #fff; }
 .publication-no-sales-actions a.is-primary:hover { background: var(--red-dark); border-color: var(--red-dark); }
 .publication-no-sales > small { color: var(--muted); font-size: .76rem; line-height: 1.55; max-width: 62ch; }
+
+/* Agent Control Centre: intentionally operational, legible and visibly safer
+   than the public collector interface. Coral marks actions; green means a
+   healthy observer; red is reserved for the global kill switch. */
+.agent-control-page { min-height: 100vh; background: #12110f; color: #f5eee4; }
+.agent-hero { background: radial-gradient(circle at 88% 20%, rgba(200,76,50,.18), transparent 28%), #1a1815; border-bottom-color: rgba(255,255,255,.09); }
+.agent-control-content { display: grid; gap: 1.5rem; padding: 2rem clamp(1rem, 4vw, 4rem) 5rem; background: #12110f; }
+.agent-kill-switch { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.35rem 1.5rem; border: 1px solid rgba(93,204,159,.35); border-radius: .85rem; background: rgba(93,204,159,.06); }
+.agent-kill-switch.is-paused { border-color: rgba(238,91,75,.6); background: rgba(238,91,75,.09); }
+.agent-kill-switch h2 { margin: .18rem 0 .35rem; font: 650 1.35rem/1.15 var(--font-display); }
+.agent-kill-switch p { margin: 0; max-width: 70ch; color: #bdb4a9; line-height: 1.5; }
+.agent-status-light { float: left; width: .55rem; height: .55rem; margin: .25rem .6rem 0 0; border-radius: 50%; background: #5dcc9f; box-shadow: 0 0 0 .3rem rgba(93,204,159,.12); }
+.is-paused .agent-status-light { background: #ee5b4b; box-shadow: 0 0 0 .3rem rgba(238,91,75,.12); }
+.agent-danger-button, .agent-control-button { flex: 0 0 auto; padding: .75rem 1rem; border: 1px solid #ee5b4b; border-radius: .45rem; background: #ee5b4b; color: #fff; font-weight: 800; cursor: pointer; }
+.agent-control-button { background: #5dcc9f; border-color: #5dcc9f; color: #102219; }
+.agent-identity-bar { display: flex; align-items: end; gap: 1rem; padding: 1rem 1.25rem; border: 1px solid rgba(255,255,255,.1); border-radius: .75rem; background: #1b1916; }
+.agent-identity-bar label { display: grid; gap: .35rem; min-width: 13rem; }
+.agent-identity-bar label span { color: #bdb4a9; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.agent-identity-bar input { padding: .7rem .8rem; border: 1px solid rgba(255,255,255,.18); border-radius: .4rem; background: #11100e; color: #fff; }
+.agent-identity-bar p { margin: 0 0 .7rem; color: #bdb4a9; font-size: .8rem; }
+.agent-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.agent-card { display: grid; align-content: start; gap: 1rem; padding: 1.4rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: linear-gradient(145deg, #211e1a, #181613); box-shadow: 0 18px 45px rgba(0,0,0,.18); }
+.agent-card.is-paused { opacity: .72; }
+.agent-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.agent-card-heading span, .agent-proposal-list span { color: #df765f; font-size: .67rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.agent-card-heading h2 { margin: .25rem 0 0; font: 650 1.45rem/1.1 var(--font-display); }
+.agent-card-heading > b, .agent-run-status { padding: .3rem .48rem; border: 1px solid rgba(93,204,159,.4); border-radius: 999px; color: #7fe0b9; font-size: .65rem; text-transform: uppercase; }
+.agent-card > p { margin: 0; color: #bdb4a9; line-height: 1.55; }
+.agent-last-run { display: grid; gap: .35rem; padding: .85rem; border-left: 2px solid #c84c32; background: rgba(255,255,255,.025); }
+.agent-last-run small, .agent-last-run span { color: #8f877e; font-size: .7rem; }
+.agent-last-run strong { font-size: .87rem; line-height: 1.45; }
+.agent-last-run em { color: #ff8f82; font-size: .75rem; font-style: normal; }
+.agent-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+.agent-metrics span { display: grid; gap: .18rem; color: #978f85; font-size: .6rem; line-height: 1.25; text-transform: uppercase; }
+.agent-metrics b { color: #f5eee4; font-size: 1.1rem; }
+.agent-card-actions, .agent-proposal-list article > div:last-child { display: flex; flex-wrap: wrap; gap: .5rem; }
+.agent-card button, .agent-proposal-list button { padding: .64rem .82rem; border: 1px solid #c84c32; border-radius: .4rem; background: #c84c32; color: #fff; font-weight: 750; cursor: pointer; }
+.agent-card button.secondary, .agent-proposal-list button.secondary { border-color: rgba(255,255,255,.16); background: transparent; color: #ddd3c7; }
+.agent-card button:disabled, .agent-proposal-list button:disabled { cursor: not-allowed; opacity: .45; }
+.agent-proposals, .agent-run-log { padding: 1.5rem; border: 1px solid rgba(255,255,255,.1); border-radius: .85rem; background: #191714; }
+.agent-control-content .section-intro h2 { color: #f5eee4; }
+.agent-control-content .section-copy { color: #a99f94; }
+.agent-proposal-list { display: grid; gap: .7rem; margin-top: 1rem; }
+.agent-proposal-list article { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1rem; border: 1px solid rgba(255,255,255,.09); border-radius: .6rem; background: #211e1a; }
+.agent-proposal-list h3 { margin: .25rem 0; font-size: 1rem; }
+.agent-proposal-list p { margin: 0; max-width: 70ch; color: #afa69b; font-size: .8rem; line-height: 1.5; }
+.agent-proposal-list small { color: #7f776f; }
+.agent-run-log .readiness-table-wrap { margin-top: 1rem; }
+.agent-run-log table { color: #ddd3c7; }
+.agent-run-log th { color: #8f877e; }
+.agent-run-log td, .agent-run-log th { border-color: rgba(255,255,255,.09); }
+.agent-run-status.failed, .agent-run-status.blocked { border-color: rgba(238,91,75,.45); color: #ff8f82; }
+.agent-control-page .review-empty { border-color: rgba(255,255,255,.1); background: #1b1916; }
+
+@media (max-width: 800px) {
+  .agent-card-grid { grid-template-columns: 1fr; }
+  .agent-kill-switch, .agent-identity-bar, .agent-proposal-list article { align-items: stretch; flex-direction: column; }
+  .agent-identity-bar label { min-width: 0; }
+  .agent-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
