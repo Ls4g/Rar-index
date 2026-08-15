@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AGENT_LABELS, type AgentKey, type AgentMetrics, planAgentActions } from "@/lib/agentPlanning";
+import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -60,15 +61,19 @@ async function collectEvidenceMetrics(admin: SupabaseClient): Promise<AgentMetri
 
 async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetrics> {
   const cutoff = new Date(Date.now() - 86_400_000).toISOString();
-  const [{ data, error }, failures, openActions] = await Promise.all([
+  const [{ data, error }, failures, openActions, safeActions, autoDismissals] = await Promise.all([
     admin.from("edition_readiness").select("readiness_status"),
     admin.from("agent_runs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("started_at", cutoff),
     admin.from("agent_actions").select("id", { count: "exact", head: true }).in("status", ["proposed", "approved"]),
+    admin.from("agent_actions").select("id", { count: "exact", head: true }).eq("status", "executed").gte("executed_at", cutoff),
+    admin.from("scout_lead_decisions").select("id", { count: "exact", head: true }).eq("reviewed_by", "RAR Market Scout").gte("created_at", cutoff),
   ]);
   if (error) throw new Error(`Edition readiness scan failed: ${error.message}`);
   const metrics: AgentMetrics = {
     failed_agent_runs_24h: countOrThrow(failures, "Agent failure count failed"),
     open_agent_proposals: countOrThrow(openActions, "Open proposal count failed"),
+    safe_agent_actions_24h: countOrThrow(safeActions, "Safe action count failed"),
+    scout_auto_dismissals_24h: countOrThrow(autoDismissals, "Scout auto-dismissal count failed"),
   };
   for (const row of data ?? []) {
     const status = String(row.readiness_status ?? "unknown").replace(/[^a-z0-9_]/g, "_");
@@ -121,7 +126,39 @@ export async function runAgentObservation(
   if (runError || !run) throw new Error(runError?.message ?? "Could not start the agent run.");
 
   try {
+    let safeActionResult: AutoTriageResult | null = null;
+    if (agentKey === "market_scout" && Number(system?.autonomy_level ?? 1) >= 2 && typedControl.mode === "safe_actions") {
+      safeActionResult = await autoDismissDefinitiveScoutConflicts(admin, run.id);
+      if (safeActionResult.dismissed > 0) {
+        const now = new Date().toISOString();
+        const { error: actionError } = await admin.from("agent_actions").insert({
+          run_id: run.id,
+          agent_key: agentKey,
+          action_type: "auto_dismiss_scout_conflicts",
+          target_type: "scout_listing_leads",
+          dedupe_key: `scout:auto-dismiss:${run.id}`,
+          title: `Auto-dismissed ${safeActionResult.dismissed} definitive Scout conflicts`,
+          rationale: "Every affected lead named an explicit edition conflict and was still untouched when the atomic update ran.",
+          risk_level: "low",
+          confidence: 1,
+          status: "executed",
+          evidence: safeActionResult,
+          reviewed_by: "RAR Market Scout",
+          review_notes: "Phase 2 safe action. No sale was verified and no human decision was overwritten.",
+          reviewed_at: now,
+          executed_at: now,
+        });
+        if (actionError) throw new Error(`Market Scout could not audit its safe action: ${actionError.message}`);
+      }
+    }
+
     const metrics = await collectMetrics(admin, agentKey);
+    if (safeActionResult) {
+      metrics.auto_triage_examined = safeActionResult.examined;
+      metrics.auto_dismiss_candidates = safeActionResult.candidates;
+      metrics.auto_dismissed_leads = safeActionResult.dismissed;
+      metrics.auto_dismiss_race_protected = safeActionResult.protectedByRace;
+    }
     const plan = planAgentActions(agentKey, metrics);
     let proposalsCreated = 0;
     for (const item of plan.proposals) {

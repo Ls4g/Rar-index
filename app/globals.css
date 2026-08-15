@@ -2256,3 +2256,24 @@ html[data-theme="day"] .public-page {
   .agent-identity-bar label { min-width: 0; }
   .agent-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+.agent-daily-briefing { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(20rem, 1fr); gap: 1.25rem; padding: 1.5rem; border: 1px solid rgba(200,76,50,.35); border-radius: .85rem; background: linear-gradient(120deg, rgba(200,76,50,.12), #191714 62%); }
+.agent-daily-briefing h2 { margin: .35rem 0 .5rem; color: #f5eee4; font: 650 1.25rem/1.3 var(--font-display); }
+.agent-daily-briefing p { margin: 0; color: #a99f94; font-size: .82rem; line-height: 1.55; }
+.agent-briefing-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+.agent-briefing-metrics span { display: grid; gap: .2rem; padding: .7rem; border: 1px solid rgba(255,255,255,.08); border-radius: .5rem; color: #978f85; font-size: .62rem; text-transform: uppercase; }
+.agent-briefing-metrics b { color: #f5eee4; font-size: 1.3rem; }
+.agent-proposal-list .agent-queue-link { display: inline-flex; align-items: center; padding: .64rem .82rem; border: 1px solid rgba(93,204,159,.45); border-radius: .4rem; color: #7fe0b9; font-size: .75rem; font-weight: 800; text-decoration: none; }
+.agent-safe-action-log { padding: 1.5rem; border: 1px solid rgba(93,204,159,.25); border-radius: .85rem; background: #191714; }
+.agent-executed-list { display: grid; gap: .65rem; margin-top: 1rem; }
+.agent-executed-list article { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; border: 1px solid rgba(255,255,255,.08); border-radius: .55rem; background: rgba(93,204,159,.035); }
+.agent-executed-list article > div { display: grid; gap: .25rem; }
+.agent-executed-list span { color: #7fe0b9; font-size: .65rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.agent-executed-list strong { color: #f5eee4; }
+.agent-executed-list p { margin: 0; color: #a99f94; font-size: .78rem; }
+.agent-executed-list a { flex: 0 0 auto; color: #7fe0b9; font-size: .75rem; font-weight: 800; text-decoration: none; }
+
+@media (max-width: 800px) {
+  .agent-daily-briefing { grid-template-columns: 1fr; }
+  .agent-executed-list article { align-items: flex-start; flex-direction: column; }
+}

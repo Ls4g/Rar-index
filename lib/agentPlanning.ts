@@ -119,9 +119,7 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
       ));
     }
     return {
-      summary: proposals.length
-        ? `${metrics.new_scout_leads ?? 0} new leads and ${metrics.stale_search_profiles ?? 0} stale profiles detected.`
-        : "Marketplace profiles are current and the new-lead inbox is clear.",
+      summary: `${metrics.auto_dismissed_leads ?? 0} definitive conflicts safely dismissed; ${metrics.new_scout_leads ?? 0} plausible or uncertain leads remain for people; ${metrics.stale_search_profiles ?? 0} profiles are stale.`,
       proposals,
     };
   }
@@ -197,8 +195,8 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
   }
   return {
     summary: proposals.length
-      ? `Operator found ${proposals.length} system-level priority${proposals.length === 1 ? "" : "ies"}.`
-      : "No edition-readiness bottleneck or recent agent failure needs escalation.",
+      ? `Operator found ${proposals.length} system-level priority${proposals.length === 1 ? "" : "ies"}; ${metrics.safe_agent_actions_24h ?? 0} safe actions executed and ${metrics.open_agent_proposals ?? 0} proposals remain open.`
+      : `${metrics.safe_agent_actions_24h ?? 0} safe actions executed in 24 hours; no edition-readiness bottleneck or recent agent failure needs escalation.`,
     proposals,
   };
 }

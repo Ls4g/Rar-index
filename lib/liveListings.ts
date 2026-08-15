@@ -30,7 +30,9 @@ const MULTI_VOLUME_WORDS = /(?:\b(?:vol(?:ume)?\.?|book|part)|#)\s*\d+\s*(?:-|â€
 
 export function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
   if (!volumeNumber) return true;
-  const volume = String(volumeNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rawVolume = String(volumeNumber).trim();
+  const numericVolume = /^\d+$/.test(rawVolume) ? String(Number(rawVolume)) : null;
+  const volume = (numericVolume ? `0*${numericVolume}` : rawVolume.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const exactVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part)\\s*${volume}\\b|#\\s*${volume}\\b|\\b${volume}\\s*(?:å·»|kan)`, "i");
   return exactVolume.test(listingTitle) && !MULTI_VOLUME_WORDS.test(listingTitle);
 }
@@ -51,7 +53,7 @@ export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: stri
 export function listingNamesOtherVolume(listingTitle: string, volumeNumber: string | number | null): string | null {
   if (!volumeNumber) return null;
   const match = listingTitle.match(/\b(?:vol(?:ume)?\.?|book|part)\s*(\d+)\b/i);
-  if (match && match[1] !== String(volumeNumber)) return match[1];
+  if (match && Number(match[1]) !== Number(volumeNumber)) return match[1];
   return null;
 }
 

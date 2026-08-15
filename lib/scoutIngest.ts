@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assessEditionMatch, type EditionMatchAssessment, type EditionMatchCandidate } from "./editionMatch";
-import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings";
+import { assessEditionMatch, type EditionMatchAssessment, type EditionMatchCandidate } from "./editionMatch.ts";
+import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings.ts";
 import type { ActiveEbayListing } from "./ebayScout";
 
 export type ScoutEdition = {
