@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AGENT_LABELS, type AgentKey, type AgentMetrics, planAgentActions } from "@/lib/agentPlanning";
+import { AGENT_LABELS, type AgentKey, type AgentMetrics, type AgentProposal, planAgentActions } from "@/lib/agentPlanning";
 import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
@@ -106,6 +106,68 @@ async function collectMetrics(admin: SupabaseClient, agentKey: AgentKey) {
   if (agentKey === "market_scout") return collectScoutMetrics(admin);
   if (agentKey === "evidence_auditor") return collectEvidenceMetrics(admin);
   return collectOperatorMetrics(admin);
+}
+
+async function reconcileAgentProposals(
+  admin: SupabaseClient,
+  agentKey: AgentKey,
+  runId: string,
+  proposals: AgentProposal[],
+) {
+  const { data: current, error } = await admin
+    .from("agent_actions")
+    .select("id,dedupe_key")
+    .eq("agent_key", agentKey)
+    .eq("status", "proposed")
+    .neq("action_type", "suggest_print_classification");
+  if (error) throw new Error(`Could not reconcile agent proposals: ${error.message}`);
+
+  const byDedupe = new Map((current ?? []).map((action) => [action.dedupe_key as string, action.id as string]));
+  const activeKeys = new Set(proposals.map((proposal) => proposal.dedupeKey));
+  const staleIds = (current ?? []).filter((action) => !activeKeys.has(action.dedupe_key as string)).map((action) => action.id as string);
+  let cancelled = 0;
+  if (staleIds.length) {
+    const { data: stale, error: staleError } = await admin.from("agent_actions").update({
+      status: "cancelled",
+      reviewed_by: `${AGENT_LABELS[agentKey]} system`,
+      review_notes: "No longer supported by the latest agent run.",
+      reviewed_at: new Date().toISOString(),
+    }).in("id", staleIds).eq("status", "proposed").select("id");
+    if (staleError) throw new Error(`Could not close stale agent proposals: ${staleError.message}`);
+    cancelled = stale?.length ?? 0;
+  }
+
+  let created = 0;
+  let refreshed = 0;
+  for (const item of proposals) {
+    const existingId = byDedupe.get(item.dedupeKey);
+    const values = {
+      run_id: runId,
+      action_type: item.actionType,
+      target_type: item.targetType,
+      target_id: item.targetId ?? null,
+      title: item.title,
+      rationale: item.rationale,
+      risk_level: item.riskLevel,
+      confidence: item.confidence,
+      evidence: item.evidence,
+      proposed_payload: item.proposedPayload ?? {},
+    };
+    if (existingId) {
+      const { error: refreshError } = await admin.from("agent_actions").update(values).eq("id", existingId).eq("status", "proposed");
+      if (refreshError) throw new Error(`Could not refresh agent proposal: ${refreshError.message}`);
+      refreshed += 1;
+      continue;
+    }
+    const { error: insertError } = await admin.from("agent_actions").insert({
+      ...values,
+      agent_key: agentKey,
+      dedupe_key: item.dedupeKey,
+    });
+    if (!insertError) created += 1;
+    else if (insertError.code !== "23505") throw new Error(`Could not record agent proposal: ${insertError.message}`);
+  }
+  return { created, refreshed, cancelled };
 }
 
 export async function runAgentObservation(
@@ -225,26 +287,14 @@ export async function runAgentObservation(
       metrics.printing_suggestions_ambiguous = printingSuggestionResult.ambiguous;
     }
     const plan = planAgentActions(agentKey, metrics);
-    let proposalsCreated = 0;
-    for (const item of plan.proposals) {
-      const { error } = await admin.from("agent_actions").insert({
-        run_id: run.id,
-        agent_key: agentKey,
-        action_type: item.actionType,
-        target_type: item.targetType,
-        target_id: item.targetId ?? null,
-        dedupe_key: item.dedupeKey,
-        title: item.title,
-        rationale: item.rationale,
-        risk_level: item.riskLevel,
-        confidence: item.confidence,
-        evidence: item.evidence,
-        proposed_payload: item.proposedPayload ?? {},
-      });
-      if (!error) proposalsCreated += 1;
-      else if (error.code !== "23505") throw new Error(`Could not record agent proposal: ${error.message}`);
-    }
-    const finalMetrics = { ...metrics, proposals_found: plan.proposals.length, proposals_created: proposalsCreated };
+    const proposalResult = await reconcileAgentProposals(admin, agentKey, run.id, plan.proposals);
+    const finalMetrics = {
+      ...metrics,
+      proposals_found: plan.proposals.length,
+      proposals_created: proposalResult.created,
+      proposals_refreshed: proposalResult.refreshed,
+      stale_proposals_closed: proposalResult.cancelled,
+    };
     const { data: finished, error } = await admin.from("agent_runs").update({
       status: "succeeded",
       summary: plan.summary,
