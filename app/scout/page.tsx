@@ -167,7 +167,7 @@ export default async function ScoutPage() {
           <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. Definitive edition conflicts are safely archived, stale leads are separated from the current queue, and a bounded availability refresh rechecks old records directly with eBay. No agent can verify a sale or overwrite a staff decision ({autoDismissedCount ?? 0} earlier ingestion conflicts archived).</p>
           <ScoutBatchRunButton />
         </div>
-        <div className="queue-total"><strong>{leads.length}</strong><span>unique active listings across {profiles.length} profiles</span></div>
+        <div className="queue-total"><strong>{leads.length}</strong><span>unique stored listings across {profiles.length} profiles</span></div>
       </section>
       <section className="catalogue-content">
         <ScoutTriageInbox leads={leads} />
