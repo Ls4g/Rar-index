@@ -320,6 +320,10 @@ table { font-variant-numeric: tabular-nums; }
 .edition-stage-copy { min-width: 0; }
 .edition-imprint { margin: 0 0 .45rem; color: rgba(244,240,232,.66); font-size: .82rem; }
 .edition-byline { margin: .55rem 0 0; color: rgba(244,240,232,.72); font-size: .92rem; }
+.edition-reader-intro { max-width: 720px; margin-top: 1.45rem; padding-top: 1.25rem; border-top: 1px solid rgba(244,240,232,.18); }
+.edition-reader-tagline { margin: 0 0 .65rem; color: #efaaa3; font-family: var(--font-mono); font-size: .72rem; font-weight: 650; letter-spacing: .08em; line-height: 1.45; text-transform: uppercase; }
+.edition-reader-synopsis { max-width: 680px; margin: 0; color: rgba(247,241,228,.88); font-family: var(--font-display); font-size: clamp(1rem, 1.7vw, 1.2rem); line-height: 1.55; }
+.edition-reader-edition { margin: .8rem 0 0; color: rgba(244,240,232,.54); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
 .edition-stage .edition-variant { margin-top: 1.15rem; }
 
 /* Volume navigation — manga is a series-and-volume medium and the page
@@ -345,6 +349,8 @@ table { font-variant-numeric: tabular-nums; }
   .edition-stage-inner { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   .edition-stage-book { justify-self: start; }
   .edition-stage .edition-hero-cover { width: 190px; }
+  .edition-reader-intro { margin-top: 1.15rem; padding-top: 1rem; }
+  .edition-reader-synopsis { font-size: 1rem; line-height: 1.6; }
 }
 .edition-hero-cover .edition-cover-fallback { background: linear-gradient(155deg, #322816, #80652d); }
 .back-link { display: inline-block; margin-bottom: 3.5rem; color: rgba(244,240,232,.62); font-size: .78rem; letter-spacing: .04em; }

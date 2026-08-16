@@ -38,6 +38,14 @@ type SourceLink = {
 
 type Source = { id: string; name: string };
 
+type SeriesProfile = {
+  display_name: string;
+  tagline: string | null;
+  synopsis: string;
+  source_name: string;
+  source_url: string;
+};
+
 type ObservedSaleRow = {
   id: string;
   edition_id: string;
@@ -130,6 +138,17 @@ function readableTag(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function seriesProfileKey(value: string | null) {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replaceAll("×", "x")
+    .replace(/\s+volume\s+\d+$/i, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 // A print-run record that redirects here (see below) is either a proven
 // first print or a proven later printing -- decide which tab to land on
 // from its own identity, best-effort, so a shared/bookmarked link still
@@ -170,6 +189,17 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
 
   if (!edition) notFound();
   const isMagazine = edition.collectible_type === "zasshi";
+
+  const profileKey = seriesProfileKey(edition.series || edition.title);
+  const { data: seriesProfileData } = profileKey
+    ? await supabase
+      .from("series_profiles")
+      .select("display_name,tagline,synopsis,source_name,source_url")
+      .eq("series_key", profileKey)
+      .eq("is_verified", true)
+      .maybeSingle()
+    : { data: null };
+  const seriesProfile = seriesProfileData as SeriesProfile | null;
 
   const { data: printRunChildrenData } = await supabase
     .from("manga_editions")
@@ -360,6 +390,19 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     : null;
   const displayTitle = isMagazine ? edition.series || edition.title : edition.title;
   const originalTitle = isMagazine && edition.series && edition.title !== edition.series ? edition.title : null;
+  const magazineSubjects = recognisedSeries.length ? recognisedSeries : firstAppearances;
+  const magazineSubjectLabel = magazineSubjects.join(" · ");
+  const readerTagline = isMagazine && magazineSubjects.length
+    ? `The issue containing the first serial appearance of ${magazineSubjectLabel}.`
+    : seriesProfile?.tagline ?? null;
+  const readerSynopsis = isMagazine && magazineSubjects.length
+    ? `${displayTitle} ${issueLabel || "this issue"} is collected because it contains ${magazineSubjectLabel}'s magazine debut. It marks the beginning of the series in weekly serial form.`
+    : seriesProfile?.synopsis ?? null;
+  const editionIntro = isMagazine
+    ? [edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ")
+    : [edition.language, edition.format, edition.volume_number ? `Volume ${edition.volume_number}` : null, publisherDisplayName(edition.publisher)].filter(Boolean).join(" · ");
+  const profileSourceIsSeparate = Boolean(seriesProfile?.source_url && !sourceLinks.some((source) => source.source_record_url === seriesProfile.source_url));
+  const catalogueSourceCount = sourceLinks.length + Number(profileSourceIsSeparate);
   const details = (isMagazine ? [
     ["Magazine", edition.series],
     ["Japanese title", edition.title],
@@ -435,6 +478,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 .filter(Boolean)
                 .join(" · ")}
             </p>
+            {readerSynopsis ? (
+              <div className="edition-reader-intro" aria-label="About this publication">
+                {readerTagline ? <p className="edition-reader-tagline">{readerTagline}</p> : null}
+                <p className="edition-reader-synopsis">{readerSynopsis}</p>
+                {editionIntro ? <p className="edition-reader-edition">{editionIntro}</p> : null}
+              </div>
+            ) : null}
             {previousVolume || nextVolume ? (
               <nav aria-label="Volume navigation" className="volume-nav">
                 {previousVolume
@@ -575,9 +625,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             </div>
             <div className="magazine-contents-card">
               <span>First serial appearance identified</span>
-              <strong>{(recognisedSeries.length ? recognisedSeries : firstAppearances).join(" · ")}</strong>
-              <p>RAR&apos;s reviewed catalogue research places the first recorded serial appearance in this issue. This explains the issue&apos;s historical importance; it is catalogue evidence, not price evidence.</p>
-              {magazineSource ? <a href={magazineSource.source_record_url} target="_blank" rel="noreferrer">Open the issue record ↗</a> : null}
+              <strong>{magazineSubjectLabel}</strong>
+              <p>This is the Weekly Shonen Jump issue where {magazineSubjectLabel} first appeared in serial form. That debut makes the original issue a distinct historical collectible, separate from later collected volumes and reprints.</p>
             </div>
           </section>
         ) : null}
@@ -733,9 +782,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <CommunityReportForm editionId={edition.id} editionTitle={edition.title} />
 
         <details className="edition-disclosure sources-section">
-          <summary><span><small>Provenance</small>Catalogue sources</span><span className="disclosure-hint">{sourceLinks.length} linked source{sourceLinks.length === 1 ? "" : "s"}</span></summary>
+          <summary><span><small>Provenance</small>Catalogue sources</span><span className="disclosure-hint">{catalogueSourceCount} linked source{catalogueSourceCount === 1 ? "" : "s"}</span></summary>
           <div className="edition-disclosure-content">
-          {sourceLinks.length ? (
+          {catalogueSourceCount ? (
             <div className="source-list">
               {sourceLinks.map((source) => (
                 <a className="source-card" href={source.source_record_url} target="_blank" rel="noreferrer" key={source.source_record_url}>
@@ -744,6 +793,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                   {source.verification_notes ? <small>{source.verification_notes}</small> : null}
                 </a>
               ))}
+              {profileSourceIsSeparate && seriesProfile ? (
+                <a className="source-card" href={seriesProfile.source_url} target="_blank" rel="noreferrer">
+                  <span>{seriesProfile.source_name}</span>
+                  <strong>Series introduction source ↗</strong>
+                  <small>Supports the reader-facing series summary near the top of this page.</small>
+                </a>
+              ) : null}
             </div>
           ) : (
             <p className="status-message">Source evidence will be attached as this publication is verified.</p>
