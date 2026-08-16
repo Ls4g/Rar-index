@@ -503,17 +503,6 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                   : <span className="is-off">Latest tracked ›</span>}
               </nav>
             ) : null}
-            {/* Telling a reader to "select a printing group below" is only
-                useful when groups with sales exist. On a record RAR has no
-                completed sales for, that was an instruction they could not
-                follow. */}
-            <p className="edition-variant">
-              {firstPrintSales.length || otherSales.length
-                ? isMagazine
-                  ? "See the verified sales history for this exact issue below."
-                  : <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
-                : "No completed sale has been confirmed for this one yet."}
-            </p>
           </div>
         </div>
       </section>

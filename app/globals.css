@@ -321,7 +321,7 @@ table { font-variant-numeric: tabular-nums; }
 .edition-imprint { margin: 0 0 .45rem; color: rgba(244,240,232,.66); font-size: .82rem; }
 .edition-byline { margin: .55rem 0 0; color: rgba(244,240,232,.72); font-size: .92rem; }
 .edition-reader-intro { max-width: 720px; margin-top: 1.45rem; padding-top: 1.25rem; border-top: 1px solid rgba(244,240,232,.18); }
-.edition-reader-tagline { margin: 0 0 .65rem; color: #efaaa3; font-family: var(--font-mono); font-size: .72rem; font-weight: 650; letter-spacing: .08em; line-height: 1.45; text-transform: uppercase; }
+.edition-reader-tagline { max-width: 660px; margin: 0 0 .8rem; color: #ffc0b9; font-family: var(--font-display); font-size: clamp(1.05rem, 2vw, 1.35rem); font-weight: 800; letter-spacing: -.01em; line-height: 1.22; text-wrap: balance; }
 .edition-reader-synopsis { max-width: 680px; margin: 0; color: rgba(247,241,228,.88); font-family: var(--font-display); font-size: clamp(1rem, 1.7vw, 1.2rem); line-height: 1.55; }
 .edition-reader-edition { margin: .8rem 0 0; color: rgba(244,240,232,.54); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
 .edition-stage .edition-variant { margin-top: 1.15rem; }
