@@ -323,6 +323,10 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
   const reasons: string[] = [];
   const conflicts: string[] = [];
   const isZasshi = target.collectible_type === "zasshi";
+  // Whether this target has an identity a listing could pin down at all, and
+  // whether the listing actually did. See the cap at the end of the function.
+  const identityExpected = isZasshi || Boolean(String(target.volume_number ?? "").trim());
+  let identityConfirmed = false;
 
   // A magazine issue and a tankobon are never the same object, and the live
   // queue proves both directions go wrong on their own. 99 leads say "Shonen
@@ -362,6 +366,8 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
       candidate.title,
     );
     score += issue.score;
+    // A matched issue number or 通巻 is what identifies a magazine.
+    if (issue.score > 0) identityConfirmed = true;
     reasons.push(...issue.reasons);
     conflicts.push(...issue.conflicts);
   } else {
@@ -370,6 +376,7 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
     if (targetVolume && candidateVolume) {
       if (targetVolume === candidateVolume) {
         score += 20;
+        identityConfirmed = true;
         reasons.push("volume matches");
       } else {
         conflicts.push("volume conflicts with the selected edition");
@@ -411,6 +418,8 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
     if (targetIsbn && candidateIsbn) {
       if (targetIsbn === candidateIsbn) {
         score += 20;
+        // An exact ISBN names the volume implicitly.
+        identityConfirmed = true;
         reasons.push("ISBN matches");
       } else {
         conflicts.push("ISBN conflicts with the selected edition");
@@ -437,6 +446,25 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
   } else if (candidate.title && FIRST_PRINTING_WORDS.test(candidate.title) && (candidatePrinting === null || candidatePrinting === 1) && (targetPrinting === null || targetPrinting === 1)) {
     score += 5;
     reasons.push("listing states first printing / first edition");
+  }
+
+  // Naming the series, the language and the publisher is worth 60 on its own,
+  // which lands in "partial" without anyone having established WHICH volume
+  // or issue the listing is. Measured on the live queue on 16 August 2026:
+  // 1,037 of the 1,176 open leads sat in that band, against 23 strong. A band
+  // holding nine in ten leads is not sorting anything, and a queue where
+  // everything looks equally worth a look is a queue nobody can finish.
+  //
+  // So a listing that never establishes the identity of the copy cannot reach
+  // "partial". It is genuinely insufficient: the evidence to tell this
+  // edition from its neighbours is simply absent. It is still stored, still
+  // reviewable, and still findable -- only its claim on attention drops.
+  //
+  // A matched ISBN counts as confirmation on its own, since it names the
+  // volume implicitly.
+  if (!conflicts.length && identityExpected && !identityConfirmed) {
+    score = Math.min(score, 49);
+    reasons.push("does not establish which copy this is");
   }
 
   score = Math.min(100, score);

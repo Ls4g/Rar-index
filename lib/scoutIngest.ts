@@ -106,6 +106,42 @@ export function buildScoutLeadRow(profileId: string, sourceId: string, edition: 
 // yet. A lead a staff member has already set to
 // "watching" or manually "dismissed" is left alone — auto-triage never
 // overwrites a human decision, and it never verifies anything as a sale.
+// A search returns up to 50 results and every one used to be kept, so 28
+// searches had produced 3,243 stored leads against 80 editions. Nobody can
+// act on 50 copies of one book -- these are things to buy, and you only ever
+// need the best few. Sales are a different table entirely and keep every row.
+//
+// The cap is on UNREVIEWED, still-live leads only. Anything marked watching
+// or dismissed is a decision already made and is never touched, and expired
+// leads are cleared before anything live is considered.
+export const OPEN_LEADS_PER_PROFILE = 20;
+
+async function capOpenLeads(admin: SupabaseClient, profileId: string) {
+  const { data, error } = await admin
+    .from("scout_listing_leads")
+    .select("id,item_end_at,match_assessment,last_seen_at")
+    .eq("profile_id", profileId)
+    .eq("review_status", "new");
+  if (error || !data) return { removed: 0, overflow: 0 };
+
+  const now = Date.now();
+  const score = (row: { match_assessment: { score?: number } | null }) => row.match_assessment?.score ?? 0;
+  const expired = data.filter((row) => row.item_end_at && new Date(row.item_end_at).getTime() < now);
+  const live = data.filter((row) => !expired.includes(row));
+
+  // Best first, and where two score the same the one seen most recently wins.
+  live.sort((a, b) => score(b) - score(a) || new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime());
+  const surplus = live.slice(OPEN_LEADS_PER_PROFILE);
+  const removeIds = [...expired.map((row) => row.id), ...surplus.map((row) => row.id)];
+  if (!removeIds.length) return { removed: 0, overflow: 0 };
+
+  // Deleted rather than dismissed: a dismissal is a human judgement about a
+  // listing, and filling the archive with rows nobody judged would make that
+  // record meaningless. Re-scans re-create anything that still matters.
+  await admin.from("scout_listing_leads").delete().in("id", removeIds).eq("review_status", "new");
+  return { removed: removeIds.length, overflow: surplus.length };
+}
+
 export async function storeScoutLeads(admin: SupabaseClient, profileId: string, builds: ScoutLeadBuild[]) {
   if (!builds.length) return;
   const { error } = await admin.from("scout_listing_leads").upsert(builds.map((build) => build.row), { onConflict: "profile_id,source_id,external_id" });
@@ -127,4 +163,12 @@ export async function storeScoutLeads(admin: SupabaseClient, profileId: string, 
       );
     }
   }
+
+  // Last, so the cap ranks the leads this scan just added alongside the ones
+  // already there and the auto-dismissals above have already been applied.
+  //
+  // Returned rather than stored: a search that overflows every scan is worded
+  // too broadly, and that is worth showing to whoever ran the scan. It does
+  // not need a column of its own to say so.
+  return capOpenLeads(admin, profileId);
 }

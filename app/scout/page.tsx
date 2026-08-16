@@ -167,7 +167,12 @@ export default async function ScoutPage() {
           <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. Definitive edition conflicts are safely archived, stale leads are separated from the current queue, and a bounded availability refresh rechecks old records directly with eBay. No agent can verify a sale or overwrite a staff decision ({autoDismissedCount ?? 0} earlier ingestion conflicts archived).</p>
           <ScoutBatchRunButton />
         </div>
-        <div className="queue-total"><strong>{leads.length}</strong><span>unique stored listings across {profiles.length} profiles</span></div>
+        {/* Dismissed leads are decisions already made, not work outstanding.
+            Counting them made the queue read as 3,000+ when 1,176 were
+            actually open, which is the difference between a backlog someone
+            starts and one they avoid. They stay fetched and stay reachable
+            through the Dismissed filter. */}
+        <div className="queue-total"><strong>{leads.filter((lead) => lead.reviewStatus !== "dismissed").length}</strong><span>open listings across {profiles.length} profiles</span></div>
       </section>
       <section className="catalogue-content">
         <ScoutTriageInbox leads={leads} />

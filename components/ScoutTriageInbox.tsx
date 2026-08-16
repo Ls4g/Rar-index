@@ -187,6 +187,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     setSelected(new Set());
   }
 
+  const openLeadCount = useMemo(() => leads.filter((lead) => lead.reviewStatus !== "dismissed").length, [leads]);
   const seriesOptions = useMemo(() => [...new Set(leads.map((lead) => lead.series).filter((value): value is string => Boolean(value)))].sort(), [leads]);
   const languageOptions = useMemo(() => [...new Set(leads.map((lead) => lead.language).filter((value): value is string => Boolean(value)))].sort(), [leads]);
   const publisherOptions = useMemo(() => [...new Set(leads.map((lead) => lead.publisher).filter((value): value is string => Boolean(value)))].sort(), [leads]);
@@ -393,7 +394,10 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         </div>
       </details>
 
-      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {leads.length} unique listings match these filters · showing {visibleLeads.length}.</p>
+      {/* Counted against open leads, not everything ever stored: a dismissed
+          lead is a decision already made, and including it made the queue
+          look several times larger than the work actually left. */}
+      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {openLeadCount} open listings match these filters · showing {visibleLeads.length}.</p>
 
       {visibleLeads.length ? (
         <>
