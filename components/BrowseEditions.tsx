@@ -157,7 +157,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                   : edition.isbn_13 || "ISBN pending";
                 return (
                   <Link href={`/edition/${edition.id}`} className={`browse-card${wellDocumented ? " is-well-documented" : ""}`} key={edition.id}>
-                    <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
+                    <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issue : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
                     <div className="browse-card-body">
                       <p>{[isMagazine ? "Magazine issue" : edition.collectible_type?.replaceAll("_", " "), isMagazine ? issue : edition.series, !isMagazine && edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
                       <h2>{(isMagazine ? edition.series : edition.title) || "Untitled publication"}</h2>

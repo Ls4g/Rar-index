@@ -63,7 +63,7 @@ export default function MangaSearch() {
     const { data, error } = await supabase
       .from("manga_editions")
       .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status, issue_year, issue_number_label, cumulative_issue_no, madb_id")
-      .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
+      .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%,issue_number_label.ilike.%${safeTerm}%,madb_id.ilike.%${safeTerm}%`)
       .eq("is_verified", true)
       .limit(8);
 
@@ -116,14 +116,14 @@ export default function MangaSearch() {
     <div className="search-panel">
       <form onSubmit={handleSearch} className="search-form">
         <label className="sr-only" htmlFor="manga-search">
-          Search manga by title, publisher or ISBN
+          Search publications by title, issue, publisher or ISBN
         </label>
         <input
           id="manga-search"
           name="manga-search"
           value={query}
           onChange={(event) => handleQueryChange(event.target.value)}
-          placeholder='Try "One Piece Vol. 1" — or a title, publisher or ISBN'
+          placeholder='Try "One Piece Vol. 1" — or a magazine title, issue or ISBN'
           autoComplete="off"
         />
         <button type="submit" disabled={isLoading}>
@@ -136,11 +136,11 @@ export default function MangaSearch() {
           {isLoading ? <p className="search-message">Searching editions…</p> : null}
           {message ? <p className="search-message">{message}</p> : null}
           {!isLoading && !message && results.length === 0 && searched ? (
-            <p className="search-message">No editions found yet. Try a different title or ISBN.</p>
+            <p className="search-message">No publications found yet. Try a different title, issue or ISBN.</p>
           ) : null}
           {results.map((item) => (
             <Link className="search-result" href={`/edition/${item.id}`} key={item.id}>
-              <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="search-result-cover" />
+              <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} descriptor={item.collectible_type === "zasshi" ? editionLabel(item) : null} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="search-result-cover" />
               <div>
                 <strong>{(item.collectible_type === "zasshi" ? item.series : item.title) || "Untitled publication"}</strong>
                 <span>

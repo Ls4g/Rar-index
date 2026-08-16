@@ -356,7 +356,7 @@ export default async function Home() {
                 const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
                 return (
                   <Link className="manga-card priced-edition-card" href={`/edition/${item.id}`} key={item.id}>
-                    <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
+                    <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} descriptor={item.collectible_type === "zasshi" ? homepageIssueLabel(item) : null} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
                     <div className="card-body">
                       <p className="card-kicker">{verifiedSaleCount} verified sale{verifiedSaleCount === 1 ? "" : "s"} · {[(item.collectible_type === "zasshi" ? homepageIssueLabel(item) : item.volume_number ? `Vol. ${item.volume_number}` : null), item.language].filter(Boolean).join(" · ")}</p>
                       <h3>{homepageTitle(item)}</h3>
@@ -435,7 +435,7 @@ export default async function Home() {
           <div className="manga-grid">
             {recentSalesWithEdition.map(({ sale, edition }, index) => (
               <Link className="manga-card" href={publicationLink(edition)} key={`${edition.id}-${sale.sold_date}-${sale.sale_price}`}>
-                <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
+                <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
                 <div className="card-body">
                   <p className="card-kicker"><HomePrice value={sale.sale_price} sourceCurrency={sale.currency} rateDate={sale.sold_date} rates={homepageFxRates} /> · {formatSaleDate(sale.sold_date)}</p>
                   <h3>{homepageTitle(edition)}</h3>

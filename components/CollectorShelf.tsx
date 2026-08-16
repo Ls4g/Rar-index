@@ -78,6 +78,7 @@ export default function CollectorShelf({ editions, rates }: { editions: ShelfEdi
               title={edition.title}
               series={edition.series}
               volumeNumber={edition.volumeNumber}
+              descriptor={edition.collectibleType === "zasshi" ? [edition.issueYear, edition.issueNumberLabel ? `Issue ${edition.issueNumberLabel}` : null].filter(Boolean).join(" · ") : null}
               language={edition.language}
               imageUrl={edition.coverImageUrl}
               imageStatus={edition.coverStatus}
