@@ -2,6 +2,7 @@ type EditionCoverProps = {
   title: string | null;
   series?: string | null;
   volumeNumber?: string | null;
+  descriptor?: string | null;
   language?: string | null;
   imageUrl?: string | null;
   imageStatus?: string | null;
@@ -39,16 +40,18 @@ function coverStatusCopy(status: string | null | undefined) {
 
 /** Marketplace photos are sale evidence, never catalogue cover art. */
 export default function EditionCover({
-  title, series, volumeNumber, language, imageUrl, imageStatus, className = "", priority = false,
+  title, series, volumeNumber, descriptor, language, imageUrl, imageStatus, className = "", priority = false,
 }: EditionCoverProps) {
   const hasVerifiedCover = Boolean(imageUrl && imageStatus === "verified");
   const status = imageStatus === "verified" && !imageUrl ? "missing" : imageStatus;
-  const label = [series, volumeNumber ? `Vol. ${volumeNumber}` : null, language].filter(Boolean).join(" · ");
+  const label = descriptor
+    ? [series, descriptor, language].filter(Boolean).join(" · ")
+    : [series, volumeNumber ? `Vol. ${volumeNumber}` : null, language].filter(Boolean).join(" · ");
 
   return (
     <div className={`edition-cover ${hasVerifiedCover ? "has-image" : "is-placeholder"} ${className}`}>
       {hasVerifiedCover ? (
-        <img src={imageUrl!} alt={`Cover of ${title || series || "this manga edition"}`} loading={priority ? "eager" : "lazy"} referrerPolicy="no-referrer" />
+        <img src={imageUrl!} alt={`Cover of ${title || series || "this publication"}`} loading={priority ? "eager" : "lazy"} referrerPolicy="no-referrer" />
       ) : (
         <div
           className={`edition-cover-fallback status-${status ?? "missing"}`}

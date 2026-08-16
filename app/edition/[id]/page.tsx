@@ -417,7 +417,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <div aria-hidden="true" className="edition-stage-veil" />
         <div className="edition-hero-inner edition-stage-inner">
           <div className="edition-stage-book">
-            <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
+            <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           </div>
           <div className="edition-stage-copy">
             <Link href="/" className="back-link">← Back to the index</Link>
