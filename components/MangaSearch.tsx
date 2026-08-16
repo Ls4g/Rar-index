@@ -20,11 +20,18 @@ export type Manga = {
   printing_number: number | null;
   variant_name: string | null;
   collectible_type: string | null;
+  issue_year?: number | null;
+  issue_number_label?: string | null;
+  cumulative_issue_no?: number | null;
+  madb_id?: string | null;
   cover_image_url: string | null;
   cover_verification_status: string | null;
 };
 
 function editionLabel(item: Manga) {
+  if (item.collectible_type === "zasshi") {
+    return [item.issue_year, item.issue_number_label ? `Issue ${item.issue_number_label}` : null].filter(Boolean).join(" · ") || "Magazine issue";
+  }
   if (item.variant_name) return item.variant_name;
   if (item.printing_number) return `${item.printing_number}${item.printing_number === 1 ? "st" : "th"} printing`;
   return item.edition_statement || "Standard edition";
@@ -55,7 +62,7 @@ export default function MangaSearch() {
 
     const { data, error } = await supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
+      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status, issue_year, issue_number_label, cumulative_issue_no, madb_id")
       .or(`title.ilike.%${safeTerm}%,series.ilike.%${safeTerm}%,publisher.ilike.%${safeTerm}%,language.ilike.%${safeTerm}%,country.ilike.%${safeTerm}%,isbn_13.ilike.%${safeTerm}%,edition_statement.ilike.%${safeTerm}%,variant_name.ilike.%${safeTerm}%`)
       .eq("is_verified", true)
       .limit(8);
@@ -135,15 +142,15 @@ export default function MangaSearch() {
             <Link className="search-result" href={`/edition/${item.id}`} key={item.id}>
               <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="search-result-cover" />
               <div>
-                <strong>{item.title || "Untitled manga"}</strong>
+                <strong>{(item.collectible_type === "zasshi" ? item.series : item.title) || "Untitled publication"}</strong>
                 <span>
-                  {[item.collectible_type?.replaceAll("_", " "), item.series, item.volume_number ? `Vol. ${item.volume_number}` : null, item.language, item.publisher]
+                  {[item.collectible_type === "zasshi" ? "Magazine issue" : item.collectible_type?.replaceAll("_", " "), item.collectible_type === "zasshi" ? editionLabel(item) : item.series, item.collectible_type !== "zasshi" && item.volume_number ? `Vol. ${item.volume_number}` : null, item.language, item.publisher]
                     .filter(Boolean)
                     .join(" · ") || "Edition details not recorded"}
                 </span>
                 <em className="search-edition-label">{editionLabel(item)}</em>
               </div>
-              <small>{item.isbn_13 || "ISBN pending"}</small>
+              <small>{item.collectible_type === "zasshi" ? item.cumulative_issue_no ? `Cumulative issue ${item.cumulative_issue_no}` : item.madb_id ? `MADB ${item.madb_id}` : "Issue identity verified" : item.isbn_13 || "ISBN pending"}</small>
             </Link>
           ))}
         </div>

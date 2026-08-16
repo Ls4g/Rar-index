@@ -26,6 +26,14 @@ type SourceLink = {
   source_record_url: string;
   verification_notes: string | null;
   fields_verified: string[] | null;
+  source_data: {
+    derived_first_appearances?: string[];
+    catalogue_series_matched?: string[];
+    madb?: {
+      pages?: number | null;
+      cover_price_yen?: number | null;
+    };
+  } | null;
 };
 
 type Source = { id: string; name: string };
@@ -112,6 +120,7 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
 
 function readableType(value: string | null) {
   if (!value || value === "tankobon") return "Tankōbon / volume";
+  if (value === "zasshi") return "Magazine issue / zasshi";
   return value.replaceAll("_", " ");
 }
 
@@ -154,12 +163,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id, magazine_title_id, issue_year, issue_number_label, cumulative_issue_no, madb_id"
     )
     .eq("id", id)
     .maybeSingle();
 
   if (!edition) notFound();
+  const isMagazine = edition.collectible_type === "zasshi";
 
   const { data: printRunChildrenData } = await supabase
     .from("manga_editions")
@@ -174,7 +184,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   // which is the most natural thing a collector wants to do. Matched on
   // language too, so an English Vol. 2 is never offered as the next volume
   // of a Japanese Vol. 1 -- those are different books, not neighbours.
-  const siblingVolumesResult = edition.series
+  const siblingVolumesResult = edition.series && !isMagazine
     ? await supabase
       .from("manga_editions")
       .select("id,volume_number,language")
@@ -186,7 +196,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .limit(400)
     : { data: [] as Array<{ id: string; volume_number: string | null; language: string | null }> };
 
-  const relatedEditionsResult = edition.series && edition.volume_number
+  const relatedEditionsResult = edition.series && edition.volume_number && !isMagazine
     ? await supabase
       .from("manga_editions")
       .select("id,title,language,publisher,isbn_13,edition_statement,printing_number,variant_name")
@@ -201,7 +211,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const [sourceLinksResult, observedSalesResult] = await Promise.all([
     supabase
       .from("edition_sources")
-      .select("source_id, source_record_url, verification_notes, fields_verified")
+      .select("source_id, source_record_url, verification_notes, fields_verified, source_data")
       .eq("edition_id", id)
       .order("is_primary", { ascending: false }),
     supabase
@@ -215,6 +225,11 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   ]);
 
   const sourceLinks = (sourceLinksResult.data ?? []) as SourceLink[];
+  const magazineSource = isMagazine ? sourceLinks.find((source) => source.source_data) : null;
+  const firstAppearances = [...new Set(magazineSource?.source_data?.derived_first_appearances?.filter(Boolean) ?? [])];
+  const recognisedSeries = [...new Set(magazineSource?.source_data?.catalogue_series_matched?.filter(Boolean) ?? [])];
+  const magazinePages = magazineSource?.source_data?.madb?.pages ?? null;
+  const originalCoverPriceYen = magazineSource?.source_data?.madb?.cover_price_yen ?? null;
   const observedSales = (observedSalesResult.data ?? []) as ObservedSaleRow[];
   const firstPrintSales: PublicationSale[] = observedSales
     .filter((sale) => sale.print_classification === "first_print_proven")
@@ -340,7 +355,24 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
 
   const initialTab: "first" | "other" = search.printing === "other" ? "other" : search.printing === "first" ? "first" : firstPrintSales.length ? "first" : "other";
 
-  const details = [
+  const issueLabel = isMagazine
+    ? [edition.issue_year, edition.issue_number_label ? `Issue ${edition.issue_number_label}` : null].filter(Boolean).join(" · ")
+    : null;
+  const displayTitle = isMagazine ? edition.series || edition.title : edition.title;
+  const originalTitle = isMagazine && edition.series && edition.title !== edition.series ? edition.title : null;
+  const details = (isMagazine ? [
+    ["Magazine", edition.series],
+    ["Japanese title", edition.title],
+    ["Collectible type", "Magazine issue / zasshi"],
+    ["Issue", issueLabel],
+    ["Cumulative issue", edition.cumulative_issue_no ? `No. ${edition.cumulative_issue_no}` : null],
+    ["Language", edition.language],
+    ["Publisher", edition.publisher],
+    ["Release date", formatDate(edition.release_date)],
+    ["Pages", magazinePages ? String(magazinePages) : null],
+    ["Original cover price", originalCoverPriceYen ? `¥${originalCoverPriceYen}` : null],
+    ["Media Arts Database ID", edition.madb_id],
+  ] : [
     ["Series", edition.series],
     ["Collectible type", readableType(edition.collectible_type)],
     ["Volume", edition.volume_number ? `Vol. ${edition.volume_number}` : null],
@@ -354,7 +386,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     ["ISBN-13", edition.isbn_13],
     ["ISBN-10", edition.isbn_10],
     ["Edition", edition.edition_statement],
-  ].filter(([, value]) => value) as Array<[string, string]>;
+  ]).filter(([, value]) => value) as Array<[string, string]>;
 
   return (
     <main className="public-page">
@@ -366,7 +398,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         </Link>
         <nav className="header-links" aria-label="Main navigation">
           <Link className="header-note" href="/identify">First-print check</Link>
-          <Link className="header-note" href="/browse">Browse manga</Link>
+          <Link className="header-note" href="/browse">Browse catalogue</Link>
           <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
           <ThemeToggle />
@@ -389,10 +421,12 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           </div>
           <div className="edition-stage-copy">
             <Link href="/" className="back-link">← Back to the index</Link>
-            {edition.imprint ? <p className="edition-imprint">{edition.imprint}</p> : null}
-            <h1>{edition.title}</h1>
+            {originalTitle || edition.imprint ? <p className="edition-imprint">{originalTitle || edition.imprint}</p> : null}
+            <h1>{displayTitle}</h1>
             <p className="edition-subtitle">
-              {[edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
+              {(isMagazine
+                ? [issueLabel, edition.language]
+                : [edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language])
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -425,7 +459,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 follow. */}
             <p className="edition-variant">
               {firstPrintSales.length || otherSales.length
-                ? <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
+                ? isMagazine
+                  ? "See the verified sales history for this exact issue below."
+                  : <>Pick a printing below to see what those copies sold for.{printRunChildren.length ? ` ${printRunChildren.length} specific printing${printRunChildren.length === 1 ? " has its own record" : "s have their own records"} feeding into this page.` : ""}</>
                 : "No completed sale has been confirmed for this one yet."}
             </p>
           </div>
@@ -439,7 +475,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               folded behind a disclosure. Grouped by space with two rules,
               not fenced by a hairline under every row. */}
           <section className="edition-facts-section">
-            <h2>This book</h2>
+            <h2>{isMagazine ? "This issue" : "This book"}</h2>
             <dl className="edition-facts">
               {details.map(([label, value]) => (
                 <div key={label}>
@@ -454,9 +490,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <summary><span><small>Provenance</small>Cover source</span><span className="disclosure-hint">Where the cover art came from, and collector notes</span></summary>
             <div className="edition-disclosure-content">
             <div className="cover-provenance">
-              <span>Publication cover</span>
+              <span>{isMagazine ? "Magazine cover" : "Publication cover"}</span>
               {edition.cover_verification_status === "verified" ? (
-                <p>Cover art from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a> — the publisher&apos;s own artwork for this book, never a photo from a listing. Photos of individual copies stay attached to the sales they came from.</p>
+                <p>Cover art from <a href={edition.cover_source_url!} target="_blank" rel="noreferrer">{edition.cover_source_name} ↗</a> — confirmed for this exact {isMagazine ? "issue" : "book"}, never borrowed from an unrelated listing. Photos of individual copies stay attached to the records they came from.</p>
               ) : edition.cover_verification_status === "candidate" ? (
                 <p>A candidate cover has been found for this publication but is not yet confirmed against a publisher or licensed catalogue record.</p>
               ) : edition.cover_verification_status === "rejected" ? (
@@ -511,7 +547,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             </div>
             <details className="valuation-explainer">
               <summary>How we work out this value</summary>
-              <p>Only completed sales of this exact book count. Proven first prints, known later printings and copies whose printing we could not identify are never mixed into one number, and graded copies stay separate from raw ones. Prices are stored in the currency they sold in and converted using the European Central Bank rate for that day. A median tells you what copies have sold for — not what yours will sell for.</p>
+              <p>{isMagazine
+                ? "Only completed sales of this exact magazine issue count. Different years and issue numbers are never mixed together, and graded copies stay separate from raw ones. Prices are stored in the currency they sold in and converted using the European Central Bank rate for that day. A median tells you what copies have sold for — not what yours will sell for."
+                : "Only completed sales of this exact book count. Proven first prints, known later printings and copies whose printing we could not identify are never mixed into one number, and graded copies stay separate from raw ones. Prices are stored in the currency they sold in and converted using the European Central Bank rate for that day. A median tells you what copies have sold for — not what yours will sell for."}</p>
             </details>
             <div className="valuation-panel-live-teaser">
               <span><strong>{liveListings.length}</strong> live listing{liveListings.length === 1 ? "" : "s"} right now</span>
@@ -524,10 +562,25 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <section className="price-history-section">
           <div className="section-intro">
             <p className="eyebrow">What copies actually sell for</p>
-            <h2>Sold prices, by printing</h2>
+            <h2>{isMagazine ? "Verified sales for this issue" : "Sold prices, by printing"}</h2>
           </div>
-          <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} editionId={edition.id} series={edition.series} />
+          <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} editionId={edition.id} series={edition.series} mode={isMagazine ? "exact_issue" : "publication_prints"} />
         </section>
+
+        {isMagazine && (firstAppearances.length || recognisedSeries.length) ? (
+          <section className="magazine-contents-section" aria-labelledby="magazine-contents-heading">
+            <div className="section-intro">
+              <p className="eyebrow">Inside this issue</p>
+              <h2 id="magazine-contents-heading">Why collectors know it</h2>
+            </div>
+            <div className="magazine-contents-card">
+              <span>First serial appearance identified</span>
+              <strong>{(recognisedSeries.length ? recognisedSeries : firstAppearances).join(" · ")}</strong>
+              <p>RAR&apos;s reviewed catalogue research places the first recorded serial appearance in this issue. This explains the issue&apos;s historical importance; it is catalogue evidence, not price evidence.</p>
+              {magazineSource ? <a href={magazineSource.source_record_url} target="_blank" rel="noreferrer">Open the issue record ↗</a> : null}
+            </div>
+          </section>
+        ) : null}
 
         <section className="live-listings-section" aria-labelledby="live-listings-heading">
           <div className="section-intro live-listings-intro">
@@ -549,7 +602,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <p>{availability.detail}</p>
           </div>
 
-          <p className="section-copy">These are asking prices on eBay right now, not sold prices, covering every printing of this manga. We only show listings whose title clearly matches this series and volume — always check the listing yourself before buying. Nothing here affects the value or the chart above.</p>
+          <p className="section-copy">{isMagazine
+            ? `These are asking prices on eBay right now, not sold prices. RAR only surfaces listings that match ${issueLabel || "this issue"}; always inspect the source before buying. Nothing here affects the value or chart above.`
+            : "These are asking prices on eBay right now, not sold prices, covering every printing of this manga. We only show listings whose title clearly matches this series and volume — always check the listing yourself before buying. Nothing here affects the value or the chart above."}</p>
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
@@ -562,20 +617,32 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           ) : (
             <div className="live-listings-empty">
               <strong>{liveProfileIds.length ? "Nothing on sale right now" : "We are not watching eBay for this one yet"}</strong>
-              <p>{liveProfileIds.length ? "We only show listings that are still live when you look. Check back after the next scan." : "This manga needs an exact-edition eBay search set up before listings can appear here."}</p>
+              <p>{liveProfileIds.length ? "We only show listings that are still live when you look. Check back after the next scan." : `This ${isMagazine ? "magazine issue" : "manga"} needs an exact-edition eBay search set up before listings can appear here.`}</p>
             </div>
           )}
           <p className="availability-caveat">{AVAILABILITY_CAVEAT}</p>
         </section>
 
-        <details className="edition-disclosure edition-evidence-section" open={firstPrintVerifiedCount > 0}>
-          <summary><span><small>How we know this is what we say it is</small>The proof behind this page</span><span className="disclosure-hint">{firstPrintVerifiedCount > 0 ? "First-print proof on file" : "Identifiers and proof"}</span></summary>
+        <details className="edition-disclosure edition-evidence-section" open={isMagazine || firstPrintVerifiedCount > 0}>
+          <summary><span><small>How we know this is what we say it is</small>The proof behind this page</span><span className="disclosure-hint">{isMagazine ? "Issue identifiers and sources" : firstPrintVerifiedCount > 0 ? "First-print proof on file" : "Identifiers and proof"}</span></summary>
           <div className="edition-disclosure-content">
-            <p className="section-copy">Knowing which book this is and proving a specific copy was a first printing are two different things. The second needs a photo of the copyright page from the exact copy that sold — a famous title is not proof, and neither is a seller saying so.</p>
+            <p className="section-copy">{isMagazine
+              ? "A magazine issue is identified by its title, year, printed issue number and cumulative issue number. RAR matches sales against that exact identity; a similar cover or a seller mentioning the magazine name alone is not enough."
+              : "Knowing which book this is and proving a specific copy was a first printing are two different things. The second needs a photo of the copyright page from the exact copy that sold — a famous title is not proof, and neither is a seller saying so."}</p>
           <div className="edition-evidence-grid">
-            <div><span>Which book this is</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
-            <div><span>First-print proof</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has a copyright-page photo yet."}</small></div>
-            <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Later printings, and copies whose printing we could not identify — see the Other tab above.</small></div>
+            {isMagazine ? (
+              <>
+                <div><span>Printed issue</span><strong>{issueLabel || "Issue number needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ")}</small></div>
+                <div><span>Cumulative issue</span><strong>{edition.cumulative_issue_no ? `No. ${edition.cumulative_issue_no}` : "Not recorded"}</strong><small>The running identifier across the magazine&apos;s full publication history.</small></div>
+                <div><span>Sales on file</span><strong>{observedSales.length} sale{observedSales.length === 1 ? "" : "s"}</strong><small>Every sale still needs a working source and an exact-issue match.</small></div>
+              </>
+            ) : (
+              <>
+                <div><span>Which book this is</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
+                <div><span>First-print proof</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has a copyright-page photo yet."}</small></div>
+                <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Later printings, and copies whose printing we could not identify — see the Other tab above.</small></div>
+              </>
+            )}
           </div>
           <div className="evidence-checklist" aria-label="RAR evidence checklist">
             <p className="eyebrow">RAR evidence checklist</p>
@@ -584,21 +651,31 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <strong>Publication record</strong>
               <small>{edition.is_verified ? "Catalogue record reviewed" : "Still awaiting catalogue review"}</small>
             </div>
-            <div>
-              <span className={edition.isbn_13 || edition.isbn_10 ? "checked" : "needed"}>{edition.isbn_13 || edition.isbn_10 ? "✓" : "-"}</span>
-              <strong>Identifier</strong>
-              <small>{edition.isbn_13 || edition.isbn_10 ? "ISBN recorded" : "ISBN still needed"}</small>
-            </div>
+            {isMagazine ? (
+              <div>
+                <span className={edition.issue_year && edition.issue_number_label ? "checked" : "needed"}>{edition.issue_year && edition.issue_number_label ? "✓" : "-"}</span>
+                <strong>Issue identity</strong>
+                <small>{edition.cumulative_issue_no ? `Year, issue and cumulative No. ${edition.cumulative_issue_no} recorded` : "Year and issue number recorded"}</small>
+              </div>
+            ) : (
+              <div>
+                <span className={edition.isbn_13 || edition.isbn_10 ? "checked" : "needed"}>{edition.isbn_13 || edition.isbn_10 ? "✓" : "-"}</span>
+                <strong>Identifier</strong>
+                <small>{edition.isbn_13 || edition.isbn_10 ? "ISBN recorded" : "ISBN still needed"}</small>
+              </div>
+            )}
             <div>
               <span className={edition.release_date ? "checked" : "needed"}>{edition.release_date ? "✓" : "-"}</span>
               <strong>Publication date</strong>
               <small>{edition.release_date ? "Date recorded" : "Date still needed"}</small>
             </div>
-            <div>
-              <span className={firstPrintVerifiedCount > 0 ? "checked" : "needed"}>{firstPrintVerifiedCount > 0 ? "✓" : "-"}</span>
-              <strong>Printing proof</strong>
-              <small>{firstPrintVerifiedCount > 0 ? "Copyright page linked to a specific sale" : "No sale has been proven a first print yet"}</small>
-            </div>
+            {!isMagazine ? (
+              <div>
+                <span className={firstPrintVerifiedCount > 0 ? "checked" : "needed"}>{firstPrintVerifiedCount > 0 ? "✓" : "-"}</span>
+                <strong>Printing proof</strong>
+                <small>{firstPrintVerifiedCount > 0 ? "Copyright page linked to a specific sale" : "No sale has been proven a first print yet"}</small>
+              </div>
+            ) : null}
             <div>
               <span className={verifiedSales.length ? "checked" : "needed"}>{verifiedSales.length ? "✓" : "-"}</span>
               <strong>Market evidence</strong>
@@ -630,7 +707,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <details className="edition-disclosure collector-context-section">
             <summary><span><small>Collector context</small>Why collectors care</span><span className="disclosure-hint">Research notes and tags</span></summary>
             <div className="edition-disclosure-content">
-              <p className="section-copy">Why this particular book is worth knowing about. A note about its history is not a prediction about its price.</p>
+              <p className="section-copy">Why this particular {isMagazine ? "issue" : "book"} is worth knowing about. A note about its history is not a prediction about its price.</p>
             <div className="collector-context-card">
               <div>
                 <span>Collectible type</span>

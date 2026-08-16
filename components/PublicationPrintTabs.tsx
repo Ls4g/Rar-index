@@ -32,6 +32,7 @@ type PublicationPrintTabsProps = {
   initialTab: "first" | "other";
   editionId: string;
   series: string | null;
+  mode?: "publication_prints" | "exact_issue";
 };
 
 const classificationLabels: Record<PublicationSale["print_classification"], string> = {
@@ -51,7 +52,7 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
-function SaleRow({ sale, sourceNames }: { sale: PublicationSale; sourceNames: Record<string, string> }) {
+function SaleRow({ sale, sourceNames, showPrintClassification = true }: { sale: PublicationSale; sourceNames: Record<string, string>; showPrintClassification?: boolean }) {
   return (
     <div className="observed-sale">
       <div>
@@ -61,10 +62,12 @@ function SaleRow({ sale, sourceNames }: { sale: PublicationSale; sourceNames: Re
       </div>
       <div className="sale-classification">
         <span className={`sale-status ${sale.match_status}`}>{sale.match_status === "verified_match" ? "Edition match verified" : "Edition match under review"}</span>
-        <span className={`print-classification-badge is-${sale.print_classification.replaceAll("_", "-")}`}>
-          {classificationLabels[sale.print_classification]}
-          {sale.known_printing_number ? ` · ${ordinal(sale.known_printing_number)} printing` : ""}
-        </span>
+        {showPrintClassification ? (
+          <span className={`print-classification-badge is-${sale.print_classification.replaceAll("_", "-")}`}>
+            {classificationLabels[sale.print_classification]}
+            {sale.known_printing_number ? ` · ${ordinal(sale.known_printing_number)} printing` : ""}
+          </span>
+        ) : <span className="print-classification-badge is-exact-issue">Exact issue match</span>}
       </div>
       <div className="observed-sale-links">
         {sale.source_listing_url ? <a href={sale.source_listing_url} target="_blank" rel="noreferrer">View source ↗</a> : null}
@@ -79,7 +82,7 @@ function SaleRow({ sale, sourceNames }: { sale: PublicationSale; sourceNames: Re
 // Splits one classification group into "Verified — counted" / "Under
 // review — not counted" the same way the page has always separated sales,
 // just repeated per print group instead of once for the whole edition.
-function SaleGroupList({ sales, sourceNames }: { sales: PublicationSale[]; sourceNames: Record<string, string> }) {
+function SaleGroupList({ sales, sourceNames, showPrintClassification = true }: { sales: PublicationSale[]; sourceNames: Record<string, string>; showPrintClassification?: boolean }) {
   const verified = sales.filter((sale) => sale.match_status === "verified_match");
   const pending = sales.filter((sale) => sale.match_status === "needs_review");
   if (!sales.length) return <p className="status-message">No sales recorded in this group yet.</p>;
@@ -88,13 +91,13 @@ function SaleGroupList({ sales, sourceNames }: { sales: PublicationSale[]; sourc
       {verified.length ? (
         <div className="observed-sales-group">
           <p className="observed-sales-group-label">Verified — counted in the value above ({verified.length})</p>
-          <div className="observed-sales-list">{verified.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} key={sale.id} />)}</div>
+          <div className="observed-sales-list">{verified.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} showPrintClassification={showPrintClassification} key={sale.id} />)}</div>
         </div>
       ) : null}
       {pending.length ? (
         <div className="observed-sales-group">
           <p className="observed-sales-group-label">Under review — not yet counted ({pending.length})</p>
-          <div className="observed-sales-list">{pending.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} key={sale.id} />)}</div>
+          <div className="observed-sales-list">{pending.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} showPrintClassification={showPrintClassification} key={sale.id} />)}</div>
         </div>
       ) : null}
     </>
@@ -106,13 +109,13 @@ function SaleGroupList({ sales, sourceNames }: { sales: PublicationSale[]; sourc
 // explaining how evidence RAR does not have would have been separated. A
 // reader who arrives here should be told plainly that there is nothing yet,
 // and offered the routes that actually exist for changing that.
-function NoSalesYet({ editionId, series }: { editionId: string; series: string | null }) {
+function NoSalesYet({ editionId, series, exactIssue = false }: { editionId: string; series: string | null; exactIssue?: boolean }) {
   return (
     <div className="publication-no-sales">
       <strong>No completed sale verified yet</strong>
       <p>
         RAR only records a sale once it has a working link to the completed listing and can tie it to this exact
-        publication. Nothing has cleared that bar here, so there is no price to show — rather than an estimate.
+        {exactIssue ? "magazine issue" : "publication"}. Nothing has cleared that bar here, so there is no price to show — rather than an estimate.
       </p>
       <div className="publication-no-sales-actions">
         <Link className="is-primary" href={`/portfolio?edition=${editionId}`}>Add to your portfolio</Link>
@@ -124,10 +127,28 @@ function NoSalesYet({ editionId, series }: { editionId: string; series: string |
   );
 }
 
-export default function PublicationPrintTabs({ firstPrintSales, otherSales, rates, sourceNames, initialTab, editionId, series }: PublicationPrintTabsProps) {
+export default function PublicationPrintTabs({ firstPrintSales, otherSales, rates, sourceNames, initialTab, editionId, series, mode = "publication_prints" }: PublicationPrintTabsProps) {
   const [tab, setTab] = useState<"first" | "other">(initialTab);
+  const exactIssueSales = [...firstPrintSales, ...otherSales];
 
-  if (!firstPrintSales.length && !otherSales.length) return <NoSalesYet editionId={editionId} series={series} />;
+  if (!exactIssueSales.length) return <NoSalesYet editionId={editionId} series={series} exactIssue={mode === "exact_issue"} />;
+
+  if (mode === "exact_issue") {
+    const verified = exactIssueSales.filter((sale) => sale.match_status === "verified_match");
+    return (
+      <div className="publication-print-tabs exact-issue-sales">
+        <div className="print-tab-panel">
+          <p className="section-copy">Only completed sales tied to this exact magazine issue count. Asking prices and similar-looking issues never affect this value, and raw and graded copies remain separate comparison groups.</p>
+          <div className="print-tab-valuation">
+            <p className="eyebrow">RAR market evidence · Exact issue</p>
+            <MarketValuePanel sales={verified} rates={rates} />
+          </div>
+          <PriceHistoryChart sales={verified} rates={rates} />
+          <SaleGroupList sales={exactIssueSales} sourceNames={sourceNames} showPrintClassification={false} />
+        </div>
+      </div>
+    );
+  }
 
   const firstVerified = firstPrintSales.filter((sale) => sale.match_status === "verified_match");
   const { knownLaterPrint: knownLater, printingNotIdentified: unidentified } = splitByPrintClassification(otherSales);

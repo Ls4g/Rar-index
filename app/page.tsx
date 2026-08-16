@@ -20,6 +20,19 @@ function formatSaleDate(value: string | null) {
   if (Number.isNaN(date.getTime())) return "Date not recorded";
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
+
+function homepageTitle(edition: Manga) {
+  return (edition.collectible_type === "zasshi" ? edition.series : edition.title) || "Untitled publication";
+}
+
+function homepageIssueLabel(edition: Manga) {
+  if (edition.collectible_type !== "zasshi") return null;
+  return [edition.issue_year, edition.issue_number_label ? `Issue ${edition.issue_number_label}` : null].filter(Boolean).join(" · ") || "Magazine issue";
+}
+
+function homepageDescriptor(edition: Manga) {
+  return edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : editionDescriptor(edition);
+}
 type RecentSale = {
   edition_id: string;
   sale_price: number;
@@ -50,7 +63,7 @@ export default async function Home() {
       .select("id", { count: "exact", head: true })
       .eq("is_verified", true)
       .eq("record_kind", "publication")
-      .not("isbn_13", "is", null)
+      .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
       .not("publisher", "is", null)
       .not("release_date", "is", null),
     supabase
@@ -63,10 +76,10 @@ export default async function Home() {
       .eq("has_first_print_evidence", true),
     supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status")
+      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status, issue_year, issue_number_label, cumulative_issue_no, madb_id")
       .eq("is_verified", true)
       .eq("record_kind", "publication")
-      .not("isbn_13", "is", null)
+      .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
       .not("publisher", "is", null)
       .not("release_date", "is", null)
       .limit(500),
@@ -160,6 +173,9 @@ export default async function Home() {
     title: edition.title,
     series: edition.series,
     volumeNumber: edition.volume_number,
+    collectibleType: edition.collectible_type,
+    issueYear: edition.issue_year ?? null,
+    issueNumberLabel: edition.issue_number_label ?? null,
     language: edition.language,
     editionLabel: editionDescriptor(edition),
     coverImageUrl: edition.cover_image_url,
@@ -216,7 +232,7 @@ export default async function Home() {
   const { data: marketEditionsData } = marketEditionIds.length
     ? await supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,language,publisher,format,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status,printing_of_edition_id")
+      .select("id,title,series,volume_number,language,publisher,format,isbn_13,edition_statement,printing_number,variant_name,collectible_type,cover_image_url,cover_verification_status,printing_of_edition_id,issue_year,issue_number_label,cumulative_issue_no,madb_id")
       .in("id", marketEditionIds)
     : { data: [] };
   const marketEditionsById = new Map(((marketEditionsData ?? []) as Array<Manga & { printing_of_edition_id: string | null }>).map((edition) => [String(edition.id), edition]));
@@ -342,16 +358,16 @@ export default async function Home() {
                   <Link className="manga-card priced-edition-card" href={`/edition/${item.id}`} key={item.id}>
                     <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
                     <div className="card-body">
-                      <p className="card-kicker">{verifiedSaleCount} verified sale{verifiedSaleCount === 1 ? "" : "s"} · {[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ")}</p>
-                      <h3>{item.title || "Untitled manga"}</h3>
+                      <p className="card-kicker">{verifiedSaleCount} verified sale{verifiedSaleCount === 1 ? "" : "s"} · {[(item.collectible_type === "zasshi" ? homepageIssueLabel(item) : item.volume_number ? `Vol. ${item.volume_number}` : null), item.language].filter(Boolean).join(" · ")}</p>
+                      <h3>{homepageTitle(item)}</h3>
                       <dl>
                         <div>
-                          <dt>Series</dt>
+                          <dt>{item.collectible_type === "zasshi" ? "Magazine" : "Series"}</dt>
                           <dd>{item.series || "Not yet recorded"}</dd>
                         </div>
                         <div>
                           <dt>Edition</dt>
-                          <dd>{editionDescriptor(item)}</dd>
+                          <dd>{homepageDescriptor(item)}</dd>
                         </div>
                       </dl>
                       {item.cover_verification_status !== "verified" ? <small className="card-honest-note">Cover not yet confirmed — shown for its sale evidence.</small> : null}
@@ -422,15 +438,15 @@ export default async function Home() {
                 <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
                 <div className="card-body">
                   <p className="card-kicker"><HomePrice value={sale.sale_price} sourceCurrency={sale.currency} rateDate={sale.sold_date} rates={homepageFxRates} /> · {formatSaleDate(sale.sold_date)}</p>
-                  <h3>{edition.title || "Untitled manga"}</h3>
+                  <h3>{homepageTitle(edition)}</h3>
                   <dl>
                     <div>
-                      <dt>Series</dt>
+                      <dt>{edition.collectible_type === "zasshi" ? "Magazine" : "Series"}</dt>
                       <dd>{edition.series || "Not yet recorded"}</dd>
                     </div>
                     <div>
                       <dt>Edition</dt>
-                      <dd>{editionDescriptor(edition)}</dd>
+                      <dd>{homepageDescriptor(edition)}</dd>
                     </div>
                   </dl>
                 </div>
@@ -450,13 +466,13 @@ export default async function Home() {
           </div>
           <span className="live-listings-status">Listings you can still buy — not sold prices</span>
         </div>
-        <p className="section-copy">Active eBay listings whose title clearly matches a manga in the catalogue. These are buying opportunities only — an asking price never counts as a sale and never moves a value on this site.</p>
+          <p className="section-copy">Active eBay listings whose title clearly matches a publication in the catalogue. These are buying opportunities only — an asking price never counts as a sale and never moves a value on this site.</p>
         {liveOpportunities.length ? (
           <div className="live-listings-grid">
             {liveOpportunities.map(({ lead, edition }) => (
               <a className="live-listing-card" href={lead.source_listing_url} target="_blank" rel="noreferrer" key={lead.id}>
                 <div>
-                  <span>{listingType(lead.raw_payload)} · eBay · {[edition.series || edition.title, edition.volume_number ? `Vol. ${edition.volume_number}` : null].filter(Boolean).join(" ")}</span>
+                  <span>{listingType(lead.raw_payload)} · eBay · {[edition.series || edition.title, edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : edition.volume_number ? `Vol. ${edition.volume_number}` : null].filter(Boolean).join(" ")}</span>
                   <h3>{lead.listing_title}</h3>
                 </div>
                 <div className="live-listing-meta">
@@ -469,7 +485,7 @@ export default async function Home() {
         ) : (
           <div className="live-listings-empty">
             <strong>Nothing on sale right now</strong>
-            <p>Listings appear here as soon as Scout finds an active one whose title clearly matches a manga and volume in the catalogue.</p>
+            <p>Listings appear here as soon as Scout finds an active one whose title clearly matches a manga volume or magazine issue in the catalogue.</p>
           </div>
         )}
       </section>
@@ -484,7 +500,7 @@ export default async function Home() {
       <section className="index-ways-in" aria-labelledby="ways-in-heading">
         <h2 id="ways-in-heading" className="sr-only">More ways into the catalogue</h2>
         <div className="index-ways-in-grid">
-          <Link href="/browse"><strong>Browse everything</strong><small>All {count ?? 0} manga in the catalogue</small></Link>
+          <Link href="/browse"><strong>Browse everything</strong><small>All {count ?? 0} publications in the catalogue</small></Link>
           <Link href="/collection"><strong>Track your collection</strong><small>See how far through each series you are</small></Link>
           <Link href="/identify"><strong>Is mine a first print?</strong><small>Check your copy&apos;s printing line, step by step</small></Link>
           <Link href="/request-edition"><strong>Missing something?</strong><small>Send us a manga to research and add</small></Link>

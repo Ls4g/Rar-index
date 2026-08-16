@@ -16,6 +16,10 @@ export type BrowseEdition = {
   isbn_13: string | null;
   edition_statement: string | null;
   collectible_type: string | null;
+  issue_year: number | null;
+  issue_number_label: string | null;
+  cumulative_issue_no: number | null;
+  madb_id: string | null;
   cover_image_url: string | null;
   cover_verification_status: string | null;
   created_at: string | null;
@@ -45,7 +49,7 @@ function bySort(sort: SortMode) {
 export default function BrowseEditions({ editions }: { editions: BrowseEdition[] }) {
   const searchParams = useSearchParams();
   const bestDocumented = searchParams.get("collection") === "best-documented";
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [language, setLanguage] = useState("all");
   const [publisher, setPublisher] = useState("all");
   const [collectibleType, setCollectibleType] = useState("all");
@@ -62,7 +66,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
     return editions.filter((edition) => {
-      const searchable = [edition.title, edition.series, edition.volume_number, edition.publisher, publisherDisplayName(edition.publisher), edition.language, edition.isbn_13, editionDescriptor(edition)].filter(Boolean).join(" ").toLocaleLowerCase();
+      const searchable = [edition.title, edition.series, edition.volume_number, edition.issue_year, edition.issue_number_label, edition.cumulative_issue_no, edition.madb_id, edition.publisher, publisherDisplayName(edition.publisher), edition.language, edition.isbn_13, editionDescriptor(edition)].filter(Boolean).join(" ").toLocaleLowerCase();
       return (!term || searchable.includes(term))
         && (language === "all" || edition.language === language)
         && (publisher === "all" || publisherDisplayName(edition.publisher) === publisher)
@@ -113,7 +117,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
     <div className="browse-search-row">
       <label className="browse-search-field">
         <span className="sr-only">Search</span>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, series or ISBN" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, issue, series or ISBN" />
       </label>
       <div className="browse-chip-row" role="group" aria-label="Quick filters">
         <button type="button" className={`browse-chip${verifiedSalesOnly ? " is-active" : ""}`} aria-pressed={verifiedSalesOnly} onClick={() => setVerifiedSalesOnly((value) => !value)}>Verified prices</button>
@@ -127,7 +131,7 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
       <div className="browse-controls-grid">
         <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="all">All languages</option>{languages.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
         <label>Publisher<select value={publisher} onChange={(event) => setPublisher(event.target.value)}><option value="all">All publishers</option>{publishers.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <label>Type<select value={collectibleType} onChange={(event) => setCollectibleType(event.target.value)}><option value="all">All types</option>{collectibleTypes.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+        <label>Type<select value={collectibleType} onChange={(event) => setCollectibleType(event.target.value)}><option value="all">All types</option>{collectibleTypes.map((value) => <option key={value} value={value}>{value === "zasshi" ? "Magazine issues" : value.replaceAll("_", " ")}</option>)}</select></label>
         <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="newest">Newest added</option><option value="title">Title A–Z</option><option value="completeness">Most documented</option></select></label>
       </div>
     </details>
@@ -144,21 +148,28 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
               {group.editions.map((edition) => {
                 const hasVerifiedCover = edition.cover_verification_status === "verified";
                 const wellDocumented = hasVerifiedCover && edition.verified_sale_count > 0;
+                const isMagazine = edition.collectible_type === "zasshi";
+                const issue = isMagazine
+                  ? [edition.issue_year, edition.issue_number_label ? `Issue ${edition.issue_number_label}` : null].filter(Boolean).join(" · ")
+                  : null;
+                const identifier = isMagazine
+                  ? edition.cumulative_issue_no ? `Cumulative issue ${edition.cumulative_issue_no}` : edition.madb_id ? `MADB ${edition.madb_id}` : "Issue identity verified"
+                  : edition.isbn_13 || "ISBN pending";
                 return (
                   <Link href={`/edition/${edition.id}`} className={`browse-card${wellDocumented ? " is-well-documented" : ""}`} key={edition.id}>
                     <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
                     <div className="browse-card-body">
-                      <p>{[edition.collectible_type?.replaceAll("_", " "), edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
-                      <h2>{edition.title || "Untitled manga"}</h2>
-                      <strong>{editionDescriptor(edition)}</strong>
-                      {edition.hasFirstPrintEvidence ? (
+                      <p>{[isMagazine ? "Magazine issue" : edition.collectible_type?.replaceAll("_", " "), isMagazine ? issue : edition.series, !isMagazine && edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
+                      <h2>{(isMagazine ? edition.series : edition.title) || "Untitled publication"}</h2>
+                      <strong>{isMagazine ? issue || "Magazine issue" : editionDescriptor(edition)}</strong>
+                      {!isMagazine && edition.hasFirstPrintEvidence ? (
                         <em className="browse-card-print-badge is-proven">{edition.firstPrintProvenCount} proven first-print sale{edition.firstPrintProvenCount === 1 ? "" : "s"}</em>
-                      ) : edition.printingNotIdentifiedCount > 0 ? (
+                      ) : !isMagazine && edition.printingNotIdentifiedCount > 0 ? (
                         <em className="browse-card-print-badge is-unidentified">{edition.printingNotIdentifiedCount} sale{edition.printingNotIdentifiedCount === 1 ? "" : "s"} with printing not identified</em>
                       ) : null}
                       <span>{publisherDisplayName(edition.publisher)}</span>
                       <span className={`browse-card-evidence${wellDocumented ? " is-well-documented" : ""}`}>{evidenceStatusLabel(hasVerifiedCover, edition.verified_sale_count)}</span>
-                      <small>{edition.isbn_13 || "ISBN pending"}</small>
+                      <small>{identifier}</small>
                     </div>
                   </Link>
                 );

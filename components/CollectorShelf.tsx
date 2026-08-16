@@ -12,6 +12,9 @@ export type ShelfEdition = {
   title: string | null;
   series: string | null;
   volumeNumber: string | null;
+  collectibleType: string | null;
+  issueYear: number | null;
+  issueNumberLabel: string | null;
   language: string | null;
   editionLabel: string;
   coverImageUrl: string | null;
@@ -59,7 +62,7 @@ export default function CollectorShelf({ editions, rates }: { editions: ShelfEdi
 
   return (
     <div className="collector-shelf">
-      <div className="collector-shelf-track" aria-label="Verified manga covers" onKeyDown={handleTrackKeyDown}>
+      <div className="collector-shelf-track" aria-label="Verified catalogue covers" onKeyDown={handleTrackKeyDown}>
         {editions.map((edition, index) => (
           <button
             key={edition.id}
@@ -94,8 +97,10 @@ export default function CollectorShelf({ editions, rates }: { editions: ShelfEdi
       {active ? (
         <div className="collector-shelf-detail" aria-live="polite">
           <div>
-            <p className="collector-shelf-detail-kicker">{[active.series, active.volumeNumber ? `Vol. ${active.volumeNumber}` : null, active.language].filter(Boolean).join(" · ")}</p>
-            <h3>{active.title || "Untitled manga"}</h3>
+            <p className="collector-shelf-detail-kicker">{(active.collectibleType === "zasshi"
+              ? [active.issueYear, active.issueNumberLabel ? `Issue ${active.issueNumberLabel}` : null, active.language]
+              : [active.series, active.volumeNumber ? `Vol. ${active.volumeNumber}` : null, active.language]).filter(Boolean).join(" · ")}</p>
+            <h3>{(active.collectibleType === "zasshi" ? active.series : active.title) || "Untitled publication"}</h3>
             <p className="collector-shelf-detail-edition">{active.editionLabel}</p>
           </div>
           <div className="collector-shelf-detail-evidence">

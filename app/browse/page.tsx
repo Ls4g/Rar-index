@@ -13,10 +13,10 @@ export default async function BrowsePage() {
   const [{ data, error }, { data: readinessRows }] = await Promise.all([
     supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,collectible_type,cover_image_url,cover_verification_status,created_at")
+      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,collectible_type,cover_image_url,cover_verification_status,created_at,issue_year,issue_number_label,cumulative_issue_no,madb_id")
       .eq("is_verified", true)
       .eq("record_kind", "publication")
-      .not("isbn_13", "is", null)
+      .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
       .not("publisher", "is", null)
       .not("release_date", "is", null)
       .order("created_at", { ascending: false })
@@ -51,10 +51,10 @@ export default async function BrowsePage() {
       <section className="browse-hero">
         <div>
           <p className="eyebrow">The catalogue</p>
-          <h1>Browse every manga we track.</h1>
-          <p>Each one is a specific edition — a known ISBN, publisher and release date, not just a title. Open one to see what real copies sold for and which printings we have proof of.</p>
+          <h1>Browse every publication we track.</h1>
+          <p>Each record identifies one physical publication: a manga volume by ISBN, or a magazine by its exact year and issue number. Open one to see its evidence and what real copies sold for.</p>
         </div>
-        <div className="queue-total"><strong>{editions.length}</strong><span>manga in the catalogue</span></div>
+        <div className="queue-total"><strong>{editions.length}</strong><span>publications in the catalogue</span></div>
       </section>
       <section className="browse-content">
         {error ? <p className="status-message">The catalogue could not be loaded. Please try again shortly.</p> : <BrowseEditions editions={editions} />}
