@@ -88,9 +88,11 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
       ));
     }
     return {
-      summary: proposals.length
-        ? `Found ${proposals.length} catalogue workstream${proposals.length === 1 ? "" : "s"} needing attention.`
-        : "Catalogue intake, requests and verified-cover coverage have no open gaps.",
+      summary: metrics.catalogue_discovery_targets
+        ? `Searched ${metrics.catalogue_targets_searched ?? 0} catalogue target${metrics.catalogue_targets_searched === 1 ? "" : "s"}; staged ${metrics.catalogue_candidates_staged ?? 0} ISBN-backed candidate${metrics.catalogue_candidates_staged === 1 ? "" : "s"} for human review. ${proposals.length} catalogue workstream${proposals.length === 1 ? "" : "s"} now need attention.`
+        : proposals.length
+          ? `Found ${proposals.length} catalogue workstream${proposals.length === 1 ? "" : "s"} needing attention.`
+          : "Catalogue intake, requests and verified-cover coverage have no open gaps.",
       proposals,
     };
   }

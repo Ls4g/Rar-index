@@ -34,6 +34,7 @@ type Action = {
 };
 
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
+  stage_catalogue_candidates: { href: "/catalogue-review", label: "Review staged candidates" },
   review_catalogue_queue: { href: "/catalogue-review", label: "Open catalogue review" },
   research_catalogue_requests: { href: "/catalogue-requests", label: "Open requests" },
   source_missing_covers: { href: "/cover-review", label: "Open cover review" },
@@ -52,10 +53,19 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function modeLabel(mode: string) {
-  if (mode === "safe_actions") return "Safe cleanup";
-  if (mode === "prepare") return "Prepares evidence";
+function modeLabel(control: Control) {
+  if (control.mode === "safe_actions") return "Safe cleanup";
+  if (control.mode === "prepare" && control.agent_key === "catalogue_curator") return "Prepares candidates";
+  if (control.mode === "prepare") return "Prepares evidence";
   return "Advises only";
+}
+
+function runButtonLabel(control: Control, isBusy: boolean) {
+  if (isBusy) return "Running...";
+  if (control.agent_key === "catalogue_curator" && control.mode === "prepare") return "Discover candidates";
+  if (control.mode === "safe_actions") return "Run safe cleanup";
+  if (control.mode === "prepare") return "Prepare evidence";
+  return "Run report";
 }
 
 function statusLabel(status?: string) {
@@ -180,7 +190,7 @@ export default function AgentControlCentre({
             const run = lastRun.get(control.agent_key);
             return (
               <article className={`agent-card ${control.is_paused ? "is-paused" : ""}`} key={control.agent_key}>
-                <div className="agent-card-heading"><div><span>{modeLabel(control.mode)}</span><h2>{control.display_name}</h2></div><b>{control.is_paused ? "Paused" : statusLabel(run?.status)}</b></div>
+                <div className="agent-card-heading"><div><span>{modeLabel(control)}</span><h2>{control.display_name}</h2></div><b>{control.is_paused ? "Paused" : statusLabel(run?.status)}</b></div>
                 <p>{control.mission}</p>
                 <div className="agent-last-run">
                   <small>Latest report</small>
@@ -190,7 +200,7 @@ export default function AgentControlCentre({
                 </div>
                 {run?.metrics ? <details className="agent-run-details"><summary>Technical details</summary><div className="agent-metrics">{Object.entries(run.metrics).map(([label, value]) => <span key={label}><b>{value}</b>{metricLabel(label)}</span>)}</div></details> : null}
                 <div className="agent-card-actions">
-                  <button disabled={Boolean(busy) || globalPaused || control.is_paused} onClick={() => command(`run-${control.agent_key}`, { command: "run_agent", agentKey: control.agent_key })} type="button">{busy === `run-${control.agent_key}` ? "Running..." : control.mode === "safe_actions" ? "Run safe cleanup" : control.mode === "prepare" ? "Prepare evidence" : "Run report"}</button>
+                  <button disabled={Boolean(busy) || globalPaused || control.is_paused} onClick={() => command(`run-${control.agent_key}`, { command: "run_agent", agentKey: control.agent_key })} type="button">{runButtonLabel(control, busy === `run-${control.agent_key}`)}</button>
                   <button className="secondary" disabled={Boolean(busy)} onClick={() => command(`pause-${control.agent_key}`, { command: "set_agent_paused", agentKey: control.agent_key, paused: !control.is_paused })} type="button">{control.is_paused ? "Resume" : "Pause"}</button>
                 </div>
               </article>
@@ -201,7 +211,10 @@ export default function AgentControlCentre({
 
       <details className="agent-history-panel">
         <summary><span><small>Background activity</small><strong>Recently completed safe work</strong></span><b>{executed.length}</b></summary>
-        <div className="agent-history-content">{executed.length ? <div className="agent-executed-list">{executed.map((action) => <article key={action.id}><div><span>Completed · {formatTime(action.created_at)}</span><strong>{action.title}</strong><p>{action.rationale}</p></div><Link href="/scout?includeDismissed=1">Inspect archive →</Link></article>)}</div> : <div className="review-empty agent-empty-compact"><strong>No recent safe actions.</strong></div>}</div>
+        <div className="agent-history-content">{executed.length ? <div className="agent-executed-list">{executed.map((action) => {
+          const destination = ACTION_LINKS[action.action_type] ?? { href: "/agents#run-log", label: "Inspect audit" };
+          return <article key={action.id}><div><span>Completed · {formatTime(action.created_at)}</span><strong>{action.title}</strong><p>{action.rationale}</p></div><Link href={destination.href}>{destination.label} →</Link></article>;
+        })}</div> : <div className="review-empty agent-empty-compact"><strong>No recent safe actions.</strong></div>}</div>
       </details>
 
       <details className="agent-history-panel" id="run-log">

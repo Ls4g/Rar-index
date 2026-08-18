@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AGENT_LABELS, type AgentKey, type AgentMetrics, type AgentProposal, planAgentActions } from "@/lib/agentPlanning";
+import { stageCatalogueCandidates, type CatalogueCuratorResult } from "@/lib/catalogueCurator";
 import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
@@ -207,10 +208,37 @@ export async function runAgentObservation(
   if (runError || !run) throw new Error(runError?.message ?? "Could not start the agent run.");
 
   try {
+    let catalogueDiscoveryResult: CatalogueCuratorResult | null = null;
     let safeActionResult: AutoTriageResult | null = null;
     let availabilityResult: ScoutAvailabilityResult | null = null;
     let printingSuggestionResult: PrintingSuggestionRun | null = null;
     const autonomyLevel = Number(system?.autonomy_level ?? 1);
+    if (agentKey === "catalogue_curator" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
+      catalogueDiscoveryResult = await stageCatalogueCandidates(admin, run.id);
+      if (catalogueDiscoveryResult.targetsPlanned > 0) {
+        const now = new Date().toISOString();
+        const { error: actionError } = await admin.from("agent_actions").insert({
+          run_id: run.id,
+          agent_key: agentKey,
+          action_type: "stage_catalogue_candidates",
+          target_type: "catalogue_import_queue",
+          dedupe_key: `catalogue:discovery:${run.id}`,
+          title: catalogueDiscoveryResult.candidatesStaged > 0
+            ? `Staged ${catalogueDiscoveryResult.candidatesStaged} catalogue candidate${catalogueDiscoveryResult.candidatesStaged === 1 ? "" : "s"}`
+            : `Searched ${catalogueDiscoveryResult.targetsSearched} catalogue target${catalogueDiscoveryResult.targetsSearched === 1 ? "" : "s"}`,
+          rationale: "The Catalogue Curator searched approved bibliographic sources and only staged ISBN-backed publication records. Every result still requires human catalogue review.",
+          risk_level: "low",
+          confidence: 1,
+          status: "executed",
+          evidence: catalogueDiscoveryResult,
+          reviewed_by: "RAR Catalogue Curator",
+          review_notes: "Automated candidate preparation only. No catalogue record or cover was published.",
+          reviewed_at: now,
+          executed_at: now,
+        });
+        if (actionError) throw new Error(`Catalogue Curator could not audit its discovery run: ${actionError.message}`);
+      }
+    }
     if (agentKey === "market_scout" && autonomyLevel >= 2 && typedControl.mode === "safe_actions") {
       safeActionResult = await autoDismissDefinitiveScoutConflicts(admin, run.id);
       if (safeActionResult.dismissed > 0) {
@@ -264,6 +292,16 @@ export async function runAgentObservation(
     }
 
     const metrics = await collectMetrics(admin, agentKey);
+    if (catalogueDiscoveryResult) {
+      metrics.catalogue_discovery_targets = catalogueDiscoveryResult.targetsPlanned;
+      metrics.catalogue_targets_searched = catalogueDiscoveryResult.targetsSearched;
+      metrics.catalogue_targets_failed = catalogueDiscoveryResult.targetsFailed;
+      metrics.catalogue_source_records_found = catalogueDiscoveryResult.sourceRecordsFound;
+      metrics.catalogue_candidates_eligible = catalogueDiscoveryResult.candidatesEligible;
+      metrics.catalogue_candidates_staged = catalogueDiscoveryResult.candidatesStaged;
+      metrics.catalogue_candidates_already_queued = catalogueDiscoveryResult.candidatesAlreadyQueued;
+      metrics.catalogue_candidates_already_published = catalogueDiscoveryResult.candidatesAlreadyPublished;
+    }
     if (safeActionResult) {
       metrics.auto_triage_examined = safeActionResult.examined;
       metrics.auto_dismiss_candidates = safeActionResult.candidates;

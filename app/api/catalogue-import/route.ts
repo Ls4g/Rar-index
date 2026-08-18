@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { searchNdlCatalogue, searchOpenLibraryCatalogue } from "@/lib/catalogueSources";
 
 function isStaffRequest(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -45,10 +46,6 @@ function htmlMatch(html: string, pattern: RegExp) {
   return decodeHtml(html.match(pattern)?.[1] || "") || null;
 }
 
-function xmlValues(xml: string, tag: string) {
-  return [...xml.matchAll(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "g"))].map((match) => decodeHtml(match[1])).filter(Boolean);
-}
-
 async function shueishaCandidates(query: string) {
   const isbn = cleanIsbn(query);
   if (!/^\d{9}[\dX]$/.test(isbn) && !/^97[89]\d{10}$/.test(isbn)) throw new Error("Shueisha Direct needs a Japanese ISBN-10 or ISBN-13, not a title search.");
@@ -76,74 +73,6 @@ async function shueishaCandidates(query: string) {
     candidate_release_date: release ? `${release[1]}-${release[2].padStart(2, "0")}-${release[3].padStart(2, "0")}` : null,
     candidate_format: htmlMatch(html, /(新書判|B6判|A5判|文庫判)[／/]/),
   }];
-}
-
-async function ndlSearchCandidates(query: string) {
-  const isbn = cleanIsbn(query);
-  const cql = /^\d{9}[\dX]$/.test(isbn) || /^97[89]\d{10}$/.test(isbn) ? `isbn=\"${isbn}\"` : `title=\"${query.replace(/[\"]/g, "")}\"`;
-  const sourceRecordUrl = `https://ndlsearch.ndl.go.jp/api/sru?operation=searchRetrieve&maximumRecords=10&query=${encodeURIComponent(cql)}`;
-  const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
-  if (!response.ok) throw new Error("National Diet Library Search did not return a usable response.");
-  const xml = await response.text();
-  return [...xml.matchAll(/<recordData>([\s\S]*?)<\/recordData>/g)].flatMap((match, index) => {
-    const record = match[1];
-    const title = xmlValues(record, "dc:title")[0];
-    const candidateIsbn = xmlValues(record, "dc:identifier").map(cleanIsbn).find((value) => /^97[89]\d{10}$/.test(value)) || null;
-    const recordId = xmlValues(record, "rdfs:seeAlso")[0]?.match(/R\d+-[^<\s]+/)?.[0] || `result-${index + 1}`;
-    if (!title) return [];
-    return [{
-      external_id: recordId,
-      source_record_url: recordId.startsWith("R") ? `https://ndlsearch.ndl.go.jp/books/${recordId}` : sourceRecordUrl,
-      raw_payload: { importer: "ndl_search", record_xml: record },
-      candidate_kind: "edition_candidate",
-      candidate_title: title,
-      candidate_author: xmlValues(record, "dc:creator")[0] || null,
-      candidate_publisher: xmlValues(record, "dc:publisher")[0] || null,
-      candidate_language: languageName(xmlValues(record, "dc:language")[0]),
-      candidate_isbn_13: candidateIsbn,
-      candidate_release_date: (xmlValues(record, "dc:date")[0] || "").match(/^\d{4}(?:-\d{2}-\d{2})?/)?.[0] || null,
-    }];
-  });
-}
-
-async function openLibraryCandidates(query: string) {
-  const fields = [
-    "key", "title", "author_name", "publisher", "language", "first_publish_year", "isbn", "cover_i",
-    "editions", "editions.key", "editions.title", "editions.publisher", "editions.isbn", "editions.publish_date", "editions.language", "editions.cover_i",
-  ].join(",");
-  const response = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&fields=${encodeURIComponent(fields)}&limit=10`, {
-    headers: { "User-Agent": "RAR-Index catalogue importer" },
-    next: { revalidate: 0 },
-  });
-  if (!response.ok) throw new Error("Open Library did not return a usable response.");
-  const payload = await response.json() as { docs?: Array<Record<string, unknown>> };
-
-  return (payload.docs ?? []).flatMap((record) => {
-    const edition = (record.editions as { docs?: Array<Record<string, unknown>> } | undefined)?.docs?.[0];
-    const externalId = String(edition?.key || record.key || "").replace("/books/", "").replace("/works/", "");
-    const title = String(edition?.title || record.title || "").trim();
-    if (!externalId || !title) return [];
-
-    const languages = (edition?.language || record.language) as string[] | undefined;
-    const isbn = (edition?.isbn || record.isbn) as string[] | undefined;
-    const publishDate = String(edition?.publish_date || record.first_publish_year || "");
-    const year = publishDate.match(/^\d{4}/)?.[0];
-    const coverId = edition?.cover_i || record.cover_i;
-
-    return [{
-      external_id: externalId,
-      source_record_url: `https://openlibrary.org/books/${externalId}`,
-      raw_payload: record,
-      candidate_kind: "edition_candidate",
-      candidate_title: title,
-      candidate_author: Array.isArray(record.author_name) ? String(record.author_name[0] || "") || null : null,
-      candidate_publisher: Array.isArray(edition?.publisher) ? String((edition.publisher as string[])[0] || "") || null : Array.isArray(record.publisher) ? String((record.publisher as string[])[0] || "") || null : null,
-      candidate_language: languageName(languages?.[0]),
-      candidate_isbn_13: isbn?.find((value) => /^97[89]\d{10}$/.test(value)) || null,
-      candidate_release_date: year ? `${year}-01-01` : null,
-      candidate_cover_image_url: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null,
-    }];
-  });
 }
 
 async function mangaDexCandidates(query: string) {
@@ -251,10 +180,10 @@ export async function POST(request: Request) {
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
     const candidateGroups = await Promise.all(searchQueries.map((searchQuery) => (
-      source === "open_library" ? openLibraryCandidates(searchQuery)
+      source === "open_library" ? searchOpenLibraryCatalogue(searchQuery)
         : source === "mangadex" ? mangaDexCandidates(searchQuery)
           : source === "shueisha" ? shueishaCandidates(searchQuery)
-            : source === "ndl_search" ? ndlSearchCandidates(searchQuery)
+            : source === "ndl_search" ? searchNdlCatalogue(searchQuery)
               : publisherRecordCandidates(searchQuery, publisherSource!)
     )));
     const candidates = candidateGroups.flat().filter((candidate, index, values) => values.findIndex((value) => value.external_id === candidate.external_id) === index);
