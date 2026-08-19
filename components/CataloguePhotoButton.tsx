@@ -36,7 +36,11 @@ export default function CataloguePhotoButton() {
       if (result.graded) parts.push(`${result.graded} only available as a graded copy`);
       if (missed) parts.push(`${missed} with no matching listing`);
       if (result.errors?.length) parts.push(`${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`);
-      setMessage(`${parts.join(", ")}.${result.errors?.length ? ` First: ${result.errors[0]}` : ""}`);
+      // The reasons matter more than the count: "nobody is selling one" and
+      // "listings exist but none named the issue" need different responses,
+      // and neither is visible from a number alone.
+      const detail = result.errors?.length ? result.errors[0] : result.noListingFound?.[0];
+      setMessage(`${parts.join(", ")}.${detail ? ` ${detail}` : ""}`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Photos could not be fetched.");

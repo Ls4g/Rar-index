@@ -195,6 +195,23 @@ export async function POST(request: Request) {
     .eq("collectible_type", "zasshi")
     .limit(200);
 
+  // The series that debuted in each issue, so the search can name it. Nobody
+  // lists a 1984 Jump without writing "Dragon Ball" somewhere in the title,
+  // and a 41-year-old magazine is hard enough to find without throwing away
+  // the strongest term available.
+  const { data: debutData } = await admin
+    .from("magazine_issue_contents")
+    .select("edition_id, work_title_en, work_title")
+    .eq("is_first_appearance", true);
+  const debutsByEdition = new Map<string, string[]>();
+  for (const row of debutData ?? []) {
+    const name = (row.work_title_en ?? row.work_title ?? "").replace(/[　\s]+/g, " ").trim();
+    if (!name) continue;
+    const list = debutsByEdition.get(row.edition_id) ?? [];
+    if (!list.includes(name)) list.push(name);
+    debutsByEdition.set(row.edition_id, list);
+  }
+
   for (const record of editionData ?? []) {
     const year = Number(record.issue_year);
     const issueNumbers = splitIssueNumbers(String(record.issue_number_label ?? ""));
@@ -204,12 +221,14 @@ export async function POST(request: Request) {
     // a slab gets replaced once a loose copy is listed.
     if (record.listing_photo_url && record.listing_photo_is_graded === false) continue;
 
-    const queries = buildQueries(year, String(record.issue_number_label ?? ""), []);
+    const queries = buildQueries(year, String(record.issue_number_label ?? ""), debutsByEdition.get(record.id) ?? []);
     const found: Attached[] = [];
+    let seen = 0;
     for (const query of queries) {
       if (found.some((entry) => !entry.graded)) break;
       try {
         const listings = await findActiveEbayListings(query, applicationToken);
+        seen += listings.length;
         for (const listing of listings) {
           if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumbers)) continue;
           found.push({ issue: label, listingTitle: listing.title, imageUrl: listing.imageUrl, listingUrl: listing.url, graded: looksGraded(listing.title) });
@@ -219,7 +238,15 @@ export async function POST(request: Request) {
       }
     }
     const chosen = found.find((entry) => !entry.graded) ?? found[0] ?? null;
-    if (!chosen) { unmatched.push(`${label} (catalogued)`); continue; }
+    if (!chosen) {
+      // Says which it was. "Nobody is selling this issue" and "listings exist
+      // but none names the issue clearly enough to trust" are different
+      // problems, and only the second one is worth me looking at.
+      unmatched.push(seen === 0
+        ? `${label} — nothing on eBay for any of ${queries.length} searches`
+        : `${label} — ${seen} listings found, none confirmed the year and issue number`);
+      continue;
+    }
 
     const { error } = await admin.from("manga_editions").update({
       listing_photo_url: chosen.imageUrl,
