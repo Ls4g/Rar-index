@@ -82,6 +82,14 @@ type Attached = {
   graded: boolean;
 };
 
+// eBay's search API returns a 225px thumbnail, which is soft in a 268px cover
+// slot and unusable on a retina screen. The same photograph is served at other
+// sizes by swapping the suffix, so ask for one that suits the slot: 800px is
+// 143KB against 375KB for the largest, and nothing here is displayed bigger.
+function upgradeImageSize(url: string) {
+  return url.replace(/\/s-l\d+\.(jpg|jpeg|png|webp)$/i, "/s-l800.$1");
+}
+
 function confirmsIssue(listingTitle: string, year: number, issueNumbers: number[]) {
   const reference = parseIssueReference(listingTitle);
   if (reference.looksLikeBook) return false;
@@ -150,7 +158,7 @@ export async function POST(request: Request) {
           confirmed.push({
             issue: label,
             listingTitle: listing.title,
-            imageUrl: listing.imageUrl,
+            imageUrl: upgradeImageSize(listing.imageUrl),
             listingUrl: listing.url,
             graded: looksGraded(listing.title),
           });
@@ -231,7 +239,7 @@ export async function POST(request: Request) {
         seen += listings.length;
         for (const listing of listings) {
           if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumbers)) continue;
-          found.push({ issue: label, listingTitle: listing.title, imageUrl: listing.imageUrl, listingUrl: listing.url, graded: looksGraded(listing.title) });
+          found.push({ issue: label, listingTitle: listing.title, imageUrl: upgradeImageSize(listing.imageUrl), listingUrl: listing.url, graded: looksGraded(listing.title) });
         }
       } catch (error) {
         errors.push(`${label}: ${error instanceof Error ? error.message : "eBay search failed"}`);
