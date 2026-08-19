@@ -12,15 +12,18 @@ const japaneseRequest = {
   volume_number: "2",
   language: "Japanese",
   publisher: "Shueisha",
-  isbn_13: null,
+  isbn_13: "9784088816661",
   collectible_type: "tankobon",
   status: "pending",
 };
 
 const requestTargets = planCatalogueDiscoveryTargets([japaneseRequest], [], [], 1);
 assert.equal(requestTargets.length, 1);
-assert.equal(requestTargets[0].source, "ndl_search");
-assert.equal(requestTargets[0].query, "呪術廻戦 2");
+assert.equal(requestTargets[0].source, "shueisha_direct");
+assert.equal(requestTargets[0].query, "9784088816661");
+
+const japaneseRequestWithoutIsbn = { ...japaneseRequest, id: "request-2", isbn_13: null };
+assert.equal(planCatalogueDiscoveryTargets([japaneseRequestWithoutIsbn], [], [], 1).length, 0);
 
 const alreadyQueued = [{
   candidate_title: "呪術廻戦 2",
@@ -39,7 +42,6 @@ const editions = [
 const gapTargets = planCatalogueDiscoveryTargets([], editions, [], 2);
 assert.deepEqual(gapTargets.map((target) => [target.source, target.query]), [
   ["open_library", "One Piece 2"],
-  ["ndl_search", "ONE PIECE 2"],
 ]);
 
 const target = gapTargets[0];
@@ -59,26 +61,8 @@ assert.equal(candidateMatchesDiscoveryTarget(correctCandidate, target), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 8" }, target), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: "Japanese" }, target), false);
 
-const japaneseTarget = gapTargets[1];
-const japaneseCandidate = {
-  ...correctCandidate,
-  external_id: "R100000002-I-test",
-  source_record_url: "https://ndlsearch.ndl.go.jp/books/R100000002-I-test",
-  raw_payload: { importer: "ndl_search" },
-  candidate_title: "One piece",
-  candidate_volume_number: "巻2",
-  candidate_publisher: "集英社",
-  candidate_language: null,
-  candidate_isbn_13: "9784088725444",
-  candidate_format: "漫画",
-};
-assert.equal(candidateMatchesDiscoveryTarget(japaneseCandidate, japaneseTarget), true);
-assert.equal(candidateMatchesDiscoveryTarget({ ...japaneseCandidate, candidate_volume_number: "[3]" }, japaneseTarget), false);
-assert.equal(candidateMatchesDiscoveryTarget({ ...japaneseCandidate, candidate_title: "ONE PIECE 学園" }, japaneseTarget), false);
-assert.equal(candidateMatchesDiscoveryTarget({ ...japaneseCandidate, candidate_format: null }, japaneseTarget), false);
-
 const isbnTarget = { ...target, isbn13: "9781591160571", volumeNumber: null };
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Unexpected catalogue title" }, isbnTarget), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_isbn_13: "9780000000002" }, isbnTarget), false);
 
-console.log("Catalogue Curator discovery tests passed (16 assertions).");
+console.log("Catalogue Curator discovery tests passed.");

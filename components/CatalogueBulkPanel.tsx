@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type CatalogueBulkRecord = {
   id: string;
@@ -56,6 +57,7 @@ function canApprove(record: CatalogueBulkRecord) {
 }
 
 export default function CatalogueBulkPanel({ records }: { records: CatalogueBulkRecord[] }) {
+  const router = useRouter();
   const [reviewer, setReviewer] = useState("");
   const [notes, setNotes] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -101,7 +103,11 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
       setSelected(new Set(failedIds));
       setBanner(failedIds.size
         ? { tone: "error", text: `${succeeded.length} saved. ${failedIds.size} still selected and unsaved — ${(result.failed ?? [])[0]?.error ?? "handle these individually below."}` }
-        : { tone: "ok", text: `${succeeded.length} record${succeeded.length === 1 ? "" : "s"} saved.` });
+        : { tone: "ok", text: `${succeeded.length} record${succeeded.length === 1 ? "" : "s"} approved and published. No second approval is needed.` });
+      // The detailed review cards below are rendered by the server. Refresh
+      // after the final bulk decision so approved rows disappear there too;
+      // otherwise the stale cards misleadingly ask staff to approve again.
+      router.refresh();
     } catch {
       setBanner({ tone: "error", text: "The decisions could not be saved. Check the connection and try again." });
     } finally {
@@ -115,7 +121,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
         <p className="eyebrow">Decide a screenful at once</p>
         <h2>{visible.length} candidate{visible.length === 1 ? "" : "s"} in the queue</h2>
         <p className="section-copy">
-          Approving here accepts each source record exactly as it stands — title, publisher, language, ISBN and date come from that candidate&apos;s own row. To change any of those, use the full form on the record below instead. Linking to an existing edition is always individual, because it needs one exact edition named.
+          Approve selected is the final approval: it publishes each accepted record and removes it from this queue. Title, publisher, language, ISBN and date come from the candidate&apos;s own row. To change any of those, use the full form below instead. Linking to an existing edition is always individual, because it needs one exact edition named.
         </p>
       </div>
 
@@ -134,7 +140,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
         <button disabled={!eligible.length} onClick={() => setSelected(new Set(eligible.map((record) => record.id)))} type="button">Select all {eligible.length} eligible</button>
         <button disabled={!selected.size} onClick={() => setSelected(new Set())} type="button">Clear</button>
         <span className="catalogue-bulk-count">{selected.size} selected</span>
-        <button className="catalogue-bulk-approve" disabled={Boolean(saving) || !selected.size} onClick={() => void decide("approve_new")} type="button">{saving === "approve_new" ? "Approving…" : "Approve selected"}</button>
+        <button className="catalogue-bulk-approve" disabled={Boolean(saving) || !selected.size} onClick={() => void decide("approve_new")} type="button">{saving === "approve_new" ? "Approving…" : "Approve & publish selected"}</button>
         <button className="secondary-action" disabled={Boolean(saving) || !selected.size} onClick={() => void decide("needs_review")} type="button">{saving === "needs_review" ? "Saving…" : "Needs review"}</button>
         <button className="secondary-action" disabled={Boolean(saving) || !selected.size} onClick={() => void decide("duplicate")} type="button">{saving === "duplicate" ? "Saving…" : "Duplicate"}</button>
         <button className="secondary-action" disabled={Boolean(saving) || !selected.size} onClick={() => void decide("rejected")} type="button">{saving === "rejected" ? "Rejecting…" : "Reject"}</button>

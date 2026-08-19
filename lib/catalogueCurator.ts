@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
-import { searchNdlCatalogue, searchOpenLibraryCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
 
 const DISCOVERY_TARGET_LIMIT = 4;
 const CANDIDATES_PER_TARGET = 1;
@@ -22,7 +22,7 @@ const JAPANESE_SEARCH_ALIASES: Record<string, string> = {
 
 export type CatalogueDiscoveryTarget = {
   key: string;
-  source: "ndl_search" | "open_library";
+  source: "shueisha_direct" | "open_library";
   query: string;
   title: string;
   series: string | null;
@@ -113,18 +113,6 @@ function titleStem(value: string | null | undefined) {
     .replace(/\d{1,3}\s*巻/g, " "));
 }
 
-function strictTitleStem(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[×✕]/g, "x")
-    .replace(/(?:manga|comic|tankobon)/gi, " ")
-    .replace(/(?:vol(?:ume)?\.?\s*|第\s*)\d{1,3}(?:\s*巻)?/gi, " ")
-    .replace(/\d{1,3}\s*巻/g, " ")
-    .replace(/[\s.,:;#()\[\]_-]+/g, "")
-    .trim();
-}
-
 function languageMatches(candidate: string | null, target: string | null) {
   if (!candidate || !target) return true;
   return normalise(candidate) === normalise(target);
@@ -161,15 +149,6 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   if (targetIsbn && candidateIsbn) return targetIsbn === candidateIsbn;
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
   if (!publisherMatches(candidate.candidate_publisher, target.publisher)) return false;
-
-  if (candidate.raw_payload.importer === "ndl_search") {
-    if (candidate.candidate_format !== "漫画") return false;
-    const candidateTitle = strictTitleStem(candidate.candidate_title);
-    const strictTargets = [target.series, target.title, target.series ? japaneseAlias(target.series) : null]
-      .map(strictTitleStem)
-      .filter(Boolean);
-    if (!strictTargets.includes(candidateTitle)) return false;
-  }
 
   const candidateStem = titleStem(candidate.candidate_title);
   if (!targetTitleNeedles(target).some((needle) => candidateStem.includes(needle) || needle.includes(candidateStem))) return false;
@@ -216,12 +195,18 @@ export function planCatalogueDiscoveryTargets(
 
   for (const request of tankobonRequests) {
     const language = request.language === "Japanese" || request.language === "English" ? request.language : null;
-    const source = language === "Japanese" ? "ndl_search" : "open_library";
+    const exactIsbn = cleanIsbn(request.isbn_13);
+    // Japanese title searches in NDL can return component records from box
+    // sets and attach the box ISBN to an individual target volume. Only an
+    // exact ISBN can enter the autonomous Japanese path, and Shueisha's own
+    // product record is the source that staff reviews.
+    if (language === "Japanese" && !exactIsbn) continue;
+    const source = language === "Japanese" ? "shueisha_direct" : "open_library";
     const inferredVolume = volumeFromCatalogueTitle(request.requested_title);
     const volumeNumber = request.volume_number ?? (inferredVolume === null ? null : String(inferredVolume));
     const baseTitle = request.series || request.requested_title;
     const sourceTitle = language === "Japanese" ? japaneseAlias(baseTitle) : baseTitle;
-    const query = cleanIsbn(request.isbn_13) || [sourceTitle, volumeNumber].filter(Boolean).join(" ");
+    const query = exactIsbn || [sourceTitle, volumeNumber].filter(Boolean).join(" ");
     targets.push({
       key: `request:${request.id}`,
       source,
@@ -263,12 +248,14 @@ export function planCatalogueDiscoveryTargets(
     const maxVolume = Math.max(...group.volumes);
     let nextVolume = 1;
     while (group.volumes.has(nextVolume) && nextVolume <= maxVolume) nextVolume += 1;
-    const source = group.language === "Japanese" ? "ndl_search" : "open_library";
-    const sourceTitle = group.language === "Japanese" ? japaneseAlias(group.series) : group.series;
+    // Official Japanese publisher lookup needs an ISBN. Do not use a broad
+    // library title search to guess one for a missing volume.
+    if (group.language === "Japanese") continue;
+    const source = "open_library";
     targets.push({
       key: `gap:${normalise(group.series)}:${group.language}:${nextVolume}`,
       source,
-      query: `${sourceTitle} ${nextVolume}`,
+      query: `${group.series} ${nextVolume}`,
       title: `${group.series} Vol. ${nextVolume}`,
       series: group.series,
       volumeNumber: String(nextVolume),
@@ -285,11 +272,11 @@ export function planCatalogueDiscoveryTargets(
 }
 
 function sourceName(source: CatalogueDiscoveryTarget["source"]) {
-  return source === "ndl_search" ? "National Diet Library Search" : "Open Library";
+  return source === "shueisha_direct" ? "Shueisha Direct" : "Open Library";
 }
 
 async function findCandidates(target: CatalogueDiscoveryTarget) {
-  return target.source === "ndl_search" ? searchNdlCatalogue(target.query) : searchOpenLibraryCatalogue(target.query);
+  return target.source === "shueisha_direct" ? searchShueishaCatalogue(target.query) : searchOpenLibraryCatalogue(target.query);
 }
 
 export async function stageCatalogueCandidates(admin: SupabaseClient, runId: string): Promise<CatalogueCuratorResult> {
@@ -297,7 +284,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100),
     admin.from("manga_editions").select("title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000),
     admin.from("catalogue_import_queue").select("source_id,external_id,candidate_title,candidate_series,candidate_volume_number,candidate_language,candidate_isbn_13,raw_payload").limit(5000),
-    admin.from("sources").select("id,name").in("name", ["National Diet Library Search", "Open Library"]),
+    admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library"]),
   ]);
   const error = requestResult.error || editionResult.error || queueResult.error || sourceResult.error;
   if (error) throw new Error(`Catalogue Curator could not prepare discovery: ${error.message}`);

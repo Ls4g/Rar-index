@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { searchNdlCatalogue, searchOpenLibraryCatalogue } from "@/lib/catalogueSources";
+import { searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue } from "@/lib/catalogueSources";
 
 function isStaffRequest(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -44,35 +44,6 @@ function decodeHtml(value: string) {
 
 function htmlMatch(html: string, pattern: RegExp) {
   return decodeHtml(html.match(pattern)?.[1] || "") || null;
-}
-
-async function shueishaCandidates(query: string) {
-  const isbn = cleanIsbn(query);
-  if (!/^\d{9}[\dX]$/.test(isbn) && !/^97[89]\d{10}$/.test(isbn)) throw new Error("Shueisha Direct needs a Japanese ISBN-10 or ISBN-13, not a title search.");
-  const isbn13 = isbn.length === 10 ? isbn13From10(isbn) : isbn;
-  if (!isbn13) throw new Error("That ISBN could not be read.");
-  const sourceRecordUrl = `https://books.shueisha.co.jp/items/contents.html?isbn=${isbn13.slice(0, 3)}-${isbn13.slice(3, 4)}-${isbn13.slice(4, 6)}-${isbn13.slice(6, 12)}-${isbn13.slice(12)}`;
-  const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
-  if (!response.ok) throw new Error("Shueisha did not return a usable record.");
-  const html = await response.text();
-  const sourceIsbn = cleanIsbn(htmlMatch(html, /ISBN[：:]\s*([0-9Xx-]+)/) || "");
-  if (!sourceIsbn || (sourceIsbn !== isbn && isbn13From10(sourceIsbn) !== isbn13 && sourceIsbn !== isbn13)) return [];
-  const release = html.match(/(\d{4})年(\d{1,2})月(\d{1,2})日発売/);
-  const title = htmlMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || htmlMatch(html, /<title[^>]*>([\s\S]*?)<\//i)?.split(/[／|]/)[0]?.trim();
-  if (!title) return [];
-  return [{
-    external_id: isbn13,
-    source_record_url: sourceRecordUrl,
-    raw_payload: { importer: "shueisha_direct", isbn_query: isbn, source_html: html },
-    candidate_kind: "edition_candidate",
-    candidate_title: title,
-    candidate_author: htmlMatch(html, /著者[：:]?\s*<[^>]*>([\s\S]*?)<\//),
-    candidate_publisher: "Shueisha",
-    candidate_language: "Japanese",
-    candidate_isbn_13: isbn13,
-    candidate_release_date: release ? `${release[1]}-${release[2].padStart(2, "0")}-${release[3].padStart(2, "0")}` : null,
-    candidate_format: htmlMatch(html, /(新書判|B6判|A5判|文庫判)[／/]/),
-  }];
 }
 
 async function mangaDexCandidates(query: string) {
@@ -182,7 +153,7 @@ export async function POST(request: Request) {
     const candidateGroups = await Promise.all(searchQueries.map((searchQuery) => (
       source === "open_library" ? searchOpenLibraryCatalogue(searchQuery)
         : source === "mangadex" ? mangaDexCandidates(searchQuery)
-          : source === "shueisha" ? shueishaCandidates(searchQuery)
+          : source === "shueisha" ? searchShueishaCatalogue(searchQuery)
             : source === "ndl_search" ? searchNdlCatalogue(searchQuery)
               : publisherRecordCandidates(searchQuery, publisherSource!)
     )));
