@@ -6,6 +6,12 @@ type EditionCoverProps = {
   language?: string | null;
   imageUrl?: string | null;
   imageStatus?: string | null;
+  // A photograph of a copy on sale, used where a cover would be when no
+  // licensed cover art exists at all -- which is every magazine issue, since
+  // Jump cover art is copyrighted and no bibliographic source carries it.
+  // Always badged, never treated as a cover: the record still reads as
+  // missing one.
+  listingPhotoUrl?: string | null;
   className?: string;
   priority?: boolean;
 };
@@ -40,18 +46,35 @@ function coverStatusCopy(status: string | null | undefined) {
 
 /** Marketplace photos are sale evidence, never catalogue cover art. */
 export default function EditionCover({
-  title, series, volumeNumber, descriptor, language, imageUrl, imageStatus, className = "", priority = false,
+  title, series, volumeNumber, descriptor, language, imageUrl, imageStatus, listingPhotoUrl, className = "", priority = false,
 }: EditionCoverProps) {
   const hasVerifiedCover = Boolean(imageUrl && imageStatus === "verified");
+  // Only ever a stand-in, and only when there is no cover to show. A verified
+  // cover always wins.
+  const showsListingPhoto = !hasVerifiedCover && Boolean(listingPhotoUrl);
   const status = imageStatus === "verified" && !imageUrl ? "missing" : imageStatus;
   const label = descriptor
     ? [series, descriptor, language].filter(Boolean).join(" · ")
     : [series, volumeNumber ? `Vol. ${volumeNumber}` : null, language].filter(Boolean).join(" · ");
 
   return (
-    <div className={`edition-cover ${hasVerifiedCover ? "has-image" : "is-placeholder"} ${className}`}>
+    <div className={`edition-cover ${hasVerifiedCover || showsListingPhoto ? "has-image" : "is-placeholder"} ${showsListingPhoto ? "is-listing-photo" : ""} ${className}`}>
       {hasVerifiedCover ? (
         <img src={imageUrl!} alt={`Cover of ${title || series || "this publication"}`} loading={priority ? "eager" : "lazy"} referrerPolicy="no-referrer" />
+      ) : showsListingPhoto ? (
+        <>
+          <img
+            src={listingPhotoUrl!}
+            alt={`A copy of ${title || series || "this publication"} photographed by a seller`}
+            loading={priority ? "eager" : "lazy"}
+            referrerPolicy="no-referrer"
+          />
+          {/* Not the "Catalogue cover" badge removed in August, which labelled
+              a cover as a cover and told the reader nothing. This says the one
+              thing they could not otherwise know: it is a seller's photograph
+              of a used copy, not the publisher's artwork. */}
+          <span className="edition-cover-listing-badge">For sale copy</span>
+        </>
       ) : (
         <div
           className={`edition-cover-fallback status-${status ?? "missing"}`}

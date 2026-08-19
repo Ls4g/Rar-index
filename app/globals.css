@@ -209,6 +209,13 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 }
 .edition-cover { position: relative; overflow: hidden; background: linear-gradient(150deg, #2c2924, #4a453c); }
 .edition-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* A seller's photograph standing in for cover art that does not exist in any
+   licensed source. It is contained rather than cropped -- a listing photo is
+   shot at whatever angle and margin the seller chose, and cropping to fill
+   would cut the magazine in half -- and it sits on a neutral ground so it
+   never passes for publisher artwork. */
+.edition-cover.is-listing-photo img { object-fit: contain; background: #221f1b; }
+.edition-cover-listing-badge { position: absolute; right: .4rem; bottom: .4rem; z-index: 2; padding: .16rem .42rem; border-radius: .28rem; background: rgba(26,23,20,.82); color: rgba(244,240,232,.92); font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 /* Real artwork gets a printed-object edge: a warm hairline plus a hint of
    depth down the spine side, so a cover reads as a book rather than an
    image in a cell. Deliberately scoped to .has-image -- giving a

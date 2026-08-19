@@ -181,8 +181,58 @@ export async function POST(request: Request) {
     else attached.push(match);
   }
 
+  // Catalogued magazines get one too, shown where a cover would be. A
+  // magazine has no cover art in any licensed source, so without this its
+  // page is permanently blank where every book has a picture.
+  //
+  // It is never written to a cover column. cover_verification_status stays
+  // whatever it was -- 'missing', for every magazine -- so coverage figures
+  // stay honest and the rule excluding marketplace photos from cover
+  // verification is untouched.
+  const { data: editionData } = await admin
+    .from("manga_editions")
+    .select("id, volume_number, issue_year, issue_number_label, listing_photo_url, listing_photo_is_graded")
+    .eq("collectible_type", "zasshi")
+    .limit(200);
+
+  for (const record of editionData ?? []) {
+    const year = Number(record.issue_year);
+    const issueNumbers = splitIssueNumbers(String(record.issue_number_label ?? ""));
+    const label = record.volume_number ?? record.id;
+    if (!Number.isInteger(year) || !issueNumbers.length) continue;
+    // A raw photo already in place is left alone; a graded one is retried, so
+    // a slab gets replaced once a loose copy is listed.
+    if (record.listing_photo_url && record.listing_photo_is_graded === false) continue;
+
+    const queries = buildQueries(year, String(record.issue_number_label ?? ""), []);
+    const found: Attached[] = [];
+    for (const query of queries) {
+      if (found.some((entry) => !entry.graded)) break;
+      try {
+        const listings = await findActiveEbayListings(query, applicationToken);
+        for (const listing of listings) {
+          if (!listing.imageUrl || !confirmsIssue(listing.title, year, issueNumbers)) continue;
+          found.push({ issue: label, listingTitle: listing.title, imageUrl: listing.imageUrl, listingUrl: listing.url, graded: looksGraded(listing.title) });
+        }
+      } catch (error) {
+        errors.push(`${label}: ${error instanceof Error ? error.message : "eBay search failed"}`);
+      }
+    }
+    const chosen = found.find((entry) => !entry.graded) ?? found[0] ?? null;
+    if (!chosen) { unmatched.push(`${label} (catalogued)`); continue; }
+
+    const { error } = await admin.from("manga_editions").update({
+      listing_photo_url: chosen.imageUrl,
+      listing_photo_listing_url: chosen.listingUrl,
+      listing_photo_is_graded: chosen.graded,
+      listing_photo_captured_at: new Date().toISOString(),
+    }).eq("id", record.id);
+    if (error) errors.push(`${label}: ${error.message}`);
+    else attached.push(chosen);
+  }
+
   return Response.json({
-    checked: candidates.length,
+    checked: candidates.length + (editionData?.length ?? 0),
     attached: attached.length,
     // Reported so a run that could only find slabs is visible rather than
     // silently producing hard-to-read thumbnails.

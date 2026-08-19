@@ -188,7 +188,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id, magazine_title_id, issue_year, issue_number_label, cumulative_issue_no, madb_id"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id, magazine_title_id, issue_year, issue_number_label, cumulative_issue_no, madb_id, listing_photo_url, listing_photo_listing_url"
     )
     .eq("id", id)
     .maybeSingle();
@@ -495,7 +495,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <div aria-hidden="true" className="edition-stage-veil" />
         <div className="edition-hero-inner edition-stage-inner">
           <div className="edition-stage-book">
-            <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
+            <EditionCover listingPhotoUrl={edition.listing_photo_url} title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           </div>
           <div className="edition-stage-copy">
             <Link href="/" className="back-link">← Back to the index</Link>
