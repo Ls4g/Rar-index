@@ -1606,7 +1606,11 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
    bulleted. */
 .issue-lineup-list li::before { content: counter(lineup); color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .issue-lineup-work { color: var(--canvas-heading); font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
-.issue-lineup-creator { grid-column: 2; color: var(--muted); font-size: .78rem; }
+.issue-lineup-creator { grid-column: 2; display: flex; flex-wrap: wrap; gap: .1rem .5rem; color: var(--muted); font-size: .78rem; }
+/* The Japanese title stays beside the credit: the reader recognises the
+   romanisation, and every seller writes the original. */
+.issue-lineup-original { color: var(--muted); opacity: .85; }
+.issue-lineup-original::after { content: "·"; margin-left: .5rem; opacity: .6; }
 .issue-lineup-debut { grid-column: 3; grid-row: 1 / span 2; align-self: center; padding: .18rem .5rem; border-radius: .3rem; background: var(--action-soft); color: var(--action-dark); font-size: .62rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
 .issue-lineup-list li.is-debut .issue-lineup-work { color: var(--action-dark); }
 .issue-lineup-note { margin: 1rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.6; }

@@ -266,12 +266,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const { data: issueContentsData } = isMagazine
     ? await supabase
       .from("magazine_issue_contents")
-      .select("work_title, creator, content_kind, is_first_appearance, colour_note, page_start")
+      .select("work_title, work_title_en, creator, content_kind, is_first_appearance, colour_note, page_start")
       .eq("edition_id", edition.id)
       .order("display_order", { ascending: true })
     : { data: null };
   const issueContents = (issueContentsData ?? []) as Array<{
     work_title: string;
+    work_title_en: string | null;
     creator: string | null;
     content_kind: "story" | "cover" | "feature";
     is_first_appearance: boolean;
@@ -281,7 +282,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   // The cover feature is the same work as its lead chapter, so listing both
   // would print the headline series twice. The chapter carries the credit.
   const issueStories = issueContents.filter((entry) => entry.content_kind === "story");
-  const issueCoverWork = issueContents.find((entry) => entry.content_kind === "cover")?.work_title ?? null;
+  const issueCoverEntry = issueContents.find((entry) => entry.content_kind === "cover") ?? null;
+  const issueCoverWork = issueCoverEntry?.work_title ?? null;
+  const issueCoverWorkLabel = issueCoverEntry?.work_title_en ?? issueCoverEntry?.work_title ?? null;
   const issueFeatureCount = issueContents.filter((entry) => entry.content_kind === "feature").length;
 
   const magazinePages = magazineSource?.source_data?.madb?.pages ?? null;
@@ -650,14 +653,22 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <div className="issue-lineup">
                 <p className="issue-lineup-intro">
                   {issueStories.length} serialised {issueStories.length === 1 ? "chapter" : "chapters"} ran in this issue
-                  {issueCoverWork ? <> · cover feature <strong>{issueCoverWork}</strong></> : null}
+                  {issueCoverWork ? <> · cover feature <strong>{issueCoverWorkLabel}</strong></> : null}
                   {issueFeatureCount ? <> · {issueFeatureCount} other {issueFeatureCount === 1 ? "page" : "pages"}</> : null}
                 </p>
                 <ol className="issue-lineup-list">
                   {issueStories.map((entry) => (
                     <li className={entry.is_first_appearance ? "is-debut" : undefined} key={`${entry.work_title}-${entry.page_start ?? "x"}`}>
-                      <span className="issue-lineup-work">{entry.work_title}</span>
-                      {entry.creator ? <span className="issue-lineup-creator">{entry.creator}</span> : null}
+                      {/* Romanised where one is known, the Japanese title kept
+                          underneath. Both are useful: the reader recognises one
+                          and every seller writes the other. Where no
+                          romanisation was found the Japanese title stands
+                          alone rather than being guessed at. */}
+                      <span className="issue-lineup-work">{entry.work_title_en ?? entry.work_title}</span>
+                      <span className="issue-lineup-creator">
+                        {entry.work_title_en && entry.work_title_en !== entry.work_title ? <span className="issue-lineup-original">{entry.work_title}</span> : null}
+                        {entry.creator}
+                      </span>
                       {entry.is_first_appearance ? <span className="issue-lineup-debut">First appearance</span> : null}
                     </li>
                   ))}
