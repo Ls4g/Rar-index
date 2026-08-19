@@ -258,6 +258,32 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const magazineSource = isMagazine ? sourceLinks.find((source) => source.source_data) : null;
   const firstAppearances = [...new Set(magazineSource?.source_data?.derived_first_appearances?.filter(Boolean) ?? [])];
   const recognisedSeries = [...new Set(magazineSource?.source_data?.catalogue_series_matched?.filter(Boolean) ?? [])];
+  // What the issue actually contained, imported from the Media Arts Database
+  // by scripts/import-magazine-contents.mjs. A magazine's whole claim on a
+  // collector is its table of contents: the 1984 issue that matters is the one
+  // carrying chapter 1 of Dragon Ball, and nothing else about the record says
+  // so. Catalogue facts only -- these never touch a price.
+  const { data: issueContentsData } = isMagazine
+    ? await supabase
+      .from("magazine_issue_contents")
+      .select("work_title, creator, content_kind, is_first_appearance, colour_note, page_start")
+      .eq("edition_id", edition.id)
+      .order("display_order", { ascending: true })
+    : { data: null };
+  const issueContents = (issueContentsData ?? []) as Array<{
+    work_title: string;
+    creator: string | null;
+    content_kind: "story" | "cover" | "feature";
+    is_first_appearance: boolean;
+    colour_note: string | null;
+    page_start: number | null;
+  }>;
+  // The cover feature is the same work as its lead chapter, so listing both
+  // would print the headline series twice. The chapter carries the credit.
+  const issueStories = issueContents.filter((entry) => entry.content_kind === "story");
+  const issueCoverWork = issueContents.find((entry) => entry.content_kind === "cover")?.work_title ?? null;
+  const issueFeatureCount = issueContents.filter((entry) => entry.content_kind === "feature").length;
+
   const magazinePages = magazineSource?.source_data?.madb?.pages ?? null;
   const originalCoverPriceYen = magazineSource?.source_data?.madb?.cover_price_yen ?? null;
   const observedSales = (observedSalesResult.data ?? []) as ObservedSaleRow[];
@@ -617,6 +643,30 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <strong>{magazineSubjectLabel}</strong>
               <p>This is the Weekly Shonen Jump issue where {magazineSubjectLabel} first appeared in serial form. That debut makes the original issue a distinct historical collectible, separate from later collected volumes and reprints.</p>
             </div>
+            {/* The line-up is the argument. A debut sentence says this issue
+                matters; the contents show what a reader in December 1984
+                actually held, which is what a collector is buying. */}
+            {issueStories.length ? (
+              <div className="issue-lineup">
+                <p className="issue-lineup-intro">
+                  {issueStories.length} serialised {issueStories.length === 1 ? "chapter" : "chapters"} ran in this issue
+                  {issueCoverWork ? <> · cover feature <strong>{issueCoverWork}</strong></> : null}
+                  {issueFeatureCount ? <> · {issueFeatureCount} other {issueFeatureCount === 1 ? "page" : "pages"}</> : null}
+                </p>
+                <ol className="issue-lineup-list">
+                  {issueStories.map((entry) => (
+                    <li className={entry.is_first_appearance ? "is-debut" : undefined} key={`${entry.work_title}-${entry.page_start ?? "x"}`}>
+                      <span className="issue-lineup-work">{entry.work_title}</span>
+                      {entry.creator ? <span className="issue-lineup-creator">{entry.creator}</span> : null}
+                      {entry.is_first_appearance ? <span className="issue-lineup-debut">First appearance</span> : null}
+                    </li>
+                  ))}
+                </ol>
+                <p className="issue-lineup-note">
+                  Contents as recorded by the Media Arts Database. Catalogue facts describing the issue — never a price or an estimate of one.
+                </p>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
