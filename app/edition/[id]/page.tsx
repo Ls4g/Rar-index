@@ -126,6 +126,12 @@ function signalLabel(verifiedSales: number, verifiedSources: number) {
   return "Early evidence";
 }
 
+// The source writes "DRAGON　BALL" with a full-width space, so a title can
+// differ from its own English name by whitespace alone and get printed twice.
+function tidySpacing(value: string | null | undefined) {
+  return String(value ?? "").replace(/[　\s]+/g, " ").trim();
+}
+
 function readableType(value: string | null) {
   if (!value || value === "tankobon") return "Tankōbon / volume";
   if (value === "zasshi") return "Magazine issue / zasshi";
@@ -650,11 +656,19 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 matters; the contents show what a reader in December 1984
                 actually held, which is what a collector is buying. */}
             {issueStories.length ? (
-              <div className="issue-lineup">
+              /* Folded away by default. Fifteen chapters is the argument for
+                 the issue, not the first thing to read: the debut card above
+                 says why it matters, and this is there for anyone who wants
+                 the detail. A native disclosure needs no client JS and works
+                 before hydration. */
+              <details className="issue-lineup">
+                <summary>
+                  See the full line-up
+                  <span>{issueStories.length} chapters{issueCoverWork ? ` · cover: ${issueCoverWorkLabel}` : ""}</span>
+                </summary>
                 <p className="issue-lineup-intro">
-                  {issueStories.length} serialised {issueStories.length === 1 ? "chapter" : "chapters"} ran in this issue
-                  {issueCoverWork ? <> · cover feature <strong>{issueCoverWorkLabel}</strong></> : null}
-                  {issueFeatureCount ? <> · {issueFeatureCount} other {issueFeatureCount === 1 ? "page" : "pages"}</> : null}
+                  Everything serialised in this issue, in the order it was printed
+                  {issueFeatureCount ? <> · {issueFeatureCount} other {issueFeatureCount === 1 ? "page" : "pages"} not listed</> : null}
                 </p>
                 <ol className="issue-lineup-list">
                   {issueStories.map((entry) => (
@@ -664,9 +678,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                           and every seller writes the other. Where no
                           romanisation was found the Japanese title stands
                           alone rather than being guessed at. */}
-                      <span className="issue-lineup-work">{entry.work_title_en ?? entry.work_title}</span>
+                      <span className="issue-lineup-work">{tidySpacing(entry.work_title_en ?? entry.work_title)}</span>
                       <span className="issue-lineup-creator">
-                        {entry.work_title_en && entry.work_title_en !== entry.work_title ? <span className="issue-lineup-original">{entry.work_title}</span> : null}
+                        {entry.work_title_en && tidySpacing(entry.work_title_en) !== tidySpacing(entry.work_title) ? <span className="issue-lineup-original">{tidySpacing(entry.work_title)}</span> : null}
                         {entry.creator}
                       </span>
                       {entry.is_first_appearance ? <span className="issue-lineup-debut">First appearance</span> : null}
@@ -676,7 +690,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 <p className="issue-lineup-note">
                   Contents as recorded by the Media Arts Database. Catalogue facts describing the issue — never a price or an estimate of one.
                 </p>
-              </div>
+              </details>
             ) : null}
           </section>
         ) : null}

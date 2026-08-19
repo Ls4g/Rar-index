@@ -1,11 +1,9 @@
 // Finds a readable name for each Japanese work title in a magazine's contents.
 //
-// Romanised Japanese first, English second. Collectors and sellers write
-// "Hokuto no Ken", not "Fist of the North Star", and an eBay search finds the
-// former. Where neither exists this writes nothing and the page shows the
-// Japanese title alone -- a guessed name is worse than an honest one. MangaDex
-// offers "Man's Hill" for 男坂, a literal translation nobody uses, against the
-// romanisation "Otokozaka" that everybody does.
+// English first, romanised Japanese second. The page exists so a reader does
+// not have to decode a Japanese title themselves, so the recognisable name
+// wins. Where neither exists this writes nothing and the Japanese title stands
+// alone rather than being guessed at.
 //
 // Source: MangaDex, already registered in RAR's sources at community trust.
 // Nothing here is evidence and nothing affects a price; it is a display name.
@@ -58,9 +56,28 @@ function stripQualifier(value) {
   return String(value ?? "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 }
 
+// Several titles carry their own Latin form beside the Japanese, because the
+// publisher printed both: "シェイプアップ乱 SHAPE UP RAN", "WING-MAN ウィングマン".
+// That is the English name straight from the source, so it needs no lookup and
+// cannot be wrong.
+function latinPortion(value) {
+  const runs = String(value ?? "").match(/[A-Za-z][A-Za-z0-9'’&.\-! ]{2,}/g) ?? [];
+  // A Latin run has to look like a title rather than a fragment of one:
+  // "ガクエン情報部HIP" ends in "HIP", which is part of the name and not the
+  // name. Multi-word, or long enough to stand on its own.
+  const best = runs
+    .map((run) => run.trim())
+    .filter((run) => run.includes(" ") || run.replace(/[^A-Za-z]/g, "").length >= 6)
+    .sort((a, b) => b.length - a.length)[0];
+  return best ?? null;
+}
+
 async function resolve(workTitle) {
   const { base, suffix } = splitPartSuffix(workTitle);
   if (isAlreadyLatin(base)) return { name: [base, suffix].filter(Boolean).join(" "), source: "source record" };
+
+  const printed = latinPortion(base);
+  if (printed) return { name: [printed, suffix].filter(Boolean).join(" "), source: "source record (printed Latin title)" };
 
   const url = `https://api.mangadex.org/manga?title=${encodeURIComponent(base)}&limit=6&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
   const response = await fetch(url);
@@ -73,11 +90,14 @@ async function resolve(workTitle) {
     const attributes = entry.attributes;
     const every = [...Object.values(attributes.title ?? {}), ...(attributes.altTitles ?? []).flatMap((alt) => Object.values(alt))];
     if (!every.some((value) => normalise(value) === normalise(base))) continue;
-    const romaji = stripQualifier(pick(attributes, "ja-ro") ?? pick(attributes, "ja_ro"));
     const english = stripQualifier(pick(attributes, "en"));
-    const chosen = romaji || english;
+    const romaji = stripQualifier(pick(attributes, "ja-ro") ?? pick(attributes, "ja_ro"));
+    // English wins. The whole point of the column is that a reader should not
+    // have to decode the title themselves, so the name they would recognise
+    // beats the one a seller types. Romanisation is only the fallback.
+    const chosen = english || romaji;
     if (!chosen) continue;
-    return { name: [chosen, suffix].filter(Boolean).join(" "), source: romaji ? "MangaDex (romanised)" : "MangaDex (English)" };
+    return { name: [chosen, suffix].filter(Boolean).join(" "), source: english ? "MangaDex (English)" : "MangaDex (romanised)" };
   }
   return { name: null, source: null };
 }

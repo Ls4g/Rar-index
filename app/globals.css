@@ -1595,7 +1595,17 @@ a.observed-sale:hover, .source-card:hover { border-color: var(--orange); backgro
    no cover, so the contents are the only thing on the page with any texture --
    they are set as a running order rather than a data table, because that is
    what a reader in 1984 actually held. */
-.issue-lineup { max-width: 820px; margin-top: 1.5rem; }
+.issue-lineup { max-width: 820px; margin-top: 1.25rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--surface-card); }
+.issue-lineup > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; padding: .85rem 1.1rem; color: var(--canvas-heading); cursor: pointer; font-size: .85rem; font-weight: 700; list-style: none; }
+.issue-lineup > summary::-webkit-details-marker { display: none; }
+.issue-lineup > summary::after { content: "▾"; margin-left: auto; color: var(--muted); font-size: .7rem; transition: transform .15s ease; }
+.issue-lineup[open] > summary::after { transform: rotate(180deg); }
+.issue-lineup > summary span { color: var(--muted); font-size: .76rem; font-weight: 500; }
+.issue-lineup > summary:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; border-radius: .7rem; }
+.issue-lineup[open] > summary { border-bottom: 1px solid var(--line); }
+.issue-lineup > *:not(summary) { padding-inline: 1.1rem; }
+.issue-lineup > *:last-child { padding-bottom: 1.1rem; }
+@media (prefers-reduced-motion: reduce) { .issue-lineup > summary::after { transition: none; } }
 .issue-lineup-intro { margin: 0 0 .9rem; color: var(--muted); font-size: .85rem; line-height: 1.6; }
 .issue-lineup-intro strong { color: var(--canvas-heading); font-weight: 700; }
 .issue-lineup-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: lineup; }
