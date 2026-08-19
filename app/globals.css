@@ -2399,3 +2399,11 @@ html[data-theme="day"] .public-page {
   .agent-daily-briefing { grid-template-columns: 1fr; }
   .agent-executed-list article { align-items: flex-start; flex-direction: column; }
 }
+
+/* The magazine photo action sits at the top of the cover queue, where someone
+   looking for a missing cover will actually be. It explains itself because the
+   thing it produces is deliberately not a cover, and a bare button there would
+   read as "fix these", which it cannot do. */
+.catalogue-photo-action { display: grid; gap: .5rem; margin-bottom: 1.5rem; padding: 1rem 1.15rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--surface-card); }
+.catalogue-photo-action button { justify-self: start; }
+.catalogue-photo-note { max-width: 70ch; margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.6; }

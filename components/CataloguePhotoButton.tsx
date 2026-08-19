@@ -50,10 +50,13 @@ export default function CataloguePhotoButton() {
   }
 
   return (
-    <div className="community-report-actions">
+    <div className="community-report-actions catalogue-photo-action">
       <button type="button" disabled={working} onClick={fetchPhotos}>
-        {working ? "Looking for copies…" : "Find photos of these issues"}
+        {working ? "Looking for copies…" : "Find photos of magazine issues"}
       </button>
+      <p className="catalogue-photo-note">
+        Magazine cover art is copyrighted and appears in no licensed catalogue, so these issues can never get a verified cover here. This finds a photograph of a copy currently on sale and shows it in the cover slot, badged “For sale copy”. It is not a cover and does not clear anything from this queue.
+      </p>
       {message ? <p role="status">{message}</p> : null}
     </div>
   );

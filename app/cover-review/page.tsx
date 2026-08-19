@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import CataloguePhotoButton from "@/components/CataloguePhotoButton";
 import CoverReviewClient, { type CoverCandidateRow, type CoverQueueRow } from "@/components/CoverReviewClient";
 import StaffNav from "@/components/StaffNav";
 
@@ -187,6 +188,14 @@ export default async function CoverReviewPage({
         <div className="queue-total"><strong>{queueRows.length}</strong><span>editions without a verified cover</span></div>
       </section>
       <section className="catalogue-content">
+        {/* Magazines can never reach this queue's normal conclusion. Cover
+            discovery searches by ISBN and a magazine has none, and no licensed
+            source publishes Jump cover art at all -- so a magazine issue sits
+            here permanently with nothing to review. This fetches a photograph
+            of a copy on sale instead, shown in the cover slot under a "For
+            sale copy" badge. It is not a cover and does not clear anything
+            from this queue; it only stops the page being blank. */}
+        <CataloguePhotoButton />
         <CoverReviewClient rows={queueRows} focusedRow={focusedRow} candidates={candidates} />
       </section>
     </main>
