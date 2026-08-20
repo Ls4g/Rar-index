@@ -11,7 +11,7 @@ export default async function AgentControlPage() {
     admin.from("agent_system_control").select("global_paused,pause_reason,autonomy_level").eq("singleton", true).maybeSingle(),
     admin.from("agent_controls").select("agent_key,display_name,mission,mode,is_paused,schedule_label").order("created_at"),
     admin.from("agent_runs").select("id,agent_key,status,trigger_source,summary,metrics,error_message,started_at").order("started_at", { ascending: false }).limit(100),
-    admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,status,created_at").neq("action_type", "suggest_print_classification").in("status", ["proposed", "approved", "executed"]).order("created_at", { ascending: false }).limit(100),
+    admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,status,evidence,proposed_payload,created_at").neq("action_type", "suggest_print_classification").in("status", ["proposed", "approved", "executed"]).order("created_at", { ascending: false }).limit(100),
   ]);
   const setupError = systemResult.error || controlsResult.error || runsResult.error || actionsResult.error;
 

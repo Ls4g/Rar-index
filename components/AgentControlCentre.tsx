@@ -30,7 +30,16 @@ type Action = {
   rationale: string;
   confidence: number | null;
   status: string;
+  evidence: Record<string, unknown> | null;
+  proposed_payload: Record<string, unknown> | null;
   created_at: string;
+};
+
+type FeedbackExample = {
+  leadId: string;
+  listingTitle: string;
+  editionLabel: string;
+  score: number;
 };
 
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
@@ -47,7 +56,25 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   review_community_reports: { href: "/community-reports", label: "Open community reports" },
   resolve_readiness_bottleneck: { href: "/data-readiness", label: "Open readiness queue" },
   investigate_agent_failures: { href: "/agents#run-log", label: "Open run history" },
+  review_scout_feedback_conflicts: { href: "/scout", label: "Inspect Scout examples" },
+  review_scout_feedback_recall: { href: "/scout", label: "Inspect Scout examples" },
+  review_scout_feedback_precision: { href: "/scout", label: "Inspect Scout examples" },
 };
+
+const FEEDBACK_ACTIONS = new Set([
+  "review_scout_feedback_conflicts",
+  "review_scout_feedback_recall",
+  "review_scout_feedback_precision",
+]);
+
+function isFeedbackAction(action: Action) {
+  return FEEDBACK_ACTIONS.has(action.action_type);
+}
+
+function feedbackExamples(action: Action): FeedbackExample[] {
+  const examples = action.evidence?.examples;
+  return Array.isArray(examples) ? examples as FeedbackExample[] : [];
+}
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -135,6 +162,7 @@ export default function AgentControlCentre({
   const lastRun = new Map<string, Run>();
   for (const run of runs) if (!lastRun.has(run.agent_key)) lastRun.set(run.agent_key, run);
   const proposed = actions.filter((action) => action.status === "proposed");
+  const plannedFeedback = actions.filter((action) => action.status === "approved" && isFeedbackAction(action));
   const executed = actions.filter((action) => action.status === "executed").slice(0, 10);
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
   const marketScoutRun = runs.find((run) => run.agent_key === "market_scout");
@@ -143,6 +171,11 @@ export default function AgentControlCentre({
   const evidenceReviewCount = (evidenceRun?.metrics?.sales_needing_review ?? 0)
     + (evidenceRun?.metrics?.printing_suggestions_open ?? 0)
     + (evidenceRun?.metrics?.community_reports_pending ?? 0);
+  const feedbackDecisions = marketScoutRun?.metrics?.feedback_human_decisions ?? 0;
+  const feedbackAligned = marketScoutRun?.metrics?.feedback_aligned ?? 0;
+  const feedbackExceptions = (marketScoutRun?.metrics?.feedback_watched_below_review ?? 0)
+    + (marketScoutRun?.metrics?.feedback_watched_conflicts ?? 0)
+    + (marketScoutRun?.metrics?.feedback_dismissed_still_plausible ?? 0);
 
   return (
     <div className="agent-control-content">
@@ -175,11 +208,26 @@ export default function AgentControlCentre({
         <p>{message || "Saved on this device and attached to every manual agent action."}</p>
       </section>
 
+      <section className="agent-feedback-panel">
+        <div className="agent-feedback-copy">
+          <p className="eyebrow">Controlled learning</p>
+          <h2>Staff decisions improve the rules safely</h2>
+          <p>Market Scout compares the latest human Watch and Dismiss decisions with its current score. It can suggest a pattern to investigate, but it cannot change a rule, dismiss a lead, or verify a sale from feedback.</p>
+        </div>
+        <div className="agent-feedback-metrics">
+          <span><b>{feedbackDecisions}</b>human decisions analysed</span>
+          <span><b>{feedbackAligned}</b>agree with current rules</span>
+          <span><b>{feedbackExceptions}</b>exceptions to inspect</span>
+        </div>
+        {plannedFeedback.length ? <div className="agent-feedback-planned"><strong>Approved investigations</strong>{plannedFeedback.map((action) => <span key={action.id}>{action.title}</span>)}</div> : null}
+      </section>
+
       <section className="agent-proposals" id="agent-recommendations">
         <div className="section-intro"><p className="eyebrow">Your decision</p><h2>Recommended work</h2><p className="section-copy">Open the relevant queue when the suggestion is useful. Approving a plan never verifies or publishes data.</p></div>
         {proposed.length ? <div className="agent-proposal-list">{proposed.map((action) => {
           const workQueue = ACTION_LINKS[action.action_type];
-          return <article key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p><small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved" })} type="button">Mark planned</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
+          const examples = feedbackExamples(action);
+          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved" })} type="button">{isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
       </section>
 

@@ -4,6 +4,7 @@ import { stageCatalogueCandidates, type CatalogueCuratorResult } from "@/lib/cat
 import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
+import { analyseLiveScoutFeedback, type ScoutFeedbackAnalysis } from "@/lib/scoutFeedback";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 
 type TriggerSource = "manual" | "schedule" | "system";
@@ -211,6 +212,7 @@ export async function runAgentObservation(
     let catalogueDiscoveryResult: CatalogueCuratorResult | null = null;
     let safeActionResult: AutoTriageResult | null = null;
     let availabilityResult: ScoutAvailabilityResult | null = null;
+    let feedbackResult: ScoutFeedbackAnalysis | null = null;
     let printingSuggestionResult: PrintingSuggestionRun | null = null;
     const autonomyLevel = Number(system?.autonomy_level ?? 1);
     if (agentKey === "catalogue_curator" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
@@ -287,6 +289,9 @@ export async function runAgentObservation(
         if (actionError) throw new Error(`Market Scout could not audit its availability refresh: ${actionError.message}`);
       }
     }
+    if (agentKey === "market_scout") {
+      feedbackResult = await analyseLiveScoutFeedback(admin);
+    }
     if (agentKey === "evidence_auditor" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
       printingSuggestionResult = await preparePrintingEvidenceSuggestions(admin, run.id);
     }
@@ -315,6 +320,16 @@ export async function runAgentObservation(
       metrics.availability_inconclusive = availabilityResult.inconclusive;
       metrics.availability_race_protected = availabilityResult.protectedByRace;
     }
+    if (feedbackResult) {
+      metrics.feedback_human_decisions = feedbackResult.humanDecisions;
+      metrics.feedback_watched = feedbackResult.watched;
+      metrics.feedback_dismissed = feedbackResult.dismissed;
+      metrics.feedback_aligned = feedbackResult.aligned;
+      metrics.feedback_watched_below_review = feedbackResult.watchedBelowReview.length;
+      metrics.feedback_watched_conflicts = feedbackResult.watchedConflicts.length;
+      metrics.feedback_dismissed_still_plausible = feedbackResult.dismissedStillPlausible.length;
+      metrics.feedback_suggestions = feedbackResult.proposals.length;
+    }
     if (printingSuggestionResult) {
       metrics.printing_suggestions_examined = printingSuggestionResult.examined;
       metrics.printing_suggestions_eligible = printingSuggestionResult.eligible;
@@ -324,7 +339,13 @@ export async function runAgentObservation(
       metrics.printing_suggestions_later_print = printingSuggestionResult.laterPrint;
       metrics.printing_suggestions_ambiguous = printingSuggestionResult.ambiguous;
     }
-    const plan = planAgentActions(agentKey, metrics);
+    const planned = planAgentActions(agentKey, metrics);
+    const plan = feedbackResult && feedbackResult.proposals.length
+      ? {
+          summary: `${planned.summary} Scout compared ${feedbackResult.humanDecisions} human decisions with the current scorer and found ${feedbackResult.proposals.length} repeated pattern${feedbackResult.proposals.length === 1 ? "" : "s"} worth investigating.`,
+          proposals: [...planned.proposals, ...feedbackResult.proposals],
+        }
+      : planned;
     const proposalResult = await reconcileAgentProposals(admin, agentKey, run.id, plan.proposals);
     const finalMetrics = {
       ...metrics,
