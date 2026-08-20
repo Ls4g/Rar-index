@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
+import { isScoutLearningLabel, learningLabelFitsDecision } from "@/lib/scoutDecisionLabels";
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -33,13 +34,13 @@ async function applyDecisions(
 
 // Accepts either one lead (leadId, unchanged single-decision shape) or many
 // (leadIds, for the inbox's "Watch selected" / "Dismiss selected" bulk
-// actions). Both paths call the same apply_scout_lead_decision RPC once per
-// lead, so every decision — bulk or not — gets its own auditable
-// scout_lead_decisions row and the same reviewer/notes validation. Nothing
-// here can verify a lead; only "watching" or "dismissed" are valid.
+// actions). Both paths call the same labelled decision RPC once per lead, so
+// every decision - bulk or not - gets its own auditable Scout decision row.
+// The optional label is evaluation evidence only. Nothing here can verify a
+// lead; only "watching" or "dismissed" are valid.
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
-  let payload: { leadId?: unknown; leadIds?: unknown; decision?: unknown; reviewer?: unknown; notes?: unknown };
+  let payload: { leadId?: unknown; leadIds?: unknown; decision?: unknown; reviewer?: unknown; notes?: unknown; learningLabel?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -53,9 +54,13 @@ export async function POST(request: Request) {
   const decision = clean(payload.decision);
   const reviewer = clean(payload.reviewer);
   const notes = clean(payload.notes);
+  const learningLabel = clean(payload.learningLabel);
 
   if (!leadIds.length || !["watching", "dismissed"].includes(decision) || !reviewer) {
     return Response.json({ error: "Choose watch or dismiss for at least one lead, then identify the reviewer." }, { status: 400 });
+  }
+  if (learningLabel && (!isScoutLearningLabel(learningLabel) || !learningLabelFitsDecision(learningLabel, decision))) {
+    return Response.json({ error: "Choose a learning reason that matches the Scout decision." }, { status: 400 });
   }
 
   const admin = getSupabaseAdmin();
@@ -80,11 +85,12 @@ export async function POST(request: Request) {
     ...protectedResults,
     ...await applyDecisions(eligibleLeadIds, async (leadId) => {
     try {
-      const { error } = await admin.rpc("apply_scout_lead_decision", {
+      const { error } = await admin.rpc("apply_scout_lead_decision_with_label", {
         p_lead_id: leadId,
         p_decision: decision,
         p_decision_notes: notes,
         p_reviewed_by: reviewer,
+        p_learning_label: learningLabel || null,
       });
       return { leadId, ok: !error, error: error?.message };
     } catch {

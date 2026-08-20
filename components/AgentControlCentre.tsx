@@ -59,12 +59,18 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   review_scout_feedback_conflicts: { href: "/scout", label: "Inspect Scout examples" },
   review_scout_feedback_recall: { href: "/scout", label: "Inspect Scout examples" },
   review_scout_feedback_precision: { href: "/scout", label: "Inspect Scout examples" },
+  shadow_test_first_print_proof_gate: { href: "/scout", label: "Inspect labelled examples" },
+  shadow_test_multi_volume_detection: { href: "/scout", label: "Inspect labelled examples" },
+  shadow_test_edition_conflicts: { href: "/scout", label: "Inspect labelled examples" },
 };
 
 const FEEDBACK_ACTIONS = new Set([
   "review_scout_feedback_conflicts",
   "review_scout_feedback_recall",
   "review_scout_feedback_precision",
+  "shadow_test_first_print_proof_gate",
+  "shadow_test_multi_volume_detection",
+  "shadow_test_edition_conflicts",
 ]);
 
 function isFeedbackAction(action: Action) {
@@ -173,6 +179,7 @@ export default function AgentControlCentre({
     + (evidenceRun?.metrics?.community_reports_pending ?? 0);
   const feedbackDecisions = marketScoutRun?.metrics?.feedback_human_decisions ?? 0;
   const feedbackAligned = marketScoutRun?.metrics?.feedback_aligned ?? 0;
+  const feedbackLabelled = marketScoutRun?.metrics?.feedback_labelled_decisions ?? 0;
   const feedbackExceptions = (marketScoutRun?.metrics?.feedback_watched_below_review ?? 0)
     + (marketScoutRun?.metrics?.feedback_watched_conflicts ?? 0)
     + (marketScoutRun?.metrics?.feedback_dismissed_still_plausible ?? 0);
@@ -212,11 +219,12 @@ export default function AgentControlCentre({
         <div className="agent-feedback-copy">
           <p className="eyebrow">Controlled learning</p>
           <h2>Staff decisions improve the rules safely</h2>
-          <p>Market Scout compares the latest human Watch and Dismiss decisions with its current score. It can suggest a pattern to investigate, but it cannot change a rule, dismiss a lead, or verify a sale from feedback.</p>
+          <p>Market Scout compares human Watch and Dismiss decisions with its current score. Optional reason labels teach it why, while every experiment stays in shadow mode until a tested rule is separately approved.</p>
         </div>
         <div className="agent-feedback-metrics">
           <span><b>{feedbackDecisions}</b>human decisions analysed</span>
           <span><b>{feedbackAligned}</b>agree with current rules</span>
+          <span><b>{feedbackLabelled}</b>include a reason label</span>
           <span><b>{feedbackExceptions}</b>exceptions to inspect</span>
         </div>
         {plannedFeedback.length ? <div className="agent-feedback-planned"><strong>Approved investigations</strong>{plannedFeedback.map((action) => <span key={action.id}>{action.title}</span>)}</div> : null}

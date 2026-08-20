@@ -325,9 +325,12 @@ export async function runAgentObservation(
       metrics.feedback_watched = feedbackResult.watched;
       metrics.feedback_dismissed = feedbackResult.dismissed;
       metrics.feedback_aligned = feedbackResult.aligned;
+      metrics.feedback_labelled_decisions = feedbackResult.labelledDecisions;
+      metrics.feedback_label_coverage_percent = feedbackResult.labelCoveragePercent;
       metrics.feedback_watched_below_review = feedbackResult.watchedBelowReview.length;
       metrics.feedback_watched_conflicts = feedbackResult.watchedConflicts.length;
       metrics.feedback_dismissed_still_plausible = feedbackResult.dismissedStillPlausible.length;
+      metrics.feedback_scorer_relevant_dismissals = feedbackResult.scorerRelevantDismissals.length;
       metrics.feedback_suggestions = feedbackResult.proposals.length;
     }
     if (printingSuggestionResult) {

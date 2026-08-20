@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentProposal } from "./agentPlanning.ts";
+import { learningLabelName, type ScoutLearningLabel } from "./scoutDecisionLabels.ts";
 import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
 
 const AUTOMATED_REVIEWERS = new Set([
@@ -9,12 +10,14 @@ const AUTOMATED_REVIEWERS = new Set([
 ]);
 
 export type HumanScoutDecision = {
+  decisionId?: string;
   leadId: string;
   decision: "watching" | "dismissed";
   reviewer: string;
   decidedAt: string;
   listingTitle: string;
   edition: ScoutEdition;
+  learningLabel?: ScoutLearningLabel | null;
 };
 
 export type ScoutFeedbackExample = {
@@ -26,6 +29,8 @@ export type ScoutFeedbackExample = {
   score: number;
   confidence: string;
   conflicts: string[];
+  learningLabel: ScoutLearningLabel | null;
+  learningReason: string | null;
 };
 
 export type ScoutFeedbackAnalysis = {
@@ -33,9 +38,13 @@ export type ScoutFeedbackAnalysis = {
   watched: number;
   dismissed: number;
   aligned: number;
+  labelledDecisions: number;
+  labelCoveragePercent: number;
+  labelCounts: Partial<Record<ScoutLearningLabel, number>>;
   watchedBelowReview: ScoutFeedbackExample[];
   watchedConflicts: ScoutFeedbackExample[];
   dismissedStillPlausible: ScoutFeedbackExample[];
+  scorerRelevantDismissals: ScoutFeedbackExample[];
   proposals: AgentProposal[];
 };
 
@@ -54,6 +63,18 @@ type DecisionRow = {
   } | null;
 };
 
+type LabelRow = {
+  decision_id: string;
+  label: ScoutLearningLabel;
+};
+
+const NON_SCORER_DISMISSALS = new Set<ScoutLearningLabel>([
+  "graded_not_raw",
+  "duplicate_listing",
+  "unavailable",
+  "poor_value",
+]);
+
 function editionLabel(edition: ScoutEdition) {
   return [edition.series ?? edition.title, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language]
     .filter(Boolean)
@@ -71,6 +92,8 @@ function exampleFor(decision: HumanScoutDecision): ScoutFeedbackExample {
     score: assessment.score,
     confidence: assessment.confidence,
     conflicts: assessment.conflicts,
+    learningLabel: decision.learningLabel ?? null,
+    learningReason: learningLabelName(decision.learningLabel),
   };
 }
 
@@ -116,16 +139,51 @@ function feedbackProposal(
   };
 }
 
+function shadowProposal(
+  actionType: string,
+  dedupeKey: string,
+  title: string,
+  rationale: string,
+  examples: ScoutFeedbackExample[],
+  candidateRule: string,
+): AgentProposal {
+  return {
+    actionType,
+    targetType: "scout_lead_decisions",
+    dedupeKey,
+    title,
+    rationale,
+    riskLevel: "low",
+    confidence: Math.min(0.95, 0.65 + examples.length / 100),
+    evidence: evidence(examples, examples.length),
+    proposedPayload: {
+      operation: "run_shadow_evaluation",
+      mode: "shadow_only",
+      candidate_rule: candidateRule,
+      automatic_rule_change: false,
+      requires_human_approval: true,
+      production_effect: "none",
+    },
+  };
+}
+
 export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeedbackAnalysis {
   const watchedBelowReview: ScoutFeedbackExample[] = [];
   const watchedConflicts: ScoutFeedbackExample[] = [];
   const dismissedStillPlausible: ScoutFeedbackExample[] = [];
+  const scorerRelevantDismissals: ScoutFeedbackExample[] = [];
+  const labelCounts: Partial<Record<ScoutLearningLabel, number>> = {};
   let watched = 0;
   let dismissed = 0;
   let aligned = 0;
+  let labelledDecisions = 0;
 
   for (const decision of decisions) {
     const item = exampleFor(decision);
+    if (item.learningLabel) {
+      labelledDecisions += 1;
+      labelCounts[item.learningLabel] = (labelCounts[item.learningLabel] ?? 0) + 1;
+    }
     if (decision.decision === "watching") {
       watched += 1;
       if (item.confidence === "conflict") watchedConflicts.push(item);
@@ -135,7 +193,10 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeed
     }
 
     dismissed += 1;
-    if (item.confidence !== "conflict" && item.score >= 50) dismissedStillPlausible.push(item);
+    if (item.confidence !== "conflict" && item.score >= 50) {
+      dismissedStillPlausible.push(item);
+      if (!item.learningLabel || !NON_SCORER_DISMISSALS.has(item.learningLabel)) scorerRelevantDismissals.push(item);
+    }
     else aligned += 1;
   }
 
@@ -160,14 +221,50 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeed
       Math.min(0.99, 0.75 + watchedBelowReview.length / 100),
     ));
   }
-  if (dismissedStillPlausible.length >= 5) {
+  if (scorerRelevantDismissals.length >= 5) {
     proposals.push(feedbackProposal(
       "review_scout_feedback_precision",
       "scout:feedback:dismissed-plausible:v1",
-      `Investigate ${dismissedStillPlausible.length} plausible leads staff dismissed`,
-      "Repeated dismissals among leads scoring 50 or higher may reveal a missing negative signal or an over-broad search profile. Dismissal reasons can include availability or desirability, so no rule should change without inspecting the source examples.",
-      dismissedStillPlausible,
-      Math.min(0.99, 0.7 + dismissedStillPlausible.length / 100),
+      `Investigate ${scorerRelevantDismissals.length} plausible leads staff dismissed`,
+      "Repeated dismissals among leads scoring 50 or higher may reveal a missing negative edition signal or an over-broad search profile. Labels unrelated to edition matching are excluded from this pattern.",
+      scorerRelevantDismissals,
+      Math.min(0.99, 0.7 + scorerRelevantDismissals.length / 100),
+    ));
+  }
+
+  const printingProofExamples = scorerRelevantDismissals.filter((item) => item.learningLabel === "printing_unproven");
+  if (printingProofExamples.length >= 3) {
+    proposals.push(shadowProposal(
+      "shadow_test_first_print_proof_gate",
+      "scout:shadow:first-print-proof:v1",
+      `Shadow-test first-print proof against ${printingProofExamples.length} labelled decisions`,
+      "Staff repeatedly dismissed otherwise plausible listings because first-print status was not proven. Measure a stricter proof gate against historical decisions before considering any production change.",
+      printingProofExamples,
+      "Require explicit first-print wording or stronger printing evidence before assigning a strong first-print match.",
+    ));
+  }
+
+  const lotExamples = scorerRelevantDismissals.filter((item) => item.learningLabel === "multi_volume_lot");
+  if (lotExamples.length >= 1) {
+    proposals.push(shadowProposal(
+      "shadow_test_multi_volume_detection",
+      "scout:shadow:multi-volume:v1",
+      `Shadow-test lot detection against ${lotExamples.length} labelled miss${lotExamples.length === 1 ? "" : "es"}`,
+      "Staff identified multi-volume listings that the current score still considered plausible. Test broader lot wording against historical decisions without changing the live inbox.",
+      lotExamples,
+      "Detect additional multi-volume and set wording before a listing reaches the human review queue.",
+    ));
+  }
+
+  const editionMismatchExamples = scorerRelevantDismissals.filter((item) => item.learningLabel === "edition_mismatch");
+  if (editionMismatchExamples.length >= 5) {
+    proposals.push(shadowProposal(
+      "shadow_test_edition_conflicts",
+      "scout:shadow:edition-conflicts:v1",
+      `Research missing edition conflicts in ${editionMismatchExamples.length} labelled decisions`,
+      "These high-scoring listings were dismissed as the wrong edition. Compare their titles and profile boundaries to find a deterministic conflict that can be tested safely.",
+      editionMismatchExamples,
+      "Evaluate a candidate edition-conflict signal against labelled history before changing production scoring.",
     ));
   }
 
@@ -176,9 +273,13 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeed
     watched,
     dismissed,
     aligned,
+    labelledDecisions,
+    labelCoveragePercent: decisions.length ? Math.round((labelledDecisions / decisions.length) * 100) : 0,
+    labelCounts,
     watchedBelowReview,
     watchedConflicts,
     dismissedStillPlausible,
+    scorerRelevantDismissals,
     proposals,
   };
 }
@@ -212,13 +313,27 @@ export async function readHumanScoutDecisions(admin: SupabaseClient): Promise<Hu
     if (!latestByListingAndEdition.has(listingKey)) latestByListingAndEdition.set(listingKey, row);
   }
 
-  return [...latestByListingAndEdition.values()].map((row) => ({
+  const selectedRows = [...latestByListingAndEdition.values()];
+  const labelByDecision = new Map<string, ScoutLearningLabel>();
+  const decisionIds = selectedRows.map((row) => row.id);
+  for (let index = 0; index < decisionIds.length; index += 200) {
+    const { data, error } = await admin
+      .from("scout_decision_labels")
+      .select("decision_id,label")
+      .in("decision_id", decisionIds.slice(index, index + 200));
+    if (error) throw new Error(`Market Scout could not read staff learning labels: ${error.message}`);
+    for (const row of (data ?? []) as LabelRow[]) labelByDecision.set(row.decision_id, row.label);
+  }
+
+  return selectedRows.map((row) => ({
+    decisionId: row.id,
     leadId: row.lead_id,
     decision: row.decision as "watching" | "dismissed",
     reviewer: row.reviewed_by,
     decidedAt: row.created_at,
     listingTitle: row.lead?.listing_title ?? "",
     edition: row.lead?.profile?.edition as ScoutEdition,
+    learningLabel: labelByDecision.get(row.id) ?? null,
   }));
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
 import { looksGraded } from "@/lib/editionMatch";
+import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
 
 export type ScoutLead = {
   id: string;
@@ -170,9 +171,11 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
+  const [rowLearningLabels, setRowLearningLabels] = useState<Record<string, string>>({});
   const [noteOpenFor, setNoteOpenFor] = useState<Set<string>>(new Set());
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [bulkNote, setBulkNote] = useState("");
+  const [bulkLearningLabel, setBulkLearningLabel] = useState("");
   const [message, setMessage] = useState("");
   // A stable snapshot taken once on mount — used only for filtering
   // (expired/ends-soon checks), so it doesn't need to tick every render,
@@ -270,7 +273,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     setSelected(new Set());
   }
 
-  async function submitDecision(rows: ScoutLead[], decision: "watching" | "dismissed", notes: string) {
+  async function submitDecision(rows: ScoutLead[], decision: "watching" | "dismissed", notes: string, learningLabel = "") {
     if (!reviewer.trim()) { setMessage("Enter a reviewer name above before saving a decision."); return; }
     if (!rows.length) return;
     const rowIds = rows.map((row) => row.id);
@@ -281,7 +284,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       const response = await fetch("/api/scout-leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds, decision, reviewer, notes }),
+        body: JSON.stringify({ leadIds, decision, reviewer, notes, learningLabel }),
       });
       const result = await response.json() as { error?: string; failed?: number; failedLeadIds?: string[] };
       if (!response.ok) { setMessage(result.error ?? "The Scout lead decision could not be saved."); return; }
@@ -295,7 +298,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       setLeads((current) => current.map((lead) => rowIdSet.has(lead.id) ? { ...lead, reviewStatus: decision, reviewNotes: notes || lead.reviewNotes, reviewedBy: reviewer } : lead));
       setSelected((current) => { const next = new Set(current); for (const id of rowIdSet) next.delete(id); return next; });
       setRowNotes((current) => { const next = { ...current }; for (const id of rowIdSet) delete next[id]; return next; });
-      if (!failedRows.length) setBulkNote("");
+      setRowLearningLabels((current) => { const next = { ...current }; for (const id of rowIdSet) delete next[id]; return next; });
+      if (!failedRows.length) { setBulkNote(""); setBulkLearningLabel(""); }
       setMessage(
         failedRows.length
           ? `${decision === "watching" ? "Watching" : "Dismissed"} ${savedRows.length} listing${savedRows.length === 1 ? "" : "s"}. ${failedRows.length} could not be saved and remain selected — try again or review them individually.`
@@ -442,9 +446,14 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                     ) : null}
                     {lead.reviewStatus === "new" ? (
                       <div className="scout-lead-actions">
+                        <select aria-label="Optional learning reason" className="scout-learning-select" onChange={(event) => setRowLearningLabels((current) => ({ ...current, [lead.id]: event.target.value }))} value={rowLearningLabels[lead.id] ?? ""}>
+                          <option value="">Reason (optional)</option>
+                          <optgroup label="If watching">{WATCH_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
+                          <optgroup label="If dismissing">{DISMISS_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
+                        </select>
                         <div className="scout-lead-action-row">
-                          <button className="is-watch" disabled={saving} onClick={() => submitDecision([lead], "watching", rowNotes[lead.id] ?? "")} type="button">Watch</button>
-                          <button className="is-dismiss" disabled={saving} onClick={() => submitDecision([lead], "dismissed", rowNotes[lead.id] ?? "")} type="button">Dismiss</button>
+                          <button className="is-watch" disabled={saving || !learningLabelFitsDecision(rowLearningLabels[lead.id] ?? "", "watching")} onClick={() => submitDecision([lead], "watching", rowNotes[lead.id] ?? "", rowLearningLabels[lead.id] ?? "")} type="button">Watch</button>
+                          <button className="is-dismiss" disabled={saving || !learningLabelFitsDecision(rowLearningLabels[lead.id] ?? "", "dismissed")} onClick={() => submitDecision([lead], "dismissed", rowNotes[lead.id] ?? "", rowLearningLabels[lead.id] ?? "")} type="button">Dismiss</button>
                         </div>
                         <button className="scout-lead-note-toggle" onClick={() => setNoteOpenFor((current) => { const next = new Set(current); if (next.has(lead.id)) next.delete(lead.id); else next.add(lead.id); return next; })} type="button">{noteOpen ? "Hide note" : "+ note"}</button>
                         {noteOpen ? <textarea className="scout-lead-note" onChange={(event) => setRowNotes((current) => ({ ...current, [lead.id]: event.target.value }))} placeholder="Optional evidence note" value={rowNotes[lead.id] ?? ""} /> : null}
@@ -469,8 +478,13 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         <div className="scout-bulk-bar">
           <strong>{selected.size} selected</strong>
           <input onChange={(event) => setBulkNote(event.target.value)} placeholder="Optional note for all selected" value={bulkNote} />
-          <button className="is-watch" disabled={savingIds.size > 0} onClick={() => submitDecision(selectedRows, "watching", bulkNote)} type="button">Watch selected</button>
-          <button className="is-dismiss" disabled={savingIds.size > 0} onClick={() => submitDecision(selectedRows, "dismissed", bulkNote)} type="button">Dismiss selected</button>
+          <select aria-label="Optional learning reason for selected listings" className="scout-learning-select" onChange={(event) => setBulkLearningLabel(event.target.value)} value={bulkLearningLabel}>
+            <option value="">Reason (optional)</option>
+            <optgroup label="If watching">{WATCH_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
+            <optgroup label="If dismissing">{DISMISS_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
+          </select>
+          <button className="is-watch" disabled={savingIds.size > 0 || !learningLabelFitsDecision(bulkLearningLabel, "watching")} onClick={() => submitDecision(selectedRows, "watching", bulkNote, bulkLearningLabel)} type="button">Watch selected</button>
+          <button className="is-dismiss" disabled={savingIds.size > 0 || !learningLabelFitsDecision(bulkLearningLabel, "dismissed")} onClick={() => submitDecision(selectedRows, "dismissed", bulkNote, bulkLearningLabel)} type="button">Dismiss selected</button>
           <button className="is-clear" onClick={() => setSelected(new Set())} type="button">Clear selection</button>
         </div>
       ) : null}
