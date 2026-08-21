@@ -298,15 +298,14 @@ export default async function Home() {
       <section id="top" className="hero">
         <div className="hero-grid" />
         <div className="hero-content">
-          <p className="eyebrow">Manga price &amp; printing research</p>
+          <p className="eyebrow">Built for manga collectors</p>
           <h1>
             Track your manga.
             <span>Show off your collection.</span>
           </h1>
           <p className="hero-copy">
-            RAR tracks real completed sales of specific manga editions — so you
-            can build your shelf, follow what each edition is worth, and check whether
-            your copy is a first print.
+            Build your shelf, track its value using real sales data, and share your
+            collection with other collectors.
           </p>
           <MangaSearch />
           {/* Three plain steps, directly under the search. First-time visitors
