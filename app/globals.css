@@ -2345,6 +2345,16 @@ html[data-theme="day"] .public-page {
 .agent-identity-bar label span { color: #bdb4a9; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .agent-identity-bar input { padding: .7rem .8rem; border: 1px solid rgba(255,255,255,.18); border-radius: .4rem; background: #11100e; color: #fff; }
 .agent-identity-bar p { margin: 0 0 .7rem; color: #bdb4a9; font-size: .8rem; }
+.agent-integration-health { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.2rem 1.35rem; border: 1px solid rgba(255,255,255,.12); border-radius: .8rem; background: #1b1916; }
+.agent-integration-health > div { min-width: 0; }
+.agent-integration-health h2 { margin: .18rem 0 .3rem; font: 650 1.25rem/1.15 var(--font-display); }
+.agent-integration-health p { margin: 0; color: #c2b9ae; line-height: 1.45; }
+.agent-integration-health small { display: block; margin-top: .45rem; color: #8f877e; font-size: .72rem; line-height: 1.45; }
+.agent-integration-light { float: left; width: .55rem; height: .55rem; margin: .25rem .6rem 0 0; border-radius: 50%; background: #e39a4c; box-shadow: 0 0 0 .3rem rgba(227,154,76,.12); }
+.agent-integration-health.is-connected { border-color: rgba(93,204,159,.35); background: rgba(93,204,159,.05); }
+.agent-integration-health.is-connected .agent-integration-light { background: #5dcc9f; box-shadow: 0 0 0 .3rem rgba(93,204,159,.12); }
+.agent-integration-health.is-rejected, .agent-integration-health.is-missing { border-color: rgba(238,91,75,.45); }
+.agent-integration-health.is-rejected .agent-integration-light, .agent-integration-health.is-missing .agent-integration-light { background: #ee5b4b; box-shadow: 0 0 0 .3rem rgba(238,91,75,.12); }
 .agent-feedback-panel { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(22rem, .75fr); gap: 1rem 1.5rem; padding: 1.35rem; border: 1px solid rgba(93,204,159,.28); border-radius: .85rem; background: linear-gradient(135deg, rgba(93,204,159,.08), #191714 55%); }
 .agent-feedback-copy h2 { margin: .2rem 0 .45rem; color: #f5eee4; font: 650 1.35rem/1.2 var(--font-display); }
 .agent-feedback-copy p:last-child { margin: 0; max-width: 70ch; color: #bdb4a9; font-size: .82rem; line-height: 1.55; }
@@ -2451,7 +2461,7 @@ html[data-theme="day"] .public-page {
   .agent-workbench-heading, .agent-card-grid { grid-template-columns: 1fr; }
   .agent-workbench-heading { align-items: flex-start; flex-direction: column; }
   .agent-workbench-grid { grid-template-columns: 1fr; }
-  .agent-autopilot-heading, .agent-kill-switch, .agent-identity-bar, .agent-proposal-list article { align-items: stretch; flex-direction: column; }
+  .agent-autopilot-heading, .agent-kill-switch, .agent-identity-bar, .agent-integration-health, .agent-proposal-list article { align-items: stretch; flex-direction: column; }
   .agent-autopilot-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .agent-incident-list article { align-items: stretch; flex-direction: column; }
   .agent-cycle-history article { grid-template-columns: 1fr; }

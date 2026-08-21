@@ -4,6 +4,7 @@ import { isAgentKey } from "@/lib/agentPlanning";
 import { runAgentObservation } from "@/lib/agentRuntime";
 import { createAndEvaluateScoutRule, reevaluateScoutRule } from "@/lib/scoutRuleEvaluation";
 import { runGuardedAgentCycle } from "@/lib/agentCycle";
+import { checkEbayConnectionHealth } from "@/lib/ebayScout";
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
   const admin = getSupabaseAdmin();
 
   try {
+    if (command === "test_ebay_connection") {
+      const health = await checkEbayConnectionHealth();
+      return Response.json({ health });
+    }
+
     if (command === "run_guarded_cycle") {
       const cycle = await runGuardedAgentCycle(admin, "manual", reviewer);
       return Response.json({ cycle });

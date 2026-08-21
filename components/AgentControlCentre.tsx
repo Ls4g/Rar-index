@@ -110,6 +110,13 @@ type AutopilotDashboard = {
   incidents: AgentIncident[];
 };
 
+type EbayConnectionHealth = {
+  status: "connected" | "missing" | "rejected" | "unavailable";
+  configured: boolean;
+  message: string;
+  checkedAt: string;
+};
+
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   stage_catalogue_candidates: { href: "/catalogue-review", label: "Review staged candidates" },
   review_catalogue_queue: { href: "/catalogue-review", label: "Open catalogue review" },
@@ -195,6 +202,7 @@ export default function AgentControlCentre({
   historicalDecisionTotal,
   ruleDashboard,
   autopilot,
+  ebayHealth: initialEbayHealth,
 }: {
   controls: Control[];
   runs: Run[];
@@ -205,6 +213,7 @@ export default function AgentControlCentre({
   historicalDecisionTotal: number;
   ruleDashboard: RuleDashboard;
   autopilot: AutopilotDashboard;
+  ebayHealth: EbayConnectionHealth;
 }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useState("");
@@ -215,6 +224,7 @@ export default function AgentControlCentre({
   const [historicalDecisionType, setHistoricalDecisionType] = useState<"watching" | "dismissed" | "">("");
   const [historicalLabel, setHistoricalLabel] = useState("");
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
+  const [ebayHealth, setEbayHealth] = useState(initialEbayHealth);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
@@ -224,6 +234,30 @@ export default function AgentControlCentre({
   function updateReviewer(value: string) {
     setReviewer(value);
     window.localStorage.setItem("rar_staff_reviewer", value);
+  }
+
+  async function testEbayConnection() {
+    if (!reviewer.trim()) {
+      setMessage("Enter your staff name first.");
+      return;
+    }
+    setBusy("ebay-health");
+    setMessage("");
+    try {
+      const response = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "test_ebay_connection", reviewer: reviewer.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The eBay connection test failed.");
+      setEbayHealth(result.health as EbayConnectionHealth);
+      setMessage(result.health.message);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The eBay connection test failed.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function command(key: string, body: Record<string, unknown>) {
@@ -372,6 +406,19 @@ export default function AgentControlCentre({
       <section className="agent-identity-bar">
         <label><span>Staff name</span><input onChange={(event) => updateReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
         <p>{message || "Saved on this device and attached to every manual agent action."}</p>
+      </section>
+
+      <section className={`agent-integration-health is-${ebayHealth.status}`}>
+        <div>
+          <span className="agent-integration-light" />
+          <p className="eyebrow">Marketplace connection</p>
+          <h2>eBay {ebayHealth.status === "connected" ? "connected" : "needs attention"}</h2>
+          <p>{ebayHealth.message}</p>
+          <small>Checked {formatTime(ebayHealth.checkedAt)}. If unavailable, Market Scout continues its database cleanup and leaves eBay-dependent availability checks untouched.</small>
+        </div>
+        <button className="agent-control-button" disabled={Boolean(busy)} onClick={testEbayConnection} type="button">
+          {busy === "ebay-health" ? "Testing..." : "Test eBay connection"}
+        </button>
       </section>
 
       <section className="agent-feedback-panel">

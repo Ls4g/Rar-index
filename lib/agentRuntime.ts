@@ -325,11 +325,14 @@ export async function runAgentObservation(
       metrics.auto_dismiss_race_protected = safeActionResult.protectedByRace;
     }
     if (availabilityResult) {
+      metrics.availability_candidates = availabilityResult.queued;
       metrics.availability_examined = availabilityResult.examined;
       metrics.availability_confirmed_active = availabilityResult.active;
       metrics.availability_archived = availabilityResult.unavailable;
       metrics.availability_inconclusive = availabilityResult.inconclusive;
       metrics.availability_race_protected = availabilityResult.protectedByRace;
+      metrics.ebay_connection_ok = availabilityResult.connectionStatus === "connected" ? 1 : 0;
+      metrics.availability_skipped = availabilityResult.warning ? 1 : 0;
     }
     if (feedbackResult) {
       metrics.feedback_human_decisions = feedbackResult.humanDecisions;
@@ -360,6 +363,9 @@ export async function runAgentObservation(
           proposals: [...planned.proposals, ...feedbackResult.proposals],
         }
       : planned;
+    const runSummary = availabilityResult?.warning
+      ? `${plan.summary} eBay availability checks were skipped safely: ${availabilityResult.warning}`
+      : plan.summary;
     const proposalResult = await reconcileAgentProposals(admin, agentKey, run.id, plan.proposals);
     const finalMetrics = {
       ...metrics,
@@ -370,7 +376,7 @@ export async function runAgentObservation(
     };
     const { data: finished, error } = await admin.from("agent_runs").update({
       status: "succeeded",
-      summary: plan.summary,
+      summary: runSummary,
       metrics: finalMetrics,
       finished_at: new Date().toISOString(),
     }).eq("id", run.id).select("id,status,summary,metrics").single();

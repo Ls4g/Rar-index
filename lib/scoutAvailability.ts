@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { checkEbayListingAvailability, getEbayApplicationToken, type EbayAvailabilityCheck } from "./ebayScout.ts";
+import { checkEbayConnectionHealth, checkEbayListingAvailability, getEbayApplicationToken, type EbayAvailabilityCheck, type EbayConnectionHealth } from "./ebayScout.ts";
 import { SCOUT_STALE_AFTER_MS } from "./scoutDiagnostics.ts";
 
 const CHECK_BATCH_SIZE = 25;
@@ -13,11 +13,14 @@ type AvailabilityLead = {
 };
 
 export type ScoutAvailabilityResult = {
+  queued: number;
   examined: number;
   active: number;
   unavailable: number;
   inconclusive: number;
   protectedByRace: number;
+  connectionStatus: EbayConnectionHealth["status"] | "not_needed";
+  warning: string | null;
 };
 
 async function mapWithConcurrency<T, R>(rows: T[], limit: number, worker: (row: T) => Promise<R>) {
@@ -50,8 +53,21 @@ export async function refreshStaleScoutAvailability(
     .limit(CHECK_BATCH_SIZE);
   if (error) throw new Error(`Market Scout could not load stale availability checks: ${error.message}`);
   const leads = (data ?? []) as AvailabilityLead[];
-  if (!leads.length) return { examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0 };
+  if (!leads.length) return { queued: 0, examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0, connectionStatus: "not_needed", warning: null };
 
+  const connection = await checkEbayConnectionHealth();
+  if (connection.status !== "connected") {
+    return {
+      queued: leads.length,
+      examined: 0,
+      active: 0,
+      unavailable: 0,
+      inconclusive: 0,
+      protectedByRace: 0,
+      connectionStatus: connection.status,
+      warning: `${connection.message} ${leads.length} stale lead${leads.length === 1 ? " was" : "s were"} left untouched.`,
+    };
+  }
   const token = await getEbayApplicationToken();
   const checks = await mapWithConcurrency(leads, 5, async (lead) => ({
     lead,
@@ -87,11 +103,14 @@ export async function refreshStaleScoutAvailability(
   const result = (applied ?? {}) as { active?: number; unavailable?: number; inconclusive?: number };
   const appliedTotal = Number(result.active ?? 0) + Number(result.unavailable ?? 0) + Number(result.inconclusive ?? 0);
   return {
+    queued: leads.length,
     examined: leads.length,
     active: Number(result.active ?? 0),
     unavailable: Number(result.unavailable ?? 0),
     inconclusive: Number(result.inconclusive ?? 0),
     protectedByRace: Math.max(0, leads.length - appliedTotal),
+    connectionStatus: "connected",
+    warning: null,
   };
 }
 

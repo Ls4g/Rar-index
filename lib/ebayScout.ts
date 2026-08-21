@@ -37,6 +37,55 @@ export type EbayAvailabilityCheck = {
   reason: string;
 };
 
+export type EbayConnectionHealth = {
+  status: "connected" | "missing" | "rejected" | "unavailable";
+  configured: boolean;
+  message: string;
+  checkedAt: string;
+};
+
+let cachedApplicationToken: { value: string; expiresAt: number } | null = null;
+
+export function hasEbayApplicationCredentials() {
+  return Boolean(process.env.EBAY_CLIENT_ID?.trim() && process.env.EBAY_CLIENT_SECRET?.trim());
+}
+
+function connectionFailureStatus(caught: unknown): EbayConnectionHealth["status"] {
+  if (caught instanceof Error && caught.message.startsWith("EBAY_REJECTED:")) return "rejected";
+  return hasEbayApplicationCredentials() ? "unavailable" : "missing";
+}
+
+export async function checkEbayConnectionHealth(): Promise<EbayConnectionHealth> {
+  const checkedAt = new Date().toISOString();
+  if (!hasEbayApplicationCredentials()) {
+    return {
+      status: "missing",
+      configured: false,
+      message: "Production eBay credentials are not available to this deployment.",
+      checkedAt,
+    };
+  }
+  try {
+    await getEbayApplicationToken();
+    return {
+      status: "connected",
+      configured: true,
+      message: "eBay issued an application token successfully.",
+      checkedAt,
+    };
+  } catch (caught) {
+    const status = connectionFailureStatus(caught);
+    return {
+      status,
+      configured: true,
+      message: status === "rejected"
+        ? "eBay rejected the configured production credentials. Replace the Client ID and Client Secret in Vercel."
+        : "RAR could not reach eBay's token service. eBay-dependent checks will be skipped safely.",
+      checkedAt,
+    };
+  }
+}
+
 export type EbayListingEvidence = {
   externalId: string;
   title: string;
@@ -110,6 +159,10 @@ export async function getEbayApplicationToken() {
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("eBay Scout is not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in Vercel first.");
 
+  if (cachedApplicationToken && cachedApplicationToken.expiresAt > Date.now() + 300_000) {
+    return cachedApplicationToken.value;
+  }
+
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const response = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
     method: "POST",
@@ -123,10 +176,19 @@ export async function getEbayApplicationToken() {
     }),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error("eBay did not issue an application token. Check the Scout credentials in Vercel.");
-  const payload = await response.json() as { access_token?: string };
+  if (!response.ok) {
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      throw new Error("EBAY_REJECTED: eBay rejected the configured production credentials.");
+    }
+    throw new Error("eBay's token service is temporarily unavailable.");
+  }
+  const payload = await response.json() as { access_token?: string; expires_in?: number };
   if (!payload.access_token) throw new Error("eBay returned no application token.");
-  return payload.access_token;
+  cachedApplicationToken = {
+    value: payload.access_token,
+    expiresAt: Date.now() + Math.max(300, Number(payload.expires_in ?? 7200)) * 1000,
+  };
+  return cachedApplicationToken.value;
 }
 
 export async function getEbayListingEvidence(
