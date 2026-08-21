@@ -192,6 +192,7 @@ export default function AgentControlCentre({
   globalPaused,
   pauseReason,
   historicalDecisions,
+  historicalDecisionTotal,
   ruleDashboard,
   autopilot,
 }: {
@@ -201,6 +202,7 @@ export default function AgentControlCentre({
   globalPaused: boolean;
   pauseReason: string | null;
   historicalDecisions: HistoricalDecision[];
+  historicalDecisionTotal: number;
   ruleDashboard: RuleDashboard;
   autopilot: AutopilotDashboard;
 }) {
@@ -209,6 +211,7 @@ export default function AgentControlCentre({
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [selectedHistorical, setSelectedHistorical] = useState<string[]>([]);
+  const [labelledThisSession, setLabelledThisSession] = useState<string[]>([]);
   const [historicalDecisionType, setHistoricalDecisionType] = useState<"watching" | "dismissed" | "">("");
   const [historicalLabel, setHistoricalLabel] = useState("");
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
@@ -277,11 +280,15 @@ export default function AgentControlCentre({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The labels could not be saved.");
-      setMessage(`${result.saved} historical decision${result.saved === 1 ? "" : "s"} labelled.`);
-      setSelectedHistorical([]);
-      setHistoricalDecisionType("");
+      const savedIds = Array.isArray(result.results)
+        ? result.results.filter((item: { ok?: boolean }) => item.ok).map((item: { decisionId: string }) => item.decisionId)
+        : selectedHistorical;
+      const failedIds = selectedHistorical.filter((decisionId) => !savedIds.includes(decisionId));
+      setLabelledThisSession((current) => [...new Set([...current, ...savedIds])]);
+      setMessage(`${result.saved} historical decision${result.saved === 1 ? "" : "s"} labelled and removed.${result.failed ? ` ${result.failed} could not be saved.` : ""}`);
+      setSelectedHistorical(failedIds);
+      setHistoricalDecisionType(failedIds.length ? historicalDecisions.find((item) => item.decisionId === failedIds[0])?.decision ?? "" : "");
       setHistoricalLabel("");
-      router.refresh();
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "The labels could not be saved.");
     } finally {
@@ -307,6 +314,8 @@ export default function AgentControlCentre({
   const feedbackExceptions = (marketScoutRun?.metrics?.feedback_watched_below_review ?? 0)
     + (marketScoutRun?.metrics?.feedback_watched_conflicts ?? 0)
     + (marketScoutRun?.metrics?.feedback_dismissed_still_plausible ?? 0);
+  const visibleHistoricalDecisions = historicalDecisions.filter((decision) => !labelledThisSession.includes(decision.decisionId));
+  const remainingHistoricalTotal = Math.max(0, historicalDecisionTotal - labelledThisSession.length);
   const latestCycle = autopilot.cycles[0];
   const autopilotTitle = globalPaused && autopilot.control?.circuit_breaker_reason
     ? "Circuit breaker paused automation"
@@ -383,17 +392,18 @@ export default function AgentControlCentre({
       <section className="agent-learning-workbench">
         <div className="section-intro"><p className="eyebrow">Phase 4 evidence</p><h2>Label earlier decisions</h2><p className="section-copy">Add a reason without reopening or changing the original Watch or Dismiss decision. Selecting the other decision type starts a new batch.</p></div>
         <div className="agent-label-toolbar">
-          <strong>{historicalDecisions.length} unlabelled decisions</strong>
+          <strong>{remainingHistoricalTotal} unlabelled total · {visibleHistoricalDecisions.length} loaded here</strong>
           <select disabled={!selectedHistorical.length} onChange={(event) => setHistoricalLabel(event.target.value)} value={historicalLabel}>
             <option value="">Choose a reason</option>
             {(historicalDecisionType === "watching" ? WATCH_LEARNING_LABELS : DISMISS_LEARNING_LABELS).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
           <button disabled={busy === "historical-labels" || !selectedHistorical.length || !historicalLabel} onClick={labelHistorical} type="button">{busy === "historical-labels" ? "Saving..." : `Label selected (${selectedHistorical.length})`}</button>
         </div>
-        {historicalDecisions.length ? <div className="agent-label-list">{historicalDecisions.map((decision) => <label className={selectedHistorical.includes(decision.decisionId) ? "is-selected" : ""} key={decision.decisionId}>
+        {visibleHistoricalDecisions.length ? <div className="agent-label-list">{visibleHistoricalDecisions.map((decision) => <label className={selectedHistorical.includes(decision.decisionId) ? "is-selected" : ""} key={decision.decisionId}>
           <input checked={selectedHistorical.includes(decision.decisionId)} onChange={() => toggleHistorical(decision.decisionId, decision.decision)} type="checkbox" />
           <span><b>{decision.decision === "watching" ? "Watched" : "Dismissed"} · {decision.editionLabel}</b><small>{decision.listingTitle}</small><em>{decision.reviewer} · {formatTime(decision.decidedAt)}</em></span>
-        </label>)}</div> : <div className="review-empty agent-empty-compact"><strong>Historical decisions are labelled.</strong><p>New reason labels will continue to arrive through the Scout inbox.</p></div>}
+        </label>)}</div> : remainingHistoricalTotal ? <div className="review-empty agent-empty-compact"><strong>This batch is finished.</strong><p>{remainingHistoricalTotal} earlier decisions remain in the backlog.</p></div> : <div className="review-empty agent-empty-compact"><strong>Historical decisions are labelled.</strong><p>New reason labels will continue to arrive through the Scout inbox.</p></div>}
+        {labelledThisSession.length > 0 && remainingHistoricalTotal > 0 ? <button className="agent-load-next" onClick={() => window.location.reload()} type="button">Load the next decisions</button> : null}
       </section>
 
       <section className="agent-rule-workbench">

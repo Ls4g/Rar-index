@@ -367,10 +367,10 @@ export async function analyseLiveScoutFeedback(admin: SupabaseClient) {
 
 export async function readUnlabelledScoutDecisionQueue(admin: SupabaseClient, limit = 60) {
   const decisions = await readHumanScoutDecisions(admin);
-  return decisions
-    .filter((item) => item.decisionId && !item.learningLabel)
-    .slice(0, limit)
-    .map((item) => ({
+  const unlabelled = decisions.filter((item) => item.decisionId && !item.learningLabel);
+  return {
+    total: unlabelled.length,
+    items: unlabelled.slice(0, limit).map((item) => ({
       decisionId: item.decisionId as string,
       leadId: item.leadId,
       decision: item.decision,
@@ -378,5 +378,6 @@ export async function readUnlabelledScoutDecisionQueue(admin: SupabaseClient, li
       decidedAt: item.decidedAt,
       listingTitle: item.listingTitle,
       editionLabel: editionLabel(item.edition),
-    }));
+    })),
+  };
 }
