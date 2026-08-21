@@ -313,9 +313,9 @@ export default async function Home() {
               card tracker; this states the job in the visitor's own words
               before they have to interpret anything else on the page. */}
           <ol className="hero-steps">
-            <li><span>1</span>Search your manga</li>
-            <li><span>2</span>See what real copies sold for</li>
-            <li><span>3</span>Check if yours is a first print</li>
+            <li><span>1</span>Find your manga</li>
+            <li><span>2</span>Track your collection&apos;s value</li>
+            <li><span>3</span>Show off your shelf</li>
           </ol>
         </div>
 
