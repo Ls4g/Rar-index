@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
+import { loadActiveScoutRules } from "@/lib/scoutRules";
 
 export const maxDuration = 60;
 
@@ -67,12 +68,13 @@ export async function POST(request: Request) {
   let activeLeads = 0;
   let failures = 0;
   let completedProfiles = 0;
+  const rules = await loadActiveScoutRules(admin);
 
   for (const profile of profiles) {
     try {
       const listings = await findActiveEbayListings(profile.search_query, applicationToken);
       const checkedAt = new Date().toISOString();
-      const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt));
+      const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt, rules));
       await storeScoutLeads(admin, profile.id, builds);
 
       const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });

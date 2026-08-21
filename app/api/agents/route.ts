@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { isAgentKey } from "@/lib/agentPlanning";
 import { runAgentObservation } from "@/lib/agentRuntime";
+import { createAndEvaluateScoutRule, reevaluateScoutRule } from "@/lib/scoutRuleEvaluation";
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,6 +51,22 @@ export async function POST(request: Request) {
       const actionId = clean(payload.actionId);
       const decision = clean(payload.decision);
       if (!actionId || !["approved", "rejected", "cancelled"].includes(decision)) return Response.json({ error: "Choose a proposal and valid decision." }, { status: 400 });
+      const { data: action, error: actionError } = await admin.from("agent_actions")
+        .select("id,action_type,status")
+        .eq("id", actionId)
+        .eq("status", "proposed")
+        .maybeSingle();
+      if (actionError) throw new Error(actionError.message);
+      if (!action) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
+
+      let rule = null;
+      if (decision === "approved" && action.action_type.startsWith("shadow_test_")) {
+        const phrases = Array.isArray(payload.rulePhrases)
+          ? payload.rulePhrases.map(clean).filter(Boolean)
+          : clean(payload.rulePhrases).split(",").map((item) => item.trim()).filter(Boolean);
+        rule = await createAndEvaluateScoutRule(admin, action, reviewer, phrases);
+      }
+
       const { data, error } = await admin.from("agent_actions").update({
         status: decision,
         reviewed_by: reviewer,
@@ -58,6 +75,29 @@ export async function POST(request: Request) {
       }).eq("id", actionId).eq("status", "proposed").select("id").maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
+      return Response.json({ ok: true, rule });
+    }
+
+    if (command === "reevaluate_scout_rule") {
+      const ruleVersionId = clean(payload.ruleVersionId);
+      if (!ruleVersionId) return Response.json({ error: "Choose a candidate rule." }, { status: 400 });
+      const rule = await reevaluateScoutRule(admin, ruleVersionId, reviewer);
+      return Response.json({ ok: true, rule });
+    }
+
+    if (command === "activate_scout_rule") {
+      const ruleVersionId = clean(payload.ruleVersionId);
+      if (!ruleVersionId) return Response.json({ error: "Choose a passing rule." }, { status: 400 });
+      const { error } = await admin.rpc("activate_scout_rule_version", { p_rule_version_id: ruleVersionId, p_approved_by: reviewer });
+      if (error) throw new Error(error.message);
+      return Response.json({ ok: true });
+    }
+
+    if (command === "rollback_scout_rule") {
+      const ruleVersionId = clean(payload.ruleVersionId);
+      if (!ruleVersionId) return Response.json({ error: "Choose a superseded rule to restore." }, { status: 400 });
+      const { error } = await admin.rpc("rollback_scout_rule_version", { p_target_rule_version_id: ruleVersionId, p_approved_by: reviewer });
+      if (error) throw new Error(error.message);
       return Response.json({ ok: true });
     }
 

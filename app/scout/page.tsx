@@ -8,6 +8,7 @@ import { assessScoutListing, type ScoutEdition } from "@/lib/scoutIngest";
 import { scoutListingGroupKey } from "@/lib/scoutGrouping";
 import { isScoutLeadStale } from "@/lib/scoutDiagnostics";
 import { isPrioritySeries } from "@/lib/prioritySeries";
+import { loadActiveScoutRules } from "@/lib/scoutRules";
 
 function formatLastChecked(value: string | null) {
   if (!value) return "Never scanned";
@@ -82,6 +83,7 @@ export default async function ScoutPage() {
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const editionByProfile = new Map(profiles.map((profile) => [profile.id, profile.edition]));
+  const activeRules = await loadActiveScoutRules(admin);
 
   const leadRows = profileIds.length ? await fetchAllLeads(admin, profileIds) : [];
   const { count: autoDismissedCount } = profileIds.length
@@ -110,7 +112,7 @@ export default async function ScoutPage() {
     const primary = group.find((lead) => lead.review_status === "new") ?? group[0];
     const edition = editionByProfile.get(primary.profile_id);
     if (!edition) continue;
-    const assessment = assessScoutListing(edition, primary.listing_title);
+    const assessment = assessScoutListing(edition, primary.listing_title, activeRules);
     const otherProfiles = group
       .filter((lead) => lead.id !== primary.id)
       .flatMap((lead) => {

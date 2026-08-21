@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentProposal } from "./agentPlanning.ts";
 import { learningLabelName, type ScoutLearningLabel } from "./scoutDecisionLabels.ts";
 import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
+import { loadActiveScoutRules, type ScoutRule } from "./scoutRules.ts";
+import type { EditionMatchAssessment } from "./editionMatch.ts";
 
 const AUTOMATED_REVIEWERS = new Set([
   "RAR Market Scout",
@@ -31,6 +33,7 @@ export type ScoutFeedbackExample = {
   conflicts: string[];
   learningLabel: ScoutLearningLabel | null;
   learningReason: string | null;
+  appliedRules: string[];
 };
 
 export type ScoutFeedbackAnalysis = {
@@ -81,8 +84,9 @@ function editionLabel(edition: ScoutEdition) {
     .join(" · ");
 }
 
-function exampleFor(decision: HumanScoutDecision): ScoutFeedbackExample {
-  const assessment = assessScoutListing(decision.edition, decision.listingTitle);
+function exampleFor(decision: HumanScoutDecision, rules: ScoutRule[] = []): ScoutFeedbackExample {
+  const assessment = assessScoutListing(decision.edition, decision.listingTitle, rules);
+  const appliedRules = (assessment as EditionMatchAssessment & { appliedRules?: Array<{ ruleKey: string; version: number }> }).appliedRules ?? [];
   return {
     leadId: decision.leadId,
     decision: decision.decision,
@@ -94,6 +98,7 @@ function exampleFor(decision: HumanScoutDecision): ScoutFeedbackExample {
     conflicts: assessment.conflicts,
     learningLabel: decision.learningLabel ?? null,
     learningReason: learningLabelName(decision.learningLabel),
+    appliedRules: appliedRules.map((rule) => `${rule.ruleKey}:v${rule.version}`),
   };
 }
 
@@ -167,7 +172,7 @@ function shadowProposal(
   };
 }
 
-export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeedbackAnalysis {
+export function analyseScoutFeedback(decisions: HumanScoutDecision[], rules: ScoutRule[] = []): ScoutFeedbackAnalysis {
   const watchedBelowReview: ScoutFeedbackExample[] = [];
   const watchedConflicts: ScoutFeedbackExample[] = [];
   const dismissedStillPlausible: ScoutFeedbackExample[] = [];
@@ -179,7 +184,7 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeed
   let labelledDecisions = 0;
 
   for (const decision of decisions) {
-    const item = exampleFor(decision);
+    const item = exampleFor(decision, rules);
     if (item.learningLabel) {
       labelledDecisions += 1;
       labelCounts[item.learningLabel] = (labelCounts[item.learningLabel] ?? 0) + 1;
@@ -201,6 +206,24 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[]): ScoutFeed
   }
 
   const proposals: AgentProposal[] = [];
+  const activeRuleRegressions = watchedBelowReview.filter((item) => item.learningLabel === "exact_match" && item.appliedRules.length > 0);
+  if (activeRuleRegressions.length > 0) {
+    proposals.push({
+      ...feedbackProposal(
+        "review_scout_rule_regression",
+        "scout:feedback:active-rule-regression:v1",
+        `Review ${activeRuleRegressions.length} exact-match regression${activeRuleRegressions.length === 1 ? "" : "s"} from active learned rules`,
+        "An active learned rule moved a staff-labelled exact match below the review threshold. Inspect the examples and restore the previous rule version if the disagreement is genuine.",
+        activeRuleRegressions,
+        1,
+      ),
+      proposedPayload: {
+        operation: "recommend_rule_rollback",
+        automatic_rollback: false,
+        requires_human_approval: true,
+      },
+    });
+  }
   if (watchedConflicts.length > 0) {
     proposals.push(feedbackProposal(
       "review_scout_feedback_conflicts",
@@ -338,5 +361,22 @@ export async function readHumanScoutDecisions(admin: SupabaseClient): Promise<Hu
 }
 
 export async function analyseLiveScoutFeedback(admin: SupabaseClient) {
-  return analyseScoutFeedback(await readHumanScoutDecisions(admin));
+  const [decisions, rules] = await Promise.all([readHumanScoutDecisions(admin), loadActiveScoutRules(admin)]);
+  return analyseScoutFeedback(decisions, rules);
+}
+
+export async function readUnlabelledScoutDecisionQueue(admin: SupabaseClient, limit = 60) {
+  const decisions = await readHumanScoutDecisions(admin);
+  return decisions
+    .filter((item) => item.decisionId && !item.learningLabel)
+    .slice(0, limit)
+    .map((item) => ({
+      decisionId: item.decisionId as string,
+      leadId: item.leadId,
+      decision: item.decision,
+      reviewer: item.reviewer,
+      decidedAt: item.decidedAt,
+      listingTitle: item.listingTitle,
+      editionLabel: editionLabel(item.edition),
+    }));
 }

@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { findActiveEbayListings } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
+import { loadActiveScoutRules } from "@/lib/scoutRules";
 
 type Profile = {
   id: string;
@@ -55,7 +56,8 @@ export async function POST(request: Request) {
   try {
     const listings = await findActiveEbayListings(profile.search_query);
     const checkedAt = new Date().toISOString();
-    const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt));
+    const rules = await loadActiveScoutRules(admin);
+    const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt, rules));
     await storeScoutLeads(admin, profile.id, builds);
     const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
     if (scanError) throw new Error("RAR could not record the completed Scout scan.");

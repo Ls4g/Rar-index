@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assessEditionMatch, type EditionMatchAssessment, type EditionMatchCandidate } from "./editionMatch.ts";
 import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings.ts";
 import type { ActiveEbayListing } from "./ebayScout";
+import { applyScoutRules, type ScoutRule } from "./scoutRules.ts";
 
 export type ScoutEdition = {
   title: string | null;
@@ -68,20 +69,20 @@ export function buildCandidateFromListing(edition: ScoutEdition, listingTitle: s
 // alongside the others, so it is layered on afterwards as a hard conflict
 // rather than folded into assessEditionMatch itself (which stays identical
 // for its other caller, CSV price-import matching).
-export function assessScoutListing(edition: ScoutEdition, listingTitle: string): EditionMatchAssessment {
+export function assessScoutListing(edition: ScoutEdition, listingTitle: string, rules: ScoutRule[] = []): EditionMatchAssessment {
   const candidate = buildCandidateFromListing(edition, listingTitle);
   const assessment = assessEditionMatch(edition, candidate);
   if (listingIsMultiVolumeLot(listingTitle, edition.volume_number)) {
     return { ...assessment, confidence: "conflict", conflicts: [...assessment.conflicts, "listing appears to be a multi-volume lot or set"] };
   }
-  return assessment;
+  return applyScoutRules(assessment, edition, listingTitle, rules);
 }
 
 // Every Scout scan (manual, batch, or the daily cron) builds rows the same
 // way. Centralising it means the title-text signal extraction and the
 // auto-dismiss rule below stay in one place instead of drifting across three
 // near-identical route handlers.
-export function buildScoutLeadRow(profileId: string, sourceId: string, edition: ScoutEdition, listing: ActiveEbayListing, checkedAt: string): ScoutLeadBuild {
+export function buildScoutLeadRow(profileId: string, sourceId: string, edition: ScoutEdition, listing: ActiveEbayListing, checkedAt: string, rules: ScoutRule[] = []): ScoutLeadBuild {
   const row: ScoutLeadRow = {
     profile_id: profileId,
     source_id: sourceId,
@@ -92,7 +93,7 @@ export function buildScoutLeadRow(profileId: string, sourceId: string, edition: 
     currency: listing.currency,
     listing_condition: listing.condition,
     item_end_at: listing.itemEndAt,
-    match_assessment: assessScoutListing(edition, listing.title),
+    match_assessment: assessScoutListing(edition, listing.title, rules),
     raw_payload: { provider: "ebay_browse", item: listing.rawPayload },
     last_seen_at: checkedAt,
     updated_at: checkedAt,

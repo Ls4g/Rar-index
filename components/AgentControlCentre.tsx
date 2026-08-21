@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { DISMISS_LEARNING_LABELS, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
 
 type Control = {
   agent_key: string;
@@ -42,6 +43,37 @@ type FeedbackExample = {
   score: number;
 };
 
+type HistoricalDecision = {
+  decisionId: string;
+  decision: "watching" | "dismissed";
+  reviewer: string;
+  decidedAt: string;
+  listingTitle: string;
+  editionLabel: string;
+};
+
+type RuleVersion = {
+  id: string;
+  rule_key: string;
+  version: number;
+  rule_type: string;
+  status: string;
+  evaluation_metrics: Record<string, unknown> | null;
+  created_at: string;
+  activated_at: string | null;
+};
+
+type RuleEvaluation = {
+  id: string;
+  rule_version_id: string;
+  gates: Record<string, { passed?: boolean; actual?: number; required?: number }>;
+  examples: Array<{ leadId: string; listingTitle: string; baselineScore: number; candidateScore: number }>;
+  passed: boolean;
+  evaluated_at: string;
+};
+
+type RuleDashboard = { rules: RuleVersion[]; evaluations: RuleEvaluation[]; ready: boolean };
+
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   stage_catalogue_candidates: { href: "/catalogue-review", label: "Review staged candidates" },
   review_catalogue_queue: { href: "/catalogue-review", label: "Open catalogue review" },
@@ -62,6 +94,7 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   shadow_test_first_print_proof_gate: { href: "/scout", label: "Inspect labelled examples" },
   shadow_test_multi_volume_detection: { href: "/scout", label: "Inspect labelled examples" },
   shadow_test_edition_conflicts: { href: "/scout", label: "Inspect labelled examples" },
+  review_scout_rule_regression: { href: "/agents", label: "Inspect rule versions" },
 };
 
 const FEEDBACK_ACTIONS = new Set([
@@ -71,6 +104,7 @@ const FEEDBACK_ACTIONS = new Set([
   "shadow_test_first_print_proof_gate",
   "shadow_test_multi_volume_detection",
   "shadow_test_edition_conflicts",
+  "review_scout_rule_regression",
 ]);
 
 function isFeedbackAction(action: Action) {
@@ -119,17 +153,25 @@ export default function AgentControlCentre({
   actions,
   globalPaused,
   pauseReason,
+  historicalDecisions,
+  ruleDashboard,
 }: {
   controls: Control[];
   runs: Run[];
   actions: Action[];
   globalPaused: boolean;
   pauseReason: string | null;
+  historicalDecisions: HistoricalDecision[];
+  ruleDashboard: RuleDashboard;
 }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useState("");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedHistorical, setSelectedHistorical] = useState<string[]>([]);
+  const [historicalDecisionType, setHistoricalDecisionType] = useState<"watching" | "dismissed" | "">("");
+  const [historicalLabel, setHistoricalLabel] = useState("");
+  const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
@@ -160,6 +202,48 @@ export default function AgentControlCentre({
       router.refresh();
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "The command failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function toggleHistorical(decisionId: string, decision: "watching" | "dismissed") {
+    if (historicalDecisionType && historicalDecisionType !== decision) {
+      setSelectedHistorical([decisionId]);
+      setHistoricalDecisionType(decision);
+      setHistoricalLabel("");
+      return;
+    }
+    const selected = selectedHistorical.includes(decisionId)
+      ? selectedHistorical.filter((id) => id !== decisionId)
+      : [...selectedHistorical, decisionId];
+    setSelectedHistorical(selected);
+    setHistoricalDecisionType(selected.length ? decision : "");
+    if (!selected.length) setHistoricalLabel("");
+  }
+
+  async function labelHistorical() {
+    if (!reviewer.trim() || !selectedHistorical.length || !historicalLabel) {
+      setMessage("Choose matching decisions, a reason and your staff name.");
+      return;
+    }
+    setBusy("historical-labels");
+    setMessage("");
+    try {
+      const response = await fetch("/api/scout-labels", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decisionIds: selectedHistorical, label: historicalLabel, reviewer: reviewer.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The labels could not be saved.");
+      setMessage(`${result.saved} historical decision${result.saved === 1 ? "" : "s"} labelled.`);
+      setSelectedHistorical([]);
+      setHistoricalDecisionType("");
+      setHistoricalLabel("");
+      router.refresh();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The labels could not be saved.");
     } finally {
       setBusy("");
     }
@@ -230,12 +314,45 @@ export default function AgentControlCentre({
         {plannedFeedback.length ? <div className="agent-feedback-planned"><strong>Approved investigations</strong>{plannedFeedback.map((action) => <span key={action.id}>{action.title}</span>)}</div> : null}
       </section>
 
+      <section className="agent-learning-workbench">
+        <div className="section-intro"><p className="eyebrow">Phase 4 evidence</p><h2>Label earlier decisions</h2><p className="section-copy">Add a reason without reopening or changing the original Watch or Dismiss decision. Selecting the other decision type starts a new batch.</p></div>
+        <div className="agent-label-toolbar">
+          <strong>{historicalDecisions.length} unlabelled decisions</strong>
+          <select disabled={!selectedHistorical.length} onChange={(event) => setHistoricalLabel(event.target.value)} value={historicalLabel}>
+            <option value="">Choose a reason</option>
+            {(historicalDecisionType === "watching" ? WATCH_LEARNING_LABELS : DISMISS_LEARNING_LABELS).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+          <button disabled={busy === "historical-labels" || !selectedHistorical.length || !historicalLabel} onClick={labelHistorical} type="button">{busy === "historical-labels" ? "Saving..." : `Label selected (${selectedHistorical.length})`}</button>
+        </div>
+        {historicalDecisions.length ? <div className="agent-label-list">{historicalDecisions.map((decision) => <label className={selectedHistorical.includes(decision.decisionId) ? "is-selected" : ""} key={decision.decisionId}>
+          <input checked={selectedHistorical.includes(decision.decisionId)} onChange={() => toggleHistorical(decision.decisionId, decision.decision)} type="checkbox" />
+          <span><b>{decision.decision === "watching" ? "Watched" : "Dismissed"} · {decision.editionLabel}</b><small>{decision.listingTitle}</small><em>{decision.reviewer} · {formatTime(decision.decidedAt)}</em></span>
+        </label>)}</div> : <div className="review-empty agent-empty-compact"><strong>Historical decisions are labelled.</strong><p>New reason labels will continue to arrive through the Scout inbox.</p></div>}
+      </section>
+
+      <section className="agent-rule-workbench">
+        <div className="section-intro"><p className="eyebrow">Scoring rules</p><h2>Shadow tests and active versions</h2><p className="section-copy">A passing test still needs a separate activation. Learned rules only adjust queue scores and can never verify or dismiss a listing.</p></div>
+        {!ruleDashboard.ready ? <div className="review-empty agent-empty-compact"><strong>Phase 4 database is not ready.</strong><p>Apply the 20260826 Phase 4 migration to begin storing evaluations and rule versions.</p></div> : ruleDashboard.rules.length ? <div className="agent-rule-list">{ruleDashboard.rules.map((rule) => {
+          const evaluation = ruleDashboard.evaluations.find((item) => item.rule_version_id === rule.id);
+          return <article className={`is-${rule.status}`} key={rule.id}>
+            <div><span>{rule.rule_type.replaceAll("_", " ")} · version {rule.version}</span><h3>{rule.rule_key}</h3><b>{rule.status.replaceAll("_", " ")}</b>{evaluation ? <p>{evaluation.passed ? "All promotion gates passed." : "More or better labelled evidence is required."}</p> : <p>Not evaluated yet.</p>}</div>
+            {evaluation ? <details><summary>Evaluation gates</summary><ul>{Object.entries(evaluation.gates).map(([name, gate]) => <li key={name} className={gate.passed ? "passed" : "failed"}><span>{name.replaceAll("_", " ")}</span><b>{gate.passed ? "Pass" : "Not ready"}</b><small>{String(gate.actual ?? 0)} / {String(gate.required ?? 0)}</small></li>)}</ul></details> : null}
+            <div className="agent-card-actions">
+              {rule.status === "candidate" ? <button disabled={Boolean(busy)} onClick={() => command(`reevaluate-${rule.id}`, { command: "reevaluate_scout_rule", ruleVersionId: rule.id })} type="button">Run shadow test again</button> : null}
+              {rule.status === "shadow_passed" ? <button disabled={Boolean(busy)} onClick={() => command(`activate-${rule.id}`, { command: "activate_scout_rule", ruleVersionId: rule.id })} type="button">Approve activation</button> : null}
+              {rule.status === "superseded" ? <button className="secondary" disabled={Boolean(busy)} onClick={() => command(`rollback-${rule.id}`, { command: "rollback_scout_rule", ruleVersionId: rule.id })} type="button">Restore this version</button> : null}
+            </div>
+          </article>;
+        })}</div> : <div className="review-empty agent-empty-compact"><strong>No rule versions yet.</strong><p>Run Market Scout, then approve one of its shadow-test recommendations.</p></div>}
+      </section>
+
       <section className="agent-proposals" id="agent-recommendations">
         <div className="section-intro"><p className="eyebrow">Your decision</p><h2>Recommended work</h2><p className="section-copy">Open the relevant queue when the suggestion is useful. Approving a plan never verifies or publishes data.</p></div>
         {proposed.length ? <div className="agent-proposal-list">{proposed.map((action) => {
           const workQueue = ACTION_LINKS[action.action_type];
           const examples = feedbackExamples(action);
-          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved" })} type="button">{isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
+          const needsPhrases = ["shadow_test_multi_volume_detection", "shadow_test_edition_conflicts"].includes(action.action_type);
+          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{needsPhrases ? <label className="agent-rule-phrases"><span>Exact phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder={action.action_type === "shadow_test_multi_volume_detection" ? "bundle, complete set, volumes" : "deluxe edition, omnibus"} value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
       </section>
 

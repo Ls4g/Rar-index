@@ -2364,6 +2364,35 @@ html[data-theme="day"] .public-page {
 .agent-proposal-list p { margin: 0; max-width: 70ch; color: #afa69b; font-size: .8rem; line-height: 1.5; }
 .agent-proposal-list small { color: #7f776f; }
 .agent-proposal-list article.is-feedback { border-color: rgba(93,204,159,.25); }
+.agent-learning-workbench, .agent-rule-workbench { display: grid; gap: 1rem; padding: 1.35rem; border: 1px solid rgba(255,255,255,.1); border-radius: .85rem; background: #191714; }
+.agent-label-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .8rem; border: 1px solid rgba(255,255,255,.08); border-radius: .6rem; background: #211e1a; }
+.agent-label-toolbar strong { margin-right: auto; color: #f5eee4; font-size: .82rem; }
+.agent-label-toolbar select, .agent-rule-phrases input { min-width: 13rem; padding: .65rem .75rem; border: 1px solid rgba(255,255,255,.16); border-radius: .4rem; background: #11100e; color: #f5eee4; }
+.agent-label-toolbar button, .agent-rule-workbench button { padding: .65rem .8rem; border: 1px solid #c84c32; border-radius: .4rem; background: #c84c32; color: #fff; font-weight: 800; cursor: pointer; }
+.agent-label-toolbar button:disabled, .agent-rule-workbench button:disabled { cursor: not-allowed; opacity: .45; }
+.agent-label-list { display: grid; gap: .45rem; max-height: 32rem; overflow: auto; }
+.agent-label-list label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .7rem; align-items: start; padding: .7rem .8rem; border: 1px solid rgba(255,255,255,.08); border-radius: .5rem; background: #211e1a; cursor: pointer; }
+.agent-label-list label.is-selected { border-color: rgba(93,204,159,.55); background: rgba(93,204,159,.07); }
+.agent-label-list input { margin-top: .2rem; }
+.agent-label-list span { display: grid; gap: .2rem; min-width: 0; }
+.agent-label-list b { color: #ddd3c7; font-size: .78rem; }
+.agent-label-list small { color: #aaa096; font-size: .72rem; overflow-wrap: anywhere; }
+.agent-label-list em { color: #777068; font-size: .65rem; font-style: normal; }
+.agent-rule-list { display: grid; gap: .7rem; }
+.agent-rule-list > article { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, .8fr) auto; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid rgba(255,255,255,.09); border-radius: .6rem; background: #211e1a; }
+.agent-rule-list article.is-active { border-color: rgba(93,204,159,.5); }
+.agent-rule-list article.is-shadow_passed { border-color: rgba(223,118,95,.5); }
+.agent-rule-list span { color: #df765f; font-size: .65rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.agent-rule-list h3 { margin: .2rem 0; color: #f5eee4; }
+.agent-rule-list p { margin: .35rem 0 0; color: #aaa096; font-size: .75rem; }
+.agent-rule-list details summary { color: #7fe0b9; cursor: pointer; font-size: .72rem; font-weight: 800; }
+.agent-rule-list ul { display: grid; gap: .25rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.agent-rule-list li { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; color: #aaa096; font-size: .65rem; }
+.agent-rule-list li.passed b { color: #7fe0b9; }
+.agent-rule-list li.failed b { color: #ff9a8e; }
+.agent-rule-phrases { display: grid; gap: .35rem; margin: .75rem 0; }
+.agent-rule-phrases span { color: #bdb4a9; font-size: .65rem; }
+.agent-rule-phrases input { width: min(36rem, 100%); }
 .agent-feedback-examples { margin: .7rem 0; }
 .agent-feedback-examples summary { color: #7fe0b9; cursor: pointer; font-size: .72rem; font-weight: 800; }
 .agent-feedback-examples ul { display: grid; gap: .45rem; margin: .55rem 0 0; padding: 0; list-style: none; }
@@ -2400,6 +2429,9 @@ html[data-theme="day"] .public-page {
   .agent-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .agent-feedback-panel { grid-template-columns: 1fr; }
   .agent-feedback-metrics { grid-template-columns: 1fr; }
+  .agent-rule-list > article { grid-template-columns: 1fr; }
+  .agent-label-toolbar { align-items: stretch; flex-direction: column; }
+  .agent-label-toolbar select { width: 100%; }
 }
 
 .agent-daily-briefing { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(20rem, 1fr); gap: 1.25rem; padding: 1.5rem; border: 1px solid rgba(200,76,50,.35); border-radius: .85rem; background: linear-gradient(120deg, rgba(200,76,50,.12), #191714 62%); }

@@ -49,6 +49,7 @@ export const config = {
     "/api/catalogue-requests/:path*",
     "/api/scout/:path*",
     "/api/scout-leads/:path*",
+    "/api/scout-labels/:path*",
     "/api/cover-review/:path*",
     "/api/agents/:path*",
   ],

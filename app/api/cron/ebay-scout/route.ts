@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
+import { loadActiveScoutRules } from "@/lib/scoutRules";
 
 export const maxDuration = 60;
 
@@ -62,12 +63,13 @@ export async function GET(request: Request) {
   } catch {
     return Response.json({ error: "eBay did not issue RAR an application token." }, { status: 503 });
   }
+  const rules = await loadActiveScoutRules(admin);
 
   const scanProfile = async (profile: Profile) => {
     try {
       const listings = await findActiveEbayListings(profile.search_query, token);
       const checkedAt = new Date().toISOString();
-      const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt));
+      const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt, rules));
       await storeScoutLeads(admin, profile.id, builds);
       const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
       if (scanError) throw new Error("RAR could not record the completed Scout scan.");

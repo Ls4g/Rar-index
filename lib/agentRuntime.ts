@@ -82,12 +82,14 @@ async function collectEvidenceMetrics(admin: SupabaseClient): Promise<AgentMetri
 
 async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetrics> {
   const cutoff = new Date(Date.now() - 86_400_000).toISOString();
-  const [{ data, error }, failures, openActions, safeActions, autoDismissals] = await Promise.all([
+  const [{ data, error }, failures, openActions, safeActions, autoDismissals, activeRules, shadowRules] = await Promise.all([
     admin.from("edition_readiness").select("readiness_status"),
     admin.from("agent_runs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("started_at", cutoff),
     admin.from("agent_actions").select("id", { count: "exact", head: true }).in("status", ["proposed", "approved"]),
     admin.from("agent_actions").select("id", { count: "exact", head: true }).eq("status", "executed").gte("executed_at", cutoff),
     admin.from("scout_lead_decisions").select("id", { count: "exact", head: true }).eq("reviewed_by", "RAR Market Scout").gte("created_at", cutoff),
+    admin.from("scout_rule_versions").select("id", { count: "exact", head: true }).eq("status", "active"),
+    admin.from("scout_rule_versions").select("id", { count: "exact", head: true }).eq("status", "shadow_passed"),
   ]);
   if (error) throw new Error(`Edition readiness scan failed: ${error.message}`);
   const metrics: AgentMetrics = {
@@ -95,6 +97,8 @@ async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetri
     open_agent_proposals: countOrThrow(openActions, "Open proposal count failed"),
     safe_agent_actions_24h: countOrThrow(safeActions, "Safe action count failed"),
     scout_auto_dismissals_24h: countOrThrow(autoDismissals, "Scout auto-dismissal count failed"),
+    scout_active_scoring_rules: countOrThrow(activeRules, "Active Scout rule count failed"),
+    scout_rules_awaiting_activation: countOrThrow(shadowRules, "Shadow-passed Scout rule count failed"),
   };
   for (const row of data ?? []) {
     const status = String(row.readiness_status ?? "unknown").replace(/[^a-z0-9_]/g, "_");
