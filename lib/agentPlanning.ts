@@ -206,6 +206,17 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
       metrics,
     ));
   }
+  if (metrics.open_agent_incidents > 0) {
+    proposals.push(proposal(
+      "resolve_agent_incidents",
+      "agent_incidents",
+      "operator:resolve-agent-incidents",
+      `Resolve ${metrics.open_agent_incidents} open automation incident${metrics.open_agent_incidents === 1 ? "" : "s"}`,
+      "Phase 5 has grouped recent failures and safety stops into one exception queue. Review the cause before resolving or resuming automation.",
+      1,
+      metrics,
+    ));
+  }
   return {
     summary: proposals.length
       ? `Operator found ${proposals.length} system-level priority${proposals.length === 1 ? "" : "ies"}; ${metrics.safe_agent_actions_24h ?? 0} safe actions executed and ${metrics.open_agent_proposals ?? 0} proposals remain open.`

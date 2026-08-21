@@ -82,7 +82,7 @@ async function collectEvidenceMetrics(admin: SupabaseClient): Promise<AgentMetri
 
 async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetrics> {
   const cutoff = new Date(Date.now() - 86_400_000).toISOString();
-  const [{ data, error }, failures, openActions, safeActions, autoDismissals, activeRules, shadowRules] = await Promise.all([
+  const [{ data, error }, failures, openActions, safeActions, autoDismissals, activeRules, shadowRules, incidents, degradedCycles] = await Promise.all([
     admin.from("edition_readiness").select("readiness_status"),
     admin.from("agent_runs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("started_at", cutoff),
     admin.from("agent_actions").select("id", { count: "exact", head: true }).in("status", ["proposed", "approved"]),
@@ -90,6 +90,8 @@ async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetri
     admin.from("scout_lead_decisions").select("id", { count: "exact", head: true }).eq("reviewed_by", "RAR Market Scout").gte("created_at", cutoff),
     admin.from("scout_rule_versions").select("id", { count: "exact", head: true }).eq("status", "active"),
     admin.from("scout_rule_versions").select("id", { count: "exact", head: true }).eq("status", "shadow_passed"),
+    admin.from("agent_incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
+    admin.from("agent_cycles").select("id", { count: "exact", head: true }).in("status", ["degraded", "failed"]).gte("started_at", cutoff),
   ]);
   if (error) throw new Error(`Edition readiness scan failed: ${error.message}`);
   const metrics: AgentMetrics = {
@@ -99,6 +101,8 @@ async function collectOperatorMetrics(admin: SupabaseClient): Promise<AgentMetri
     scout_auto_dismissals_24h: countOrThrow(autoDismissals, "Scout auto-dismissal count failed"),
     scout_active_scoring_rules: countOrThrow(activeRules, "Active Scout rule count failed"),
     scout_rules_awaiting_activation: countOrThrow(shadowRules, "Shadow-passed Scout rule count failed"),
+    open_agent_incidents: countOrThrow(incidents, "Agent incident count failed"),
+    degraded_agent_cycles_24h: countOrThrow(degradedCycles, "Degraded agent cycle count failed"),
   };
   for (const row of data ?? []) {
     const status = String(row.readiness_status ?? "unknown").replace(/[^a-z0-9_]/g, "_");
@@ -181,6 +185,7 @@ export async function runAgentObservation(
   agentKey: AgentKey,
   triggerSource: TriggerSource,
   actor: string,
+  cycleId: string | null = null,
 ) {
   const [{ data: system, error: systemError }, { data: control, error: controlError }] = await Promise.all([
     admin.from("agent_system_control").select("global_paused,autonomy_level").eq("singleton", true).maybeSingle(),
@@ -196,6 +201,7 @@ export async function runAgentObservation(
       status: "blocked",
       mode: typedControl.mode,
       initiated_by: actor,
+      cycle_id: cycleId,
       summary: blockedReason,
       finished_at: new Date().toISOString(),
     }).select("id,status,summary").single();
@@ -209,6 +215,7 @@ export async function runAgentObservation(
     status: "running",
     mode: typedControl.mode,
     initiated_by: actor,
+    cycle_id: cycleId,
   }).select("id").single();
   if (runError || !run) throw new Error(runError?.message ?? "Could not start the agent run.");
 

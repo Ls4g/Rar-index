@@ -1,5 +1,4 @@
-import { AGENT_KEYS } from "@/lib/agentPlanning";
-import { runAgentObservation } from "@/lib/agentRuntime";
+import { runGuardedAgentCycle } from "@/lib/agentCycle";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(request: Request) {
@@ -9,15 +8,10 @@ export async function GET(request: Request) {
   }
 
   const admin = getSupabaseAdmin();
-  const results = [];
-  for (const agentKey of AGENT_KEYS) {
-    try {
-      const run = await runAgentObservation(admin, agentKey, "schedule", "RAR Schedule");
-      results.push({ agentKey, ok: true, run });
-    } catch (caught) {
-      results.push({ agentKey, ok: false, error: caught instanceof Error ? caught.message : "Unknown agent error" });
-    }
+  try {
+    const cycle = await runGuardedAgentCycle(admin, "schedule", "RAR Schedule");
+    return Response.json({ ok: cycle.failed === 0, cycle }, { status: cycle.failed ? 207 : 200 });
+  } catch (caught) {
+    return Response.json({ error: caught instanceof Error ? caught.message : "The guarded agent cycle failed." }, { status: 500 });
   }
-  const failed = results.some((result) => !result.ok);
-  return Response.json({ ok: !failed, results }, { status: failed ? 207 : 200 });
 }

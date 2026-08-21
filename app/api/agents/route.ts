@@ -3,6 +3,7 @@ import { isStaffRequest } from "@/lib/staffSession";
 import { isAgentKey } from "@/lib/agentPlanning";
 import { runAgentObservation } from "@/lib/agentRuntime";
 import { createAndEvaluateScoutRule, reevaluateScoutRule } from "@/lib/scoutRuleEvaluation";
+import { runGuardedAgentCycle } from "@/lib/agentCycle";
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -23,6 +24,11 @@ export async function POST(request: Request) {
   const admin = getSupabaseAdmin();
 
   try {
+    if (command === "run_guarded_cycle") {
+      const cycle = await runGuardedAgentCycle(admin, "manual", reviewer);
+      return Response.json({ cycle });
+    }
+
     if (command === "run_agent") {
       if (!isAgentKey(payload.agentKey)) return Response.json({ error: "Choose a valid RAR agent." }, { status: 400 });
       const run = await runAgentObservation(admin, payload.agentKey, "manual", reviewer);
@@ -38,11 +44,31 @@ export async function POST(request: Request) {
 
     if (command === "set_global_paused") {
       if (typeof payload.paused !== "boolean") return Response.json({ error: "Choose a global pause state." }, { status: 400 });
-      const { error } = await admin.from("agent_system_control").update({
-        global_paused: payload.paused,
-        pause_reason: payload.paused ? clean(payload.reason) || `Paused by ${reviewer}` : null,
-        updated_by: reviewer,
-      }).eq("singleton", true);
+      const controlUpdate = payload.paused
+        ? { global_paused: true, pause_reason: clean(payload.reason) || `Paused by ${reviewer}`, updated_by: reviewer }
+        : { global_paused: false, pause_reason: null, consecutive_failed_cycles: 0, circuit_breaker_reason: null, updated_by: reviewer };
+      const { error } = await admin.from("agent_system_control").update(controlUpdate).eq("singleton", true);
+      if (error) throw new Error(error.message);
+      if (!payload.paused) {
+        const { error: incidentError } = await admin.from("agent_incidents").update({
+          status: "resolved",
+          resolved_by: reviewer,
+          resolved_at: new Date().toISOString(),
+          resolution_notes: "Circuit breaker reviewed and automation resumed by staff.",
+        }).eq("incident_key", "agent-circuit-breaker").eq("status", "open");
+        if (incidentError) throw new Error(incidentError.message);
+      }
+      return Response.json({ ok: true });
+    }
+
+    if (command === "resolve_agent_incident") {
+      const incidentId = clean(payload.incidentId);
+      if (!incidentId) return Response.json({ error: "Choose an open incident." }, { status: 400 });
+      const { error } = await admin.rpc("resolve_agent_incident", {
+        p_incident_id: incidentId,
+        p_resolved_by: reviewer,
+        p_notes: clean(payload.notes),
+      });
       if (error) throw new Error(error.message);
       return Response.json({ ok: true });
     }

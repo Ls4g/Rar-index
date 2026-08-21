@@ -74,6 +74,42 @@ type RuleEvaluation = {
 
 type RuleDashboard = { rules: RuleVersion[]; evaluations: RuleEvaluation[]; ready: boolean };
 
+type AgentCycle = {
+  id: string;
+  trigger_source: string;
+  status: string;
+  successful_agents: number;
+  failed_agents: number;
+  blocked_agents: number;
+  summary: string | null;
+  started_at: string;
+  finished_at: string | null;
+};
+
+type AgentIncident = {
+  id: string;
+  incident_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type AutopilotDashboard = {
+  ready: boolean;
+  control: {
+    consecutive_failed_cycles: number;
+    failure_threshold: number;
+    auto_pause_on_failure: boolean;
+    last_cycle_at: string | null;
+    last_healthy_cycle_at: string | null;
+    circuit_breaker_reason: string | null;
+  } | null;
+  cycles: AgentCycle[];
+  incidents: AgentIncident[];
+};
+
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   stage_catalogue_candidates: { href: "/catalogue-review", label: "Review staged candidates" },
   review_catalogue_queue: { href: "/catalogue-review", label: "Open catalogue review" },
@@ -95,6 +131,7 @@ const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   shadow_test_multi_volume_detection: { href: "/scout", label: "Inspect labelled examples" },
   shadow_test_edition_conflicts: { href: "/scout", label: "Inspect labelled examples" },
   review_scout_rule_regression: { href: "/agents", label: "Inspect rule versions" },
+  resolve_agent_incidents: { href: "/agents", label: "Open autopilot health" },
 };
 
 const FEEDBACK_ACTIONS = new Set([
@@ -137,6 +174,7 @@ function runButtonLabel(control: Control, isBusy: boolean) {
 
 function statusLabel(status?: string) {
   if (status === "succeeded") return "Healthy";
+  if (status === "degraded") return "Degraded";
   if (status === "failed") return "Needs attention";
   if (status === "running") return "Running";
   if (status === "blocked") return "Blocked";
@@ -155,6 +193,7 @@ export default function AgentControlCentre({
   pauseReason,
   historicalDecisions,
   ruleDashboard,
+  autopilot,
 }: {
   controls: Control[];
   runs: Run[];
@@ -163,6 +202,7 @@ export default function AgentControlCentre({
   pauseReason: string | null;
   historicalDecisions: HistoricalDecision[];
   ruleDashboard: RuleDashboard;
+  autopilot: AutopilotDashboard;
 }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useState("");
@@ -267,6 +307,14 @@ export default function AgentControlCentre({
   const feedbackExceptions = (marketScoutRun?.metrics?.feedback_watched_below_review ?? 0)
     + (marketScoutRun?.metrics?.feedback_watched_conflicts ?? 0)
     + (marketScoutRun?.metrics?.feedback_dismissed_still_plausible ?? 0);
+  const latestCycle = autopilot.cycles[0];
+  const autopilotTitle = globalPaused && autopilot.control?.circuit_breaker_reason
+    ? "Circuit breaker paused automation"
+    : latestCycle?.status === "succeeded"
+      ? "Daily agent cycle is healthy"
+      : latestCycle
+        ? "The latest cycle needs attention"
+        : "Ready for the first guarded cycle";
 
   return (
     <div className="agent-control-content">
@@ -280,6 +328,24 @@ export default function AgentControlCentre({
           <Link href="/scout"><strong>{scoutReviewCount}</strong><span>Scout leads for people</span><small>Open the filtered inbox</small></Link>
           <Link href="/review"><strong>{evidenceReviewCount}</strong><span>evidence decisions</span><small>Review sales and printing proof</small></Link>
         </div>
+      </section>
+
+      <section className={`agent-autopilot-panel ${globalPaused ? "is-paused" : ""}`}>
+        <div className="agent-autopilot-heading">
+          <div><p className="eyebrow">Phase 5 autopilot</p><h2>{autopilotTitle}</h2><p>{latestCycle?.summary ?? "RAR will run all four assistants as one recorded cycle and stop itself after repeated technical failures."}</p></div>
+          <button disabled={Boolean(busy) || globalPaused || !autopilot.ready} onClick={() => command("guarded-cycle", { command: "run_guarded_cycle" })} type="button">{busy === "guarded-cycle" ? "Running cycle..." : "Run guarded cycle"}</button>
+        </div>
+        {autopilot.ready ? <div className="agent-autopilot-metrics">
+          <span><b>{latestCycle ? statusLabel(latestCycle.status) : "Ready"}</b>latest cycle</span>
+          <span><b>{latestCycle?.successful_agents ?? 0}/4</b>agents completed</span>
+          <span><b>{autopilot.control?.consecutive_failed_cycles ?? 0}/{autopilot.control?.failure_threshold ?? 2}</b>failures before stop</span>
+          <span><b>{autopilot.incidents.length}</b>open incidents</span>
+        </div> : <div className="review-empty agent-empty-compact"><strong>Phase 5 database is not ready.</strong><p>Apply the guarded-autopilot migration before running a full cycle.</p></div>}
+        {autopilot.incidents.length ? <div className="agent-incident-list">{autopilot.incidents.map((incident) => <article className={`is-${incident.severity}`} key={incident.id}>
+          <div><span>{incident.severity} · {incident.incident_type.replaceAll("_", " ")}</span><strong>{incident.title}</strong><small>{formatTime(incident.created_at)}</small></div>
+          <button className="secondary" disabled={Boolean(busy)} onClick={() => command(`incident-${incident.id}`, { command: "resolve_agent_incident", incidentId: incident.id })} type="button">Resolve</button>
+        </article>)}</div> : null}
+        {autopilot.cycles.length ? <details className="agent-cycle-history"><summary>Recent guarded cycles</summary><div>{autopilot.cycles.slice(0, 10).map((cycle) => <article key={cycle.id}><span className={`agent-run-status ${cycle.status}`}>{statusLabel(cycle.status)}</span><strong>{cycle.summary ?? "Cycle completed"}</strong><small>{formatTime(cycle.started_at)} · {cycle.trigger_source}</small></article>)}</div></details> : null}
       </section>
 
       <section className={`agent-kill-switch ${globalPaused ? "is-paused" : ""}`}>
