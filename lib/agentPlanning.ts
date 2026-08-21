@@ -219,7 +219,7 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
   }
   return {
     summary: proposals.length
-      ? `Operator found ${proposals.length} system-level priority${proposals.length === 1 ? "" : "ies"}; ${metrics.safe_agent_actions_24h ?? 0} safe actions executed and ${metrics.open_agent_proposals ?? 0} proposals remain open.`
+      ? `Operator found ${proposals.length} system-level ${proposals.length === 1 ? "priority" : "priorities"}; ${metrics.safe_agent_actions_24h ?? 0} safe actions executed and ${metrics.open_agent_proposals ?? 0} proposals remain open.`
       : `${metrics.safe_agent_actions_24h ?? 0} safe actions executed in 24 hours; no edition-readiness bottleneck or recent agent failure needs escalation.`,
     proposals,
   };
