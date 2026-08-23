@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
+import { browseSeriesKey, browseSeriesName, browseVolumeNumber, compareBrowseEditions } from "@/lib/browseOrder";
 
 export type BrowseEdition = {
   id: string;
@@ -36,14 +37,6 @@ type SortMode = "newest" | "title" | "completeness";
 // optional fields happen to be filled in.
 function completenessScore(edition: BrowseEdition) {
   return Number(edition.cover_verification_status === "verified") + Number(edition.verified_sale_count > 0) + Number(Boolean(edition.edition_statement)) + Number(edition.hasFirstPrintEvidence);
-}
-
-function bySort(sort: SortMode) {
-  return (left: BrowseEdition, right: BrowseEdition) => {
-    if (sort === "title") return (left.title ?? "").localeCompare(right.title ?? "");
-    if (sort === "completeness") return completenessScore(right) - completenessScore(left) || (left.title ?? "").localeCompare(right.title ?? "");
-    return (right.created_at ?? "").localeCompare(left.created_at ?? "");
-  };
 }
 
 export default function BrowseEditions({ editions }: { editions: BrowseEdition[] }) {
@@ -79,17 +72,16 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   }, [collectibleType, coverOnly, editions, firstPrintOnly, japaneseOnly, language, publisher, query, verifiedSalesOnly]);
 
   const groups = useMemo(() => {
-    const compare = bySort(sort);
-    const bySeries = new Map<string, BrowseEdition[]>();
+    const bySeries = new Map<string, { series: string; editions: BrowseEdition[] }>();
     for (const edition of filtered) {
-      const key = edition.series || edition.title || "Uncategorised";
-      const list = bySeries.get(key) ?? [];
-      list.push(edition);
-      bySeries.set(key, list);
+      const key = browseSeriesKey(edition) || "uncategorised";
+      const group = bySeries.get(key) ?? { series: browseSeriesName(edition), editions: [] };
+      group.editions.push(edition);
+      bySeries.set(key, group);
     }
 
-    const groupList = [...bySeries.entries()].map(([series, list]) => {
-      const ordered = [...list].sort(compare);
+    const groupList = [...bySeries.values()].map(({ series, editions: list }) => {
+      const ordered = [...list].sort(compareBrowseEditions);
       const bestCompleteness = Math.max(...list.map(completenessScore));
       const latestCreatedAt = list.reduce((latest, edition) => (edition.created_at && edition.created_at > latest ? edition.created_at : latest), "");
       const verifiedCount = list.filter((edition) => edition.verified_sale_count > 0).length;
@@ -149,6 +141,8 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                 const hasVerifiedCover = edition.cover_verification_status === "verified";
                 const wellDocumented = hasVerifiedCover && edition.verified_sale_count > 0;
                 const isMagazine = edition.collectible_type === "zasshi";
+                const displaySeries = browseSeriesName(edition);
+                const displayVolume = browseVolumeNumber(edition);
                 const issue = isMagazine
                   ? [edition.issue_year, edition.issue_number_label ? `Issue ${edition.issue_number_label}` : null].filter(Boolean).join(" · ")
                   : null;
@@ -157,9 +151,9 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                   : edition.isbn_13 || "ISBN pending";
                 return (
                   <Link href={`/edition/${edition.id}`} className={`browse-card${wellDocumented ? " is-well-documented" : ""}`} key={edition.id}>
-                    <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issue : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
+                    <EditionCover title={edition.title} series={displaySeries} volumeNumber={displayVolume} descriptor={isMagazine ? issue : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
                     <div className="browse-card-body">
-                      <p>{[isMagazine ? "Magazine issue" : edition.collectible_type?.replaceAll("_", " "), isMagazine ? issue : edition.series, !isMagazine && edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language].filter(Boolean).join(" · ")}</p>
+                      <p>{[isMagazine ? "Magazine issue" : edition.collectible_type?.replaceAll("_", " "), isMagazine ? issue : displaySeries, !isMagazine && displayVolume ? `Vol. ${displayVolume}` : null, edition.language].filter(Boolean).join(" · ")}</p>
                       <h2>{(isMagazine ? edition.series : edition.title) || "Untitled publication"}</h2>
                       <strong>{isMagazine ? issue || "Magazine issue" : editionDescriptor(edition)}</strong>
                       {!isMagazine && edition.hasFirstPrintEvidence ? (
