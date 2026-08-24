@@ -2,6 +2,8 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
+import { seedMissingEbayProfiles } from "@/lib/scoutProfileSeed";
+import { selectScoutProfiles, SCOUT_PUBLIC_FRESHNESS_HOURS, type ScoutCoverageLead } from "@/lib/scoutCoverage";
 
 export const maxDuration = 60;
 
@@ -41,21 +43,41 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return Response.json({ error: "Unauthorized cron request." }, { status: 401 });
 
   const admin = getSupabaseAdmin();
+  let createdProfiles = 0;
+  try {
+    createdProfiles = (await seedMissingEbayProfiles(admin)).created;
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "RAR could not prepare Scout coverage." }, { status: 500 });
+  }
   const { data, error } = await admin
     .from("marketplace_search_profiles")
     .select("id,search_query,collection_interval_days,last_checked_at,source:sources!inner(id,name),edition:manga_editions(title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no)")
     .eq("is_active", true)
     .eq("source.name", "eBay Sold")
     .order("last_checked_at", { ascending: true, nullsFirst: true })
-    .limit(DAILY_PROFILE_LIMIT);
+    .limit(1000);
   const profiles = (data ?? []) as unknown as Profile[];
   if (error) return Response.json({ error: "RAR could not load the daily Scout profiles." }, { status: 500 });
 
-  // "Live" can only mean recently checked. Refresh every active eBay profile
-  // once a day instead of following the slower completed-sales collection
-  // cadence, which left public live listings stale for most editions.
   const activeProfiles = profiles.filter((profile) => profile.source?.name === "eBay Sold" && profile.edition);
-  if (!activeProfiles.length) return Response.json({ scannedProfiles: 0, activeLeads: 0, failures: 0 });
+  if (!activeProfiles.length) return Response.json({ createdProfiles, scannedProfiles: 0, activeLeads: 0, failures: 0 });
+
+  const cutoff = new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
+  const profileIds = activeProfiles.map((profile) => profile.id);
+  const recentLeads: ScoutCoverageLead[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data: leadRows, error: leadError } = await admin.from("scout_listing_leads")
+      .select("profile_id,external_id,listing_title,item_end_at,last_seen_at,review_status")
+      .in("profile_id", profileIds)
+      .in("review_status", ["new", "watching"])
+      .gte("last_seen_at", cutoff)
+      .range(offset, offset + 999);
+    if (leadError) return Response.json({ error: "RAR could not measure current Scout coverage." }, { status: 500 });
+    recentLeads.push(...((leadRows ?? []) as ScoutCoverageLead[]));
+    if ((leadRows ?? []).length < 1000) break;
+  }
+  const selection = selectScoutProfiles(activeProfiles, recentLeads, DAILY_PROFILE_LIMIT);
+  const profilesToScan = selection.selected;
 
   let token: string;
   try {
@@ -83,8 +105,8 @@ export async function GET(request: Request) {
   };
 
   const results: Array<{ activeLeads: number; failed: boolean }> = [];
-  for (let offset = 0; offset < activeProfiles.length; offset += SCAN_CONCURRENCY) {
-    const batch = activeProfiles.slice(offset, offset + SCAN_CONCURRENCY);
+  for (let offset = 0; offset < profilesToScan.length; offset += SCAN_CONCURRENCY) {
+    const batch = profilesToScan.slice(offset, offset + SCAN_CONCURRENCY);
     results.push(...await Promise.all(batch.map(scanProfile)));
   }
 
@@ -92,5 +114,14 @@ export async function GET(request: Request) {
   const failures = results.filter((result) => result.failed).length;
   const scannedProfiles = results.length - failures;
 
-  return Response.json({ scannedProfiles, activeLeads, failures });
+  return Response.json({
+    createdProfiles,
+    activeProfiles: activeProfiles.length,
+    coveredProfiles: selection.coveredProfiles,
+    discoveryScans: selection.discoverySelected,
+    maintenanceScans: selection.maintenanceSelected,
+    scannedProfiles,
+    activeLeads,
+    failures,
+  });
 }

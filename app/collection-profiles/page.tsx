@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CollectionRunForm from "@/components/CollectionRunForm";
 import StaffNav from "@/components/StaffNav";
+import { publicListingCoverage, SCOUT_PUBLIC_FRESHNESS_HOURS, SCOUT_PUBLIC_LISTING_TARGET, type ScoutCoverageLead } from "@/lib/scoutCoverage";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ type CollectionProfile = {
   last_checked_at: string | null;
   last_checked_result_count: number | null;
   collection_interval_days: number;
-  edition: { id: string; title: string | null; language: string | null; isbn_13: string | null } | null;
+  edition: { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; isbn_13: string | null; publisher: string | null; format: string | null } | null;
   source: { name: string | null } | null;
 };
 
@@ -78,10 +79,25 @@ export default async function CollectionProfilesPage() {
   const admin = getSupabaseAdmin();
   const { data } = await admin
     .from("marketplace_search_profiles")
-    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, collection_interval_days, edition:manga_editions(id, title, language, isbn_13), source:sources(name)")
+    .select("id, search_query, scope_notes, is_active, last_checked_at, last_checked_result_count, collection_interval_days, edition:manga_editions(id, title, series, volume_number, language, isbn_13, publisher, format), source:sources(name)")
     .order("created_at", { ascending: false });
   const profiles = (data ?? []) as unknown as CollectionProfile[];
   const profileIds = profiles.map((profile) => profile.id);
+  const liveCutoff = new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
+  const { data: liveLeadData } = profileIds.length
+    ? await admin.from("scout_listing_leads")
+      .select("profile_id,external_id,listing_title,item_end_at,last_seen_at,review_status")
+      .in("profile_id", profileIds)
+      .in("review_status", ["new", "watching"])
+      .gte("last_seen_at", liveCutoff)
+      .limit(5000)
+    : { data: [] };
+  const liveLeadsByProfile = new Map<string, ScoutCoverageLead[]>();
+  for (const lead of (liveLeadData ?? []) as ScoutCoverageLead[]) {
+    const rows = liveLeadsByProfile.get(lead.profile_id) ?? [];
+    rows.push(lead);
+    liveLeadsByProfile.set(lead.profile_id, rows);
+  }
   const { data: runData } = profileIds.length
     ? await admin
       .from("marketplace_collection_runs")
@@ -142,6 +158,7 @@ export default async function CollectionProfilesPage() {
           const searchUrl = sourceSearchUrl(profile.source?.name ?? null, profile.search_query);
           const runs = runsByProfile.get(profile.id) ?? [];
           const chartEvidence = chartEvidenceLabel(profile.edition ? salesByEdition.get(profile.edition.id) ?? [] : []);
+          const liveCoverage = publicListingCoverage(profile, liveLeadsByProfile.get(profile.id) ?? []);
           return (
             <article className="review-card catalogue-card" key={profile.id}>
               <div className="review-card-topline"><span>{profile.source?.name ?? "Marketplace"}</span><time>{profile.is_active ? nextCheck(profile).label : "Paused"}</time></div>
@@ -149,6 +166,7 @@ export default async function CollectionProfilesPage() {
               <p><Link className="review-source-link" href={`/collection-profiles/${profile.id}`}>Open research workbench -&gt;</Link></p>
               <dl className="catalogue-details"><div><dt>Search query</dt><dd>{profile.search_query}</dd></div><div><dt>Cadence</dt><dd>{cadenceLabel(profile.collection_interval_days)}</dd></div><div><dt>Last checked</dt><dd>{formatDate(profile.last_checked_at)}{profile.last_checked_result_count !== null ? ` · ${profile.last_checked_result_count} results` : ""}</dd></div></dl>
               <div className="review-note"><span>Chart evidence</span><p><strong>{chartEvidence.label}</strong><br />{chartEvidence.detail}</p></div>
+              <div className="review-note"><span>Scout coverage</span><p><strong>{liveCoverage} of {SCOUT_PUBLIC_LISTING_TARGET} usable live listings</strong><br />{liveCoverage >= SCOUT_PUBLIC_LISTING_TARGET ? "Covered — Scout treats this as maintenance work." : `Discovery priority — Scout still needs ${SCOUT_PUBLIC_LISTING_TARGET - liveCoverage}.`}</p></div>
               <div className="review-note"><span>Exact-edition rules</span><p>{profile.scope_notes}</p></div>
               <CollectionRunForm profileId={profile.id} />
               <div className="review-note"><span>Recent collection runs</span>{runs.length ? <ul>{runs.slice(0, 3).map((run) => <li key={run.id}>{formatDate(run.checked_at)} · {run.checked_by} · {run.candidate_count} candidates — {run.notes}</li>)}</ul> : <p>No run has been recorded yet.</p>}</div>
