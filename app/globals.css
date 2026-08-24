@@ -1993,6 +1993,34 @@ html[data-theme="day"] .public-page {
 .quick-sale-submit button:disabled { opacity: .55; cursor: not-allowed; }
 .quick-sale-submit p, .quick-sale-message { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .quick-sale-message { padding: .8rem .95rem; border-left: 3px solid #a77d2d; background: #f2e8d7; color: #594c38; }
+.quick-sale-verify { display: flex !important; grid-column: 1 / -1; gap: .8rem !important; align-items: flex-start; padding: .9rem 1rem; border: 1px solid #bfd8cf; border-radius: .65rem; background: #edf7f3; color: #174d3f !important; cursor: pointer; text-transform: none !important; letter-spacing: normal !important; }
+.quick-sale-verify input { width: 1rem !important; min-height: 1rem !important; margin-top: .2rem; accent-color: #176a54; }
+.quick-sale-verify span { display: grid; gap: .2rem; }
+.quick-sale-verify strong { font-size: .8rem; }
+.quick-sale-verify small { color: #3f6b60 !important; line-height: 1.4; }
+
+.price-review-workbench { display: grid; gap: 1rem; }
+.price-review-toolbar { display: grid; grid-template-columns: minmax(14rem, 24rem) 1fr; gap: .9rem 1.25rem; align-items: end; padding: 1rem 1.1rem; border: 1px solid #d9cda5; border-radius: .75rem; background: #fffaf0; }
+.price-review-toolbar label { display: grid; gap: .35rem; color: #705e39; font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.price-review-toolbar input { width: 100%; min-height: 2.55rem; border: 1px solid #d8c99c; border-radius: .5rem; padding: .6rem .7rem; background: #fff; color: var(--ink); font: inherit; letter-spacing: normal; text-transform: none; }
+.price-review-toolbar small { color: var(--muted); line-height: 1.45; }
+.price-review-bulkbar { position: sticky; top: .5rem; z-index: 3; display: flex; gap: .65rem; align-items: center; flex-wrap: wrap; min-height: 3.4rem; padding: .7rem .85rem; border: 1px solid #cfc5b5; border-radius: .7rem; background: rgba(255, 253, 248, .96); box-shadow: 0 6px 20px rgba(48, 37, 20, .08); backdrop-filter: blur(10px); }
+.price-review-bulkbar label { display: flex; gap: .45rem; align-items: center; font-size: .76rem; font-weight: 700; }
+.price-review-bulkbar span { color: var(--muted); font-size: .76rem; }
+.price-review-bulkbar button, .price-review-actions button { border: 0; border-radius: .5rem; padding: .65rem .8rem; background: #176a54; color: #fff; cursor: pointer; font: inherit; font-size: .72rem; font-weight: 800; }
+.price-review-bulkbar button:disabled, .price-review-actions button:disabled { opacity: .5; cursor: wait; }
+.price-review-bulkbar .is-exclude, .price-review-actions .is-exclude { background: #8c3b35; }
+.price-review-bulkbar .is-clear { border: 1px solid #cec5b7; background: transparent; color: var(--ink); }
+.price-review-card { transition: border-color .15s ease, box-shadow .15s ease; }
+.price-review-card.is-selected { border-color: #b68a2e; box-shadow: 0 0 0 2px rgba(182, 138, 46, .16); }
+.price-review-select { display: flex; gap: .4rem; align-items: center; color: #665839; font-size: .72rem; font-weight: 800; }
+.price-review-links { display: flex; gap: .55rem; align-items: flex-end; flex-direction: column; }
+.price-review-note { display: grid; gap: .35rem; padding: 0 1rem 1rem; color: var(--muted); font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.price-review-reason { margin-top: .7rem !important; padding-top: .65rem; border-top: 1px dashed #d8d0c4; color: #6c6152 !important; font-size: .76rem; line-height: 1.45; }
+.price-review-note small { font-weight: 500; letter-spacing: normal; text-transform: none; }
+.price-review-note textarea { min-height: 3.4rem; border: 1px solid #ddd4c7; border-radius: .5rem; padding: .65rem .7rem; background: #fffdf8; color: var(--ink); font: inherit; letter-spacing: normal; resize: vertical; text-transform: none; }
+.price-review-actions { display: flex; gap: .55rem; flex-wrap: wrap; padding: 0 1rem 1rem; }
+.price-review-actions .is-first-print { background: #a77d2d; }
 .evidence-photo-loader { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
 .evidence-photo-loader button { border: 1px solid #a77d2d; border-radius: .55rem; padding: .72rem .9rem; background: #fff8e8; color: #765415; cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; }
 .evidence-photo-loader button:disabled { opacity: .5; cursor: not-allowed; }
@@ -2058,6 +2086,13 @@ html[data-theme="day"] .public-page {
   .index-ways-in-grid { grid-template-columns: 1fr; }
   .quick-sale-grid, .collection-priority-grid { grid-template-columns: 1fr; }
   .quick-sale-wide { grid-column: auto; }
+  .quick-sale-verify { grid-column: auto; }
+  .price-review-toolbar { grid-template-columns: 1fr; }
+  .price-review-bulkbar { position: static; }
+  .price-review-card .review-card-topline { align-items: flex-start; flex-wrap: wrap; }
+  .price-review-card .review-card-main { grid-template-columns: 1fr; }
+  .price-review-links { align-items: flex-start; }
+  .price-review-actions button { flex: 1 1 100%; }
   .index-section-action { text-align: left; }
   .site-header { gap: .75rem; padding: 1rem; }
   .staff-header-actions { gap: .55rem; }

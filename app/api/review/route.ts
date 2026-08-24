@@ -1,74 +1,106 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isStaffRequest } from "@/lib/staffSession";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 type ReviewDecision = "verified_match" | "needs_review" | "excluded";
+type PrintClassification = "known_later_print" | "first_print_proven";
+type ReviewResult = { observationId: string; ok: boolean; error?: string };
 
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
+const BULK_CONCURRENCY = 6;
 
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
+function clean(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
+async function applyAll(observationIds: string[], apply: (observationId: string) => Promise<ReviewResult>) {
+  const results: ReviewResult[] = [];
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < observationIds.length) results.push(await apply(observationIds[nextIndex++]));
   }
+  await Promise.all(Array.from({ length: Math.min(BULK_CONCURRENCY, observationIds.length) }, worker));
+  return results;
 }
 
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) {
-    return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+
+  let payload: { observationId?: unknown; observationIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; printClassification?: unknown; proofUrl?: unknown; printingNumber?: unknown };
+  try { payload = await request.json(); } catch { return Response.json({ error: "Send a valid review decision." }, { status: 400 }); }
+
+  const requestedIds = Array.isArray(payload.observationIds)
+    ? payload.observationIds.map(clean).filter(Boolean)
+    : [clean(payload.observationId)].filter(Boolean);
+  const observationIds = [...new Set(requestedIds)];
+  const decision = clean(payload.decision) as ReviewDecision;
+  const notes = clean(payload.notes);
+  const reviewer = clean(payload.reviewer);
+  const printClassification = clean(payload.printClassification) as PrintClassification | "";
+  const proofUrl = clean(payload.proofUrl);
+  const printingNumberRaw = clean(payload.printingNumber);
+  const printingNumber = printingNumberRaw ? Number(printingNumberRaw) : null;
+
+  if (!observationIds.length || !(["verified_match", "needs_review", "excluded"] as string[]).includes(decision) || !reviewer) {
+    return Response.json({ error: "Choose at least one sale, a decision, and identify the reviewer." }, { status: 400 });
   }
+  if (printClassification && decision !== "verified_match") return Response.json({ error: "Printing can only be classified while verifying an exact edition match." }, { status: 400 });
+  if (printClassification && !(["known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
+  if (printClassification && observationIds.length !== 1) return Response.json({ error: "Printing proof belongs to one sold copy and cannot be applied in bulk." }, { status: 400 });
+  if (printClassification === "first_print_proven" && !proofUrl) return Response.json({ error: "A first-print decision requires the direct copyright-page proof URL." }, { status: 400 });
+  if (printingNumberRaw && (!Number.isFinite(printingNumber) || (printingNumber as number) < 1)) return Response.json({ error: "Known printing number must be a positive number." }, { status: 400 });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    return Response.json({ error: "Review actions are not configured yet." }, { status: 503 });
-  }
+  const admin = getSupabaseAdmin();
+  const { data: observations, error: observationError } = await admin.from("price_observations")
+    .select("id,edition_id,match_status")
+    .in("id", observationIds);
+  if (observationError) return Response.json({ error: "RAR could not load the selected sales." }, { status: 500 });
 
-  let payload: { observationId?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown };
-  try {
-    payload = await request.json();
-  } catch {
-    return Response.json({ error: "Send a valid review decision." }, { status: 400 });
-  }
+  const rowsById = new Map((observations ?? []).map((row) => [row.id as string, row]));
+  const eligibleIds = observationIds.filter((id) => rowsById.get(id)?.match_status === "needs_review");
+  const protectedResults: ReviewResult[] = observationIds
+    .filter((id) => rowsById.get(id)?.match_status !== "needs_review")
+    .map((observationId) => ({ observationId, ok: false, error: "This sale has already received an edition-match decision." }));
 
-  const decisions: ReviewDecision[] = ["verified_match", "needs_review", "excluded"];
-  const observationId = typeof payload.observationId === "string" ? payload.observationId : "";
-  const decision = typeof payload.decision === "string" ? payload.decision : "";
-  const notes = typeof payload.notes === "string" ? payload.notes.trim() : "";
-  const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
-  if (!observationId || !decisions.includes(decision as ReviewDecision) || !reviewer) {
-    return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
-  }
+  const results = [
+    ...protectedResults,
+    ...await applyAll(eligibleIds, async (observationId) => {
+      try {
+        // When direct printing proof is already on the card, the reviewer can
+        // finish both audits in one action. Classify first so a failed proof
+        // check cannot accidentally publish a half-completed sale.
+        if (printClassification) {
+          const { error: classificationError } = await admin.rpc("apply_price_print_classification", {
+            p_observation_id: observationId,
+            p_classification: printClassification,
+            p_printing_proof_url: proofUrl || null,
+            p_known_printing_number: printingNumber,
+            p_decision_notes: notes,
+            p_reviewed_by: reviewer,
+          });
+          if (classificationError) return { observationId, ok: false, error: classificationError.message };
+        }
+        const { error } = await admin.rpc("apply_price_review", {
+          p_observation_id: observationId,
+          p_decision: decision,
+          p_decision_notes: notes,
+          p_reviewed_by: reviewer,
+        });
+        return { observationId, ok: !error, error: error?.message };
+      } catch {
+        return { observationId, ok: false, error: "The database did not accept this review decision." };
+      }
+    }),
+  ];
 
-  const supabaseAdmin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: observation } = await supabaseAdmin.from("price_observations").select("edition_id").eq("id", observationId).maybeSingle();
+  const saved = results.filter((result) => result.ok);
+  const failed = results.filter((result) => !result.ok);
+  const affectedEditions = [...new Set(saved.map((result) => rowsById.get(result.observationId)?.edition_id as string | undefined).filter((id): id is string => Boolean(id)))];
+  await Promise.all(affectedEditions.map(async (editionId) => {
+    try { await snapshotHoldersOfEdition(admin, editionId); } catch { /* The review decision itself already succeeded. */ }
+  }));
 
-  const { error } = await supabaseAdmin.rpc("apply_price_review", {
-    p_observation_id: observationId,
-    p_decision: decision,
-    p_decision_notes: notes,
-    p_reviewed_by: reviewer,
+  if (!saved.length) return Response.json({ error: failed[0]?.error ?? "The review decision could not be saved.", saved: [], failed }, { status: 500 });
+  return Response.json({
+    ok: true,
+    saved: saved.map((result) => result.observationId),
+    failed: failed.map((result) => ({ observationId: result.observationId, error: result.error })),
   });
-
-  if (error) return Response.json({ error: "The review decision could not be saved." }, { status: 500 });
-
-  // A review decision changes what counts as verified evidence for this
-  // edition's whole publication family -- every affected portfolio should
-  // reflect that today, not after tomorrow's cron. Runs as the affected
-  // users via the service-role client (RLS is bypassed, not routed around),
-  // and never fails the staff member's own successful review decision.
-  if (observation?.edition_id) {
-    try {
-      await snapshotHoldersOfEdition(supabaseAdmin, observation.edition_id);
-    } catch {
-      // Best-effort: the review decision itself already succeeded.
-    }
-  }
-
-  return Response.json({ ok: true });
 }

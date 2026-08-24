@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { extractEbayLegacyItemId, ebayMarketplaceFromUrl } from "@/lib/ebayEvidence";
 import { getEbayListingEvidence } from "@/lib/ebayScout";
+import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 type Edition = {
   id: string;
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
   const evidenceImageUrl = text(payload.evidenceImageUrl); const intakeNotes = text(payload.intakeNotes); const suppliedExternalId = text(payload.externalId);
   const salePrice = typeof payload.salePrice === "number" ? payload.salePrice : Number(text(payload.salePrice));
   const reviewer = text(payload.reviewer);
+  const verifyExactMatch = payload.verifyExactMatch === true;
   const printClassification = text(payload.printClassification) || "printing_not_identified";
   const knownPrintingNumberRaw = text(payload.knownPrintingNumber);
   const knownPrintingNumber = knownPrintingNumberRaw ? Number(knownPrintingNumberRaw) : null;
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
   if (!(["auction", "best_offer", "fixed_price", "unknown"] as string[]).includes(saleType)) return Response.json({ error: "Choose a recognised sale type." }, { status: 400 });
   if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
   const classifying = printClassification !== "printing_not_identified";
-  if (classifying && !reviewer) return Response.json({ error: "A reviewer name is required to classify the printing — it is an audited decision." }, { status: 400 });
+  if ((classifying || verifyExactMatch) && !reviewer) return Response.json({ error: "A reviewer name is required to verify or classify this sale." }, { status: 400 });
   if (printClassification === "first_print_proven" && !evidenceImageUrl) return Response.json({ error: "A first-print classification requires the copyright-page proof link." }, { status: 400 });
   if (knownPrintingNumberRaw && (!Number.isFinite(knownPrintingNumber) || (knownPrintingNumber as number) < 1)) return Response.json({ error: "Known printing number must be a positive number." }, { status: 400 });
 
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
     // The sale always lands printing_not_identified via the plain insert
     // above. A printing classification only ever happens through this
     // audited RPC — never a raw column set — so it always gets a named
-    // reviewer, a real note, and a permanent row in
+    // reviewer and a permanent row in
     // price_print_classification_decisions, exactly like every other
     // staff decision in RAR.
     if (classifying) {
@@ -143,6 +145,20 @@ export async function POST(request: Request) {
       if (classificationError) return Response.json({ error: `The sale was saved, but its printing classification could not be recorded: ${classificationError.message}` }, { status: 500 });
     }
 
-    return Response.json({ observationId: observation.id });
+    // Staff can finish the exact-edition decision during manual intake, but
+    // only after explicitly opting in. This is the same audited RPC used by
+    // the review queue; selecting an edition alone never verifies a sale.
+    if (verifyExactMatch) {
+      const { error: reviewError } = await admin.rpc("apply_price_review", {
+        p_observation_id: observation.id,
+        p_decision: "verified_match",
+        p_decision_notes: intakeNotes,
+        p_reviewed_by: reviewer,
+      });
+      if (reviewError) return Response.json({ error: `The sale was saved, but its exact-edition review could not be recorded: ${reviewError.message}` }, { status: 500 });
+      try { await snapshotHoldersOfEdition(admin, edition.id); } catch { /* The review succeeded; portfolio refresh is best-effort. */ }
+    }
+
+    return Response.json({ observationId: observation.id, verified: verifyExactMatch, classified: classifying });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "The sale could not be queued." }, { status: 400 }); }
 }

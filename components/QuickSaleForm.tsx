@@ -46,6 +46,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [loadingListingImages, setLoadingListingImages] = useState(false);
   const [intakeNotes, setIntakeNotes] = useState("");
   const [reviewer, setReviewer] = useState("");
+  const [verifyExactMatch, setVerifyExactMatch] = useState(false);
   const [printClassification, setPrintClassification] = useState<"printing_not_identified" | "known_later_print" | "first_print_proven">("printing_not_identified");
   const [knownPrintingNumber, setKnownPrintingNumber] = useState("");
   const classifying = printClassification !== "printing_not_identified";
@@ -148,7 +149,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedEdition) { setMessage("Choose the exact RAR edition first."); return; }
-    if (classifying && !reviewer.trim()) { setMessage("Enter your name before classifying the printing — it is required for that audited decision."); return; }
+    if ((classifying || verifyExactMatch) && !reviewer.trim()) { setMessage("Enter your name before verifying or classifying this sale."); return; }
     if (printClassification === "first_print_proven" && !evidenceImageUrl.trim()) { setMessage("A first-print classification requires the copyright-page proof link above."); return; }
     setLoading(true);
     setMessage("");
@@ -169,13 +170,16 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
           evidenceImageUrl,
           intakeNotes,
           reviewer,
+          verifyExactMatch,
           printClassification,
           knownPrintingNumber,
         }),
       });
-      const data = await response.json() as { observationId?: string; error?: string };
+      const data = await response.json() as { observationId?: string; verified?: boolean; classified?: boolean; error?: string };
       if (!response.ok) throw new Error(data.error ?? "The sale could not be queued.");
-      setMessage(classifying ? "Saved to the review queue and classified. It still needs edition-match review before it is public market evidence." : "Saved to the review queue. It is not public market evidence yet.");
+      setMessage(data.verified
+        ? `Sale saved${data.classified ? ", print classified," : ""} and verified as public market evidence.`
+        : classifying ? "Saved to the review queue and print classified. It still needs exact-edition review." : "Saved to the review queue. It is not public market evidence yet.");
       setExternalId("");
       setSourceListingUrl("");
       setListingTitle("");
@@ -186,6 +190,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       setIntakeNotes("");
       setPrintClassification("printing_not_identified");
       setKnownPrintingNumber("");
+      setVerifyExactMatch(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The sale could not be queued.");
     } finally {
@@ -236,9 +241,13 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
           <option value="first_print_proven">First print — proven</option>
         </select></label>
         <label>Known printing number <small>Optional</small><input inputMode="numeric" min={1} type="number" value={knownPrintingNumber} onChange={(event) => setKnownPrintingNumber(event.target.value)} placeholder="e.g. 1" /></label>
-        <label className="quick-sale-wide">Your name / initials <small>{classifying ? "Required to classify a printing — this is an audited decision." : "Optional unless classifying the printing."}</small><input required={classifying} value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Reviewer name" /></label>
+        <label className="quick-sale-wide">Your name / initials <small>{classifying || verifyExactMatch ? "Required for the audited decision." : "Optional unless verifying or classifying."}</small><input required={classifying || verifyExactMatch} value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Reviewer name" /></label>
       </div>
-      <div className="quick-sale-submit"><button type="submit" disabled={loading}>{loading ? "Saving..." : "Queue sale for review"}</button><p>After saving, open the review queue and verify or exclude it against the original source. A printing classification here still needs edition-match review before it shows publicly.</p></div>
+      <label className="quick-sale-verify">
+        <input checked={verifyExactMatch} onChange={(event) => setVerifyExactMatch(event.target.checked)} type="checkbox" />
+        <span><strong>I inspected the source and this is the exact RAR edition</strong><small>Save and verify now instead of creating another review task. The named decision remains in RAR&apos;s audit history.</small></span>
+      </label>
+      <div className="quick-sale-submit"><button type="submit" disabled={loading}>{loading ? "Saving..." : verifyExactMatch ? "Save and verify sale" : "Queue sale for review"}</button><p>{verifyExactMatch ? "This publishes the sale as verified evidence immediately." : "Use the review queue when the edition match needs another look."}</p></div>
     </> : null}
     {message ? <p className="quick-sale-message" role="status">{message}</p> : null}
   </form>;

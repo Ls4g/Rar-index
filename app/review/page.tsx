@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import ReviewDecisionForm from "@/components/ReviewDecisionForm";
+import PriceReviewQueue from "@/components/PriceReviewQueue";
 import PrintClassificationQueue from "@/components/PrintClassificationQueue";
 import StaffNav from "@/components/StaffNav";
 
@@ -58,25 +58,6 @@ type PrintingSuggestionAction = {
   evidence: Record<string, unknown> | null;
   proposed_payload: Record<string, unknown> | null;
 };
-
-function formatPrice(value: number | null, currency: string | null) {
-  if (value === null || !currency) return "Price not recorded";
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-    currencyDisplay: "narrowSymbol",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "Date not recorded";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
-}
 
 export default async function ReviewQueuePage() {
   const { data } = await supabase
@@ -166,54 +147,7 @@ export default async function ReviewQueuePage() {
           <p className="section-copy">Use the original listing as the source of truth. A similar title is never enough on its own.</p>
         </div>
 
-        {records.length ? (
-          <div className="review-list">
-            {records.map((record) => (
-              <article className="review-card" key={record.observation_id}>
-                <div className="review-card-topline">
-                  <span>{record.source_name ?? "Marketplace sale"}</span>
-                  <time>{formatDate(record.sold_date)}</time>
-                </div>
-                <div className="review-card-main">
-                  <div>
-                    <h3>{record.listing_title ?? "Untitled marketplace listing"}</h3>
-                    <strong className="review-price">{formatPrice(record.sale_price, record.currency)}</strong>
-                  </div>
-                  {record.source_listing_url ? (
-                    <a className="review-source-link" href={record.source_listing_url} target="_blank" rel="noreferrer">Open original listing ↗</a>
-                  ) : null}
-                  {record.evidence_image_url ? (
-                    <a className="review-source-link" href={record.evidence_image_url} target="_blank" rel="noreferrer">Open copyright-page proof ↗</a>
-                  ) : null}
-                </div>
-                <div className="review-match">
-                  <p className="eyebrow">Proposed edition</p>
-                  <h4>{record.edition_title ?? "No edition linked yet"}</h4>
-                  <p>
-                    {[record.edition_series, record.edition_volume_number ? `Vol. ${record.edition_volume_number}` : null, record.edition_language]
-                      .filter(Boolean)
-                      .join(" · ") || "Edition details still needed"}
-                  </p>
-                  <dl>
-                    {record.edition_isbn_13 ? <div><dt>ISBN</dt><dd>{record.edition_isbn_13}</dd></div> : null}
-                    {record.printing_number ? <div><dt>Printing</dt><dd>{record.printing_number}</dd></div> : null}
-                    {record.edition_statement ? <div><dt>Edition</dt><dd>{record.edition_statement}</dd></div> : null}
-                  </dl>
-                </div>
-                <div className="review-note">
-                  <span>Why it needs review</span>
-                  <p>{record.match_notes ?? "Check the listing images, copyright-page proof and edition identifiers before verifying."}</p>
-                </div>
-                <ReviewDecisionForm observationId={record.observation_id} />
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="review-empty">
-            <strong>The queue is clear.</strong>
-            <p>New candidate sales will appear here before they can affect the RAR Index.</p>
-          </div>
-        )}
+        <PriceReviewQueue records={records} />
       </section>
 
       <section className="review-list-section">

@@ -6,6 +6,10 @@ import { publicListingCoverage, SCOUT_PUBLIC_FRESHNESS_HOURS, SCOUT_PUBLIC_LISTI
 
 export const dynamic = "force-dynamic";
 
+function currentScoutLiveCutoff() {
+  return new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
+}
+
 type CollectionProfile = {
   id: string;
   search_query: string;
@@ -83,7 +87,7 @@ export default async function CollectionProfilesPage() {
     .order("created_at", { ascending: false });
   const profiles = (data ?? []) as unknown as CollectionProfile[];
   const profileIds = profiles.map((profile) => profile.id);
-  const liveCutoff = new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
+  const liveCutoff = currentScoutLiveCutoff();
   const { data: liveLeadData } = profileIds.length
     ? await admin.from("scout_listing_leads")
       .select("profile_id,external_id,listing_title,item_end_at,last_seen_at,review_status")
