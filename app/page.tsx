@@ -1,5 +1,6 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
 import CollectorShelf, { type ShelfEdition } from "@/components/CollectorShelf";
+import HeroCoverDominoes from "@/components/HeroCoverDominoes";
 import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -138,10 +139,25 @@ export default async function Home() {
   // Latest-sale figures are the raw original sale amount (no FX conversion
   // or median math) — the same "or latest verified sale" alternative the
   // edition page itself offers when there isn't yet enough for a median.
-  const shelfCandidates = ((allCatalogue ?? []) as Manga[])
+  const verifiedCoverCandidates = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => edition.cover_verification_status === "verified")
-    .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0))
+    .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0));
+  const shelfCandidates = verifiedCoverCandidates
     .slice(0, 16);
+  // The hero should feel like the breadth of RAR, not a repeated leaderboard.
+  // Lead with one verified cover per series, then backfill only when the
+  // catalogue has fewer than twelve distinct covered series.
+  const heroSeries = new Set<string>();
+  const heroDistinctCovers = verifiedCoverCandidates.filter((edition) => {
+    const key = seriesKey(edition);
+    if (heroSeries.has(key)) return false;
+    heroSeries.add(key);
+    return true;
+  });
+  const heroCoverCandidates = [
+    ...heroDistinctCovers,
+    ...verifiedCoverCandidates.filter((edition) => !heroDistinctCovers.includes(edition)),
+  ].slice(0, 12);
   const shelfEditionIds = shelfCandidates.map((edition) => String(edition.id));
   // A publication's sales can live on a proven print-run child record (e.g.
   // One Piece Japanese Vol. 1's first-print sales are on its child, not the
@@ -169,6 +185,21 @@ export default async function Home() {
     }
   }
   const shelfEditions: ShelfEdition[] = shelfCandidates.map((edition) => ({
+    id: String(edition.id),
+    title: edition.title,
+    series: edition.series,
+    volumeNumber: edition.volume_number,
+    collectibleType: edition.collectible_type,
+    issueYear: edition.issue_year ?? null,
+    issueNumberLabel: edition.issue_number_label ?? null,
+    language: edition.language,
+    editionLabel: editionDescriptor(edition),
+    coverImageUrl: edition.cover_image_url,
+    coverStatus: edition.cover_verification_status,
+    verifiedSaleCount: saleCounts.get(String(edition.id)) ?? 0,
+    latestSale: latestSaleByEdition.get(String(edition.id)) ?? null,
+  }));
+  const heroCoverEditions: ShelfEdition[] = heroCoverCandidates.map((edition) => ({
     id: String(edition.id),
     title: edition.title,
     series: edition.series,
@@ -297,26 +328,29 @@ export default async function Home() {
 
       <section id="top" className="hero">
         <div className="hero-grid" />
-        <div className="hero-content">
-          <p className="eyebrow">Built for manga collectors</p>
-          <h1>
-            Track your manga.
-            <span>Show off your collection.</span>
-          </h1>
-          <p className="hero-copy">
-            Build your shelf, track its value using real sales data, and share your
-            collection with other collectors.
-          </p>
-          <MangaSearch />
-          {/* Three plain steps, directly under the search. First-time visitors
-              were reading the old abstract hero and guessing the site was a
-              card tracker; this states the job in the visitor's own words
-              before they have to interpret anything else on the page. */}
-          <ol className="hero-steps">
-            <li><span>1</span>Find your manga</li>
-            <li><span>2</span>Track your collection&apos;s value</li>
-            <li><span>3</span>Show off your shelf</li>
-          </ol>
+        <div className="hero-masthead">
+          <HeroCoverDominoes editions={heroCoverEditions} />
+          <div className="hero-content">
+            <p className="eyebrow">Built for manga collectors</p>
+            <h1>
+              Track your manga.
+              <span>Show off your collection.</span>
+            </h1>
+            <p className="hero-copy">
+              Build your shelf, track its value using real sales data, and share your
+              collection with other collectors.
+            </p>
+            <MangaSearch />
+            {/* Three plain steps, directly under the search. First-time visitors
+                were reading the old abstract hero and guessing the site was a
+                card tracker; this states the job in the visitor's own words
+                before they have to interpret anything else on the page. */}
+            <ol className="hero-steps">
+              <li><span>1</span>Find your manga</li>
+              <li><span>2</span>Track your collection&apos;s value</li>
+              <li><span>3</span>Show off your shelf</li>
+            </ol>
+          </div>
         </div>
 
         {/* The shelf is the most collector-ish thing on the page, so it now
