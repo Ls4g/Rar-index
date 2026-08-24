@@ -157,7 +157,7 @@ export default async function Home() {
   const heroCoverCandidates = [
     ...heroDistinctCovers,
     ...verifiedCoverCandidates.filter((edition) => !heroDistinctCovers.includes(edition)),
-  ].slice(0, 12);
+  ].slice(0, 10);
   const shelfEditionIds = shelfCandidates.map((edition) => String(edition.id));
   // A publication's sales can live on a proven print-run child record (e.g.
   // One Piece Japanese Vol. 1's first-print sales are on its child, not the

@@ -30,9 +30,9 @@ function CoverWing({ editions, side }: { editions: ShelfEdition[]; side: "left" 
 }
 
 /**
- * Verified catalogue covers frame the homepage promise like receding display
- * objects. They are deliberately decorative: the interactive, accessible
- * version of the same catalogue remains the collector shelf immediately below.
+ * Verified catalogue covers frame the homepage promise as two large display
+ * fans. They are deliberately decorative: the interactive, accessible version
+ * of the same catalogue remains the collector shelf immediately below.
  */
 export default function HeroCoverDominoes({ editions }: { editions: ShelfEdition[] }) {
   const left: ShelfEdition[] = [];
