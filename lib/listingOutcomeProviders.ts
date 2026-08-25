@@ -8,9 +8,9 @@
 //   scope https://api.ebay.com/oauth/api_scope. That is an APPLICATION token.
 //
 //   Trading API GetItem -- the usual way to read an ended third-party listing
-//   -- requires a USER token. RAR now supports either EBAY_USER_TOKEN or the
-//   preferable long-lived EBAY_USER_REFRESH_TOKEN, but neither exists until
-//   the RAR eBay account explicitly authorises the application.
+//   -- requires a USER token. RAR supports the legacy Auth'n'Auth token eBay's
+//   production token generator issues (EBAY_AUTH_N_AUTH_TOKEN), or OAuth via
+//   EBAY_USER_TOKEN / the preferable long-lived EBAY_USER_REFRESH_TOKEN.
 //
 //   Browse API works with the application token but only serves ACTIVE
 //   listings. It can prove "still live" and "no longer retrievable" and
@@ -46,7 +46,11 @@ const MARKETPLACE_INSIGHTS_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.mar
 let cachedUserAccessToken: { value: string; expiresAt: number } | null = null;
 
 export function hasEbayUserCredentials() {
-  return Boolean(process.env.EBAY_USER_TOKEN?.trim() || process.env.EBAY_USER_REFRESH_TOKEN?.trim());
+  return Boolean(
+    process.env.EBAY_AUTH_N_AUTH_TOKEN?.trim()
+    || process.env.EBAY_USER_TOKEN?.trim()
+    || process.env.EBAY_USER_REFRESH_TOKEN?.trim(),
+  );
 }
 
 async function getEbayUserAccessToken() {
@@ -106,6 +110,10 @@ function xmlAmount(xml: string, tag: string) {
   const currency = match[1].match(/currencyID=["']([^"']+)["']/i)?.[1] ?? null;
   const parsed = Number(match[2].trim());
   return { value: Number.isFinite(parsed) ? parsed : null, currency };
+}
+
+function escapeXml(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 }
 
 function tradingSiteId(marketplace: string | null) {
@@ -213,17 +221,23 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
     httpStatus: null, detail: "",
   };
   if (!hasEbayUserCredentials()) {
-    return { signal: { ...base, detail: "eBay user access is not configured. Add EBAY_USER_REFRESH_TOKEN after authorising the RAR eBay account." }, httpStatus: null, rawResponse: null };
+    return { signal: { ...base, detail: "eBay user access is not configured. Add EBAY_AUTH_N_AUTH_TOKEN or an OAuth refresh token after authorising the RAR eBay account." }, httpStatus: null, rawResponse: null };
   }
 
-  let token: string;
-  try {
-    token = await getEbayUserAccessToken();
-  } catch (error) {
-    return { signal: { ...base, detail: error instanceof Error ? error.message : "eBay user token request failed." }, httpStatus: null, rawResponse: null };
+  const authNAuthToken = process.env.EBAY_AUTH_N_AUTH_TOKEN?.trim() || null;
+  let oauthToken: string | null = null;
+  if (!authNAuthToken) {
+    try {
+      oauthToken = await getEbayUserAccessToken();
+    } catch (error) {
+      return { signal: { ...base, detail: error instanceof Error ? error.message : "eBay user token request failed." }, httpStatus: null, rawResponse: null };
+    }
   }
 
-  const requestXml = `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><DetailLevel>ReturnAll</DetailLevel><ItemID>${itemId.replace(/[^0-9]/g, "")}</ItemID></GetItemRequest>`;
+  const credentialsXml = authNAuthToken
+    ? `<RequesterCredentials><eBayAuthToken>${escapeXml(authNAuthToken)}</eBayAuthToken></RequesterCredentials>`
+    : "";
+  const requestXml = `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">${credentialsXml}<DetailLevel>ReturnAll</DetailLevel><ItemID>${itemId.replace(/[^0-9]/g, "")}</ItemID></GetItemRequest>`;
   let response: Response;
   try {
     response = await fetch("https://api.ebay.com/ws/api.dll", {
@@ -233,7 +247,7 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
         "X-EBAY-API-CALL-NAME": "GetItem",
         "X-EBAY-API-COMPATIBILITY-LEVEL": "1423",
         "X-EBAY-API-SITEID": tradingSiteId(marketplace),
-        "X-EBAY-API-IAF-TOKEN": token,
+        ...(oauthToken ? { "X-EBAY-API-IAF-TOKEN": oauthToken } : {}),
       },
       body: requestXml,
       cache: "no-store",
@@ -437,7 +451,7 @@ export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
     canConfirmSales: hasEbayUserCredentials(),
     detail: hasEbayUserCredentials()
       ? "RAR account access is configured. GetItem can read watched third-party listings after they end; Best Offer prices remain unconfirmed."
-      : "The RAR eBay account has not authorised this app yet. Add EBAY_USER_REFRESH_TOKEN after consent; the existing client-credentials token cannot read ended listings.",
+      : "The RAR eBay account has not authorised this app yet. Add EBAY_AUTH_N_AUTH_TOKEN or an OAuth refresh token after consent; the existing client-credentials token cannot read ended listings.",
   });
 
   return capabilities;

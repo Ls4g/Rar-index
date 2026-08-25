@@ -104,6 +104,7 @@ check("but is not checked while it is still being seen live",
 
 console.log("\n--- Trading GetItem user-token provider ---");
 const originalUserToken = process.env.EBAY_USER_TOKEN;
+const originalAuthNAuthToken = process.env.EBAY_AUTH_N_AUTH_TOKEN;
 const originalFetch = globalThis.fetch;
 process.env.EBAY_USER_TOKEN = "test-user-token";
 
@@ -130,9 +131,27 @@ const tradingOffer = await tradingOutcomeProvider("123456789012", "EBAY_GB");
 check("GetItem Best Offer sale stays ambiguous because the accepted amount is private",
   classifyListingOutcome(tradingOffer.signal).status === "ambiguous");
 
+delete process.env.EBAY_USER_TOKEN;
+process.env.EBAY_AUTH_N_AUTH_TOKEN = "test-auth-n-auth-token";
+let legacyRequest = null;
+globalThis.fetch = async (_url, options) => {
+  legacyRequest = options;
+  return new Response(tradingXml({ status: "Active", quantitySold: 0 }), { status: 200 });
+};
+const legacyTrading = await tradingOutcomeProvider("123456789012", "EBAY_GB");
+const legacyHeaders = legacyRequest?.headers ?? {};
+check("Auth'n'Auth token is sent inside RequesterCredentials",
+  String(legacyRequest?.body).includes("<RequesterCredentials><eBayAuthToken>test-auth-n-auth-token</eBayAuthToken></RequesterCredentials>"));
+check("Auth'n'Auth does not masquerade as an OAuth IAF token",
+  !("X-EBAY-API-IAF-TOKEN" in legacyHeaders));
+check("Auth'n'Auth GetItem response uses the same safe classifier",
+  legacyTrading.signal.listingState === "active");
+
 globalThis.fetch = originalFetch;
 if (originalUserToken === undefined) delete process.env.EBAY_USER_TOKEN;
 else process.env.EBAY_USER_TOKEN = originalUserToken;
+if (originalAuthNAuthToken === undefined) delete process.env.EBAY_AUTH_N_AUTH_TOKEN;
+else process.env.EBAY_AUTH_N_AUTH_TOKEN = originalAuthNAuthToken;
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);
