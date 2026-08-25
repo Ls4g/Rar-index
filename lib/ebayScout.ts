@@ -154,13 +154,27 @@ export async function checkEbayListingAvailability(
   }
 }
 
-export async function getEbayApplicationToken() {
+export const EBAY_DEFAULT_SCOPE = "https://api.ebay.com/oauth/api_scope";
+
+// Scoped separately because a token is issued FOR a scope: asking for
+// Marketplace Insights with the default scope silently returns a token that
+// the Insights endpoint then rejects, which reads as "not authorised" when the
+// real problem is the request. Cached per scope so the default path keeps its
+// existing single-token behaviour untouched.
+const scopedTokenCache = new Map<string, { value: string; expiresAt: number }>();
+
+export async function getEbayApplicationToken(scope: string = EBAY_DEFAULT_SCOPE) {
   const clientId = process.env.EBAY_CLIENT_ID;
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("eBay Scout is not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in Vercel first.");
 
-  if (cachedApplicationToken && cachedApplicationToken.expiresAt > Date.now() + 300_000) {
-    return cachedApplicationToken.value;
+  if (scope === EBAY_DEFAULT_SCOPE) {
+    if (cachedApplicationToken && cachedApplicationToken.expiresAt > Date.now() + 300_000) {
+      return cachedApplicationToken.value;
+    }
+  } else {
+    const cached = scopedTokenCache.get(scope);
+    if (cached && cached.expiresAt > Date.now() + 300_000) return cached.value;
   }
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
@@ -172,7 +186,7 @@ export async function getEbayApplicationToken() {
     },
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      scope: "https://api.ebay.com/oauth/api_scope",
+      scope,
     }),
     cache: "no-store",
   });
@@ -184,11 +198,13 @@ export async function getEbayApplicationToken() {
   }
   const payload = await response.json() as { access_token?: string; expires_in?: number };
   if (!payload.access_token) throw new Error("eBay returned no application token.");
-  cachedApplicationToken = {
+  const entry = {
     value: payload.access_token,
     expiresAt: Date.now() + Math.max(300, Number(payload.expires_in ?? 7200)) * 1000,
   };
-  return cachedApplicationToken.value;
+  if (scope === EBAY_DEFAULT_SCOPE) cachedApplicationToken = entry;
+  else scopedTokenCache.set(scope, entry);
+  return entry.value;
 }
 
 export async function getEbayListingEvidence(

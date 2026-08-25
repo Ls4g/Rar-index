@@ -49,20 +49,33 @@ async function expectRejected(label, path, body, expectedFragment) {
 }
 
 console.log("\n--- magazine title ---");
+// A synthetic magazine, not Weekly Shonen Jump.
+//
+// This used to build its fixtures from the real thing -- WSJ, and the One
+// Piece debut at 通巻1458 -- which worked only while RAR catalogued no
+// magazines at all. Both are now genuine approved records, so the unique
+// constraints correctly refused the fixture and the test failed because the
+// product had succeeded. A test that goes red when real data arrives is a
+// test people learn to ignore.
+//
+// The constraints under test are identical either way; only the fixture's
+// identity changes, and this one cannot ever collide with the catalogue.
+const TEST_MAGAZINE = { nameJa: "RARテスト週刊誌", publisher: "RAR Test Fixtures", madbId: "TEST-C000001" };
+await req("DELETE", `magazine_titles?madb_id=eq.${TEST_MAGAZINE.madbId}`);
 const titleRes = await req("POST", "magazine_titles", {
-  name_ja: "週刊少年ジャンプ",
-  name_romaji: "Weekly Shonen Jump",
-  publisher: "集英社",
-  zasshi_code: "29933",
-  madb_id: "C119459",
+  name_ja: TEST_MAGAZINE.nameJa,
+  name_romaji: "RAR Test Weekly",
+  publisher: TEST_MAGAZINE.publisher,
+  zasshi_code: "00000",
+  madb_id: TEST_MAGAZINE.madbId,
   title_kind: "main",
   first_issued_on: "1968-07-11",
 });
-check("real magazine title inserts", titleRes.ok, titleRes.text.slice(0, 200));
-const titleId = titleRes.json?.[0]?.id;
+check("magazine title inserts", titleRes.ok, titleRes.text.slice(0, 200));
+const titleId = titleRes.json?.[0]?.id ?? null;
 if (titleId) created.titles.push(titleId);
 
-const dupeTitle = await req("POST", "magazine_titles", { name_ja: "週刊少年ジャンプ", publisher: "集英社" });
+const dupeTitle = await req("POST", "magazine_titles", { name_ja: TEST_MAGAZINE.nameJa, publisher: TEST_MAGAZINE.publisher });
 check("same magazine cannot be added twice", !dupeTitle.ok);
 if (dupeTitle.ok) created.titles.push(dupeTitle.json[0].id);
 
@@ -213,10 +226,14 @@ for (const id of created.editions) {
 }
 for (const id of created.titles) await req("DELETE", `magazine_titles?id=eq.${id}`);
 
-const leftEditions = await req("GET", "manga_editions?select=id&collectible_type=eq.zasshi");
-const leftTitles = await req("GET", "magazine_titles?select=id");
-check("no zasshi rows left behind", (leftEditions.json ?? []).length === 0, JSON.stringify(leftEditions.json));
-check("no magazine titles left behind", (leftTitles.json ?? []).length === 0, JSON.stringify(leftTitles.json));
+// Scoped to what this script created. These used to assert the whole table
+// was empty, which was true only while RAR catalogued no magazines at all --
+// it now holds real approved issues, and a test that fails because the
+// product succeeded is a test that trains people to ignore the suite.
+const leftEditions = await req("GET", `manga_editions?select=id&id=in.(${created.editions.join(",") || "00000000-0000-0000-0000-000000000000"})`);
+const leftTitles = await req("GET", `magazine_titles?select=id&id=in.(${created.titles.join(",") || "00000000-0000-0000-0000-000000000000"})`);
+check("no test editions left behind", (leftEditions.json ?? []).length === 0, JSON.stringify(leftEditions.json));
+check("no test magazine titles left behind", (leftTitles.json ?? []).length === 0, JSON.stringify(leftTitles.json));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

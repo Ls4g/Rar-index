@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/rar-agents",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/listing-outcomes",
+      "schedule": "30 9 * * *"
     }
   ]
 }

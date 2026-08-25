@@ -5,6 +5,7 @@ import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/l
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
 import { analyseLiveScoutFeedback, type ScoutFeedbackAnalysis } from "@/lib/scoutFeedback";
+import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 
 type TriggerSource = "manual" | "schedule" | "system";
@@ -43,6 +44,10 @@ async function collectScoutMetrics(admin: SupabaseClient): Promise<AgentMetrics>
     return now - new Date(profile.last_checked_at).getTime() >= interval;
   }).length;
   const diagnostics = diagnoseScoutBacklog(backlog);
+  // Numeric only: AgentMetrics is Record<string, number>, and the next-check
+  // timestamp belongs on the outcomes page rather than in a metric.
+  const { watch_next_check_at: watchNextCheckAt, ...watchNumericMetrics } = await readWatchToSaleMetrics(admin);
+  void watchNextCheckAt;
   return {
     active_search_profiles: profiles?.length ?? 0,
     stale_search_profiles: stale,
@@ -58,6 +63,9 @@ async function collectScoutMetrics(admin: SupabaseClient): Promise<AgentMetrics>
     scout_unresolved_conflicts: diagnostics.unresolvedConflicts,
     scout_graded_leads: diagnostics.graded,
     watching_scout_leads: countOrThrow(watching, "Watching Scout lead count failed"),
+    // Watch-to-Sale runs under Market Scout, so its backlog and failure
+    // counts surface on the same dashboard rather than in a separate corner.
+    ...watchNumericMetrics,
   };
 }
 
