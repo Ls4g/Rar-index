@@ -76,9 +76,24 @@ function isUsableDate(value: string | null): value is string {
 // A Best Offer listing shows an asking price that is, by construction, not
 // what was paid. Without the accepted amount there is no sale price, and a
 // sale without a price is not evidence of anything.
-function looksLikeBestOffer(signal: OutcomeSignal) {
-  const format = (signal.buyingFormat ?? "").toUpperCase();
+export function isBestOfferFormat(value: string | null) {
+  const format = (value ?? "").toUpperCase();
   return format.includes("BEST_OFFER") || format.includes("OFFER");
+}
+
+export type ManualBestOfferEvidence = {
+  buyingFormat: string | null;
+  soldPrice: number;
+  soldCurrency: string;
+  soldAt: string;
+};
+
+export function validateManualBestOfferEvidence(input: ManualBestOfferEvidence): string | null {
+  if (!isBestOfferFormat(input.buyingFormat)) return "This listing was not captured as a Best Offer listing.";
+  if (!Number.isFinite(input.soldPrice) || input.soldPrice <= 0) return "Enter the accepted Best Offer price.";
+  if (!/^[A-Z]{3}$/.test(input.soldCurrency)) return "Choose the currency reported by 130point.";
+  if (!isUsableDate(input.soldAt)) return "Enter a valid completed-sale date that is not in the future.";
+  return null;
 }
 
 export function classifyListingOutcome(signal: OutcomeSignal): OutcomeClassification {
@@ -94,7 +109,7 @@ export function classifyListingOutcome(signal: OutcomeSignal): OutcomeClassifica
   }
 
   if (signal.listingState === "completed_sold") {
-    if (looksLikeBestOffer(signal) && signal.bestOfferAccepted !== true) {
+    if (isBestOfferFormat(signal.buyingFormat) && signal.bestOfferAccepted !== true) {
       return {
         status: "ambiguous",
         soldPrice: null, soldCurrency: null, soldAt: null,

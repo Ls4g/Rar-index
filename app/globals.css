@@ -2710,5 +2710,14 @@ html[data-theme="day"] .public-page {
 .outcome-history p { margin: 0; color: var(--muted); font-size: .74rem; }
 .outcome-note { display: grid; gap: .25rem; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .outcome-decisions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.best-offer-corroboration { display: grid; gap: .75rem; padding: .9rem; border: 1px solid var(--accent-warning-text); border-radius: .65rem; background: color-mix(in srgb, var(--surface-card) 92%, var(--accent-warning-text)); }
+.best-offer-corroboration strong { color: var(--canvas-heading); font-size: .85rem; }
+.best-offer-corroboration p { margin: .2rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.55; }
+.best-offer-tools, .best-offer-fields { display: flex; flex-wrap: wrap; gap: .55rem; align-items: end; }
+.best-offer-tools code { padding: .55rem .65rem; border: 1px solid var(--line); border-radius: .35rem; color: var(--canvas-heading); background: var(--surface-card); font-size: .8rem; }
+.best-offer-tools a { display: inline-flex; align-items: center; text-decoration: none; }
+.best-offer-fields label { display: grid; flex: 1 1 9rem; gap: .25rem; color: var(--muted); font-size: .67rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.best-offer-confirm { display: flex; gap: .5rem; align-items: flex-start; color: var(--canvas-heading); font-size: .76rem; line-height: 1.45; }
+.best-offer-confirm input { margin-top: .12rem; }
 .outcome-empty { margin: 0; color: var(--muted); font-size: .85rem; }
 @media (max-width: 600px) { .outcome-card-head { flex-direction: column; } }

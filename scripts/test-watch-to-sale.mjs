@@ -11,6 +11,7 @@ import {
   isDueForCheck,
   nextOutcomeCheckAt,
   MAX_OUTCOME_ATTEMPTS,
+  validateManualBestOfferEvidence,
 } from "../lib/listingOutcome.ts";
 import { tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
 
@@ -28,6 +29,16 @@ const base = {
   scheduledEndAt: null, httpStatus: 200, detail: "",
 };
 const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+
+console.log("\n--- manual Best Offer corroboration ---");
+check("an exact 130point lookup can supply a valid hidden Best Offer price",
+  validateManualBestOfferEvidence({ buyingFormat: "FIXED_PRICE,BEST_OFFER", soldPrice: 72.5, soldCurrency: "USD", soldAt: yesterday }) === null);
+check("a normal fixed-price listing cannot enter through the 130point Best Offer path",
+  Boolean(validateManualBestOfferEvidence({ buyingFormat: "FIXED_PRICE", soldPrice: 72.5, soldCurrency: "USD", soldAt: yesterday })));
+check("manual corroboration rejects a missing or zero accepted price",
+  Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 0, soldCurrency: "USD", soldAt: yesterday })));
+check("manual corroboration rejects future dates",
+  Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 72.5, soldCurrency: "USD", soldAt: new Date(Date.now() + 3 * 86_400_000).toISOString() })));
 
 console.log("\n--- sales that should be believed ---");
 const auction = classifyListingOutcome({ ...base, listingState: "completed_sold", soldPrice: 240, soldCurrency: "GBP", soldAt: yesterday, buyingFormat: "AUCTION", bidCount: 14 });

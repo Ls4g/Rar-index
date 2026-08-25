@@ -8,7 +8,7 @@ import { probeOutcomeProviders } from "@/lib/listingOutcomeProviders";
 export const dynamic = "force-dynamic";
 
 type OutcomeRecord = {
-  id: string; status: string; edition_id: string; profile_id: string | null;
+  id: string; external_id: string; status: string; edition_id: string; profile_id: string | null;
   listing_title: string; image_url: string | null; source_listing_url: string;
   asking_price: number | null; currency: string | null;
   sold_price: number | null; sold_currency: string | null; sold_at: string | null;
@@ -28,7 +28,7 @@ export default async function ListingOutcomesPage() {
   // and the only ones with a deadline attached to a real market.
   const { data } = await admin
     .from("listing_outcomes")
-    .select("id,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)")
+    .select("id,external_id,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)")
     .order("status", { ascending: true })
     .order("sold_at", { ascending: false, nullsFirst: false })
     .limit(200);
@@ -59,6 +59,7 @@ export default async function ListingOutcomesPage() {
 
   const rows: OutcomeRow[] = records.map((record) => ({
     id: record.id,
+    externalId: record.external_id,
     status: record.status,
     editionId: record.edition_id,
     profileId: record.profile_id,

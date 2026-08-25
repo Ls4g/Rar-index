@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export type OutcomeRow = {
   id: string;
+  externalId: string;
   status: string;
   editionLabel: string;
   editionId: string;
@@ -77,6 +78,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
   const [testingEbay, setTestingEbay] = useState(false);
+  const [bestOfferInputs, setBestOfferInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
 
   const canConfirmSales = capabilities.some((capability) => capability.canConfirmSales);
 
@@ -134,6 +136,37 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
       setMessage(error instanceof Error ? error.message : "The eBay account test failed.");
     } finally {
       setTestingEbay(false);
+    }
+  }
+
+  async function recordBestOfferPrice(row: OutcomeRow) {
+    if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
+    const input = bestOfferInputs[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false };
+    if (!input.confirmed) { setMessage("Confirm that the 130point result matches this exact eBay item number."); return; }
+    setSaving(`${row.id}:best-offer`);
+    setMessage("");
+    try {
+      const response = await fetch("/api/listing-outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "record-best-offer-price",
+          outcomeId: row.id,
+          reviewer,
+          notes: notes[row.id] ?? "",
+          soldPrice: Number(input.price),
+          soldCurrency: input.currency,
+          soldAt: input.soldAt,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The Best Offer price could not be saved.");
+      setMessage("Accepted Best Offer price recorded as a sold candidate. Confirm the exact edition to publish it as sale evidence.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The Best Offer price could not be saved.");
+    } finally {
+      setSaving(null);
     }
   }
 
@@ -220,6 +253,36 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
               {row.matchConflicts.length ? <p className="outcome-conflict"><b>Conflicts:</b> {row.matchConflicts.join("; ")}</p> : null}
               {row.matchReasons.length ? <p className="outcome-reasons">{row.matchReasons.join(" · ")}</p> : null}
               {row.lastError ? <p className="outcome-conflict"><b>Last error:</b> {row.lastError}{row.nextCheckAt ? ` · retry ${when(row.nextCheckAt)}` : ""}</p> : null}
+
+              {!row.reviewedBy
+                && row.soldPrice === null
+                && (row.buyingFormat ?? "").toUpperCase().includes("OFFER")
+                && ["ended_pending_check", "ambiguous", "inaccessible"].includes(row.status) ? (
+                <div className="best-offer-corroboration">
+                  <div>
+                    <strong>Best Offer price unresolved</strong>
+                    <p>Search 130point using the exact eBay item number below. This only supplies the hidden accepted price; eBay remains the original sale source.</p>
+                  </div>
+                  <div className="best-offer-tools">
+                    <code>{row.externalId}</code>
+                    <button
+                      className="secondary-action"
+                      onClick={() => void navigator.clipboard.writeText(row.externalId).then(() => setMessage(`Copied eBay item ${row.externalId}.`))}
+                      type="button"
+                    >
+                      Copy item number
+                    </button>
+                    <a className="secondary-action" href="https://130point.com/sales/" rel="noreferrer" target="_blank">Open 130point ↗</a>
+                  </div>
+                  <div className="best-offer-fields">
+                    <label>Accepted price<input inputMode="decimal" min="0.01" onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { currency: row.currency ?? "USD", soldAt: "", confirmed: false }), price: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={bestOfferInputs[row.id]?.price ?? ""} /></label>
+                    <label>Currency<select onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", soldAt: "", confirmed: false }), currency: event.target.value } }))} value={bestOfferInputs[row.id]?.currency ?? row.currency ?? "USD"}><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option><option value="JPY">JPY</option><option value="CAD">CAD</option><option value="AUD">AUD</option></select></label>
+                    <label>Sale date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", confirmed: false }), soldAt: event.target.value } }))} type="date" value={bestOfferInputs[row.id]?.soldAt ?? ""} /></label>
+                  </div>
+                  <label className="best-offer-confirm"><input checked={bestOfferInputs[row.id]?.confirmed ?? false} onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "" }), confirmed: event.target.checked } }))} type="checkbox" /> I matched this exact eBay item number in 130point.</label>
+                  <button className="catalogue-bulk-approve" disabled={Boolean(saving)} onClick={() => void recordBestOfferPrice(row)} type="button">{saving === `${row.id}:best-offer` ? "Saving…" : "Save as sold candidate"}</button>
+                </div>
+              ) : null}
 
               <details className="outcome-history">
                 <summary>Outcome check history ({row.checkAttempts} attempt{row.checkAttempts === 1 ? "" : "s"}) and original snapshot</summary>

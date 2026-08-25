@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
+import { validateManualBestOfferEvidence } from "@/lib/listingOutcome";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -17,6 +18,9 @@ type DecisionBody = {
   decision?: "confirm_sale" | "mark_unsold" | "wrong_edition" | "mark_ambiguous" | "dismiss";
   reviewer?: string;
   notes?: string;
+  soldPrice?: number;
+  soldCurrency?: string;
+  soldAt?: string;
 };
 
 // Mirrors the decisions staff already make elsewhere in RAR, so the vocabulary
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   const reviewer = (body.reviewer ?? "").trim();
-  if (!body.outcomeId || !body.decision) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
+  if (!body.outcomeId || (!body.decision && body.action !== "record-best-offer-price")) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
   if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
   // Notes stay optional throughout RAR: the decision and the reviewer are the
   // accountable parts, and demanding prose on an obvious call only produces
@@ -77,7 +81,7 @@ export async function POST(request: Request) {
 
   const { data: outcome } = await admin
     .from("listing_outcomes")
-    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, resulting_observation_id, reviewed_by")
+    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, resulting_observation_id, reviewed_by, check_attempts, outcome_provider, outcome_reason")
     .eq("id", body.outcomeId)
     .maybeSingle();
   if (!outcome) return Response.json({ error: "That listing outcome no longer exists." }, { status: 404 });
@@ -90,6 +94,50 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+
+  if (body.action === "record-best-offer-price") {
+    if (!["ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
+      return Response.json({ error: "Only an ended Best Offer with an unresolved outcome can use this check." }, { status: 400 });
+    }
+    const soldPrice = Number(body.soldPrice);
+    const soldCurrency = (body.soldCurrency ?? "").trim().toUpperCase();
+    const soldAt = (body.soldAt ?? "").trim();
+    const validationError = validateManualBestOfferEvidence({ buyingFormat: outcome.buying_format, soldPrice, soldCurrency, soldAt });
+    if (validationError) return Response.json({ error: validationError }, { status: 400 });
+
+    const detail = `Human ${reviewer} matched eBay item ${outcome.external_id} on 130point and recorded the accepted Best Offer price. 130point corroborates the hidden price; the original sale source remains eBay.${notes ? ` Note: ${notes}` : ""}`;
+    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
+      outcome_id: outcome.id,
+      provider: "130point manual corroboration",
+      attempt_number: nextAttempt,
+      http_status: null,
+      listing_state: "completed_sold",
+      resulting_status: "sold_candidate",
+      detail,
+      raw_response: { lookup_url: "https://130point.com/sales/", ebay_item_id: outcome.external_id, accepted_price: soldPrice, currency: soldCurrency, sold_at: soldAt, reviewed_by: reviewer },
+      checked_at: now,
+    });
+    if (auditError) return Response.json({ error: "The corroboration audit record could not be saved. Nothing was changed." }, { status: 500 });
+
+    const { error: updateError } = await admin.from("listing_outcomes").update({
+      status: "sold_candidate",
+      sold_price: soldPrice,
+      sold_currency: soldCurrency,
+      sold_at: soldAt,
+      outcome_reason: detail,
+      outcome_provider: "130point manual corroboration",
+      check_attempts: nextAttempt,
+      last_checked_at: now,
+      next_check_at: null,
+      last_error: null,
+      updated_at: now,
+    }).eq("id", outcome.id);
+    if (updateError) return Response.json({ error: "The accepted price could not be saved. The audit attempt remains visible." }, { status: 500 });
+    return Response.json({ ok: true, status: "sold_candidate" });
+  }
+
+  if (!body.decision) return Response.json({ error: "A decision is required." }, { status: 400 });
 
   if (body.decision !== "confirm_sale") {
     const status = DECISION_STATUS[body.decision];
@@ -143,7 +191,13 @@ export async function POST(request: Request) {
     // Raw versus graded is never inferred here. The observation lands with no
     // grading company, which is RAR's "raw" position, and a graded sale is
     // recorded by a human on the sale record exactly as it always has been.
-    raw_payload: outcome.original_snapshot ?? {},
+    raw_payload: {
+      ...(outcome.original_snapshot ?? {}),
+      rar_outcome_evidence: {
+        provider: outcome.outcome_provider,
+        reason: outcome.outcome_reason,
+      },
+    },
     is_verified: false,
     match_status: "needs_review",
     sale_status: "confirmed",
