@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
-import { probeOutcomeProviders } from "@/lib/listingOutcomeProviders";
+import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -45,6 +45,26 @@ export async function POST(request: Request) {
     const promoted = await promoteEndedListings(admin);
     const checks = await runOutcomeChecks(admin);
     return Response.json({ captured, promoted, checks, capabilities: await probeOutcomeProviders() });
+  }
+
+  if (body.action === "test-ebay-user-access") {
+    const { data: sample } = await admin
+      .from("listing_outcomes")
+      .select("external_id,marketplace")
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sample) return Response.json({ error: "RAR has no watched eBay listing to use for this read-only test." }, { status: 404 });
+    const result = await tradingOutcomeProvider(sample.external_id, sample.marketplace);
+    if (result.signal.detail.includes("not configured")) {
+      return Response.json({ error: result.signal.detail }, { status: 503 });
+    }
+    return Response.json({
+      ok: result.httpStatus === 200,
+      state: result.signal.listingState,
+      detail: result.signal.detail,
+      httpStatus: result.httpStatus,
+    }, { status: result.httpStatus === 200 ? 200 : 502 });
   }
 
   const reviewer = (body.reviewer ?? "").trim();

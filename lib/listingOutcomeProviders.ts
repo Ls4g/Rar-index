@@ -8,11 +8,9 @@
 //   scope https://api.ebay.com/oauth/api_scope. That is an APPLICATION token.
 //
 //   Trading API GetItem -- the usual way to read an ended third-party listing
-//   -- requires an auth'n'auth USER token. It is a different credential, not a
-//   different scope, and no user-token variable exists anywhere in this
-//   codebase (only EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_MARKETPLACE_ID and
-//   EBAY_DELETION_VERIFICATION_TOKEN are referenced). So Trading is
-//   unavailable today, and adding a scope will not change that.
+//   -- requires a USER token. RAR now supports either EBAY_USER_TOKEN or the
+//   preferable long-lived EBAY_USER_REFRESH_TOKEN, but neither exists until
+//   the RAR eBay account explicitly authorises the application.
 //
 //   Browse API works with the application token but only serves ACTIVE
 //   listings. It can prove "still live" and "no longer retrievable" and
@@ -23,7 +21,8 @@
 //   must approve per application. Whether RAR's keys carry it is unknown until
 //   asked, which is what probeOutcomeProviders below is for.
 //
-// The honest consequence: until a sold-capable provider is authorised, this
+// The honest consequence: until either Trading or Marketplace Insights is
+// authorised, this
 // pipeline observes, schedules, checks and records -- and correctly refuses to
 // produce a single sold candidate. That is the rules working, not a bug.
 import { getEbayApplicationToken, hasEbayApplicationCredentials } from "./ebayScout.ts";
@@ -43,6 +42,79 @@ export type OutcomeProviderResult = {
 };
 
 const MARKETPLACE_INSIGHTS_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.marketplace.insights";
+
+let cachedUserAccessToken: { value: string; expiresAt: number } | null = null;
+
+export function hasEbayUserCredentials() {
+  return Boolean(process.env.EBAY_USER_TOKEN?.trim() || process.env.EBAY_USER_REFRESH_TOKEN?.trim());
+}
+
+async function getEbayUserAccessToken() {
+  const directToken = process.env.EBAY_USER_TOKEN?.trim();
+  if (directToken) return directToken;
+  if (cachedUserAccessToken && cachedUserAccessToken.expiresAt > Date.now() + 60_000) return cachedUserAccessToken.value;
+
+  const refreshToken = process.env.EBAY_USER_REFRESH_TOKEN?.trim();
+  const clientId = process.env.EBAY_CLIENT_ID?.trim();
+  const clientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
+  if (!refreshToken || !clientId || !clientSecret) {
+    throw new Error("eBay user access is not configured. Add EBAY_USER_REFRESH_TOKEN after authorising the RAR eBay account.");
+  }
+
+  const response = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      scope: "https://api.ebay.com/oauth/api_scope",
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`eBay refused the RAR account refresh token (HTTP ${response.status}). Re-authorise the account rather than replacing the production client ID.`);
+  }
+  const payload = await response.json() as { access_token?: string; expires_in?: number };
+  if (!payload.access_token) throw new Error("eBay returned no user access token.");
+  cachedUserAccessToken = {
+    value: payload.access_token,
+    expiresAt: Date.now() + Math.max(60, payload.expires_in ?? 7200) * 1000,
+  };
+  return payload.access_token;
+}
+
+function xmlText(xml: string, tag: string) {
+  const lowerXml = xml.toLowerCase();
+  const exactOpen = `<${tag.toLowerCase()}>`;
+  const exactClose = `</${tag.toLowerCase()}>`;
+  const exactStart = lowerXml.indexOf(exactOpen);
+  if (exactStart >= 0) {
+    const valueStart = exactStart + exactOpen.length;
+    const valueEnd = lowerXml.indexOf(exactClose, valueStart);
+    if (valueEnd >= 0) return xml.slice(valueStart, valueEnd).trim();
+  }
+  const match = xml.match(new RegExp(`<(?:[A-Za-z0-9_]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_]+:)?${tag}>`, "i"));
+  return match?.[1]?.trim() ?? null;
+}
+
+function xmlAmount(xml: string, tag: string) {
+  const match = xml.match(new RegExp(`<${tag}\\b([^>]*)>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  if (!match) return { value: null, currency: null };
+  const currency = match[1].match(/currencyID=["']([^"']+)["']/i)?.[1] ?? null;
+  const parsed = Number(match[2].trim());
+  return { value: Number.isFinite(parsed) ? parsed : null, currency };
+}
+
+function tradingSiteId(marketplace: string | null) {
+  const sites: Record<string, string> = {
+    EBAY_US: "0", EBAY_CA: "2", EBAY_GB: "3", EBAY_AU: "15", EBAY_AT: "16",
+    EBAY_DE: "77", EBAY_FR: "71", EBAY_IT: "101", EBAY_NL: "146", EBAY_ES: "186",
+  };
+  return sites[marketplaceHeader(marketplace)] ?? "0";
+}
 
 function marketplaceHeader(marketplace: string | null) {
   return marketplace?.trim() || process.env.EBAY_MARKETPLACE_ID || "EBAY_GB";
@@ -127,6 +199,100 @@ export async function browseOutcomeProvider(itemId: string, marketplace: string 
     httpStatus: response.status,
     rawResponse: payload,
   };
+}
+
+// ------------------------------------------------------------- trading ----
+// GetItem can read a watched third-party listing after it ends, but only with
+// a USER token issued after the RAR eBay account grants consent. This is the
+// missing link between watching an active listing and obtaining a real outcome.
+export async function tradingOutcomeProvider(itemId: string, marketplace: string | null): Promise<OutcomeProviderResult> {
+  const provider = "eBay Trading GetItem";
+  const base: OutcomeSignal = {
+    provider, listingState: "unknown", soldPrice: null, soldCurrency: null, soldAt: null,
+    bidCount: null, buyingFormat: null, bestOfferAccepted: null, scheduledEndAt: null,
+    httpStatus: null, detail: "",
+  };
+  if (!hasEbayUserCredentials()) {
+    return { signal: { ...base, detail: "eBay user access is not configured. Add EBAY_USER_REFRESH_TOKEN after authorising the RAR eBay account." }, httpStatus: null, rawResponse: null };
+  }
+
+  let token: string;
+  try {
+    token = await getEbayUserAccessToken();
+  } catch (error) {
+    return { signal: { ...base, detail: error instanceof Error ? error.message : "eBay user token request failed." }, httpStatus: null, rawResponse: null };
+  }
+
+  const requestXml = `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><DetailLevel>ReturnAll</DetailLevel><ItemID>${itemId.replace(/[^0-9]/g, "")}</ItemID></GetItemRequest>`;
+  let response: Response;
+  try {
+    response = await fetch("https://api.ebay.com/ws/api.dll", {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/xml",
+        "X-EBAY-API-CALL-NAME": "GetItem",
+        "X-EBAY-API-COMPATIBILITY-LEVEL": "1423",
+        "X-EBAY-API-SITEID": tradingSiteId(marketplace),
+        "X-EBAY-API-IAF-TOKEN": token,
+      },
+      body: requestXml,
+      cache: "no-store",
+    });
+  } catch (error) {
+    return { signal: { ...base, detail: `Network error contacting eBay Trading: ${error instanceof Error ? error.message : "unknown"}` }, httpStatus: null, rawResponse: null };
+  }
+
+  const xml = await response.text();
+  const ack = xmlText(xml, "Ack");
+  if (!response.ok || (ack !== "Success" && ack !== "Warning")) {
+    const errorCode = xmlText(xml, "ErrorCode");
+    const errorMessage = xmlText(xml, "LongMessage") ?? xmlText(xml, "ShortMessage") ?? "eBay Trading rejected the request.";
+    return {
+      signal: {
+        ...base,
+        listingState: errorCode === "17" ? "not_found" : "unknown",
+        httpStatus: response.status,
+        detail: `eBay Trading returned ${errorCode ? `error ${errorCode}: ` : ""}${errorMessage}`,
+      },
+      httpStatus: response.status,
+      rawResponse: { ack, errorCode, errorMessage },
+    };
+  }
+
+  const listingStatus = (xmlText(xml, "ListingStatus") ?? "").toLowerCase();
+  const quantitySoldText = xmlText(xml, "QuantitySold");
+  const quantitySold = quantitySoldText === null ? null : Number(quantitySoldText);
+  const price = xmlAmount(xml, "CurrentPrice");
+  const endTime = xmlText(xml, "EndTime");
+  const listingType = xmlText(xml, "ListingType");
+  const bidCountText = xmlText(xml, "BidCount");
+  const bidCount = bidCountText === null ? null : Number(bidCountText);
+  const bestOfferEnabled = xmlText(xml, "BestOfferEnabled") === "true";
+  const buyingFormat = [listingType, bestOfferEnabled ? "BEST_OFFER" : null].filter(Boolean).join(",") || null;
+
+  if (listingStatus === "active") {
+    return { signal: { ...base, listingState: "active", buyingFormat, bidCount, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that this listing is still active." }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime } };
+  }
+  if (["completed", "ended"].includes(listingStatus) && quantitySold !== null && quantitySold > 0) {
+    return {
+      signal: {
+        ...base, listingState: "completed_sold", soldPrice: price.value, soldCurrency: price.currency,
+        soldAt: endTime, bidCount: Number.isFinite(bidCount) ? bidCount : null, buyingFormat,
+        bestOfferAccepted: bestOfferEnabled ? null : false, scheduledEndAt: endTime,
+        httpStatus: response.status,
+        detail: bestOfferEnabled
+          ? "Trading GetItem reports that the listing sold, but Best Offer was enabled so the accepted amount is not public."
+          : "Trading GetItem reports that at least one item sold and returned the final public price.",
+      },
+      httpStatus: response.status,
+      rawResponse: { ack, listingStatus, quantitySold, price, endTime, listingType, bidCount, bestOfferEnabled },
+    };
+  }
+  if (["completed", "ended"].includes(listingStatus) && quantitySold === 0) {
+    return { signal: { ...base, listingState: "completed_unsold", bidCount: Number.isFinite(bidCount) ? bidCount : null, buyingFormat, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that the listing ended with zero items sold." }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime, listingType, bidCount } };
+  }
+
+  return { signal: { ...base, httpStatus: response.status, detail: `Trading GetItem returned listing status ${listingStatus || "unknown"} without a conclusive sold quantity.` }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime } };
 }
 
 // ------------------------------------------------- marketplace insights ----
@@ -267,11 +433,11 @@ export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
 
   capabilities.push({
     provider: "eBay Trading (GetItem)",
-    available: Boolean(process.env.EBAY_USER_TOKEN?.trim()),
-    canConfirmSales: Boolean(process.env.EBAY_USER_TOKEN?.trim()),
-    detail: process.env.EBAY_USER_TOKEN?.trim()
-      ? "A user token is configured. GetItem can read ended third-party listings."
-      : "No user token configured. Trading API needs an auth'n'auth user token, which is a different credential from the client-credentials application token RAR uses -- adding a scope will not enable it.",
+    available: hasEbayUserCredentials(),
+    canConfirmSales: hasEbayUserCredentials(),
+    detail: hasEbayUserCredentials()
+      ? "RAR account access is configured. GetItem can read watched third-party listings after they end; Best Offer prices remain unconfirmed."
+      : "The RAR eBay account has not authorised this app yet. Add EBAY_USER_REFRESH_TOKEN after consent; the existing client-credentials token cannot read ended listings.",
   });
 
   return capabilities;
@@ -280,6 +446,10 @@ export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
 // The provider actually used for a check: the best one available, preferring
 // anything that can confirm a sale.
 export async function resolveListingOutcome(itemId: string, marketplace: string | null, listingTitle: string): Promise<OutcomeProviderResult> {
+  if (hasEbayUserCredentials()) {
+    const trading = await tradingOutcomeProvider(itemId, marketplace);
+    if (["active", "completed_sold", "completed_unsold"].includes(trading.signal.listingState)) return trading;
+  }
   const insights = await marketplaceInsightsOutcomeProvider(itemId, marketplace, listingTitle);
   if (insights.signal.listingState === "completed_sold") return insights;
 

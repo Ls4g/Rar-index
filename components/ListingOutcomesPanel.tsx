@@ -46,6 +46,16 @@ const DECISIONS: Array<{ key: string; label: string; tone?: string }> = [
   { key: "dismiss", label: "Dismiss" },
 ];
 
+function decisionsFor(row: OutcomeRow) {
+  return DECISIONS.filter((decision) => {
+    if (decision.key === "confirm_sale") {
+      return row.status === "sold_candidate" && row.soldPrice !== null && Boolean(row.soldCurrency && row.soldAt);
+    }
+    if (decision.key === "mark_unsold" && row.status === "active") return false;
+    return true;
+  });
+}
+
 function money(value: number | null, currency: string | null) {
   if (value === null || !currency) return "Not reported";
   return new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 2 }).format(value);
@@ -66,6 +76,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
+  const [testingEbay, setTestingEbay] = useState(false);
 
   const canConfirmSales = capabilities.some((capability) => capability.canConfirmSales);
 
@@ -104,6 +115,25 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
       setMessage(error instanceof Error ? error.message : "The decision could not be saved.");
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function testEbayUserAccess() {
+    setTestingEbay(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/listing-outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test-ebay-user-access" }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The eBay account test failed.");
+      setMessage(`eBay account test: ${result.state}. ${result.detail}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The eBay account test failed.");
+    } finally {
+      setTestingEbay(false);
     }
   }
 
@@ -153,6 +183,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
       <div className="outcome-actions">
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
         <button type="button" disabled={running} onClick={runPipeline}>{running ? "Running…" : "Run outcome checks"}</button>
+        <button type="button" className="secondary-action" disabled={testingEbay} onClick={testEbayUserAccess}>{testingEbay ? "Testing…" : "Test eBay account access"}</button>
       </div>
       {message ? <p className="outcome-message" role="status">{message}</p> : null}
 
@@ -207,15 +238,15 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                 <p className="outcome-reviewed">Reviewed by {row.reviewedBy}. A recorded decision is never changed automatically.</p>
               ) : (
                 <>
+                  {row.status === "active" ? <p className="outcome-evidence"><b>Still live:</b> no sale decision is available until eBay reports that this listing ended.</p> : null}
                   <label className="outcome-note">Note (optional)<input onChange={(event) => setNotes((current) => ({ ...current, [row.id]: event.target.value }))} placeholder="Only if something needs saying" value={notes[row.id] ?? ""} /></label>
                   <div className="outcome-decisions">
-                    {DECISIONS.map((decision) => (
+                    {decisionsFor(row).map((decision) => (
                       <button
                         className={decision.tone === "primary" ? "catalogue-bulk-approve" : "secondary-action"}
-                        disabled={Boolean(saving) || (decision.key === "confirm_sale" && row.status !== "sold_candidate")}
+                        disabled={Boolean(saving)}
                         key={decision.key}
                         onClick={() => void decide(row.id, decision.key)}
-                        title={decision.key === "confirm_sale" && row.status !== "sold_candidate" ? "Only a sold candidate with a confirmed price and date can become a sale." : undefined}
                         type="button"
                       >
                         {saving === `${row.id}:${decision.key}` ? "Saving…" : decision.label}

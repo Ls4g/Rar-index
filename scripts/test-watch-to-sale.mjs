@@ -12,6 +12,7 @@ import {
   nextOutcomeCheckAt,
   MAX_OUTCOME_ATTEMPTS,
 } from "../lib/listingOutcome.ts";
+import { tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -100,6 +101,38 @@ check("a fixed-price listing with no end date is checkable once promoted",
   isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: null }));
 check("but is not checked while it is still being seen live",
   !isDueForCheck({ status: "active", next_check_at: future, scheduled_end_at: null }));
+
+console.log("\n--- Trading GetItem user-token provider ---");
+const originalUserToken = process.env.EBAY_USER_TOKEN;
+const originalFetch = globalThis.fetch;
+process.env.EBAY_USER_TOKEN = "test-user-token";
+
+function tradingXml({ status, quantitySold, price = 120, currency = "GBP", bestOffer = false }) {
+  return `<?xml version="1.0"?><GetItemResponse xmlns="urn:ebay:apis:eBLBaseComponents"><Ack>Success</Ack><Item><ListingDetails><EndTime>${yesterday}</EndTime></ListingDetails><ListingType>Chinese</ListingType><BestOfferDetails><BestOfferEnabled>${bestOffer}</BestOfferEnabled></BestOfferDetails><SellingStatus><BidCount>4</BidCount><CurrentPrice currencyID="${currency}">${price}</CurrentPrice><QuantitySold>${quantitySold}</QuantitySold><ListingStatus>${status}</ListingStatus></SellingStatus></Item></GetItemResponse>`;
+}
+check("Trading fixture contains a sale end date", tradingXml({ status: "Completed", quantitySold: 1 }).includes(`<EndTime>${yesterday}</EndTime>`), tradingXml({ status: "Completed", quantitySold: 1 }));
+
+globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 1 }), { status: 200 });
+const tradingSold = await tradingOutcomeProvider("123456789012", "EBAY_GB");
+check("GetItem completed listing with quantity sold returns an explicit sold signal",
+  tradingSold.signal.listingState === "completed_sold" && tradingSold.signal.soldPrice === 120 && tradingSold.signal.soldCurrency === "GBP");
+check("the explicit GetItem sale passes the existing evidence classifier",
+  classifyListingOutcome(tradingSold.signal).status === "sold_candidate",
+  JSON.stringify({ signal: tradingSold.signal, raw: tradingSold.rawResponse, classification: classifyListingOutcome(tradingSold.signal) }));
+
+globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 0 }), { status: 200 });
+const tradingUnsold = await tradingOutcomeProvider("123456789012", "EBAY_GB");
+check("GetItem completed listing with zero quantity sold is unsold",
+  tradingUnsold.signal.listingState === "completed_unsold");
+
+globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 1, bestOffer: true }), { status: 200 });
+const tradingOffer = await tradingOutcomeProvider("123456789012", "EBAY_GB");
+check("GetItem Best Offer sale stays ambiguous because the accepted amount is private",
+  classifyListingOutcome(tradingOffer.signal).status === "ambiguous");
+
+globalThis.fetch = originalFetch;
+if (originalUserToken === undefined) delete process.env.EBAY_USER_TOKEN;
+else process.env.EBAY_USER_TOKEN = originalUserToken;
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);
