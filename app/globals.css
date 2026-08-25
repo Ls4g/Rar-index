@@ -2721,3 +2721,56 @@ html[data-theme="day"] .public-page {
 .best-offer-confirm input { margin-top: .12rem; }
 .outcome-empty { margin: 0; color: var(--muted); font-size: .85rem; }
 @media (max-width: 600px) { .outcome-card-head { flex-direction: column; } }
+
+/* ---------------------------------------------------------------------
+   Design prototypes: two cover-wall treatments for the homepage.
+   Temporary. Whichever wins moves into the homepage and this block goes
+   with app/design-prototypes/page.tsx.
+
+   Both take exactly two things from Cosmos: colour comes only from the
+   artwork, and nothing casts a shadow. Depth is carried by scale, rotation
+   and opacity instead, which is why every cover here sits on plain ground
+   with no border and no card around it -- "the image is the component".
+   --------------------------------------------------------------------- */
+.prototype-page { min-height: 100vh; background: var(--paper); }
+.prototype-intro { max-width: 760px; margin: auto; padding: 2.5rem 1.5rem 0; }
+.prototype-intro h1 { margin-bottom: .6rem; font-size: clamp(1.8rem, 4vw, 2.6rem); }
+.prototype-intro p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.65; }
+.prototype-block { max-width: 1280px; margin: 3rem auto; padding: 0 1.5rem; }
+.prototype-label { margin: 0 0 .75rem; color: var(--gold); font-size: .68rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.prototype-note { max-width: 70ch; margin: 1rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.65; }
+.prototype-button { display: inline-block; padding: .7rem 1.15rem; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: .82rem; font-weight: 700; }
+.prototype-button.is-quiet { background: transparent; border: 1px solid var(--line); color: var(--canvas-heading); }
+
+/* --- A: constellation ------------------------------------------------ */
+.constellation { position: relative; overflow: hidden; min-height: 640px; border-radius: 16px; background: var(--surface-card); }
+.constellation-field { position: absolute; inset: 0; }
+/* 12px radius, a couple of degrees of rotation, and nothing else: no
+   caption, no border, no shadow. */
+.constellation-cover { position: absolute; border-radius: 12px; }
+.constellation-cover.is-recessed { opacity: .45; }
+.constellation-copy { position: relative; z-index: 1; max-width: 34rem; margin: auto; padding: 8rem 1.5rem; text-align: center; }
+.constellation-kicker { margin: 0 0 .9rem; color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .18em; text-transform: uppercase; }
+.constellation-copy h2 { margin: 0 0 .9rem; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.02; letter-spacing: -.03em; }
+.constellation-copy > p { margin: 0 auto 1.6rem; max-width: 26rem; color: var(--muted); font-size: .95rem; line-height: 1.6; }
+.constellation-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+
+/* --- B: the wall ----------------------------------------------------- */
+.cover-wall { position: relative; overflow: hidden; border-radius: 16px; background: var(--surface-card); }
+.cover-wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; padding: 14px; }
+.cover-wall-tile { width: 100%; border-radius: 12px; aspect-ratio: 2 / 3; object-fit: cover; }
+/* Cut into the wall rather than floated over it, so the artwork reads as the
+   surface the page is built on. */
+.cover-wall-copy { position: absolute; inset: 50% 50% auto auto; transform: translate(50%, -50%); width: min(92%, 34rem); padding: 2.4rem 1.75rem; border-radius: 16px; background: var(--paper); text-align: center; }
+.cover-wall-copy h2 { margin: 0 0 .9rem; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.04; letter-spacing: -.03em; }
+.cover-wall-copy > p { margin: 0 auto 1.5rem; max-width: 24rem; color: var(--muted); font-size: .92rem; line-height: 1.6; }
+
+@media (max-width: 700px) {
+  .constellation { min-height: 520px; }
+  .constellation-copy { padding: 5rem 1.25rem; }
+  /* At this width a 62px cover is a smudge, and the scatter crowds the
+     headline instead of framing it. */
+  .constellation-cover { width: 74px !important; }
+  .cover-wall-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 7px; padding: 9px; }
+  .cover-wall-copy { padding: 1.6rem 1.1rem; }
+}
