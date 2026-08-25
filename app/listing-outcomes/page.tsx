@@ -24,16 +24,34 @@ type OutcomeRecord = {
 export default async function ListingOutcomesPage() {
   const admin = getSupabaseAdmin();
 
-  // Sold candidates first -- they are the only rows that can become evidence,
-  // and the only ones with a deadline attached to a real market.
-  const { data } = await admin
-    .from("listing_outcomes")
-    .select("id,external_id,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)")
-    .order("status", { ascending: true })
-    .order("sold_at", { ascending: false, nullsFirst: false })
-    .limit(200);
+  const outcomeSelect = "id,external_id,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
-  const records = (data ?? []) as unknown as OutcomeRecord[];
+  // Fetch actionable outcomes separately so hundreds of active listings cannot
+  // push a sold candidate or unresolved Best Offer beyond the page limit.
+  const [attentionResult, activeResult, recentResolvedResult] = await Promise.all([
+    admin.from("listing_outcomes")
+      .select(outcomeSelect)
+      .in("status", ["sold_candidate", "ended_pending_check", "ambiguous", "inaccessible"])
+      .is("reviewed_by", null)
+      .order("sold_at", { ascending: false, nullsFirst: false })
+      .limit(200),
+    admin.from("listing_outcomes")
+      .select(outcomeSelect)
+      .eq("status", "active")
+      .order("last_seen_at", { ascending: false })
+      .limit(75),
+    admin.from("listing_outcomes")
+      .select(outcomeSelect)
+      .in("status", ["unsold", "review_complete"])
+      .order("updated_at", { ascending: false })
+      .limit(25),
+  ]);
+
+  const records = [
+    ...(attentionResult.data ?? []),
+    ...(activeResult.data ?? []),
+    ...(recentResolvedResult.data ?? []),
+  ] as unknown as OutcomeRecord[];
   const priority: Record<string, number> = { sold_candidate: 0, ended_pending_check: 1, ambiguous: 2, active: 3, inaccessible: 4, unsold: 5, review_complete: 6 };
   records.sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9));
 
