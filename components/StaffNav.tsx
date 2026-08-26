@@ -23,6 +23,7 @@ const MORE_GROUPS: NavGroup[] = [
     label: "Review queues",
     links: [
       { href: "/listing-outcomes", label: "Listing outcomes" },
+      { href: "/discovery-backlog", label: "Discovery backlog" },
       { href: "/catalogue-review", label: "Catalogue candidates" },
       { href: "/cover-review", label: "Cover images" },
       { href: "/catalogue-requests", label: "Edition requests" },

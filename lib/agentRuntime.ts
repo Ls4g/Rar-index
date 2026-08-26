@@ -5,6 +5,7 @@ import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/l
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
 import { diagnoseScoutBacklog, readScoutBacklog } from "@/lib/scoutDiagnostics";
 import { analyseLiveScoutFeedback, type ScoutFeedbackAnalysis } from "@/lib/scoutFeedback";
+import { refreshDiscoveryBacklog, readBacklogSummary } from "@/lib/catalogueDiscovery";
 import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 
@@ -23,10 +24,22 @@ async function collectCatalogueMetrics(admin: SupabaseClient): Promise<AgentMetr
     admin.from("catalogue_requests").select("id", { count: "exact", head: true }).in("status", ["pending", "queued_for_research"]),
     admin.from("manga_editions").select("id", { count: "exact", head: true }).eq("is_verified", true).neq("cover_verification_status", "verified"),
   ]);
+  const backlog = await readBacklogSummary(admin);
   return {
     catalogue_queue_pending: countOrThrow(queue, "Catalogue queue count failed"),
     catalogue_requests_pending: countOrThrow(requests, "Catalogue request count failed"),
     verified_editions_missing_covers: countOrThrow(covers, "Cover gap count failed"),
+    // Discovery backlog, so the agent dashboard shows lane health rather than
+    // only what the last run happened to stage.
+    discovery_targets_total: backlog.total,
+    discovery_researchable: backlog.byStatus.researchable ?? 0,
+    discovery_watching: backlog.byStatus.watching ?? 0,
+    discovery_blocked: backlog.byStatus.blocked ?? 0,
+    discovery_caught_up: backlog.byStatus.caught_up ?? 0,
+    discovery_lane_established: backlog.byLane.established ?? 0,
+    discovery_lane_rising: backlog.byLane.rising ?? 0,
+    discovery_lane_new_release: backlog.byLane.new_release ?? 0,
+    discovery_lane_series_gap: backlog.byLane.series_gap ?? 0,
   };
 }
 
@@ -228,6 +241,7 @@ export async function runAgentObservation(
   if (runError || !run) throw new Error(runError?.message ?? "Could not start the agent run.");
 
   try {
+    let backlogRefresh: Awaited<ReturnType<typeof refreshDiscoveryBacklog>> | null = null;
     let catalogueDiscoveryResult: CatalogueCuratorResult | null = null;
     let safeActionResult: AutoTriageResult | null = null;
     let availabilityResult: ScoutAvailabilityResult | null = null;
@@ -235,6 +249,14 @@ export async function runAgentObservation(
     let printingSuggestionResult: PrintingSuggestionRun | null = null;
     const autonomyLevel = Number(system?.autonomy_level ?? 1);
     if (agentKey === "catalogue_curator" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
+      // Refresh first so a run always plans from current discovery data.
+      // A failure here is reported and does not stop the staging pass, which
+      // can still work the existing backlog.
+      try {
+        backlogRefresh = await refreshDiscoveryBacklog(admin);
+      } catch (refreshError) {
+        backlogRefresh = { established: 0, rising: 0, newRelease: 0, seriesGap: 0, caughtUp: 0, errors: [refreshError instanceof Error ? refreshError.message : "backlog refresh failed"] };
+      }
       catalogueDiscoveryResult = await stageCatalogueCandidates(admin, run.id);
       if (catalogueDiscoveryResult.targetsPlanned > 0) {
         const now = new Date().toISOString();
@@ -251,7 +273,7 @@ export async function runAgentObservation(
           risk_level: "low",
           confidence: 1,
           status: "executed",
-          evidence: catalogueDiscoveryResult,
+          evidence: { ...catalogueDiscoveryResult, backlog_refresh: backlogRefresh },
           reviewed_by: "RAR Catalogue Curator",
           review_notes: "Automated candidate preparation only. No catalogue record or cover was published.",
           reviewed_at: now,

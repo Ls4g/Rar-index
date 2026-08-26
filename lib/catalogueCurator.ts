@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
 import { searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
+import { describeRunFairness, type BacklogTarget } from "./catalogueBacklog.ts";
 
-const DISCOVERY_TARGET_LIMIT = 4;
+const DISCOVERY_TARGET_LIMIT = 10;
 const CANDIDATES_PER_TARGET = 1;
 
 const JAPANESE_SEARCH_ALIASES: Record<string, string> = {
@@ -31,7 +33,9 @@ export type CatalogueDiscoveryTarget = {
   publisher: string | null;
   isbn13: string | null;
   requestId: string | null;
-  reason: "collector_request" | "priority_series_gap";
+  // The lane reasons carry which discovery lane chose this, so a reviewer can
+  // see why a title is in front of them without reading the backlog table.
+  reason: "collector_request" | "priority_series_gap" | "lane_established" | "lane_rising" | "lane_new_release" | "lane_series_gap";
 };
 
 export type CatalogueDiscoveryRequest = {
@@ -76,6 +80,8 @@ export type CatalogueCuratorResult = {
   candidatesStaged: number;
   candidatesAlreadyQueued: number;
   candidatesAlreadyPublished: number;
+  fairness?: Record<string, unknown>;
+  backlogPlanned?: number;
   targetSummaries: Array<{ key: string; source: string; result: string }>;
 };
 
@@ -292,7 +298,28 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   const requests = (requestResult.data ?? []) as CatalogueDiscoveryRequest[];
   const editions = (editionResult.data ?? []) as CatalogueDiscoveryEdition[];
   const queued = (queueResult.data ?? []) as CatalogueDiscoveryQueued[];
-  const targets = planCatalogueDiscoveryTargets(requests, editions, queued);
+
+  // Collector requests still come first and still use the original planner,
+  // including its Japanese exact-ISBN rule. Someone asking for a specific book
+  // outranks anything RAR chose for itself.
+  const requestTargets = planCatalogueDiscoveryTargets(requests, [], queued, DISCOVERY_TARGET_LIMIT)
+    .filter((target) => target.reason === "collector_request");
+
+  // Everything else comes from the persistent backlog through the fair
+  // scheduler, which rotates lanes and caps any one series at two slots. The
+  // old path sorted by prioritySeries index -- One Piece is index 0 -- and
+  // took four targets, which is why the review queue filled with One Piece.
+  const remaining = Math.max(0, DISCOVERY_TARGET_LIMIT - requestTargets.length);
+  const { chosen } = remaining > 0 ? await planBacklogRun(admin) : { chosen: [] as BacklogTarget[] };
+  const backlogChosen = chosen.slice(0, remaining);
+  const backlogTargets = backlogChosen
+    .map((target) => backlogTargetToDiscoveryTarget(target))
+    .filter((target): target is CatalogueDiscoveryTarget => target !== null);
+  // Which backlog row produced which target, so the outcome can be written
+  // back against it after the search.
+  const backlogByKey = new Map(backlogChosen.map((target) => [`backlog:${target.id}`, target]));
+
+  const targets = [...requestTargets, ...backlogTargets];
   const sources = new Map((sourceResult.data ?? []).map((source) => [source.name as string, source.id as string]));
   const existingKeys = new Set(queued.map((candidate) => `${candidate.source_id}:${candidate.external_id}`));
   const existingIsbns = new Set(editions.map((edition) => cleanIsbn(edition.isbn_13)).filter(Boolean));
@@ -307,6 +334,8 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     candidatesAlreadyQueued: 0,
     candidatesAlreadyPublished: 0,
     targetSummaries: [],
+    backlogPlanned: backlogChosen.length,
+    fairness: describeRunFairness(backlogChosen),
   };
 
   const discoveries = await Promise.all(targets.map(async (target) => {
@@ -390,10 +419,17 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
         if (insertError) throw insertError;
         result.candidatesStaged += inserted?.length ?? 0;
       }
-      result.targetSummaries.push({ key: target.key, source: target.source, result: rows.length ? "staged" : eligible.length ? "already_known" : "no_exact_candidate" });
+      const outcome = rows.length ? "staged" : eligible.length ? "already_known" : "no_exact_candidate";
+      result.targetSummaries.push({ key: target.key, source: target.source, result: outcome });
+      // Written back so the target backs off rather than being re-searched
+      // every run. An unreleased volume returning nothing is the normal case.
+      const backlogRow = backlogByKey.get(target.key);
+      if (backlogRow) await recordTargetOutcome(admin, backlogRow.id, outcome, backlogRow.failure_count);
     } catch (caught) {
       result.targetsFailed += 1;
       result.targetSummaries.push({ key: target.key, source: target.source, result: caught instanceof Error ? caught.message : "source_failed" });
+      const failedRow = backlogByKey.get(target.key);
+      if (failedRow) await recordTargetOutcome(admin, failedRow.id, "failed", failedRow.failure_count);
     }
   }
 

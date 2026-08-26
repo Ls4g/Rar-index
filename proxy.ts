@@ -27,6 +27,7 @@ export const config = {
     "/review/:path*",
     "/catalogue-import/:path*",
     "/catalogue-review/:path*",
+    "/discovery-backlog/:path*",
     "/price-import/:path*",
     "/add-sale/:path*",
     "/collection-profiles/:path*",
