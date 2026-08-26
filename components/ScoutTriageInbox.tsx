@@ -45,6 +45,7 @@ type ConfidenceFilter = "all" | "strong" | "partial" | "insufficient" | "conflic
 type ListingTypeFilter = "all" | "Auction" | "Buy it now";
 type SortMode = "scoreThenEnd" | "endThenScore";
 type FreshnessFilter = "current" | "stale" | "all";
+type TriageMode = "focus" | "batch";
 
 type Filters = {
   status: StatusFilter;
@@ -86,7 +87,7 @@ const DEFAULT_FILTERS: Filters = {
   sortBy: "scoreThenEnd",
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 25;
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 const REVIEWER_STORAGE_KEY = "rar-scout-reviewer";
 
@@ -177,6 +178,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   const [bulkNote, setBulkNote] = useState("");
   const [bulkLearningLabel, setBulkLearningLabel] = useState("");
   const [message, setMessage] = useState("");
+  const [triageMode, setTriageMode] = useState<TriageMode>("focus");
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [reviewedThisSession, setReviewedThisSession] = useState(0);
   // A stable snapshot taken once on mount — used only for filtering
   // (expired/ends-soon checks), so it doesn't need to tick every render,
   // and computing it directly in the render body would call an impure
@@ -188,6 +192,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     setActiveQuickView(quickView);
     setVisibleCount(PAGE_SIZE);
     setSelected(new Set());
+    setFocusIndex(0);
   }
 
   const openLeadCount = useMemo(() => leads.filter((lead) => lead.reviewStatus !== "dismissed").length, [leads]);
@@ -271,6 +276,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     setActiveQuickView(null);
     setVisibleCount(PAGE_SIZE);
     setSelected(new Set());
+    setFocusIndex(0);
   }
 
   async function submitDecision(rows: ScoutLead[], decision: "watching" | "dismissed", notes: string, learningLabel = "") {
@@ -296,6 +302,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       const failedRows = rows.filter((row) => !savedRows.includes(row));
       const rowIdSet = new Set(savedRows.map((row) => row.id));
       setLeads((current) => current.map((lead) => rowIdSet.has(lead.id) ? { ...lead, reviewStatus: decision, reviewNotes: notes || lead.reviewNotes, reviewedBy: reviewer } : lead));
+      setReviewedThisSession((current) => current + savedRows.length);
       setSelected((current) => { const next = new Set(current); for (const id of rowIdSet) next.delete(id); return next; });
       setRowNotes((current) => { const next = { ...current }; for (const id of rowIdSet) delete next[id]; return next; });
       setRowLearningLabels((current) => { const next = { ...current }; for (const id of rowIdSet) delete next[id]; return next; });
@@ -335,6 +342,12 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   }
 
   const selectedRows = leads.filter((lead) => selected.has(lead.id));
+  const focusedLead = sortedLeads.length ? sortedLeads[Math.min(focusIndex, sortedLeads.length - 1)] : null;
+  const displayedLeads = triageMode === "focus" ? (focusedLead ? [focusedLead] : []) : visibleLeads;
+
+  function learningLabelFor(decision: "watching" | "dismissed", label: string) {
+    return learningLabelFitsDecision(label, decision) ? label : "";
+  }
 
   return (
     <div className="scout-inbox">
@@ -342,6 +355,16 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         <label>Reviewer<input onChange={(event) => updateReviewer(event.target.value)} placeholder="Your name or initials" suppressHydrationWarning value={reviewer} /></label>
         <small>Remembered on this device — every Watch, Dismiss, and bulk decision below uses this name.</small>
       </div>
+
+      <div className="scout-mode-bar">
+        <div className="scout-mode-switch" role="group" aria-label="Triage mode">
+          <button className={triageMode === "focus" ? "is-active" : ""} onClick={() => { setTriageMode("focus"); setSelected(new Set()); setFocusIndex(0); }} type="button">Focus</button>
+          <button className={triageMode === "batch" ? "is-active" : ""} onClick={() => { setTriageMode("batch"); setFocusIndex(0); }} type="button">Batch</button>
+        </div>
+        <div><strong>{triageMode === "focus" ? "One clear decision at a time" : "Select several listings, then decide once"}</strong><span>{reviewedThisSession} reviewed this session</span></div>
+      </div>
+
+      {message ? <p className="review-submit-row scout-inline-message" role="status">{message}</p> : null}
 
       <div className="scout-quick-views" role="group" aria-label="Quick views">
         {QUICK_VIEW_ORDER.map((view) => (
@@ -351,8 +374,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         ))}
       </div>
 
-      <details className="browse-controls scout-filters-panel" open>
-        <summary>Filters</summary>
+      <details className="browse-controls scout-filters-panel">
+        <summary>Advanced filters</summary>
         <div className="scout-filters-grid">
           <label>Review status<select onChange={(event) => onManualFilterChange({ status: event.target.value as StatusFilter })} value={filters.status}>
             <option value="all">Any</option><option value="new">New</option><option value="watching">Watching</option><option value="dismissed">Dismissed</option>
@@ -401,22 +424,24 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       {/* Counted against open leads, not everything ever stored: a dismissed
           lead is a decision already made, and including it made the queue
           look several times larger than the work actually left. */}
-      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {openLeadCount} open listings match these filters · showing {visibleLeads.length}.</p>
+      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {openLeadCount} open listings match these filters{triageMode === "batch" ? ` · showing ${visibleLeads.length}` : ""}.</p>
 
-      {visibleLeads.length ? (
+      {displayedLeads.length ? (
         <>
-          <label className="scout-select-all">
+          {triageMode === "batch" ? <label className="scout-select-all">
             <input checked={visibleLeads.length > 0 && visibleLeads.every((lead) => selected.has(lead.id))} onChange={toggleSelectAllVisible} type="checkbox" /> Select all {visibleLeads.length} visible
-          </label>
-          <div className="scout-lead-list">
-            {visibleLeads.map((lead) => {
+          </label> : (
+            <div className="scout-focus-progress"><span>Listing {Math.min(focusIndex + 1, filteredLeads.length)} of {filteredLeads.length}</span><small>Watch keeps it in RAR. Dismiss archives it from this queue.</small></div>
+          )}
+          <div className={`scout-lead-list${triageMode === "focus" ? " is-focus-mode" : ""}`}>
+            {displayedLeads.map((lead) => {
               const saving = savingIds.has(lead.id);
               const noteOpen = noteOpenFor.has(lead.id);
               return (
                 <div className={`scout-lead-row${selected.has(lead.id) ? " is-selected" : ""}${saving ? " is-saving" : ""}`} key={lead.id}>
-                  <div className="scout-lead-select">
+                  {triageMode === "batch" ? <div className="scout-lead-select">
                     <input aria-label={`Select ${lead.listingTitle}`} checked={selected.has(lead.id)} onChange={() => toggleSelected(lead.id)} type="checkbox" />
-                  </div>
+                  </div> : null}
                   <div className="scout-lead-main">
                     <div className="scout-lead-topline">
                       <a className="scout-lead-title" href={lead.sourceListingUrl} rel="noreferrer" target="_blank">{lead.listingTitle}</a>
@@ -446,17 +471,17 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                     ) : null}
                     {lead.reviewStatus === "new" ? (
                       <div className="scout-lead-actions">
-                        <select aria-label="Optional learning reason" className="scout-learning-select" onChange={(event) => setRowLearningLabels((current) => ({ ...current, [lead.id]: event.target.value }))} value={rowLearningLabels[lead.id] ?? ""}>
-                          <option value="">Reason (optional)</option>
+                        <div className="scout-lead-action-row">
+                          <button className="is-watch" disabled={saving} onClick={() => submitDecision([lead], "watching", rowNotes[lead.id] ?? "", learningLabelFor("watching", rowLearningLabels[lead.id] ?? ""))} type="button">Watch</button>
+                          <button className="is-dismiss" disabled={saving} onClick={() => submitDecision([lead], "dismissed", rowNotes[lead.id] ?? "", learningLabelFor("dismissed", rowLearningLabels[lead.id] ?? ""))} type="button">Dismiss</button>
+                        </div>
+                        {triageMode === "focus" && sortedLeads.length > 1 ? <button className="scout-skip" onClick={() => setFocusIndex((current) => (current + 1) % sortedLeads.length)} type="button">Skip for now</button> : null}
+                        <button className="scout-lead-note-toggle" onClick={() => setNoteOpenFor((current) => { const next = new Set(current); if (next.has(lead.id)) next.delete(lead.id); else next.add(lead.id); return next; })} type="button">{noteOpen ? "Hide context" : "Optional context"}</button>
+                        {noteOpen ? <div className="scout-optional-context"><select aria-label="Optional learning reason" className="scout-learning-select" onChange={(event) => setRowLearningLabels((current) => ({ ...current, [lead.id]: event.target.value }))} value={rowLearningLabels[lead.id] ?? ""}>
+                          <option value="">Learning reason (optional)</option>
                           <optgroup label="If watching">{WATCH_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
                           <optgroup label="If dismissing">{DISMISS_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
-                        </select>
-                        <div className="scout-lead-action-row">
-                          <button className="is-watch" disabled={saving || !learningLabelFitsDecision(rowLearningLabels[lead.id] ?? "", "watching")} onClick={() => submitDecision([lead], "watching", rowNotes[lead.id] ?? "", rowLearningLabels[lead.id] ?? "")} type="button">Watch</button>
-                          <button className="is-dismiss" disabled={saving || !learningLabelFitsDecision(rowLearningLabels[lead.id] ?? "", "dismissed")} onClick={() => submitDecision([lead], "dismissed", rowNotes[lead.id] ?? "", rowLearningLabels[lead.id] ?? "")} type="button">Dismiss</button>
-                        </div>
-                        <button className="scout-lead-note-toggle" onClick={() => setNoteOpenFor((current) => { const next = new Set(current); if (next.has(lead.id)) next.delete(lead.id); else next.add(lead.id); return next; })} type="button">{noteOpen ? "Hide note" : "+ note"}</button>
-                        {noteOpen ? <textarea className="scout-lead-note" onChange={(event) => setRowNotes((current) => ({ ...current, [lead.id]: event.target.value }))} placeholder="Optional evidence note" value={rowNotes[lead.id] ?? ""} /> : null}
+                        </select><textarea className="scout-lead-note" onChange={(event) => setRowNotes((current) => ({ ...current, [lead.id]: event.target.value }))} placeholder="Optional evidence note" value={rowNotes[lead.id] ?? ""} /></div> : null}
                       </div>
                     ) : null}
                   </div>
@@ -464,7 +489,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
               );
             })}
           </div>
-          {visibleCount < sortedLeads.length ? (
+          {triageMode === "batch" && visibleCount < sortedLeads.length ? (
             <div className="scout-load-more"><button onClick={() => setVisibleCount((current) => current + PAGE_SIZE)} type="button">Load {Math.min(PAGE_SIZE, sortedLeads.length - visibleCount)} more</button></div>
           ) : null}
         </>
@@ -472,9 +497,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
         <div className="review-empty"><strong>No leads match these filters.</strong><p>Try a different quick view, or widen the filters above.</p></div>
       )}
 
-      {message ? <p className="review-submit-row" role="status">{message}</p> : null}
-
-      {selected.size > 0 ? (
+      {triageMode === "batch" && selected.size > 0 ? (
         <div className="scout-bulk-bar">
           <strong>{selected.size} selected</strong>
           <input onChange={(event) => setBulkNote(event.target.value)} placeholder="Optional note for all selected" value={bulkNote} />
@@ -483,8 +506,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
             <optgroup label="If watching">{WATCH_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
             <optgroup label="If dismissing">{DISMISS_LEARNING_LABELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>
           </select>
-          <button className="is-watch" disabled={savingIds.size > 0 || !learningLabelFitsDecision(bulkLearningLabel, "watching")} onClick={() => submitDecision(selectedRows, "watching", bulkNote, bulkLearningLabel)} type="button">Watch selected</button>
-          <button className="is-dismiss" disabled={savingIds.size > 0 || !learningLabelFitsDecision(bulkLearningLabel, "dismissed")} onClick={() => submitDecision(selectedRows, "dismissed", bulkNote, bulkLearningLabel)} type="button">Dismiss selected</button>
+          <button className="is-watch" disabled={savingIds.size > 0} onClick={() => submitDecision(selectedRows, "watching", bulkNote, learningLabelFor("watching", bulkLearningLabel))} type="button">Watch selected</button>
+          <button className="is-dismiss" disabled={savingIds.size > 0} onClick={() => submitDecision(selectedRows, "dismissed", bulkNote, learningLabelFor("dismissed", bulkLearningLabel))} type="button">Dismiss selected</button>
           <button className="is-clear" onClick={() => setSelected(new Set())} type="button">Clear selection</button>
         </div>
       ) : null}
