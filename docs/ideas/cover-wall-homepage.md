@@ -47,6 +47,25 @@ coverage widens, which is the argument for parking rather than polishing.
   covers each would carry the wall far better than 14 series with eighteen
   One Piece.
 
+## Where it could go, other than the homepage
+
+Approved 26 Aug as "can definitely use it somewhere". The homepage is the
+obvious slot and probably not the best one.
+
+- **A collector's public shelf, `/collectors/{handle}`.** The strongest fit.
+  The variety problem disappears entirely, because the covers are whatever
+  that person owns rather than whatever RAR has catalogued, and it turns the
+  page into somebody's collection instead of a promotional wall. It also
+  gives the shelf a reason to be looked at by someone who is not its owner.
+- **`/browse`.** The wall as the interface rather than as decoration — tap a
+  cover to open the edition, so the motion is doing a job.
+- **`/collection`.** The display-led front door, where an abundant wall
+  matches what that audience came for.
+
+The homepage remains possible, but it is the one placement where the
+catalogue's narrowness shows most, because it is the one seen by people who
+have no collection of their own to fill it.
+
 ## Taken from Cosmos, and deliberately not
 
 Taken: colour comes only from the artwork, and nothing casts a shadow —
