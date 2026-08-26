@@ -2817,3 +2817,112 @@ html[data-theme="day"] .public-page {
   .cover-wall { height: 540px; }
   .cover-wall-copy { padding: 1.6rem 1.1rem; }
 }
+
+/* ---------------------------------------------------------------------
+   /redesign — a proposal, scoped entirely under .rr so it cannot leak
+   into the live site. Deliberately does NOT use RAR's existing tokens:
+   the argument is partly that those tokens carry too many accents, so
+   inheriting them would beg the question.
+   --------------------------------------------------------------------- */
+.rr {
+  /* Linear's graduated ladder rather than one flat black. Depth is a step
+     in surface colour, never a shadow. */
+  --rr-void: #0b0c0d;
+  --rr-surface: #131415;
+  --rr-raised: #1a1c1e;
+  --rr-line: #26292d;
+  --rr-line-strong: #35393e;
+
+  --rr-text: #f4f2ef;
+  --rr-muted: #9aa0a6;
+  --rr-faint: #6a7076;
+
+  /* The single chromatic accent. Warm sienna rather than the SaaS blue
+     every analytics product reaches for, and it carries manga's printed,
+     papery temperature into a dark interface. Nothing else on this page
+     is allowed to be chromatic. */
+  --rr-accent: #e0703a;
+  --rr-accent-soft: rgba(224, 112, 58, .13);
+
+  min-height: 100vh;
+  background: var(--rr-void);
+  color: var(--rr-text);
+  font-family: var(--font-sans);
+  /* Every figure on the page is compared against another figure. */
+  font-variant-numeric: tabular-nums;
+}
+
+.rr h1, .rr h2, .rr h3 { font-family: var(--font-display); letter-spacing: -.03em; }
+.rr mark { background: var(--rr-accent-soft); color: var(--rr-accent); padding: 0 .1em; border-radius: .12em; }
+
+.rr-nav { display: flex; align-items: center; gap: 2rem; max-width: 1180px; margin: auto; padding: 1.4rem 1.5rem; }
+.rr-mark { color: var(--rr-text); font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; letter-spacing: .04em; }
+.rr-nav nav { display: flex; gap: 1.6rem; margin-right: auto; color: var(--rr-muted); font-size: .85rem; }
+.rr-nav-action { padding: .45rem .9rem; border: 1px solid var(--rr-line); border-radius: 999px; font-size: .82rem; }
+
+.rr-eyebrow { margin: 0 0 .8rem; color: var(--rr-faint); font-size: .68rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+
+.rr-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3.5rem; align-items: center; max-width: 1180px; margin: auto; padding: 3rem 1.5rem 5rem; }
+.rr-hero h1 { margin: 0 0 1.2rem; font-size: clamp(2.6rem, 5.2vw, 4.1rem); line-height: 1.02; font-weight: 700; }
+.rr-lede { max-width: 42ch; margin: 0 0 2rem; color: var(--rr-muted); font-size: 1rem; line-height: 1.66; }
+.rr-search { display: flex; gap: .5rem; max-width: 30rem; margin-bottom: 2.5rem; }
+.rr-search input { flex: 1; padding: .85rem 1rem; border: 1px solid var(--rr-line); border-radius: .55rem; background: var(--rr-surface); color: var(--rr-text); font: inherit; }
+.rr-search input::placeholder { color: var(--rr-faint); }
+.rr-search button { padding: .85rem 1.4rem; border: 0; border-radius: .55rem; background: var(--rr-accent); color: #17100c; font: inherit; font-weight: 700; cursor: pointer; }
+
+/* Steep's stat treatment: the figure large, the qualifier small and grey. */
+.rr-proof { display: flex; flex-wrap: wrap; gap: 2.4rem; margin: 0; }
+.rr-proof dt { color: var(--rr-faint); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
+.rr-proof dd { margin: .25rem 0 0; font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; }
+.rr-hero-wall { border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
+.rr-hero-wall .cover-wall { height: 520px; border-radius: 0; background: var(--rr-surface); }
+.rr-hero-wall .cover-wall-copy { display: none; }
+.rr-hero-wall .cover-wall::after { background: radial-gradient(ellipse at center, transparent 45%, var(--rr-void) 97%); }
+
+.rr-band { max-width: 1180px; margin: auto; padding: 4.5rem 1.5rem; border-top: 1px solid var(--rr-line); }
+.rr-band-quiet { background: var(--rr-surface); max-width: none; }
+.rr-band-quiet > * { max-width: 1180px; margin-inline: auto; }
+.rr-band-head h2 { margin: 0 0 .5rem; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; }
+.rr-band-head p { max-width: 58ch; margin: 0 0 2.5rem; color: var(--rr-muted); font-size: .92rem; line-height: 1.65; }
+
+.rr-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
+/* The 1px grid gap IS the border. No card outlines, no shadows. */
+.rr-card { display: grid; gap: .5rem; padding: 1.5rem; background: var(--rr-void); }
+.rr-card-top { display: flex; gap: .9rem; align-items: flex-start; margin-bottom: .4rem; }
+/* Shop's rule: the image fills its frame with no internal padding. Manga is
+   2:3, not the 1:1 that reference uses. */
+.rr-card-cover { width: 52px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; }
+.rr-card h3 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 700; }
+.rr-card-meta { margin: 0; color: var(--rr-faint); font-size: .74rem; }
+.rr-figure { margin: 0; font-family: var(--font-display); font-size: 2rem; font-weight: 700; letter-spacing: -.03em; }
+.rr-figure-lg { font-size: clamp(2.4rem, 5vw, 3.4rem); }
+.rr-delta { margin: 0; color: var(--rr-muted); font-size: .78rem; line-height: 1.55; }
+.rr-delta .up { color: var(--rr-accent); font-weight: 700; }
+.rr-delta .down { color: var(--rr-muted); font-weight: 700; }
+.rr-spark { display: block; width: 100%; height: auto; margin-top: .6rem; overflow: visible; }
+.rr-chart-note { max-width: 62ch; margin: .8rem 0 0; color: var(--rr-faint); font-size: .76rem; line-height: 1.65; }
+
+.rr-edition { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 3rem; align-items: start; }
+/* The object, undecorated. No card, no shadow, no badge -- the cover is the
+   only chromatic thing on the page besides the accent, which is the point. */
+.rr-edition-object img { display: block; width: 100%; border-radius: 6px; }
+.rr-edition-body h3 { margin: 0 0 .2rem; font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; }
+.rr-edition-volume { margin: 0 0 2rem; color: var(--rr-muted); font-size: 1rem; }
+.rr-edition-price { margin-bottom: 1.2rem; }
+.rr-facts { display: flex; flex-wrap: wrap; gap: 2.2rem; margin: 2rem 0 0; padding-top: 1.6rem; border-top: 1px solid var(--rr-line); }
+.rr-facts dt { color: var(--rr-faint); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; }
+.rr-facts dd { margin: .3rem 0 0; font-size: .92rem; font-weight: 600; }
+
+.rr-notes ol { max-width: 66ch; margin: 0 0 1.5rem; padding-left: 1.2rem; color: var(--rr-muted); font-size: .9rem; line-height: 1.75; }
+.rr-notes li { margin-bottom: .7rem; }
+.rr-notes b { color: var(--rr-text); }
+.rr-notes h2 { margin: 0 0 1.5rem; font-size: 1.5rem; }
+
+@media (max-width: 900px) {
+  .rr-hero { grid-template-columns: 1fr; gap: 2.5rem; padding-top: 1rem; }
+  .rr-hero-wall .cover-wall { height: 360px; }
+  .rr-edition { grid-template-columns: 1fr; gap: 2rem; }
+  .rr-edition-object { max-width: 220px; }
+  .rr-proof { gap: 1.6rem; }
+  .rr-nav nav { display: none; }
+}
