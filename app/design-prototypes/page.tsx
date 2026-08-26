@@ -23,16 +23,38 @@ export default async function DesignPrototypesPage() {
     .from("manga_editions")
     .select("series, volume_number, cover_image_url")
     .eq("cover_verification_status", "verified")
-    .not("cover_image_url", "is", null)
-    .limit(40);
+    .not("cover_image_url", "is", null);
 
   const covers = (data ?? []) as Cover[];
   // Deduplicated: the same artwork twice in a scatter reads as a mistake.
   const unique = [...new Map(covers.map((cover) => [cover.cover_image_url, cover])).values()];
 
+  // Interleaved by series, not taken in catalogue order. RAR's 83 verified
+  // covers are 18 One Piece, 11 Dragon Ball and 11 Bleach among only 14
+  // series, so reading them in order fills the first screen with one title
+  // and makes a wall of variety look like a wall of Dragon Ball. Taking one
+  // volume from each series in turn, then the next from each, keeps adjacent
+  // tiles from ever sharing a series.
+  const bySeries = new Map<string, Cover[]>();
+  for (const cover of unique) {
+    const key = (cover.series ?? "").trim().toLowerCase() || "unknown";
+    bySeries.set(key, [...(bySeries.get(key) ?? []), cover]);
+  }
+  const queues = [...bySeries.values()];
+  const interleaved: Cover[] = [];
+  for (let round = 0; interleaved.length < unique.length; round += 1) {
+    let added = false;
+    for (const queue of queues) {
+      if (queue[round]) { interleaved.push(queue[round]); added = true; }
+    }
+    if (!added) break;
+  }
+
   const toCover = (cover: Cover) => ({ url: cover.cover_image_url as string, label: [cover.series, cover.volume_number].filter(Boolean).join(" ") });
-  const constellationCovers = unique.slice(0, 24).map(toCover);
-  const wallCovers = unique.slice(0, 36).map(toCover);
+  const constellationCovers = interleaved.slice(0, 24).map(toCover);
+  // The whole catalogue, so the wall loops on real variety rather than on
+  // padded repeats.
+  const wallCovers = interleaved.map(toCover);
 
   return (
     <main className="prototype-page">
