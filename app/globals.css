@@ -454,6 +454,91 @@ table { font-variant-numeric: tabular-nums; }
 .price-history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
 .comparable-chart-card { min-width: 0; }
 .chart-comparable-label { margin: -1rem 0 1rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+
+/* ---------------------------------------------------------------------
+   Multi-series price history: one chart, one line per comparison group.
+
+   Two encodings, because a series varies along two independent axes and
+   colour alone would need a slot for every combination:
+     colour  = which printing   (--series-0 .. --series-5)
+     dashes  = raw or graded    (graded is dashed, matching the hollow
+                                 graded marker on the homepage sparkline)
+   So a first print and its graded counterpart are one hue, solid and
+   dashed -- two views of the same book, which is what they are.
+
+   Slot 0 is RAR's gold and always means "first print"; slot 5 is a
+   deliberately dull grey and always means "printing not identified", so the
+   weakest evidence on the chart never looks like the strongest.
+
+   Night is the base here, matching the rest of the public theme system, and
+   Day overrides the same six tokens below. The two sets are picked for their
+   own grounds rather than inverted: the Night hues are lifted enough to hold
+   on dark brown, the Day hues deepened enough to hold on parchment. */
+.price-history-multi {
+  --series-0: #e08a4a;
+  --series-1: #8fb4e8;
+  --series-2: #6fd6ae;
+  --series-3: #c9a0d8;
+  --series-4: #7fc9d4;
+  --series-5: #9c958a;
+}
+html[data-theme="day"] .price-history-multi {
+  --series-0: #c9692c;
+  --series-1: #2c5aa0;
+  --series-2: #1f7a5c;
+  --series-3: #7c4a86;
+  --series-4: #1d6f78;
+  --series-5: #8b8577;
+}
+[data-series-colour="0"] { --series-colour: var(--series-0); }
+[data-series-colour="1"] { --series-colour: var(--series-1); }
+[data-series-colour="2"] { --series-colour: var(--series-2); }
+[data-series-colour="3"] { --series-colour: var(--series-3); }
+[data-series-colour="4"] { --series-colour: var(--series-4); }
+[data-series-colour="5"] { --series-colour: var(--series-5); }
+
+.price-chart.is-multi .chart-gradient-start { stop-color: var(--series-colour, var(--gold)); stop-opacity: .26; }
+.price-chart.is-multi .chart-gradient-end { stop-color: var(--series-colour, var(--gold)); stop-opacity: 0; }
+.price-chart.is-multi .chart-active-guide { stroke: var(--muted); }
+.chart-series-line { fill: none; stroke: var(--series-colour, var(--gold)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart-series[data-graded="true"] .chart-series-line { stroke-dasharray: 7 5; }
+.price-chart.is-multi .price-chart-point { fill: var(--surface-card, var(--paper)); stroke: var(--series-colour, var(--gold)); }
+/* A graded marker is hollow; a raw one reads as filled against the line. */
+.chart-series[data-graded="true"] .price-chart-point { fill: var(--surface-card, var(--paper)); stroke-width: 2.4; }
+
+/* The legend is the control. Buttons, not swatches -- each one carries the
+   count and latest price so the choice of what to compare can be made
+   without opening anything. */
+.chart-legend { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.chart-legend-toggle {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .72rem;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--muted);
+  cursor: pointer; font: inherit; font-size: .74rem; text-align: left;
+  transition: border-color .15s ease, background .15s ease, color .15s ease, opacity .15s ease;
+  opacity: .55;
+}
+.chart-legend-toggle:hover { border-color: var(--series-colour, var(--gold)); opacity: .85; }
+.chart-legend-toggle.is-on { border-color: var(--series-colour, var(--gold)); background: color-mix(in srgb, var(--series-colour, var(--gold)) 10%, transparent); color: var(--canvas-heading, var(--ink)); opacity: 1; }
+.chart-legend-toggle:focus-visible { outline: 2px solid var(--series-colour, var(--gold)); outline-offset: 2px; }
+.chart-legend-swatch { flex: none; width: 1.1rem; height: 0; border-top: 3px solid var(--series-colour, var(--gold)); border-radius: 2px; }
+/* The swatch repeats the line's own dash pattern, so the legend and the plot
+   are read with one rule rather than two. */
+.chart-legend-toggle[data-graded="true"] .chart-legend-swatch { border-top-style: dashed; }
+.chart-legend-toggle:not(.is-on) .chart-legend-swatch { border-top-color: var(--muted); }
+.chart-legend-label { font-weight: 700; white-space: nowrap; }
+.chart-legend-meta { color: var(--muted); font-size: .7rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-tooltip em { display: block; margin-top: .25rem; color: var(--series-colour, var(--gold)); font-size: .62rem; font-style: normal; font-weight: 700; }
+.chart-belowbar-note { max-width: 690px; margin: .9rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.55; }
+
+@media (max-width: 600px) {
+  /* Long labels ("Printing not identified") would each take a full row as
+     nowrap pills; letting the meta wrap under the label keeps two per row. */
+  .chart-legend-toggle { flex-wrap: wrap; gap: .3rem .5rem; padding: .45rem .6rem; font-size: .7rem; }
+  .chart-legend-label { white-space: normal; }
+  .chart-legend-meta { flex-basis: 100%; }
+}
 /* Liquidity, sat beside the price it qualifies. */
 .chart-frequency { color: var(--accent-label-text); font-weight: 600; }
 .chart-range-note { margin: 0 0 1rem; color: var(--accent-label-text); font-size: .78rem; line-height: 1.5; }

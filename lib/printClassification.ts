@@ -20,8 +20,10 @@ export function splitByPrintClassification<T extends { print_classification: Pri
 
 // Known-later-print sales only ever compare within the SAME known printing
 // number — a 3rd printing and a 5th printing are never charted or valued
-// together, and printing-not-identified sales are never charted or valued
-// at all (they simply never enter this function).
+// together. Printing-not-identified sales are never VALUED at all and never
+// enter this function; since the multi-series chart they do appear on it, but
+// only as their own separate grey line, labelled as unproven and switched off
+// by default whenever stronger evidence exists (see lib/priceSeries.ts).
 export function groupKnownLaterPrintSales<T extends { known_printing_number: number | null }>(sales: T[]) {
   const groups = new Map<number, T[]>();
   for (const sale of sales) {
@@ -34,8 +36,8 @@ export function groupKnownLaterPrintSales<T extends { known_printing_number: num
 }
 
 // The same minimum-comparable-sales rule PriceHistoryChart already applies
-// (see components/PriceHistoryChart.tsx/PriceHistoryChart.tsx), reused here
-// so a print-classification group is never charted with fewer.
+// (see components/PriceHistoryChart.tsx), reused here so a print-classification
+// group is never charted or valued with fewer.
 export function hasComparableChart<T extends { match_status: string }>(sales: T[], minCount = MIN_COMPARABLE_SALES) {
   return sales.filter((sale) => sale.match_status === "verified_match").length >= minCount;
 }

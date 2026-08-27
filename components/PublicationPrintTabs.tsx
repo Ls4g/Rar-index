@@ -6,7 +6,7 @@ import type { FxRate } from "@/lib/fx";
 import { ordinal } from "@/lib/editionDisplay";
 import { groupKnownLaterPrintSales, hasComparableChart, splitByPrintClassification, MIN_COMPARABLE_SALES } from "@/lib/printClassification";
 import MarketValuePanel from "@/components/MarketValuePanel";
-import PriceHistoryChart from "@/components/PriceHistoryChart.tsx/PriceHistoryChart";
+import PriceHistoryChart from "@/components/PriceHistoryChart";
 
 export type PublicationSale = {
   id: string;
@@ -143,7 +143,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
             <p className="eyebrow">RAR market evidence · Exact issue</p>
             <MarketValuePanel sales={verified} rates={rates} />
           </div>
-          <PriceHistoryChart sales={verified} rates={rates} />
+          <PriceHistoryChart mode="exact_issue" rates={rates} sales={verified} />
           <SaleGroupList sales={exactIssueSales} sourceNames={sourceNames} showPrintClassification={false} />
         </div>
       </div>
@@ -159,8 +159,18 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
   // are never charted or valued at all (see SaleGroupList below).
   const knownLaterGroups = groupKnownLaterPrintSales(knownLater);
 
+  // One chart for the whole publication, above the tabs. Every verified sale
+  // goes in and lib/priceSeries.ts decides the lines: first print, each known
+  // printing separately, printing-not-identified, and each grading group. The
+  // tabs below still carry the evidence lists and the per-group valuations --
+  // what moved is only the comparison, which needed shared axes to be
+  // possible at all.
+  const allVerified = [...firstPrintSales, ...otherSales].filter((sale) => sale.match_status === "verified_match");
+
   return (
     <div className="publication-print-tabs">
+      <PriceHistoryChart rates={rates} sales={allVerified} />
+
       <div className="print-tab-bar" role="tablist" aria-label="Print groups">
         <button type="button" role="tab" aria-selected={tab === "first"} className={tab === "first" ? "is-active" : ""} onClick={() => setTab("first")}>
           First-print sales <span>{firstPrintSales.length}</span>
@@ -177,7 +187,6 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
             <p className="eyebrow">RAR market evidence · First print</p>
             <MarketValuePanel sales={firstVerified} rates={rates} />
           </div>
-          <PriceHistoryChart sales={firstVerified} rates={rates} />
           <SaleGroupList sales={firstPrintSales} sourceNames={sourceNames} />
         </div>
       ) : (
@@ -190,14 +199,11 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
               <div className="print-tab-subgroup" key={printingNumber}>
                 <h3>{printingNumber ? `${ordinal(printingNumber)} printing` : "Known later printing"} ({group.length})</h3>
                 {hasComparableChart(group) ? (
-                  <>
-                    <div className="print-tab-valuation">
-                      <MarketValuePanel sales={verifiedInGroup} rates={rates} />
-                    </div>
-                    <PriceHistoryChart sales={verifiedInGroup} rates={rates} />
-                  </>
+                  <div className="print-tab-valuation">
+                    <MarketValuePanel sales={verifiedInGroup} rates={rates} />
+                  </div>
                 ) : (
-                  <p className="section-copy">Not enough comparable verified sales yet for a chart — needs {MIN_COMPARABLE_SALES} in this exact printing group, has {verifiedInGroup.length}.</p>
+                  <p className="section-copy">Not enough comparable verified sales yet to value this printing — needs {MIN_COMPARABLE_SALES} in this exact printing group, has {verifiedInGroup.length}. This printing appears on the chart above as its own line once it reaches {MIN_COMPARABLE_SALES}.</p>
                 )}
                 <SaleGroupList sales={group} sourceNames={sourceNames} />
               </div>
