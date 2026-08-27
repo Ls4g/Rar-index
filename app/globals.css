@@ -2772,9 +2772,12 @@ html[data-theme="day"] .public-page {
 .cover-wall:hover .cover-wall-column { animation-play-state: paused; }
 @keyframes cover-wall-scroll { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -50%, 0); } }
 
-/* Both fade at the edges so the motion runs out of the frame instead of
-   stopping against it. */
-.constellation::after, .cover-wall::after {
+/* The constellation fades at its edges so the motion runs out of the frame
+   instead of stopping against it. The wall deliberately does not: a vignette
+   over a grid of cover art dims the artwork at exactly the edges where most
+   of it sits, which reads as mood at the expense of the covers. The wall's
+   whole argument is the artwork, so it is left at full brightness. */
+.constellation::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 52%, var(--surface-card) 96%);
 }
@@ -2820,7 +2823,11 @@ html[data-theme="day"] .public-page {
   padding: 3.25rem 2rem 4.5rem;
 }
 .home-hero h1 { margin: 0 0 1.1rem; font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1.0; }
-.home-hero mark { padding: 0 .08em; border-radius: .1em; background: color-mix(in srgb, var(--gold) 20%, transparent); color: var(--accent-label-text); }
+/* Colour only, no highlight block. A tinted box behind a clause that wraps
+   over three lines breaks into ragged rectangles of different widths, which
+   is heavy in exactly the way the covers beside it should not have to
+   compete with. */
+.home-hero mark { padding: 0; background: transparent; color: var(--accent-label-text); }
 .home-lede { max-width: 46ch; margin: 0 0 1.85rem; color: var(--muted); font-size: 1rem; line-height: 1.65; }
 
 /* The search sits on the page ground here rather than on the old dark

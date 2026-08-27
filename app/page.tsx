@@ -355,7 +355,7 @@ export default async function Home() {
       <section className="home-hero" id="top">
         <div className="home-hero-copy">
           <p className="eyebrow">Manga collection tracker</p>
-          <h1>Build your <mark>manga shelf</mark></h1>
+          <h1>Track your manga, <mark>show off your collection</mark></h1>
           <p className="home-lede">
             Add what you own, see what you are missing, and put the whole thing on a page worth sending to
             someone. RAR knows the exact edition — publisher, ISBN, printing — not just the title.
