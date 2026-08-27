@@ -12,9 +12,11 @@ const archivo = Archivo({
   style: ["normal", "italic"],
 });
 
+// Tracking a collection is the job; pricing is what makes it defensible. The
+// title leads with the job, the description carries the edge.
 export const metadata: Metadata = {
-  title: "RAR Index — What's your manga actually worth?",
-  description: "Real completed sale prices for specific manga editions, plus first-print checks — so you know what your copies are worth and which printing you own.",
+  title: "RAR Index — Track your manga collection",
+  description: "Build a shelf of the exact manga editions you own, see the gaps in your runs, and value them against real completed sales — every price linked back to the listing that proves it.",
 };
 
 // Sets data-theme on <html> before first paint so the visitor's saved (or

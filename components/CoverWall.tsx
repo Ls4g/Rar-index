@@ -8,6 +8,9 @@ export type WallCover = { url: string; label: string };
 // alternating directions, which is what stops a grid of covers reading as a
 // product listing -- the eye never settles into rows.
 //
+// Covers only. It carries no copy of its own so the page it sits on owns the
+// words; the homepage puts its headline beside the wall rather than over it.
+//
 // Six columns always, with CSS hiding the last two or three on narrow screens.
 // Measuring the viewport in an effect would mean rendering the wrong number of
 // columns first and correcting after paint, for a decision CSS can simply make.
@@ -61,16 +64,6 @@ export default function CoverWall({ covers }: { covers: WallCover[] }) {
             })}
           </div>
         ))}
-      </div>
-      <div className="cover-wall-copy">
-        <p className="constellation-kicker">RAR Index</p>
-        <h2>What is your manga actually worth?</h2>
-        <p>Verified sales, exact editions, and the printing you actually own.</p>
-        <div className="constellation-actions">
-          <span className="prototype-button">Search the catalogue</span>
-          <span className="prototype-button is-quiet">Track your collection</span>
-        </div>
-        <p className="constellation-hint">Tap a cover to hold it</p>
       </div>
     </div>
   );

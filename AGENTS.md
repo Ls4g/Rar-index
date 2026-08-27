@@ -32,7 +32,18 @@ Automation (Scout auto-triage, matching scorers, etc.) may only ever narrow *wha
 - **`preview_start` browser tool**: has a persistent stale-PATH bug on this machine. Workaround: run `pnpm run dev` via a background shell after prepending `$env:PATH = "C:\Program Files\nodejs;$env:APPDATA\npm;" + $env:PATH`, then open a browser tab to `http://localhost:3000` directly.
 - **Local `.env.local`** has Supabase creds and local-only throwaway staff creds, but no eBay API creds — Scout/eBay-dependent code can't be exercised live from local dev; verify eBay-touching logic with a standalone script instead.
 - Browser automation tools default to the "active" tab when `tabId` is omitted — always pass an explicit `tabId` once more than one tab is open.
-- **Mobile layout cannot be verified in-browser on this machine.** `resize_window` reports success while `window.innerWidth` stays 1920, so media queries never fire and a responsive bug is invisible. Staff pages also sit behind a login whose password must not be typed into a form. So for a mobile/staff UI change: verify via `pnpm run build` plus grepping the compiled CSS under `.next/**/*.css` for the rule and its declarations, say plainly in the commit that rendering is unverified, and ask for a phone check. Two real bugs (a right-anchored nav panel opening off the left edge, an unrendered link) were both found by the user on a phone, not locally.
+- **Mobile layout: `resize_window` is broken, but an iframe works.** `resize_window` reports success while `window.innerWidth` stays 1920, so media queries never fire. The workaround is to inject a same-origin iframe at the target width and inspect *its* document — an iframe gets a real viewport, so `matchMedia("(max-width:600px)")` genuinely matches inside it and computed styles are the real mobile ones:
+  ```js
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;top:0;left:0;width:390px;height:844px;z-index:2147483647";
+  f.src = "/"; document.body.appendChild(f);
+  // then read f.contentDocument / f.contentWindow: innerWidth, matchMedia,
+  // getComputedStyle, and anything with getBoundingClientRect().right >
+  // innerWidth to catch horizontal overflow.
+  ```
+  Remove the iframe afterwards. Staff pages still can't be checked this way — they sit behind a login whose password must not be typed into a form — so for those, verify via the compiled CSS under `.next/**/*.css`, say plainly in the commit that rendering is unverified, and ask for a phone check. Two real bugs (a right-anchored nav panel opening off the left edge, an unrendered link) were both found by the user on a phone, not locally.
+- **Local pages don't hydrate unless `127.0.0.1` is an allowed dev origin.** The browser tooling cannot attach to `localhost` (it rejects the URL as browser-internal), only `127.0.0.1` — and Next dev blocks its own client bundle from hosts it treats as cross-origin. The symptom is nasty: the page renders its server HTML perfectly, so it looks fine, but nothing is interactive and every `useSyncExternalStore` control shows its *server* snapshot (the theme toggle claims Night on a Day page). `next.config.ts` now sets `allowedDevOrigins: ["127.0.0.1"]`; do not remove it. Before concluding an interactive control is broken, check hydration first.
+- **A long-running dev server goes stale and silently serves empty data.** A `next dev` left running for days rendered the homepage with every Supabase query returning nothing — zero counts, no covers — while the same queries returned real rows from a standalone script. Restart the dev server before believing an "empty database".
 - **Corepack, not a global `pnpm`.** `pnpm` is not on PATH; `corepack pnpm ...` is (after the PATH prepend above).
 - `CLAUDE.md` at the repo root just points here via `@AGENTS.md` — edit this file, not that one.
 

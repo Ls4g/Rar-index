@@ -2741,36 +2741,15 @@ html[data-theme="day"] .public-page {
 @media (max-width: 600px) { .outcome-card-head { flex-direction: column; } }
 
 /* ---------------------------------------------------------------------
-   Design prototypes: two cover-wall treatments for the homepage.
-   Temporary. Whichever wins moves into the homepage and this block goes
-   with app/design-prototypes/page.tsx.
+   Cover motion — the animated wall in the homepage hero, and the
+   constellation treatment kept beside it.
 
-   Both take exactly two things from Cosmos: colour comes only from the
-   artwork, and nothing casts a shadow. Depth is carried by scale, rotation
-   and opacity instead, which is why every cover here sits on plain ground
-   with no border and no card around it -- "the image is the component".
+   Colour comes only from the artwork and nothing casts a shadow: depth is
+   carried by scale, rotation and opacity, which is why every cover sits on
+   plain ground with no border and no card around it. Both surfaces read
+   from --surface-card, so Night and Day are one set of rules rather than
+   two palettes.
    --------------------------------------------------------------------- */
-.prototype-page { min-height: 100vh; background: var(--paper); }
-.prototype-intro { max-width: 760px; margin: auto; padding: 2.5rem 1.5rem 0; }
-.prototype-intro h1 { margin-bottom: .6rem; font-size: clamp(1.8rem, 4vw, 2.6rem); }
-.prototype-intro p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.65; }
-.prototype-block { max-width: 1280px; margin: 3rem auto; padding: 0 1.5rem; }
-.prototype-label { margin: 0 0 .75rem; color: var(--gold); font-size: .68rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-.prototype-note { max-width: 70ch; margin: 1rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.65; }
-.prototype-button { display: inline-block; padding: .7rem 1.15rem; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: .82rem; font-weight: 700; }
-.prototype-button.is-quiet { background: transparent; border: 1px solid var(--line); color: var(--canvas-heading); }
-
-@media (max-width: 700px) {
-  .constellation { min-height: 520px; }
-  .constellation-copy { padding: 5rem 1.25rem; }
-  /* At this width a 62px cover is a smudge, and the scatter crowds the
-     headline instead of framing it. */
-  .constellation-cover { width: 74px !important; }
-  .cover-wall-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 7px; padding: 9px; }
-  .cover-wall-copy { padding: 1.6rem 1.1rem; }
-}
-
-/* --- A: constellation, in motion ------------------------------------- */
 .constellation { position: relative; overflow: hidden; min-height: 660px; border-radius: 16px; background: var(--surface-card); touch-action: pan-y; }
 .constellation-field { position: absolute; inset: 0; }
 /* The slot holds the position; the image inside it is what the animation
@@ -2781,7 +2760,6 @@ html[data-theme="day"] .public-page {
 .constellation-cover { display: block; width: 100%; border-radius: 12px; will-change: transform; }
 .constellation-hint { margin: 1.4rem 0 0; color: var(--muted); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; }
 
-/* --- B: the wall, in motion ------------------------------------------ */
 .cover-wall { position: relative; overflow: hidden; height: 660px; border-radius: 16px; background: var(--surface-card); }
 .cover-wall-columns { display: flex; gap: 10px; height: 100%; padding: 0 10px; }
 /* Each column scrolls its own doubled list and is translated by exactly half
@@ -2810,262 +2788,191 @@ html[data-theme="day"] .public-page {
 
 @media (max-width: 900px) { .cover-wall-column:nth-child(n+5) { display: none; } }
 @media (max-width: 560px) { .cover-wall-column:nth-child(n+4) { display: none; } }
-
 @media (max-width: 700px) {
   .constellation { min-height: 540px; }
-  .constellation-copy { padding: 5rem 1.25rem; }
+  /* At this width a 62px cover is a smudge, and the scatter crowds the
+     headline instead of framing it. */
+  .constellation-cover { width: 74px !important; }
   .cover-wall { height: 540px; }
-  .cover-wall-copy { padding: 1.6rem 1.1rem; }
 }
 
-/* ---------------------------------------------------------------------
-   /redesign — a proposal, scoped entirely under .rr so it cannot leak
-   into the live site. Deliberately does NOT use RAR's existing tokens:
-   the argument is partly that those tokens carry too many accents, so
-   inheriting them would beg the question.
-   --------------------------------------------------------------------- */
-.rr {
-  /* Linear's graduated ladder rather than one flat black. Depth is a step
-     in surface colour, never a shadow. */
-  --rr-void: #0b0c0d;
-  --rr-surface: #131415;
-  --rr-raised: #1a1c1e;
-  --rr-line: #26292d;
-  --rr-line-strong: #35393e;
+/* =====================================================================
+   Homepage — shelf-led.
 
-  --rr-text: #f4f2ef;
-  --rr-muted: #9aa0a6;
-  --rr-faint: #6a7076;
+   Tracking a collection is why anyone turns up, tracking is what generates
+   the evidence, and the evidence is the part nobody else has. So the shelf
+   leads and valuation follows it.
 
-  /* The single chromatic accent. Warm sienna rather than the SaaS blue
-     every analytics product reaches for, and it carries manga's printed,
-     papery temperature into a dark interface. Nothing else on this page
-     is allowed to be chromatic. */
-  --rr-accent: #e0703a;
-  --rr-accent-soft: rgba(224, 112, 58, .13);
+   Every colour below is a .public-page theme token, so Night and Day are
+   the same rules with a different token set rather than two stylesheets.
+   Owned and missing volumes reuse the --accent-positive convention that
+   /portfolio's series progress already uses, so a filled slot means the
+   same thing on both pages.
+   ===================================================================== */
 
-  min-height: 100vh;
-  background: var(--rr-void);
-  color: var(--rr-text);
-  font-family: var(--font-sans);
-  /* Every figure on the page is compared against another figure. */
-  font-variant-numeric: tabular-nums;
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: center;
+  max-width: 1240px;
+  margin: auto;
+  padding: 3.25rem 2rem 4.5rem;
 }
+.home-hero h1 { margin: 0 0 1.1rem; font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1.0; }
+.home-hero mark { padding: 0 .08em; border-radius: .1em; background: color-mix(in srgb, var(--gold) 20%, transparent); color: var(--accent-label-text); }
+.home-lede { max-width: 46ch; margin: 0 0 1.85rem; color: var(--muted); font-size: 1rem; line-height: 1.65; }
 
-.rr h1, .rr h2, .rr h3 { font-family: var(--font-display); letter-spacing: -.03em; }
-.rr mark { background: var(--rr-accent-soft); color: var(--rr-accent); padding: 0 .1em; border-radius: .12em; }
+/* The search sits on the page ground here rather than on the old dark
+   masthead, so it takes surface tokens instead of the literal near-black
+   the hero version needs. Scoped under .home-page so the rule cannot
+   relight the same component anywhere else. */
+.home-page .home-hero .search-panel { max-width: none; margin: 0 0 1.35rem; }
+.home-page .home-hero .search-form { border: 1px solid var(--line); border-radius: .6rem; background: var(--surface-card); box-shadow: var(--card-shadow); }
+.home-page .home-hero .search-form input { color: var(--canvas-heading); }
+.home-page .home-hero .search-form input::placeholder { color: var(--input-placeholder); }
+.home-page .home-hero .search-form button { border-radius: .45rem; }
+.home-page .home-hero .search-results { border-color: var(--line); background: var(--surface-card); box-shadow: var(--card-shadow); }
+.home-page .home-hero .search-result { border-top-color: var(--line); }
+.home-page .home-hero .search-result:hover { background: var(--surface-card-hover); }
 
-.rr-nav { display: flex; align-items: center; gap: 2rem; max-width: 1180px; margin: auto; padding: 1.4rem 1.5rem; }
-.rr-mark { color: var(--rr-text); font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; letter-spacing: .04em; }
-.rr-nav nav { display: flex; gap: 1.6rem; margin-right: auto; color: var(--rr-muted); font-size: .85rem; }
-.rr-nav-action { padding: .45rem .9rem; border: 1px solid var(--rr-line); border-radius: 999px; font-size: .82rem; }
-
-.rr-eyebrow { margin: 0 0 .8rem; color: var(--rr-faint); font-size: .68rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-
-.rr-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3.5rem; align-items: center; max-width: 1180px; margin: auto; padding: 3rem 1.5rem 5rem; }
-.rr-hero h1 { margin: 0 0 1.2rem; font-size: clamp(2.6rem, 5.2vw, 4.1rem); line-height: 1.02; font-weight: 700; }
-.rr-lede { max-width: 42ch; margin: 0 0 2rem; color: var(--rr-muted); font-size: 1rem; line-height: 1.66; }
-
-/* Steep's stat treatment: the figure large, the qualifier small and grey. */
-.rr-proof { display: flex; flex-wrap: wrap; gap: 2.4rem; margin: 0; }
-.rr-proof dt { color: var(--rr-faint); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
-.rr-proof dd { margin: .25rem 0 0; font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; }
-.rr-hero-wall { border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
-.rr-hero-wall .cover-wall { height: 520px; border-radius: 0; background: var(--rr-surface); }
-.rr-hero-wall .cover-wall-copy { display: none; }
-.rr-hero-wall .cover-wall::after { background: radial-gradient(ellipse at center, transparent 45%, var(--rr-void) 97%); }
-
-.rr-band { max-width: 1180px; margin: auto; padding: 4.5rem 1.5rem; border-top: 1px solid var(--rr-line); }
-.rr-band-quiet { background: var(--rr-surface); max-width: none; }
-.rr-band-quiet > * { max-width: 1180px; margin-inline: auto; }
-.rr-band-head h2 { margin: 0 0 .5rem; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; }
-.rr-band-head p { max-width: 58ch; margin: 0 0 2.5rem; color: var(--rr-muted); font-size: .92rem; line-height: 1.65; }
-
-.rr-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
-/* The 1px grid gap IS the border. No card outlines, no shadows. */
-.rr-card { display: grid; gap: .5rem; padding: 1.5rem; background: var(--rr-void); }
-.rr-card-top { display: flex; gap: .9rem; align-items: flex-start; margin-bottom: .4rem; }
-/* Shop's rule: the image fills its frame with no internal padding. Manga is
-   2:3, not the 1:1 that reference uses. */
-.rr-card-cover { width: 52px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; }
-.rr-card h3 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 700; }
-.rr-card-meta { margin: 0; color: var(--rr-faint); font-size: .74rem; }
-.rr-figure { margin: 0; font-family: var(--font-display); font-size: 2rem; font-weight: 700; letter-spacing: -.03em; }
-.rr-figure-lg { font-size: clamp(2.4rem, 5vw, 3.4rem); }
-.rr-delta { margin: 0; color: var(--rr-muted); font-size: .78rem; line-height: 1.55; }
-.rr-delta .up { color: var(--rr-accent); font-weight: 700; }
-.rr-delta .down { color: var(--rr-muted); font-weight: 700; }
-.rr-spark { display: block; width: 100%; height: auto; margin-top: .6rem; overflow: visible; }
-.rr-chart-note { max-width: 62ch; margin: .8rem 0 0; color: var(--rr-faint); font-size: .76rem; line-height: 1.65; }
-
-.rr-edition { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 3rem; align-items: start; }
-/* The object, undecorated. No card, no shadow, no badge -- the cover is the
-   only chromatic thing on the page besides the accent, which is the point. */
-.rr-edition-object img { display: block; width: 100%; border-radius: 6px; }
-.rr-edition-body h3 { margin: 0 0 .2rem; font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; }
-.rr-edition-volume { margin: 0 0 2rem; color: var(--rr-muted); font-size: 1rem; }
-.rr-edition-price { margin-bottom: 1.2rem; }
-.rr-facts { display: flex; flex-wrap: wrap; gap: 2.2rem; margin: 2rem 0 0; padding-top: 1.6rem; border-top: 1px solid var(--rr-line); }
-.rr-facts dt { color: var(--rr-faint); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; }
-.rr-facts dd { margin: .3rem 0 0; font-size: .92rem; font-weight: 600; }
-
-.rr-notes ol { max-width: 66ch; margin: 0 0 1.5rem; padding-left: 1.2rem; color: var(--rr-muted); font-size: .9rem; line-height: 1.75; }
-.rr-notes li { margin-bottom: .7rem; }
-.rr-notes b { color: var(--rr-text); }
-.rr-notes h2 { margin: 0 0 1.5rem; font-size: 1.5rem; }
-
-@media (max-width: 900px) {
-  .rr-hero { grid-template-columns: 1fr; gap: 2.5rem; padding-top: 1rem; }
-  .rr-hero-wall .cover-wall { height: 360px; }
-  .rr-edition { grid-template-columns: 1fr; gap: 2rem; }
-  .rr-edition-object { max-width: 220px; }
-  .rr-proof { gap: 1.6rem; }
-  .rr-nav nav { display: none; }
+.home-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin: 0 0 1.4rem; }
+.home-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: .82rem 1.3rem;
+  border: 1px solid var(--red); border-radius: .55rem;
+  background: var(--red); color: #fff;
+  font-size: .84rem; font-weight: 700; letter-spacing: .01em;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
 }
+.home-btn:hover { background: var(--red-dark); border-color: var(--red-dark); }
+.home-btn.is-quiet { border-color: var(--line); background: transparent; color: var(--canvas-heading); }
+.home-btn.is-quiet:hover { border-color: var(--canvas-muted-strong); background: var(--surface-card); color: var(--canvas-heading); }
+.home-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
-/* Staff decision inbox: one clear question, its evidence, then yes or no. */
-.human-decisions-hero { padding-top: 4.2rem; padding-bottom: 4.2rem; }
-.human-decisions-section { max-width: 980px; margin: 0 auto; padding-top: 2.5rem; }
-.human-decision-inbox { display: grid; gap: 1rem; }
-.human-decision-toolbar { display: grid; grid-template-columns: minmax(220px, .45fr) minmax(0, 1fr); gap: 1rem 2rem; align-items: end; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: .75rem; background: #fffdf8; }
-.human-decision-toolbar label { display: grid; gap: .35rem; color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.human-decision-toolbar input { min-height: 2.7rem; border: 1px solid #d8c99c; border-radius: .5rem; padding: .6rem .7rem; background: #fff; color: var(--ink); font: inherit; letter-spacing: normal; text-transform: none; }
-.human-decision-toolbar p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
-.human-decision-banner { margin: 0; padding: .8rem 1rem; border-radius: .6rem; font-size: .8rem; font-weight: 700; }
-.human-decision-banner.is-ok { border: 1px solid rgba(44,126,99,.3); background: rgba(44,126,99,.08); color: #246b55; }
-.human-decision-banner.is-error { border: 1px solid rgba(154,60,49,.35); background: rgba(154,60,49,.08); color: #8e342b; }
-.human-decision-filters { display: flex; flex-wrap: wrap; gap: .45rem; padding: .35rem 0 .65rem; }
-.human-decision-filters button { display: flex; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: 999px; padding: .5rem .7rem; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: .74rem; font-weight: 700; }
-.human-decision-filters button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
-.human-decision-filters span { display: grid; place-items: center; min-width: 1.35rem; height: 1.35rem; border-radius: 999px; background: rgba(170,129,44,.18); color: inherit; font-size: .65rem; }
-.human-decision-card { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.3fr); gap: 1rem 1.5rem; padding: 1.25rem; border: 1px solid #d8cfbf; border-left: 4px solid var(--gold); border-radius: .8rem; background: #fffdf8; }
-.human-decision-question span { display: block; margin-bottom: .45rem; color: #8a6821; font-size: .66rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-.human-decision-question h2 { margin: 0; font-family: var(--font-sans); font-size: 1.15rem; line-height: 1.25; }
-.human-decision-facts { display: grid; gap: .35rem; min-width: 0; }
-.human-decision-facts > strong { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
-.human-decision-facts > span { color: var(--muted); font-size: .75rem; }
-.human-decision-facts p { margin: 0; overflow-wrap: anywhere; font-size: .88rem; font-weight: 650; line-height: 1.4; }
-.human-decision-facts b { color: #6f5520; font-size: .78rem; }
-.human-decision-facts small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
-.human-decision-note { grid-column: 1 / -1; display: grid; gap: .35rem; padding-top: .25rem; }
-.human-decision-note span { color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-.human-decision-note textarea { width: 100%; resize: vertical; min-height: 3.3rem; border: 1px solid #d8cfbf; border-radius: .5rem; padding: .65rem .75rem; background: #fff; color: var(--ink); font: inherit; font-size: .78rem; line-height: 1.4; }
-.human-decision-note textarea:focus { outline: 2px solid rgba(36,113,91,.2); border-color: #24715b; }
-.human-decision-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .55rem; padding-top: .9rem; border-top: 1px solid #e3dbcd; }
-.human-decision-actions a { margin-right: auto; color: #86551d; font-size: .76rem; font-weight: 750; }
-.human-decision-actions button { border: 0; border-radius: .45rem; padding: .68rem .9rem; background: #24715b; color: #fff; cursor: pointer; font: inherit; font-size: .74rem; font-weight: 800; }
-.human-decision-actions button.is-no { background: transparent; border: 1px solid #baaaa0; color: #7e3b32; }
-.human-decision-actions button:disabled { cursor: not-allowed; opacity: .45; }
-.human-learning-queue { margin-top: .5rem; border: 1px solid var(--line); border-radius: .7rem; padding: .8rem 1rem; color: var(--muted); font-size: .78rem; }
-.human-learning-queue summary { cursor: pointer; color: var(--ink); font-weight: 750; }
-.human-learning-queue p { line-height: 1.5; }
-.human-learning-queue ul { display: grid; gap: .55rem; margin: .8rem 0 0; padding: 0; list-style: none; }
-.human-learning-queue li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .7rem; align-items: center; padding-top: .55rem; border-top: 1px solid var(--line); }
-.human-learning-queue a { color: #86551d; font-weight: 700; }
+/* The edge, stated before anyone scrolls: a visitor should know within one
+   screen why this is not just another list app. */
+.home-edge { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.6; }
 
-@media (max-width: 700px) {
-  .human-decisions-section { padding: 1.2rem .85rem 3rem; }
-  .human-decision-toolbar, .human-decision-card { grid-template-columns: 1fr; }
-  .human-decision-actions { grid-column: auto; justify-content: stretch; }
-  .human-decision-actions a { width: 100%; margin: 0 0 .25rem; }
-  .human-decision-actions button { flex: 1 1 145px; }
-  .human-learning-queue li { grid-template-columns: 1fr auto; }
-  .human-learning-queue li a { grid-column: 1 / -1; }
+.home-hero-wall { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.home-hero-wall .cover-wall { height: 520px; border-radius: 0; }
+
+/* ------------------------------------------------------------- the shelf */
+.home-shelf { max-width: 1240px; margin: auto; padding: 0 2rem 4.5rem; }
+.home-shelf-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 2rem; margin-bottom: 1.9rem; }
+.home-shelf-head h2 { margin: 0 0 .6rem; font-size: clamp(1.6rem, 3vw, 2.2rem); font-variant-numeric: tabular-nums; }
+.home-shelf-head > div > p { max-width: 62ch; margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+.home-shelf-head-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+/* Signed out. No counts, no sample shelf, no silhouette of a collection
+   that is not theirs — an invitation and nothing that looks like data. */
+.home-shelf-invite {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 2.5rem 3rem; align-items: center;
+  padding-top: 3rem; padding-bottom: 4.5rem;
+  border-top: 1px solid var(--line);
 }
+.home-shelf-invite h2 { margin: 0 0 .9rem; font-size: clamp(1.7rem, 3.2vw, 2.4rem); }
+.home-shelf-invite-copy > p { max-width: 54ch; margin: 0 0 1.6rem; color: var(--muted); font-size: .95rem; line-height: 1.65; }
+.home-shelf-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.6; }
+.home-shelf-note a, .home-shelf-empty a { color: var(--accent-label-text); font-weight: 600; }
+.home-shelf-note a:hover, .home-shelf-empty a:hover { text-decoration: underline; }
+.home-shelf-empty { margin: 0; color: var(--muted); font-size: .92rem; }
 
-/* --- /redesign: collection-first sections ---------------------------- */
-/* The run of spines. This is the page's most important object: a hollow
-   slot is what makes someone go and find Vol. 6, and that single action is
-   the whole data flywheel. So it is drawn as physical spines rather than a
-   progress bar, because a gap in a row of books reads as missing in a way a
-   percentage never does. */
-.rr-runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
-.rr-run { display: grid; gap: .9rem; padding: 1.6rem; background: var(--rr-void); }
-.rr-run-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-.rr-run h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
-.rr-run-count { color: var(--rr-faint); font-size: .74rem; white-space: nowrap; }
-.rr-spines { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.rr-spines li { display: grid; place-items: center; width: 20px; height: 52px; border-radius: 2px; font-size: .6rem; }
-.rr-spines .is-owned { background: var(--rr-accent); color: #17100c; font-weight: 700; }
-/* A dashed outline and nothing inside it: the slot is empty, and it should
-   look empty rather than look like a different colour of book. */
-.rr-spines .is-gap { border: 1px dashed var(--rr-line-strong); color: var(--rr-faint); }
-.rr-run-gap { margin: 0; color: var(--rr-muted); font-size: .8rem; }
-.rr-run-gap b { color: var(--rr-text); }
-.rr-run-complete { color: var(--rr-faint); }
-.rr-link { color: var(--rr-accent); font-weight: 600; }
-
-/* The shareable shelf, drawn as the thing a stranger would open. */
-.rr-share { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
-.rr-share-card { border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; background: var(--rr-void); }
-.rr-share-bar { padding: .7rem 1rem; border-bottom: 1px solid var(--rr-line); color: var(--rr-faint); font-size: .76rem; }
-.rr-share-url b { color: var(--rr-text); }
-.rr-share-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; padding: 1rem; }
-.rr-share-grid img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; }
-.rr-share-foot { display: flex; gap: 1.6rem; padding: .85rem 1rem; border-top: 1px solid var(--rr-line); color: var(--rr-muted); font-size: .78rem; }
-.rr-share-foot b { color: var(--rr-text); font-size: .95rem; }
-.rr-share-copy h3 { margin: 0 0 .8rem; font-size: 1.35rem; font-weight: 700; }
-.rr-share-copy p { margin: 0 0 .9rem; color: var(--rr-muted); font-size: .9rem; line-height: 1.7; }
-
-@media (max-width: 900px) {
-  .rr-share { grid-template-columns: 1fr; gap: 2rem; }
-  .rr-share-grid { grid-template-columns: repeat(6, 1fr); }
-  .rr-spines li { width: 17px; height: 44px; }
+/* Hairline-separated rows: one border colour showing through the gaps, so
+   the list reads as one object rather than four floating cards. */
+.home-shelf-promises, .home-share-facts {
+  display: grid; gap: 1px; margin: 0; padding: 0; list-style: none;
+  border: 1px solid var(--line); border-radius: .9rem;
+  background: var(--line); overflow: hidden;
 }
+.home-shelf-promises li { display: grid; gap: .28rem; padding: 1.05rem 1.2rem; background: var(--surface-card); }
+.home-shelf-promises strong { color: var(--canvas-heading); font-size: .92rem; font-weight: 700; }
+.home-shelf-promises span { color: var(--muted); font-size: .82rem; line-height: 1.5; }
 
-/* --- /redesign: hero actions, sample labelling, footer --------------- */
-.rr-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-bottom: 1.1rem; }
-.rr-btn { display: inline-block; padding: .85rem 1.5rem; border-radius: .55rem; background: var(--rr-accent); color: #17100c; font-size: .92rem; font-weight: 700; cursor: pointer; }
-.rr-btn-quiet { background: transparent; border: 1px solid var(--rr-line-strong); color: var(--rr-text); }
-.rr-edge { margin: 0; color: var(--rr-faint); font-size: .8rem; letter-spacing: .01em; }
+/* ----------------------------------------------------------------- runs */
+.home-runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.home-run { padding: 1.4rem 1.5rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface-card); box-shadow: var(--card-shadow); }
+.home-run-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.home-run-head h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.02em; }
+.home-run-count { flex: 0 0 auto; color: var(--muted); font-size: .73rem; font-variant-numeric: tabular-nums; }
 
-/* Demo content is labelled wherever it could be mistaken for the visitor's
-   own. A catalogue that refuses to guess an ISBN should not let a stranger
-   assume 43 volumes are theirs. */
-.rr-sample-tag { position: absolute; z-index: 2; top: .7rem; left: .7rem; padding: .28rem .6rem; border-radius: 999px; background: rgba(11,12,13,.82); border: 1px solid var(--rr-line-strong); color: var(--rr-muted); font-size: .64rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.rr-sample-inline { display: inline-block; margin-right: .5rem; padding: .12rem .45rem; border-radius: 3px; background: var(--rr-raised); border: 1px solid var(--rr-line); color: var(--rr-muted); font-size: .62rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; vertical-align: middle; }
-.rr-hero-wall { position: relative; }
-
-.rr-foot { max-width: 1180px; margin: auto; padding: 2.5rem 1.5rem 4rem; border-top: 1px solid var(--rr-line); }
-.rr-foot p { max-width: 68ch; margin: 0; color: var(--rr-faint); font-size: .78rem; line-height: 1.7; }
-
-/* --- /redesign: phone ------------------------------------------------
-   Written explicitly rather than left to auto-fit. The runs grid used a
-   20rem minimum, which is 320px — wider than the content box on a 375px
-   phone once padding is taken off, so it would have overflowed. The volume
-   spines are the other overflow risk: fourteen 20px spines plus gaps is
-   332px, so they shrink here rather than relying on wrapping.
-   NOT VERIFIED ON A DEVICE — resize_window does not work on this machine
-   (see AGENTS.md), so these rules are reasoned and compiled, not seen. */
-@media (max-width: 860px) {
-  .rr-hero { grid-template-columns: 1fr; }
-  .rr-runs { grid-template-columns: 1fr; }
-  .rr-share { grid-template-columns: 1fr; }
+/* One slot per volume RAR has catalogued. An owned slot carries the accent;
+   a gap is hollow and dashed, which is the thing that nags — and filling it
+   is what puts evidence into RAR. */
+.home-spines { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 .95rem; padding: 0; list-style: none; }
+.home-spines li a {
+  display: grid; place-items: center;
+  width: 22px; height: 50px;
+  border: 1px solid var(--line); border-radius: 2px;
+  color: var(--muted);
+  font-size: .55rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  transition: border-color .15s ease, color .15s ease;
 }
-@media (max-width: 560px) {
-  .rr-nav { gap: 1rem; padding: 1rem 1.1rem; }
-  .rr-hero { padding: .5rem 1.1rem 3rem; gap: 2rem; }
-  .rr-band { padding: 3rem 1.1rem; }
-  .rr-foot { padding: 2rem 1.1rem 3rem; }
-  .rr-actions { gap: .55rem; }
-  .rr-btn { flex: 1 1 auto; padding: .8rem 1rem; text-align: center; font-size: .86rem; }
-  .rr-proof { gap: 1.4rem; }
-  .rr-run { padding: 1.2rem; }
-  /* 14 spines at 15px + 3px gaps = 246px, inside a 375px phone minus page
-     and card padding. */
-  .rr-spines { gap: 3px; }
-  .rr-spines li { width: 15px; height: 40px; font-size: .52rem; }
-  .rr-share-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; padding: .7rem; }
-  .rr-share-foot { gap: 1rem; padding: .7rem; font-size: .72rem; }
-  .rr-hero-wall .cover-wall { height: 300px; }
-  .rr-edition-object { max-width: 160px; }
-  .rr-facts { gap: 1.4rem; }
+.home-spines li.is-owned a { border-color: var(--accent-positive-text); background: color-mix(in srgb, var(--accent-positive-text) 16%, transparent); color: var(--accent-positive-text); font-weight: 700; }
+.home-spines li.is-gap a { border-style: dashed; }
+.home-spines li a:hover { border-color: var(--gold); color: var(--canvas-heading); }
+.home-spines li a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.home-run-gap { margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.55; }
+.home-run-gap b { color: var(--canvas-heading); font-weight: 600; }
+.home-run-gap.is-complete { color: var(--accent-positive-text); }
+
+/* -------------------------------------------------------- featured price */
+.home-feature {
+  display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr);
+  gap: 2.5rem; align-items: start;
+  margin: 2.25rem 0 2.75rem; padding: 1.75rem;
+  border: 1px solid var(--line); border-radius: 1rem;
+  background: var(--surface-card); box-shadow: var(--card-shadow);
+}
+.home-feature-object { border-radius: .5rem; overflow: hidden; }
+.home-feature-cover { width: 100%; }
+.home-feature-body h3 { margin: 0 0 .3rem; font-size: clamp(1.4rem, 2.6vw, 1.9rem); }
+.home-feature-body h3 a:hover { color: var(--accent-label-text); }
+.home-feature-descriptor { margin: 0 0 1.2rem; color: var(--muted); font-size: .85rem; }
+.home-figure { margin: 0; color: var(--canvas-heading); font-family: var(--font-display); font-size: clamp(2rem, 4vw, 2.7rem); font-weight: 700; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.home-feature-delta { margin: .5rem 0 1.2rem; color: var(--muted); font-size: .78rem; }
+.sale-spark { display: block; width: 100%; height: auto; overflow: visible; }
+.home-chart-note { max-width: 64ch; margin: .9rem 0 0; color: var(--muted); font-size: .77rem; line-height: 1.6; }
+
+/* ---------------------------------------------------------------- share */
+.home-share { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 2.5rem 3rem; align-items: center; }
+.home-share-copy h2 { margin: 0 0 .5rem; }
+.home-share-copy code { padding: .12rem .32rem; border-radius: .25rem; background: var(--surface-chip); font-family: var(--font-mono); font-size: .85em; }
+.home-share-copy .home-actions { margin: 1.5rem 0 0; }
+.home-share-facts li { display: grid; gap: .35rem; padding: 1.2rem 1.3rem; background: var(--surface-card); }
+.home-share-facts strong { font-size: .66rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.home-share-facts li:first-child strong { color: var(--accent-positive-text); }
+.home-share-facts li:last-child strong { color: var(--accent-warning-text); }
+.home-share-facts span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
+
+/* ---------------------------------------------------------------- phone */
+/* Two-column layouts collapse first, then the fixed-width pieces step down:
+   22px slots plus 4px gaps overflow a 375px phone once the card padding is
+   taken off, so they shrink rather than relying on wrapping. */
+@media (max-width: 980px) {
+  .home-hero { grid-template-columns: 1fr; gap: 2.5rem; padding: 2.5rem 2rem 3.5rem; }
+  .home-hero-wall .cover-wall { height: 400px; }
+  .home-shelf-invite, .home-share { grid-template-columns: 1fr; gap: 2rem; }
+  .home-runs { grid-template-columns: 1fr; }
+  .home-feature { grid-template-columns: minmax(0, 168px) minmax(0, 1fr); gap: 1.75rem; }
+}
+@media (max-width: 600px) {
+  .home-hero { padding: 1.75rem 1rem 2.75rem; }
+  .home-hero-wall .cover-wall { height: 320px; }
+  .home-shelf { padding: 0 1rem 3rem; }
+  .home-shelf-invite { padding-top: 2.25rem; padding-bottom: 3rem; }
+  .home-btn { flex: 1 1 auto; padding: .8rem 1rem; text-align: center; }
+  .home-feature { grid-template-columns: 1fr; padding: 1.25rem; }
+  .home-feature-object { max-width: 156px; }
+  .home-run { padding: 1.1rem 1.15rem; }
+  .home-spines { gap: 3px; }
+  .home-spines li a { width: 17px; height: 42px; font-size: .5rem; }
 }
 @media (max-width: 380px) {
-  /* Two long series titles plus a count will not sit on one line here. */
-  .rr-run-head { flex-direction: column; gap: .2rem; }
-  .rr-spines li { width: 13px; height: 34px; }
-  .rr-share-grid { grid-template-columns: repeat(5, 1fr); }
-  .rr-proof { gap: 1.1rem; }
-  .rr-proof dd { font-size: 1.4rem; }
+  /* A long series title and its count will not sit on one line here. */
+  .home-run-head { flex-direction: column; align-items: flex-start; gap: .25rem; }
+  .home-spines li a { width: 15px; height: 36px; }
+  .home-shelf-head { flex-direction: column; align-items: flex-start; }
 }

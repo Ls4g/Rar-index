@@ -1,6 +1,7 @@
 import MangaSearch, { type Manga } from "@/components/MangaSearch";
-import CollectorShelf, { type ShelfEdition } from "@/components/CollectorShelf";
-import HeroCoverDominoes from "@/components/HeroCoverDominoes";
+import CoverWall, { type WallCover } from "@/components/CoverWall";
+import HomeShelfPanel from "@/components/HomeShelfPanel";
+import SaleSparkline, { type SalePoint } from "@/components/SaleSparkline";
 import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -10,10 +11,24 @@ import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/
 import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import { HomeMarketCurrencyControl, HomePrice } from "@/components/HomeMarketDisplay";
-import type { FxRate } from "@/lib/fx";
+import { comparisonGroup, type FxRate } from "@/lib/fx";
 
-// Catalogue updates should appear without waiting for the next deployment.
+// The homepage is ordered around the collection, not the price.
+//
+// Tracking a shelf is why anyone turns up; tracking is what generates the
+// evidence; the evidence is the part nobody else has. So the shelf leads, the
+// catalogue follows, and valuation arrives once there is something to value.
+//
+// Every count and card here is scoped to publications (record_kind =
+// 'publication') — a proven print-run record (e.g. a first printing) is never
+// a separate destination or a separate line in a counter; its evidence already
+// rolls up into its publication via publication_print_readiness.
 export const dynamic = "force-dynamic";
+
+// Enough covers for the wall to loop on real variety without shipping the
+// whole catalogue's artwork to a first-time visitor.
+const WALL_COVER_LIMIT = 72;
+const FEATURE_MIN_SALES = 3;
 
 function formatSaleDate(value: string | null) {
   if (!value) return "Date not recorded";
@@ -34,12 +49,17 @@ function homepageIssueLabel(edition: Manga) {
 function homepageDescriptor(edition: Manga) {
   return edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : editionDescriptor(edition);
 }
+
 type RecentSale = {
   edition_id: string;
   sale_price: number;
   currency: string;
   sold_date: string | null;
 };
+
+// The featured chart needs the grading columns as well, because raw and
+// graded are separate markets and must never be drawn as one line.
+type FeatureSale = RecentSale & { grading_company: string | null; grade_label: string | null };
 
 type LiveLead = {
   id: string;
@@ -53,11 +73,6 @@ type LiveLead = {
 };
 
 export default async function Home() {
-  // Every count and card here is scoped to publications (record_kind =
-  // 'publication') — a proven print-run record (e.g. a first printing) is
-  // never a separate destination or a separate line in a counter; its
-  // evidence already rolls up into its publication via
-  // publication_print_readiness.
   const [{ count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: readinessRows }] = await Promise.all([
     supabase
       .from("manga_editions")
@@ -92,9 +107,12 @@ export default async function Home() {
   const readinessById = new Map((readinessRows ?? []).map((row) => [row.publication_id, row]));
   const saleCounts = new Map<string, number>();
   for (const [publicationId, row] of readinessById) saleCounts.set(publicationId, row.total_verified_sale_count);
-  // Best-documented first: a verified cover alongside a verified sale is
-  // what actually makes a record useful to a collector browsing right now,
-  // so it outranks a higher sale count with no confirmed cover art.
+
+  const seriesKey = (edition: Manga) => (edition.series || edition.title || String(edition.id)).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  // Best-documented first: a verified cover alongside a verified sale is what
+  // actually makes a record useful to a collector browsing right now, so it
+  // outranks a higher sale count with no confirmed cover art.
   const pricedRanked = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) > 0)
     .sort((a, b) => {
@@ -103,14 +121,11 @@ export default async function Home() {
       return (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0);
     });
   // Evidence clusters on a handful of series, and the same volume is often
-  // catalogued in two languages -- so a straight top-six filled six slots
-  // with four series, showing Black Clover and Jujutsu Kaisen twice each.
-  // Take the strongest edition per series first, then backfill from what is
-  // left if there are fewer series than slots. This changes which of RAR's
-  // priced publications are shown, never how many exist: the count beside
-  // the heading still comes straight from the evidence table.
+  // catalogued in two languages — so a straight top-six filled six slots with
+  // four series. Take the strongest edition per series first, then backfill.
+  // This changes which of RAR's priced publications are shown, never how many
+  // exist: the count beside the heading still comes from the evidence table.
   const HOMEPAGE_PRICED_SLOTS = 6;
-  const seriesKey = (edition: Manga) => (edition.series || edition.title || String(edition.id)).toLowerCase().replace(/[^a-z0-9]/g, "");
   const seenSeries = new Set<string>();
   const oneEachSeries = pricedRanked.filter((edition) => {
     const key = seriesKey(edition);
@@ -122,10 +137,11 @@ export default async function Home() {
     ...oneEachSeries,
     ...pricedRanked.filter((edition) => !oneEachSeries.includes(edition)),
   ].slice(0, HOMEPAGE_PRICED_SLOTS);
+
   // First-print watch reuses the same catalogue fetch — no new query, just a
-  // different lens on data RAR already verified: a publication with at
-  // least one sale proven a first print via direct copyright-page evidence,
-  // never merely inferred from a release date or an edition's own name.
+  // different lens on data RAR already verified: a publication with at least
+  // one sale proven a first print via direct copyright-page evidence, never
+  // merely inferred from a release date or from an edition's own name.
   const firstPrintWatch = ((allCatalogue ?? []) as Manga[])
     .filter((edition) => readinessById.get(String(edition.id))?.has_first_print_evidence)
     .sort((a, b) => {
@@ -135,85 +151,90 @@ export default async function Home() {
     })
     .slice(0, 4);
 
-  // The collector's shelf: verified covers only, sale-evidenced ones first.
-  // Latest-sale figures are the raw original sale amount (no FX conversion
-  // or median math) — the same "or latest verified sale" alternative the
-  // edition page itself offers when there isn't yet enough for a median.
   const verifiedCoverCandidates = ((allCatalogue ?? []) as Manga[])
-    .filter((edition) => edition.cover_verification_status === "verified")
+    .filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url)
     .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0));
-  const shelfCandidates = verifiedCoverCandidates
-    .slice(0, 16);
-  // The hero should feel like the breadth of RAR, not a repeated leaderboard.
-  // Lead with one verified cover per series, then backfill only when the
-  // catalogue has fewer than twelve distinct covered series.
-  const heroSeries = new Set<string>();
-  const heroDistinctCovers = verifiedCoverCandidates.filter((edition) => {
+
+  // The wall is interleaved by series, not taken in catalogue order. RAR's
+  // verified covers cluster heavily — eighteen One Piece, eleven Bleach —
+  // so reading them in order fills the first screen with one title and makes
+  // a wall of variety look like a wall of Dragon Ball.
+  const coversBySeries = new Map<string, Manga[]>();
+  for (const edition of verifiedCoverCandidates) {
     const key = seriesKey(edition);
-    if (heroSeries.has(key)) return false;
-    heroSeries.add(key);
-    return true;
-  });
-  const heroCoverCandidates = [
-    ...heroDistinctCovers,
-    ...verifiedCoverCandidates.filter((edition) => !heroDistinctCovers.includes(edition)),
-  ].slice(0, 10);
-  const shelfEditionIds = shelfCandidates.map((edition) => String(edition.id));
+    coversBySeries.set(key, [...(coversBySeries.get(key) ?? []), edition]);
+  }
+  const coverQueues = [...coversBySeries.values()];
+  const wallCovers: WallCover[] = [];
+  const seenCoverUrls = new Set<string>();
+  for (let round = 0; wallCovers.length < WALL_COVER_LIMIT; round += 1) {
+    let added = false;
+    for (const queue of coverQueues) {
+      if (wallCovers.length >= WALL_COVER_LIMIT) break;
+      const item = queue[round];
+      if (item?.cover_image_url && !seenCoverUrls.has(item.cover_image_url)) {
+        seenCoverUrls.add(item.cover_image_url);
+        wallCovers.push({ url: item.cover_image_url, label: item.series ?? item.title ?? "" });
+        added = true;
+      }
+    }
+    if (!added) break;
+  }
+
   // A publication's sales can live on a proven print-run child record (e.g.
   // One Piece Japanese Vol. 1's first-print sales are on its child, not the
-  // publication row itself) — pull in those children so the shelf's "latest
-  // sale" figure reflects the whole publication, not just its own row.
-  const { data: shelfChildrenData } = shelfEditionIds.length
-    ? await supabase.from("manga_editions").select("id,printing_of_edition_id").in("printing_of_edition_id", shelfEditionIds)
+  // publication row itself) — pull in those children so a publication's
+  // evidence is read whole rather than from its own row alone.
+  const featureCandidates = verifiedCoverCandidates.filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) >= FEATURE_MIN_SALES).slice(0, 12);
+  const featureIds = featureCandidates.map((edition) => String(edition.id));
+  const { data: featureChildrenData } = featureIds.length
+    ? await supabase.from("manga_editions").select("id,printing_of_edition_id").in("printing_of_edition_id", featureIds)
     : { data: [] };
-  const shelfPublicationByChildId = new Map((shelfChildrenData ?? []).map((child) => [child.id, child.printing_of_edition_id as string]));
-  const shelfFamilyIds = [...shelfEditionIds, ...shelfPublicationByChildId.keys()];
-  const { data: shelfSalesData } = shelfFamilyIds.length
+  const featurePublicationByChildId = new Map((featureChildrenData ?? []).map((child) => [child.id, child.printing_of_edition_id as string]));
+  const featureFamilyIds = [...featureIds, ...featurePublicationByChildId.keys()];
+  const { data: featureSalesData } = featureFamilyIds.length
     ? await supabase
       .from("price_observations")
-      .select("edition_id, sale_price, currency, sold_date")
-      .in("edition_id", shelfFamilyIds)
+      .select("edition_id, sale_price, currency, sold_date, grading_company, grade_label")
+      .in("edition_id", featureFamilyIds)
       .eq("sale_status", "confirmed")
       .eq("match_status", "verified_match")
-      .order("sold_date", { ascending: false })
+      .not("sold_date", "is", null)
+      .order("sold_date", { ascending: true })
     : { data: [] };
-  const latestSaleByEdition = new Map<string, { price: number; currency: string; soldDate: string | null }>();
-  for (const sale of (shelfSalesData ?? []) as RecentSale[]) {
-    const publicationId = shelfPublicationByChildId.get(sale.edition_id) ?? sale.edition_id;
-    if (!latestSaleByEdition.has(publicationId)) {
-      latestSaleByEdition.set(publicationId, { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date });
-    }
+
+  // The featured chart obeys the same rule every edition page does: raw and
+  // graded are different markets and are never drawn as one line, and a run
+  // of prices in mixed currencies is not a trend. So a publication only
+  // qualifies on a cluster of at least three sales sharing both a comparison
+  // group and a currency — otherwise no chart is shown at all.
+  const featureClusters = new Map<string, FeatureSale[]>();
+  for (const sale of (featureSalesData ?? []) as FeatureSale[]) {
+    const publicationId = featurePublicationByChildId.get(sale.edition_id) ?? sale.edition_id;
+    const key = `${publicationId}::${comparisonGroup(sale).key}::${sale.currency}`;
+    featureClusters.set(key, [...(featureClusters.get(key) ?? []), sale]);
   }
-  const shelfEditions: ShelfEdition[] = shelfCandidates.map((edition) => ({
-    id: String(edition.id),
-    title: edition.title,
-    series: edition.series,
-    volumeNumber: edition.volume_number,
-    collectibleType: edition.collectible_type,
-    issueYear: edition.issue_year ?? null,
-    issueNumberLabel: edition.issue_number_label ?? null,
-    language: edition.language,
-    editionLabel: editionDescriptor(edition),
-    coverImageUrl: edition.cover_image_url,
-    coverStatus: edition.cover_verification_status,
-    verifiedSaleCount: saleCounts.get(String(edition.id)) ?? 0,
-    latestSale: latestSaleByEdition.get(String(edition.id)) ?? null,
-  }));
-  const heroCoverEditions: ShelfEdition[] = heroCoverCandidates.map((edition) => ({
-    id: String(edition.id),
-    title: edition.title,
-    series: edition.series,
-    volumeNumber: edition.volume_number,
-    collectibleType: edition.collectible_type,
-    issueYear: edition.issue_year ?? null,
-    issueNumberLabel: edition.issue_number_label ?? null,
-    language: edition.language,
-    editionLabel: editionDescriptor(edition),
-    coverImageUrl: edition.cover_image_url,
-    coverStatus: edition.cover_verification_status,
-    verifiedSaleCount: saleCounts.get(String(edition.id)) ?? 0,
-    latestSale: latestSaleByEdition.get(String(edition.id)) ?? null,
-  }));
+  const bestCluster = [...featureClusters.entries()]
+    .filter(([, rows]) => rows.length >= FEATURE_MIN_SALES)
+    .sort((left, right) => right[1].length - left[1].length)[0];
+  const feature = bestCluster
+    ? (() => {
+      const [key, rows] = bestCluster;
+      const [publicationId, group] = key.split("::");
+      const edition = featureCandidates.find((candidate) => String(candidate.id) === publicationId);
+      if (!edition) return null;
+      const sorted = [...rows].sort((left, right) => String(left.sold_date).localeCompare(String(right.sold_date)));
+      return { edition, rows: sorted, latest: sorted[sorted.length - 1], group };
+    })()
+    : null;
+  const featurePoints: SalePoint[] = feature
+    ? feature.rows.map((sale) => ({
+      date: String(sale.sold_date),
+      price: Number(sale.sale_price),
+      currency: sale.currency,
+      graded: Boolean(sale.grading_company || sale.grade_label),
+    }))
+    : [];
 
   // A recent-sales activity feed and live buying opportunities, both drawn
   // across the whole catalogue rather than one edition at a time.
@@ -280,9 +301,9 @@ export default async function Home() {
     return edition ? [{ sale, edition }] : [];
   });
 
-  // The same real eBay listing can be captured by more than one search
-  // profile (e.g. two catalogue editions of the same volume). Dedupe on the
-  // underlying item so it is never shown twice as separate "opportunities".
+  // The same real eBay listing can be captured by more than one search profile
+  // (e.g. two catalogue editions of the same volume). Dedupe on the underlying
+  // item so it is never shown twice as separate "opportunities".
   const seenListings = new Set<string>();
   const liveOpportunities = liveLeads
     .flatMap((lead) => {
@@ -297,8 +318,8 @@ export default async function Home() {
     .slice(0, 6);
 
   // All homepage prices use one visitor-selected display currency. Sales are
-  // converted with their sale-date ECB reference rate; active listings use
-  // the latest available reference rate without changing the stored amount.
+  // converted with their sale-date ECB reference rate; active listings use the
+  // latest available reference rate without changing the stored amount.
   const { data: homepageFxRatesData } = await supabase
     .from("exchange_rates")
     .select("rate_date,currency,rate_per_eur,source_name,source_url")
@@ -317,63 +338,51 @@ export default async function Home() {
           <em>Index</em>
         </a>
         <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/identify">First-print check</Link>
           <Link className="header-note" href="/browse">Browse manga</Link>
-          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
+          <Link className="header-note" href="/identify">First-print check</Link>
+          <Link className="header-note" href="/portfolio">My shelf</Link>
           <Link className="header-note" href="/staff-login">Staff access</Link>
           <HomeMarketCurrencyControl />
           <ThemeToggle />
         </nav>
       </header>
 
-      <section id="top" className="hero">
-        <div className="hero-grid" />
-        <div className="hero-masthead">
-          <HeroCoverDominoes editions={heroCoverEditions} />
-          <div className="hero-content">
-            <p className="eyebrow">Built for manga collectors</p>
-            <h1>
-              Track your manga.
-              <span>Show off your collection.</span>
-            </h1>
-            <p className="hero-copy">
-              Build your shelf, track its value using real sales data, and share your
-              collection with other collectors.
-            </p>
-            <MangaSearch />
-            {/* Three plain steps, directly under the search. First-time visitors
-                were reading the old abstract hero and guessing the site was a
-                card tracker; this states the job in the visitor's own words
-                before they have to interpret anything else on the page. */}
-            <ol className="hero-steps">
-              <li><span>1</span>Find your manga</li>
-              <li><span>2</span>Track your collection&apos;s value</li>
-              <li><span>3</span>Show off your shelf</li>
-            </ol>
+      {/* ------------------------------------------------------------- hero */}
+      {/* The shelf is the hero: the thing the visitor came to build, not a
+          valuation question. The wall beside it is RAR's own verified cover
+          art, so it argues the catalogue has depth without claiming any of it
+          belongs to the person looking. */}
+      <section className="home-hero" id="top">
+        <div className="home-hero-copy">
+          <p className="eyebrow">Manga collection tracker</p>
+          <h1>Build your <mark>manga shelf</mark></h1>
+          <p className="home-lede">
+            Add what you own, see what you are missing, and put the whole thing on a page worth sending to
+            someone. RAR knows the exact edition — publisher, ISBN, printing — not just the title.
+          </p>
+          <MangaSearch />
+          <div className="home-actions">
+            <Link className="home-btn" href="/portfolio">Start your shelf</Link>
+            <Link className="home-btn is-quiet" href="/browse?evidence=verified-sales">Browse sold prices</Link>
           </div>
+          <p className="home-edge">
+            {count ?? 0} publications catalogued · {evidenceCount ?? 0} with completed sales · every price linked to its receipt
+          </p>
         </div>
-
-        {/* The shelf is the most collector-ish thing on the page, so it now
-            follows the search directly instead of sitting behind another
-            block of navigation. The entry points move below it: they are
-            wayfinding, and do not need to precede the collection itself. */}
-        {shelfEditions.length ? (
-          <div className="collector-shelf-section">
-            <div className="collector-shelf-heading">
-              <p className="eyebrow">The collector&apos;s shelf</p>
-            </div>
-            <CollectorShelf editions={shelfEditions} rates={homepageFxRates} />
-          </div>
-        ) : null}
-
-        <div className="hero-entry-points">
-          <Link className="is-primary" href="/browse?evidence=verified-sales">Browse sold prices</Link>
-          <Link className="is-live" href="#live-opportunities-heading">See what&apos;s on sale now</Link>
-          <Link href="/identify">Is mine a first print?</Link>
+        <div className="home-hero-wall" aria-hidden="true">
+          <CoverWall covers={wallCovers} />
         </div>
       </section>
 
-      <section className="index-section market-evidence-section" aria-labelledby="market-evidence-heading">
+      {/* ------------------------------------------------------------ shelf */}
+      {/* Real holdings for whoever is signed in, and an invitation for
+          everyone else. Never a sample collection dressed as theirs. */}
+      <HomeShelfPanel />
+
+      {/* ------------------------------------------------------------ worth */}
+      {/* Second, deliberately. The edge that makes RAR hard to copy, offered
+          as what you get once a shelf exists — not as the opening pitch. */}
+      <section className="index-section home-worth-section" aria-labelledby="market-evidence-heading">
         <div className="section-heading">
           <div>
             <p className="eyebrow">What copies actually sell for</p>
@@ -381,10 +390,45 @@ export default async function Home() {
           </div>
           <span>{evidenceCount ?? pricedEditions.length} manga with confirmed sold prices</span>
         </div>
+        <p className="section-copy market-evidence-copy">Every price here comes from a sale that actually completed, with a working link back to the original listing — never an asking price. A sale only counts once we have confirmed it was this exact edition.</p>
+
+        {feature ? (
+          <article className="home-feature">
+            <div className="home-feature-object">
+              <EditionCover
+                className="home-feature-cover"
+                imageStatus={feature.edition.cover_verification_status}
+                imageUrl={feature.edition.cover_image_url}
+                language={feature.edition.language}
+                priority
+                series={feature.edition.series}
+                title={feature.edition.title}
+                volumeNumber={feature.edition.volume_number}
+              />
+            </div>
+            <div className="home-feature-body">
+              <p className="eyebrow">{[feature.edition.language, publisherDisplayName(feature.edition.publisher)].filter(Boolean).join(" · ")}</p>
+              <h3><Link href={`/edition/${feature.edition.id}`}>{homepageTitle(feature.edition)}</Link></h3>
+              <p className="home-feature-descriptor">{homepageDescriptor(feature.edition)}</p>
+              <p className="home-figure">
+                <HomePrice rateDate={feature.latest.sold_date} rates={homepageFxRates} sourceCurrency={feature.latest.currency} value={feature.latest.sale_price} />
+              </p>
+              <p className="home-feature-delta">Last verified sale · {formatSaleDate(feature.latest.sold_date)}</p>
+              <SaleSparkline height={128} points={featurePoints} width={560} />
+              {/* The chart is drawn from one comparison group in one currency,
+                  which is the only way a line between sales means anything.
+                  Saying so is not a caveat — it is what the chart is. */}
+              <p className="home-chart-note">
+                {featurePoints.length} verified {feature.group.toLowerCase().startsWith("graded") ? feature.group.toLowerCase() : "raw"} sales,
+                all recorded in {feature.latest.currency}, each linked to its receipt. Points sit at their real dates, so uneven
+                months look uneven, and the line stays straight between sales because RAR does not know what happened in between.
+              </p>
+            </div>
+          </article>
+        ) : null}
 
         {pricedEditions.length > 0 ? (
           <>
-            <p className="section-copy market-evidence-copy">Every price here comes from a sale that actually completed, with a working link back to the original listing — never an asking price. A sale only counts once we have confirmed it was this exact edition.</p>
             <div className="manga-grid">
               {pricedEditions.map((item, index) => {
                 const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
@@ -417,6 +461,29 @@ export default async function Home() {
         )}
       </section>
 
+      {/* ------------------------------------------------------------ share */}
+      <section className="index-section home-share-section" aria-labelledby="home-share-heading">
+        <div className="home-share">
+          <div className="home-share-copy">
+            <p className="eyebrow">Show it off</p>
+            <h2 id="home-share-heading">A shelf worth sending</h2>
+            <p className="section-copy">
+              Claim a handle and your shelf gets its own page at <code>/collectors/yourhandle</code>. It carries your
+              covers and which exact editions you own — never what you paid, when you bought it, or any note you wrote.
+              Shelves stay private until you publish one, and an unpublished handle returns nothing rather than
+              confirming it exists.
+            </p>
+            <div className="home-actions">
+              <Link className="home-btn" href="/portfolio">Start your shelf</Link>
+            </div>
+          </div>
+          <ul className="home-share-facts">
+            <li><strong>Public</strong><span>Covers, series and the exact editions on your shelf.</span></li>
+            <li><strong>Private</strong><span>Purchase prices, dates, quantities and your notes.</span></li>
+          </ul>
+        </div>
+      </section>
+
       {firstPrintWatch.length ? (
         <section className="index-section first-print-watch-section" aria-labelledby="first-print-watch-heading">
           <div className="section-heading">
@@ -428,11 +495,11 @@ export default async function Home() {
           </div>
           <p className="section-copy">A first print is only claimed here when a real copy&apos;s printing line was actually checked — never guessed from a release date or from what the book calls itself. Open any one to see exactly which copy proved it.</p>
           <div className="manga-grid">
-            {firstPrintWatch.map((item, index) => {
+            {firstPrintWatch.map((item) => {
               const verifiedSaleCount = saleCounts.get(String(item.id)) ?? 0;
               return (
                 <Link className="manga-card first-print-card" href={`/edition/${item.id}`} key={item.id}>
-                  <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" priority={index < 3} />
+                  <EditionCover title={item.title} series={item.series} volumeNumber={item.volume_number} language={item.language} imageUrl={item.cover_image_url} imageStatus={item.cover_verification_status} className="card-cover" />
                   <div className="card-body">
                     <p className="card-kicker">{[item.volume_number ? `Vol. ${item.volume_number}` : null, item.language].filter(Boolean).join(" · ")}</p>
                     <h3>{item.title || "Untitled manga"}</h3>
@@ -467,9 +534,9 @@ export default async function Home() {
 
         {recentSalesWithEdition.length ? (
           <div className="manga-grid">
-            {recentSalesWithEdition.map(({ sale, edition }, index) => (
+            {recentSalesWithEdition.map(({ sale, edition }) => (
               <Link className="manga-card" href={publicationLink(edition)} key={`${edition.id}-${sale.sold_date}-${sale.sale_price}`}>
-                <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" priority={index < 3} />
+                <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={edition.collectible_type === "zasshi" ? homepageIssueLabel(edition) : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="card-cover" />
                 <div className="card-body">
                   <p className="card-kicker"><HomePrice value={sale.sale_price} sourceCurrency={sale.currency} rateDate={sale.sold_date} rates={homepageFxRates} /> · {formatSaleDate(sale.sold_date)}</p>
                   <h3>{homepageTitle(edition)}</h3>
@@ -500,7 +567,7 @@ export default async function Home() {
           </div>
           <span className="live-listings-status">Listings you can still buy — not sold prices</span>
         </div>
-          <p className="section-copy">Active eBay listings whose title clearly matches a publication in the catalogue. These are buying opportunities only — an asking price never counts as a sale and never moves a value on this site.</p>
+        <p className="section-copy">Active eBay listings whose title clearly matches a publication in the catalogue. These are buying opportunities only — an asking price never counts as a sale and never moves a value on this site.</p>
         {liveOpportunities.length ? (
           <div className="live-listings-grid">
             {liveOpportunities.map(({ lead, edition }) => (
@@ -524,13 +591,6 @@ export default async function Home() {
         )}
       </section>
 
-      {/* The homepage used to end in four more blocks — a "recently added"
-          grid of records with no cover and no sale, an eight-tile explore
-          wall, a three-step pathway list, and a slogan panel. Between them
-          they answered "what is this site" four different ways, which is
-          why first-time visitors could not answer it at all. One slim row
-          of destinations replaces the lot; nothing is orphaned, because
-          every page they linked to still has an entry here. */}
       <section className="index-ways-in" aria-labelledby="ways-in-heading">
         <h2 id="ways-in-heading" className="sr-only">More ways into the catalogue</h2>
         <div className="index-ways-in-grid">

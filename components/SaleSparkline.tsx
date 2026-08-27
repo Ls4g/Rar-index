@@ -10,8 +10,10 @@ export type SalePoint = { date: string; price: number; currency: string; graded:
 // -- the line is straight between sales because RAR does not know what
 // happened in between, and pretending otherwise with a curve would be a claim
 // it cannot support.
+// Colours come from the public theme tokens, so the same chart reads correctly
+// on Night and on Day without a second palette or a second component.
 export default function SaleSparkline({
-  points, width = 560, height = 132, accent = "var(--rr-accent)",
+  points, width = 560, height = 132, accent = "var(--accent-label-text)",
 }: { points: SalePoint[]; width?: number; height?: number; accent?: string }) {
   if (points.length < 2) return null;
 
@@ -40,7 +42,7 @@ export default function SaleSparkline({
   const area = `${line} L ${coords[coords.length - 1].x.toFixed(1)} ${height} L ${coords[0].x.toFixed(1)} ${height} Z`;
 
   return (
-    <svg className="rr-spark" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${points.length} verified sales from ${points[0].date} to ${points[points.length - 1].date}`}>
+    <svg className="sale-spark" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${points.length} verified sales from ${points[0].date} to ${points[points.length - 1].date}`}>
       <defs>
         <linearGradient id="rr-spark-fill" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor={accent} stopOpacity="0.16" />
@@ -57,7 +59,7 @@ export default function SaleSparkline({
         <circle
           cx={point.x}
           cy={point.y}
-          fill={point.graded ? "var(--rr-surface)" : accent}
+          fill={point.graded ? "var(--surface-card)" : accent}
           key={`${point.date}-${point.price}`}
           r={point.graded ? 3.4 : 2.8}
           stroke={accent}
