@@ -2865,10 +2865,6 @@ html[data-theme="day"] .public-page {
 .rr-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3.5rem; align-items: center; max-width: 1180px; margin: auto; padding: 3rem 1.5rem 5rem; }
 .rr-hero h1 { margin: 0 0 1.2rem; font-size: clamp(2.6rem, 5.2vw, 4.1rem); line-height: 1.02; font-weight: 700; }
 .rr-lede { max-width: 42ch; margin: 0 0 2rem; color: var(--rr-muted); font-size: 1rem; line-height: 1.66; }
-.rr-search { display: flex; gap: .5rem; max-width: 30rem; margin-bottom: 2.5rem; }
-.rr-search input { flex: 1; padding: .85rem 1rem; border: 1px solid var(--rr-line); border-radius: .55rem; background: var(--rr-surface); color: var(--rr-text); font: inherit; }
-.rr-search input::placeholder { color: var(--rr-faint); }
-.rr-search button { padding: .85rem 1.4rem; border: 0; border-radius: .55rem; background: var(--rr-accent); color: #17100c; font: inherit; font-weight: 700; cursor: pointer; }
 
 /* Steep's stat treatment: the figure large, the qualifier small and grey. */
 .rr-proof { display: flex; flex-wrap: wrap; gap: 2.4rem; margin: 0; }
@@ -2983,7 +2979,7 @@ html[data-theme="day"] .public-page {
    the whole data flywheel. So it is drawn as physical spines rather than a
    progress bar, because a gap in a row of books reads as missing in a way a
    percentage never does. */
-.rr-runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
+.rr-runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
 .rr-run { display: grid; gap: .9rem; padding: 1.6rem; background: var(--rr-void); }
 .rr-run-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .rr-run h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
@@ -3015,4 +3011,61 @@ html[data-theme="day"] .public-page {
   .rr-share { grid-template-columns: 1fr; gap: 2rem; }
   .rr-share-grid { grid-template-columns: repeat(6, 1fr); }
   .rr-spines li { width: 17px; height: 44px; }
+}
+
+/* --- /redesign: hero actions, sample labelling, footer --------------- */
+.rr-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-bottom: 1.1rem; }
+.rr-btn { display: inline-block; padding: .85rem 1.5rem; border-radius: .55rem; background: var(--rr-accent); color: #17100c; font-size: .92rem; font-weight: 700; cursor: pointer; }
+.rr-btn-quiet { background: transparent; border: 1px solid var(--rr-line-strong); color: var(--rr-text); }
+.rr-edge { margin: 0; color: var(--rr-faint); font-size: .8rem; letter-spacing: .01em; }
+
+/* Demo content is labelled wherever it could be mistaken for the visitor's
+   own. A catalogue that refuses to guess an ISBN should not let a stranger
+   assume 43 volumes are theirs. */
+.rr-sample-tag { position: absolute; z-index: 2; top: .7rem; left: .7rem; padding: .28rem .6rem; border-radius: 999px; background: rgba(11,12,13,.82); border: 1px solid var(--rr-line-strong); color: var(--rr-muted); font-size: .64rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.rr-sample-inline { display: inline-block; margin-right: .5rem; padding: .12rem .45rem; border-radius: 3px; background: var(--rr-raised); border: 1px solid var(--rr-line); color: var(--rr-muted); font-size: .62rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; vertical-align: middle; }
+.rr-hero-wall { position: relative; }
+
+.rr-foot { max-width: 1180px; margin: auto; padding: 2.5rem 1.5rem 4rem; border-top: 1px solid var(--rr-line); }
+.rr-foot p { max-width: 68ch; margin: 0; color: var(--rr-faint); font-size: .78rem; line-height: 1.7; }
+
+/* --- /redesign: phone ------------------------------------------------
+   Written explicitly rather than left to auto-fit. The runs grid used a
+   20rem minimum, which is 320px — wider than the content box on a 375px
+   phone once padding is taken off, so it would have overflowed. The volume
+   spines are the other overflow risk: fourteen 20px spines plus gaps is
+   332px, so they shrink here rather than relying on wrapping.
+   NOT VERIFIED ON A DEVICE — resize_window does not work on this machine
+   (see AGENTS.md), so these rules are reasoned and compiled, not seen. */
+@media (max-width: 860px) {
+  .rr-hero { grid-template-columns: 1fr; }
+  .rr-runs { grid-template-columns: 1fr; }
+  .rr-share { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .rr-nav { gap: 1rem; padding: 1rem 1.1rem; }
+  .rr-hero { padding: .5rem 1.1rem 3rem; gap: 2rem; }
+  .rr-band { padding: 3rem 1.1rem; }
+  .rr-foot { padding: 2rem 1.1rem 3rem; }
+  .rr-actions { gap: .55rem; }
+  .rr-btn { flex: 1 1 auto; padding: .8rem 1rem; text-align: center; font-size: .86rem; }
+  .rr-proof { gap: 1.4rem; }
+  .rr-run { padding: 1.2rem; }
+  /* 14 spines at 15px + 3px gaps = 246px, inside a 375px phone minus page
+     and card padding. */
+  .rr-spines { gap: 3px; }
+  .rr-spines li { width: 15px; height: 40px; font-size: .52rem; }
+  .rr-share-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; padding: .7rem; }
+  .rr-share-foot { gap: 1rem; padding: .7rem; font-size: .72rem; }
+  .rr-hero-wall .cover-wall { height: 300px; }
+  .rr-edition-object { max-width: 160px; }
+  .rr-facts { gap: 1.4rem; }
+}
+@media (max-width: 380px) {
+  /* Two long series titles plus a count will not sit on one line here. */
+  .rr-run-head { flex-direction: column; gap: .2rem; }
+  .rr-spines li { width: 13px; height: 34px; }
+  .rr-share-grid { grid-template-columns: repeat(5, 1fr); }
+  .rr-proof { gap: 1.1rem; }
+  .rr-proof dd { font-size: 1.4rem; }
 }

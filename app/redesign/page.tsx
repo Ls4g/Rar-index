@@ -111,7 +111,6 @@ export default async function RedesignPage() {
     : [];
 
   const shelfVolumes = shelves.reduce((total, shelf) => total + shelf.volumes.length, 0);
-  const completeSets = shelves.filter((shelf) => shelf.missing.length === 0).length;
 
   return (
     <main className="rr">
@@ -126,23 +125,29 @@ export default async function RedesignPage() {
           person came to look at, which is their own books. */}
       <section className="rr-hero">
         <div className="rr-hero-copy">
-          <p className="rr-eyebrow">Your collection</p>
-          <h1>Every volume you own, <mark>in one shelf</mark></h1>
+          <p className="rr-eyebrow">Manga collection tracker</p>
+          <h1>Build your <mark>manga shelf</mark></h1>
           <p className="rr-lede">
-            Add what you have, see what you are missing, and put the whole thing on a page worth sending to someone.
+            Add what you own, see what you are missing, and put the whole thing on a page worth sending to someone.
             RAR knows the exact edition — printing, publisher, ISBN — not just the title.
           </p>
-          <div className="rr-search">
-            <input placeholder="Add a volume — title or ISBN" readOnly />
-            <button type="button">Add to shelf</button>
+          {/* Two real actions rather than a search box that does nothing. A
+              read-only field reads as functional and then is not, which is a
+              worse first impression than no field at all. */}
+          <div className="rr-actions">
+            <span className="rr-btn">Start your shelf</span>
+            <span className="rr-btn rr-btn-quiet">Browse manga</span>
           </div>
-          <dl className="rr-proof">
-            <div><dt>Volumes</dt><dd>{shelfVolumes}</dd></div>
-            <div><dt>Series</dt><dd>{shelves.length}</dd></div>
-            <div><dt>Complete</dt><dd>{completeSets}</dd></div>
-          </dl>
+          {/* The edge, stated before anyone scrolls. Tracking still leads, but
+              a visitor should know within one screen why this is not just
+              another list app. */}
+          <p className="rr-edge">Exact editions · verified sold prices · {sales.length} sales with a receipt</p>
         </div>
         <div className="rr-hero-wall">
+          {/* Labelled, because a wall of covers next to shelf statistics reads
+              as the visitor's own collection to someone who has just arrived.
+              It is not, and RAR of all products should not blur that. */}
+          <span className="rr-sample-tag">Example collection</span>
           <CoverWall covers={wallCovers} />
         </div>
       </section>
@@ -153,14 +158,22 @@ export default async function RedesignPage() {
       <section className="rr-band">
         <div className="rr-band-head">
           <h2>What you are missing</h2>
-          <p>RAR counts what it can actually see, so a run reads &ldquo;7 of 10 tracked&rdquo; rather than pretending to know the published total. The gaps below are real gaps in the catalogue.</p>
+          <p>
+            Counted against what RAR has catalogued, never against the published run — RAR does not always know how many
+            volumes a series has, so it does not claim to. <span className="rr-sample-inline">Example collection</span>
+          </p>
         </div>
         <div className="rr-runs">
           {shelves.map((shelf) => (
             <article className="rr-run" key={shelf.series}>
               <div className="rr-run-head">
                 <h3>{shelf.series}</h3>
-                <span className="rr-run-count">{shelf.volumes.length} of {shelf.highest} tracked</span>
+                {/* "of N catalogued volumes", never "complete". RAR knowing ten
+                    volumes is not RAR knowing the series has ten -- One Piece
+                    has over a hundred and RAR holds fourteen. Saying "complete
+                    run" would be the same overclaim as calling something out
+                    of print because Scout has not seen one. */}
+                <span className="rr-run-count">{shelf.volumes.length} of {shelf.highest} catalogued volumes owned</span>
               </div>
               {/* A spine per volume. Owned spines carry the accent; a gap is a
                   hollow slot, which is the thing that nags. */}
@@ -180,7 +193,9 @@ export default async function RedesignPage() {
                   Missing <b>{shelf.missing.map((volume) => `Vol. ${volume}`).join(", ")}</b> · <span className="rr-link">find a copy</span>
                 </p>
               ) : (
-                <p className="rr-run-gap rr-run-complete">Complete run · nothing missing</p>
+                // Not "complete". No gaps in what RAR holds is a statement
+                // about RAR, and the copy has to say which.
+                <p className="rr-run-gap rr-run-complete">No gaps in what RAR has catalogued so far</p>
               )}
             </article>
           ))}
@@ -195,7 +210,7 @@ export default async function RedesignPage() {
         </div>
         <div className="rr-share">
           <div className="rr-share-card">
-            <div className="rr-share-bar"><span className="rr-share-url">rarindex.com/collectors/<b>shamar</b></span></div>
+            <div className="rr-share-bar"><span className="rr-sample-inline">Example</span><span className="rr-share-url">rarindex.com/collectors/<b>shamar</b></span></div>
             <div className="rr-share-grid">
               {wallCovers.slice(0, 18).map((cover) => (
                 /* eslint-disable-next-line @next/next/no-img-element -- publisher CDNs are not configured next/image hosts */
@@ -205,7 +220,7 @@ export default async function RedesignPage() {
             <div className="rr-share-foot">
               <span><b>{shelfVolumes}</b> volumes</span>
               <span><b>{shelves.length}</b> series</span>
-              <span><b>{completeSets}</b> complete</span>
+              <span><b>{sales.length}</b> priced</span>
             </div>
           </div>
           <div className="rr-share-copy">
@@ -233,7 +248,7 @@ export default async function RedesignPage() {
               ) : null}
             </div>
             <div className="rr-edition-body">
-              <p className="rr-eyebrow">On your shelf · {hero.edition.language} · {hero.edition.publisher}</p>
+              <p className="rr-eyebrow">{hero.edition.language} · {hero.edition.publisher}</p>
               <h3>{hero.edition.series ?? hero.edition.title}</h3>
               <p className="rr-edition-volume">Volume {hero.edition.volume_number}</p>
               <div className="rr-edition-price">
@@ -250,19 +265,12 @@ export default async function RedesignPage() {
         </section>
       ) : null}
 
-      <section className="rr-band rr-notes">
-        <h2>What changed from the first version</h2>
-        <ol>
-          <li><b>The shelf leads, not the price.</b> The first pass opened with &ldquo;what your manga is actually worth&rdquo;, which is the moat rather than the reason anyone arrives. Tracking is what people come for, tracking is what generates the data, and the data is the edge — so the page runs in that order.</li>
-          <li><b>The gap is the hook.</b> A hollow slot in a run of spines is the thing that makes someone go and find Vol. 6. That single interaction is the whole flywheel, so it gets its own band rather than a progress bar in a sidebar.</li>
-          <li><b>Showing off is a feature, not a byproduct.</b> A shelf worth posting is how RAR reaches the 1.93M people who talk about shelving and never mention grading.</li>
-          <li><b>Price moved last and got quieter.</b> Still the sharpest thing RAR owns, offered as depth you find rather than the opening claim.</li>
-          <li><b>The visual language did not change</b> — one accent, no shadows, full-bleed covers, a chart with no furniture. None of it was ever about pricing.</li>
-        </ol>
-        <p className="rr-chart-note">
-          Real covers, real series, real gaps and real verified sales from the live database. The shelf contents are illustrative — RAR holds two real holdings today — but every volume, gap and price shown is genuine catalogue data.
+      <footer className="rr-foot">
+        <p>
+          Covers, series, volume gaps and sold prices on this page are real catalogue data. The shelf itself is an example —
+          RAR does not have your collection until you add it.
         </p>
-      </section>
+      </footer>
     </main>
   );
 }
