@@ -2951,6 +2951,10 @@ html[data-theme="day"] .public-page {
 .human-decision-facts p { margin: 0; overflow-wrap: anywhere; font-size: .88rem; font-weight: 650; line-height: 1.4; }
 .human-decision-facts b { color: #6f5520; font-size: .78rem; }
 .human-decision-facts small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
+.human-decision-note { grid-column: 1 / -1; display: grid; gap: .35rem; padding-top: .25rem; }
+.human-decision-note span { color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.human-decision-note textarea { width: 100%; resize: vertical; min-height: 3.3rem; border: 1px solid #d8cfbf; border-radius: .5rem; padding: .65rem .75rem; background: #fff; color: var(--ink); font: inherit; font-size: .78rem; line-height: 1.4; }
+.human-decision-note textarea:focus { outline: 2px solid rgba(36,113,91,.2); border-color: #24715b; }
 .human-decision-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .55rem; padding-top: .9rem; border-top: 1px solid #e3dbcd; }
 .human-decision-actions a { margin-right: auto; color: #86551d; font-size: .76rem; font-weight: 750; }
 .human-decision-actions button { border: 0; border-radius: .45rem; padding: .68rem .9rem; background: #24715b; color: #fff; cursor: pointer; font: inherit; font-size: .74rem; font-weight: 800; }
