@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type SaleDecision = {
   observationId: string;
@@ -51,6 +51,7 @@ type AgentProposal = {
   rationale: string;
   confidence: number | null;
   destination: string | null;
+  canExecute: boolean;
 };
 
 type DecisionKind = "sale" | "printing" | "catalogue" | "proposal";
@@ -94,13 +95,13 @@ export default function HumanDecisionInbox({
   const highConfidenceProposals = visibleProposals.filter((item) => item.confidence !== null && item.confidence >= 0.9);
   const learningProposals = visibleProposals.filter((item) => item.confidence === null || item.confidence < 0.9);
 
-  const counts = useMemo(() => ({
+  const counts = {
     all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + highConfidenceProposals.length,
     sale: visibleSales.length,
     printing: visiblePrinting.length,
     catalogue: visibleCatalogue.length,
     proposal: highConfidenceProposals.length,
-  }), [visibleSales.length, visiblePrinting.length, visibleCatalogue.length, highConfidenceProposals.length]);
+  };
 
   function canShow(kind: DecisionKind) {
     return filter === "all" || filter === kind;
@@ -115,13 +116,13 @@ export default function HumanDecisionInbox({
     setBanner(null);
     try {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, reviewer: reviewer.trim() }) });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { error?: string; message?: string };
       if (!response.ok) {
         setBanner({ tone: "error", text: result.error ?? "The decision could not be saved." });
         return false;
       }
       setResolved((current) => new Set([...current, key]));
-      setBanner({ tone: "ok", text: "Decision saved. The item has left your inbox and the audit trail was updated." });
+      setBanner({ tone: "ok", text: result.message ?? "Decision saved. The item has left your inbox and the audit trail was updated." });
       return true;
     } catch {
       setBanner({ tone: "error", text: "The decision could not be saved. Check the connection and try again." });
@@ -178,6 +179,7 @@ export default function HumanDecisionInbox({
       command: "review_action",
       actionId: item.id,
       decision: accepted ? "approved" : "rejected",
+      execute: accepted && item.canExecute,
     });
   }
 
@@ -242,10 +244,10 @@ export default function HumanDecisionInbox({
       {canShow("proposal") && highConfidenceProposals.map((item) => (
         <article className="human-decision-card is-plan" key={item.id}>
           <div className="human-decision-question"><span>{item.agentKey.replaceAll("_", " ")} asks · {confidenceLabel(item.confidence)}</span><h2>Should RAR act on this recommendation?</h2></div>
-          <div className="human-decision-facts"><p>{item.title}</p><small>{item.rationale}</small></div>
+          <div className="human-decision-facts"><p>{item.title}</p><small>{item.rationale}</small>{item.canExecute ? <b>Ready to run immediately after approval.</b> : <b>Approval records permission only; execution is not automated yet.</b>}</div>
           <div className="human-decision-actions">
             {item.destination ? <Link href={item.destination}>Inspect related work →</Link> : null}
-            <button disabled={Boolean(busy)} onClick={() => void decideProposal(item, true)} type="button">Yes — accept plan</button>
+            <button disabled={Boolean(busy)} onClick={() => void decideProposal(item, true)} type="button">{item.canExecute ? "Approve and run" : "Approve plan"}</button>
             <button className="is-no" disabled={Boolean(busy)} onClick={() => void decideProposal(item, false)} type="button">No — dismiss</button>
           </div>
         </article>

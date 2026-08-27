@@ -5,6 +5,10 @@ import { runAgentObservation } from "@/lib/agentRuntime";
 import { createAndEvaluateScoutRule, reevaluateScoutRule } from "@/lib/scoutRuleEvaluation";
 import { runGuardedAgentCycle } from "@/lib/agentCycle";
 import { checkEbayConnectionHealth } from "@/lib/ebayScout";
+import { agentActionExecutionKind } from "@/lib/agentActionExecution";
+import { runScoutBatch } from "@/lib/scoutBatch";
+
+export const maxDuration = 60;
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
     if (command === "review_action") {
       const actionId = clean(payload.actionId);
       const decision = clean(payload.decision);
+      const execute = payload.execute === true;
       if (!actionId || !["approved", "rejected", "cancelled"].includes(decision)) return Response.json({ error: "Choose a proposal and valid decision." }, { status: 400 });
       const { data: action, error: actionError } = await admin.from("agent_actions")
         .select("id,action_type,status")
@@ -92,22 +97,44 @@ export async function POST(request: Request) {
       if (!action) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
 
       let rule = null;
+      let execution = null;
+      const executionKind = agentActionExecutionKind(action.action_type);
+      if (execute && decision !== "approved") return Response.json({ error: "Only an approved proposal can be run." }, { status: 400 });
+      if (execute && !executionKind) return Response.json({ error: "This recommendation does not have a safe automatic execution path yet." }, { status: 400 });
+
       if (decision === "approved" && action.action_type.startsWith("shadow_test_")) {
         const phrases = Array.isArray(payload.rulePhrases)
           ? payload.rulePhrases.map(clean).filter(Boolean)
           : clean(payload.rulePhrases).split(",").map((item) => item.trim()).filter(Boolean);
         rule = await createAndEvaluateScoutRule(admin, action, reviewer, phrases);
       }
+      if (decision === "approved" && execute && executionKind === "scan_stale_profiles") {
+        execution = await runScoutBatch(admin, { limit: 20, dueOnly: true });
+      }
+
+      const finalStatus = decision === "approved" && execute ? "executed" : decision;
+      const suppliedNotes = clean(payload.notes);
+      const executionNotes = execution
+        ? `Approved and ran a bounded Scout batch: ${execution.scannedProfiles} profiles checked, ${execution.activeLeads} active leads found and ${execution.failures} failures.`
+        : rule && execute
+          ? "Approved and ran the proposed Scout shadow test. The candidate rule still requires separate activation."
+          : "";
 
       const { data, error } = await admin.from("agent_actions").update({
-        status: decision,
+        status: finalStatus,
         reviewed_by: reviewer,
-        review_notes: clean(payload.notes) || null,
+        review_notes: suppliedNotes || executionNotes || null,
         reviewed_at: new Date().toISOString(),
+        ...(finalStatus === "executed" ? { executed_at: new Date().toISOString() } : {}),
       }).eq("id", actionId).eq("status", "proposed").select("id").maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
-      return Response.json({ ok: true, rule });
+      const message = execution
+        ? `Plan approved and run: ${execution.scannedProfiles} stale profiles checked and ${execution.activeLeads} active leads found.`
+        : rule && execute
+          ? "Plan approved and the shadow test ran. Its candidate rule was not activated automatically."
+          : "Plan decision saved.";
+      return Response.json({ ok: true, rule, execution, status: finalStatus, message });
     }
 
     if (command === "reevaluate_scout_rule") {

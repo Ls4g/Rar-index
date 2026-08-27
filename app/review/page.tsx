@@ -1,6 +1,7 @@
 import Link from "next/link";
 import HumanDecisionInbox from "@/components/HumanDecisionInbox";
 import StaffNav from "@/components/StaffNav";
+import { isExecutableAgentAction } from "@/lib/agentActionExecution";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -170,6 +171,7 @@ export default async function HumanDecisionsPage() {
     rationale: action.rationale,
     confidence: action.confidence,
     destination: ACTION_DESTINATIONS[action.action_type] ?? null,
+    canExecute: isExecutableAgentAction(action.action_type),
   }));
 
   const actionableCount = sales.length + printing.length + catalogue.length + agentProposals.filter((action) => action.confidence !== null && action.confidence >= 0.9).length;
