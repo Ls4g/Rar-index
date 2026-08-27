@@ -37,12 +37,22 @@ type PriceHistoryChartProps = {
   mode?: "publication_prints" | "exact_issue";
 };
 
+// Proportions follow the reference this was rebuilt against: a squat,
+// generously inset plot rather than a tall canvas with a line flung across it.
+// Three sales stretched over 270px of height and pinned to both edges is what
+// made the old chart read as a scribble -- the data was fine, the framing was
+// not. The plot is now inset on every side, so a point is never welded to the
+// border and the axis labels have somewhere to live.
 const WIDTH = 720;
-const HEIGHT = 380;
-const PADDING_X = 28;
-const PADDING_TOP = 50;
-const PADDING_BOTTOM = 60;
+const HEIGHT = 300;
+const PADDING_LEFT = 18;
+const PADDING_RIGHT = 26;
+const PADDING_TOP = 34;
+const PADDING_BOTTOM = 38;
+const PLOT_WIDTH = WIDTH - PADDING_LEFT - PADDING_RIGHT;
 const PLOT_HEIGHT = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+const Y_TICK_COUNT = 5;
+const X_TICK_COUNT = 5;
 
 type PlottedPoint = {
   x: number;
@@ -59,6 +69,37 @@ function pointKey(point: PlottedPoint) {
 
 function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+}
+
+function formatDayDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+}
+
+// Axis labels drop the pennies. "€200" is a scale; "€200.00" is a price, and
+// at the width an axis label actually gets it is three wasted characters.
+function formatAxisPrice(value: number, code: string) {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency", currency: code, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/**
+ * Rounded axis values (10 / 20 / 50 × a power of ten) rather than the raw
+ * data's own minimum and maximum. "£89.30" as an axis label is the price of
+ * one sale, not a scale; a reader cannot estimate anything between two such
+ * numbers, which is why the old high/low pair carried so little.
+ */
+function niceTicks(min: number, max: number, count = Y_TICK_COUNT) {
+  const span = max - min || Math.max(max * 0.2, 1);
+  const rough = span / Math.max(1, count - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalised = rough / magnitude;
+  const step = (normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 5 ? 5 : 10) * magnitude;
+  const start = Math.floor(min / step) * step;
+  const end = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let value = start; value <= end + step / 2; value += step) ticks.push(Number(value.toFixed(6)));
+  return ticks;
 }
 
 function GhostChart({ best, missingRates }: { best: number; missingRates: number }) {
@@ -156,7 +197,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
   const plot = useMemo(() => {
     if (!visibleSeries.length) return null;
-    const plotWidth = WIDTH - PADDING_X * 2;
+    const plotWidth = PLOT_WIDTH;
     const baselineY = PADDING_TOP + PLOT_HEIGHT;
 
     // x spans every chartable line, not only the visible ones, so switching a
@@ -176,15 +217,38 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
     const timeSpan = lastTime - firstTime || 1;
 
     const values = visibleSeries.flatMap((series) => series.convertedSales.map((sale) => sale.converted_price));
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const valueRange = max - min || Math.max(max * 0.1, 1);
+    // The scale runs between rounded tick values, so every line sits inside
+    // the gridlines instead of touching the top and bottom of the frame.
+    const ticks = niceTicks(Math.min(...values), Math.max(...values));
+    const scaleMin = ticks[0];
+    const scaleMax = ticks.at(-1) as number;
+    const valueRange = scaleMax - scaleMin || Math.max(scaleMax * 0.1, 1);
+    const yFor = (value: number) => PADDING_TOP + ((scaleMax - value) / valueRange) * PLOT_HEIGHT;
+
+    // Evenly spaced date ticks across the span, so the reader can place a
+    // point in time rather than only knowing where the range starts and ends.
+    //
+    // Granularity follows the span. A publication whose sales cover two months
+    // produced "May 26, May 26, Jun 26, Jun 26, Jul 26" at month resolution --
+    // five ticks saying three things. Short spans get the day; long spans get
+    // month and year; and any label that would repeat its neighbour is dropped
+    // rather than printed twice.
+    const spanDays = timeSpan / 86_400_000;
+    const tickFormat = new Intl.DateTimeFormat("en-GB", spanDays <= 120
+      ? { day: "numeric", month: "short" }
+      : { month: "short", year: "2-digit" });
+    const rawTicks = Array.from({ length: X_TICK_COUNT }, (_, index) => {
+      const ratio = index / (X_TICK_COUNT - 1);
+      const date = new Date(firstTime + ratio * timeSpan);
+      return { x: PADDING_LEFT + ratio * plotWidth, date, label: tickFormat.format(date) };
+    });
+    const xTicks = rawTicks.filter((tick, index) => index === 0 || tick.label !== rawTicks[index - 1].label);
 
     const lines = visibleSeries.map((series) => {
       const colourIndex = seriesColourIndex(chartable as PriceSeries<SeriesSale>[], series.id);
       const points: PlottedPoint[] = series.convertedSales.map((sale) => ({
-        x: PADDING_X + ((new Date(`${sale.sold_date}T00:00:00`).getTime() - firstTime) / timeSpan) * plotWidth,
-        y: PADDING_TOP + ((max - sale.converted_price) / valueRange) * PLOT_HEIGHT,
+        x: PADDING_LEFT + ((new Date(`${sale.sold_date}T00:00:00`).getTime() - firstTime) / timeSpan) * plotWidth,
+        y: yFor(sale.converted_price),
         seriesId: series.id,
         colourIndex,
         label: series.label,
@@ -198,7 +262,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
       };
     });
 
-    return { lines, allPoints: lines.flatMap((line) => line.points), min, max, baselineY, firstDate, lastDate };
+    return { lines, allPoints: lines.flatMap((line) => line.points), ticks, yFor, xTicks, baselineY, firstDate, lastDate };
   }, [visibleSeries, chartable]);
 
   const activePoint = useMemo(() => {
@@ -266,6 +330,21 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
   const totalShown = visibleSeries.reduce((count, series) => count + series.convertedSales.length, 0);
   const showsOriginal = activePoint && activePoint.sale.currency !== currency;
 
+  const headlineSeries = visibleSeries[0];
+  const headline = headlineSeries?.convertedSales.at(-1) ?? null;
+  const headlinePrevious = headlineSeries?.convertedSales.at(-2) ?? null;
+  const headlineChange = headline && headlinePrevious && headlinePrevious.converted_price
+    ? (() => {
+      const difference = headline.converted_price - headlinePrevious.converted_price;
+      if (!difference) return { direction: "is-flat", text: "Level" };
+      const percent = Math.round(Math.abs(difference / headlinePrevious.converted_price) * 100);
+      return {
+        direction: difference > 0 ? "is-up" : "is-down",
+        text: `${difference > 0 ? "+" : "−"}${formatPrice(Math.abs(difference), currency)} (${percent}%)`,
+      };
+    })()
+    : null;
+
   return (
     <div className="price-history-multi">
       <div className="price-history-heading">
@@ -311,6 +390,29 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
         })}
       </ul>
 
+      {/* A figure to anchor the plot, taken from the leading visible line --
+          first print whenever there is one, since that is the line the page
+          is really about. The comparison is deliberately narrow: it is the
+          step between two consecutive verified sales of the SAME group, not
+          a market trend, and the wording has to say so. Two sales are two
+          sales. */}
+      {headline ? (
+        <div className="chart-headline">
+          <p className="chart-headline-label">{headlineSeries?.label} · latest verified sale</p>
+          <p className="chart-headline-figure">{formatPrice(headline.converted_price, currency)}</p>
+          <p className="chart-headline-meta">
+            {formatDayDate(String(headline.sold_date))}
+            {headlineChange ? (
+              <>
+                {" · "}
+                <span className={headlineChange.direction}>{headlineChange.text}</span>
+                {" on the previous verified sale"}
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
+
       {plot && activePoint ? (
         <>
           <div
@@ -333,8 +435,26 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                   <stop className="chart-gradient-end" offset="100%" />
                 </linearGradient>
               </defs>
-              <line className="chart-grid-high" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={PADDING_TOP} y2={PADDING_TOP} />
-              <line className="chart-grid-low" x1={PADDING_X} x2={WIDTH - PADDING_X} y1={plot.baselineY} y2={plot.baselineY} />
+              {/* A real scale, not two floating numbers. Rounded gridlines
+                  let a reader estimate a value anywhere on the plot, which is
+                  the difference between a chart and a squiggle. */}
+              {plot.ticks.map((tick) => (
+                <g key={tick}>
+                  <line className="chart-gridline" x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={plot.yFor(tick)} y2={plot.yFor(tick)} />
+                  <text className="chart-axis-label" x={PADDING_LEFT} y={plot.yFor(tick) - 6}>{formatAxisPrice(tick, currency)}</text>
+                </g>
+              ))}
+              {plot.xTicks.map((tick, index) => (
+                <text
+                  className="chart-axis-label"
+                  key={tick.date.getTime()}
+                  textAnchor={index === 0 ? "start" : index === plot.xTicks.length - 1 ? "end" : "middle"}
+                  x={tick.x}
+                  y={HEIGHT - 12}
+                >
+                  {tick.label}
+                </text>
+              ))}
               <line className="chart-active-guide" x1={activePoint.x} x2={activePoint.x} y1={PADDING_TOP} y2={plot.baselineY} />
 
               {/* A single line keeps its area fill; several would layer
@@ -367,12 +487,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                 </g>
               ))}
 
-              <text x={PADDING_X} y={HEIGHT - 8}>{formatShortDate(plot.firstDate)}</text>
-              <text x={WIDTH - PADDING_X} y={HEIGHT - 8} textAnchor="end">{formatShortDate(plot.lastDate)}</text>
             </svg>
-
-            <span className="chart-range-label" style={{ top: `${(PADDING_TOP / HEIGHT) * 100}%` }} aria-hidden="true">{formatPrice(plot.max, currency)}</span>
-            <span className="chart-range-label chart-range-label-low" style={{ top: `${(plot.baselineY / HEIGHT) * 100}%` }} aria-hidden="true">{formatPrice(plot.min, currency)}</span>
 
             <div
               aria-hidden="true"

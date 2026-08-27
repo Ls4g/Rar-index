@@ -497,9 +497,34 @@ html[data-theme="day"] .price-history-multi {
 [data-series-colour="4"] { --series-colour: var(--series-4); }
 [data-series-colour="5"] { --series-colour: var(--series-5); }
 
+/* Flat, generously padded, no elevation -- the chart is the imagery, so it
+   gets room rather than chrome. The old plot ran edge to edge inside a tight
+   box, which is what made three sales look like a scribble. */
+.price-history-multi .price-chart-wrap { border-radius: 14px; padding: 1.4rem 1.5rem 1rem; box-shadow: none; }
 .price-chart.is-multi .chart-gradient-start { stop-color: var(--series-colour, var(--gold)); stop-opacity: .26; }
 .price-chart.is-multi .chart-gradient-end { stop-color: var(--series-colour, var(--gold)); stop-opacity: 0; }
-.price-chart.is-multi .chart-active-guide { stroke: var(--muted); }
+.price-chart.is-multi .chart-active-guide { stroke: var(--muted); stroke-dasharray: 3 4; opacity: .55; }
+/* Hairlines, not a lattice. They exist to let a value be estimated, and
+   should disappear the moment you stop looking for them. */
+.chart-gridline { stroke: var(--line); stroke-width: 1; }
+/* Qualified with .price-chart because the older `.price-chart text` rule is
+   element-qualified and therefore outranks a bare class -- it was silently
+   holding every axis label at 12px and swallowing the mobile sizes below. */
+.price-chart .chart-axis-label { fill: var(--muted); font-family: var(--font-sans); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+/* SVG text scales with the viewBox, so on a phone the chart draws at roughly
+   0.36x and an 11px label renders at about 4px -- present, unreadable. The
+   user-unit size goes up so the RENDERED size stays legible. */
+@media (max-width: 700px) { .price-chart .chart-axis-label { font-size: 22px; } }
+@media (max-width: 430px) { .price-chart .chart-axis-label { font-size: 28px; } }
+
+/* The figure that anchors the plot. */
+.chart-headline { margin: 0 0 1rem; }
+.chart-headline-label { margin: 0 0 .3rem; color: var(--muted); font-size: .64rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.chart-headline-figure { margin: 0; color: var(--canvas-heading, var(--ink)); font-family: var(--font-display); font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 700; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.chart-headline-meta { margin: .45rem 0 0; color: var(--muted); font-size: .78rem; }
+.chart-headline-meta .is-up { color: var(--accent-positive-text); font-weight: 700; }
+.chart-headline-meta .is-down { color: var(--accent-chip-active-text, var(--red)); font-weight: 700; }
+.chart-headline-meta .is-flat { color: var(--canvas-heading, var(--ink)); font-weight: 700; }
 .chart-series-line { fill: none; stroke: var(--series-colour, var(--gold)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .chart-series[data-graded="true"] .chart-series-line { stroke-dasharray: 7 5; }
 .price-chart.is-multi .price-chart-point { fill: var(--surface-card, var(--paper)); stroke: var(--series-colour, var(--gold)); }
