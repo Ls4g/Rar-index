@@ -2976,3 +2976,43 @@ html[data-theme="day"] .public-page {
   .human-learning-queue li { grid-template-columns: 1fr auto; }
   .human-learning-queue li a { grid-column: 1 / -1; }
 }
+
+/* --- /redesign: collection-first sections ---------------------------- */
+/* The run of spines. This is the page's most important object: a hollow
+   slot is what makes someone go and find Vol. 6, and that single action is
+   the whole data flywheel. So it is drawn as physical spines rather than a
+   progress bar, because a gap in a row of books reads as missing in a way a
+   percentage never does. */
+.rr-runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1px; background: var(--rr-line); border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; }
+.rr-run { display: grid; gap: .9rem; padding: 1.6rem; background: var(--rr-void); }
+.rr-run-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.rr-run h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.rr-run-count { color: var(--rr-faint); font-size: .74rem; white-space: nowrap; }
+.rr-spines { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.rr-spines li { display: grid; place-items: center; width: 20px; height: 52px; border-radius: 2px; font-size: .6rem; }
+.rr-spines .is-owned { background: var(--rr-accent); color: #17100c; font-weight: 700; }
+/* A dashed outline and nothing inside it: the slot is empty, and it should
+   look empty rather than look like a different colour of book. */
+.rr-spines .is-gap { border: 1px dashed var(--rr-line-strong); color: var(--rr-faint); }
+.rr-run-gap { margin: 0; color: var(--rr-muted); font-size: .8rem; }
+.rr-run-gap b { color: var(--rr-text); }
+.rr-run-complete { color: var(--rr-faint); }
+.rr-link { color: var(--rr-accent); font-weight: 600; }
+
+/* The shareable shelf, drawn as the thing a stranger would open. */
+.rr-share { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
+.rr-share-card { border: 1px solid var(--rr-line); border-radius: 14px; overflow: hidden; background: var(--rr-void); }
+.rr-share-bar { padding: .7rem 1rem; border-bottom: 1px solid var(--rr-line); color: var(--rr-faint); font-size: .76rem; }
+.rr-share-url b { color: var(--rr-text); }
+.rr-share-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; padding: 1rem; }
+.rr-share-grid img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; }
+.rr-share-foot { display: flex; gap: 1.6rem; padding: .85rem 1rem; border-top: 1px solid var(--rr-line); color: var(--rr-muted); font-size: .78rem; }
+.rr-share-foot b { color: var(--rr-text); font-size: .95rem; }
+.rr-share-copy h3 { margin: 0 0 .8rem; font-size: 1.35rem; font-weight: 700; }
+.rr-share-copy p { margin: 0 0 .9rem; color: var(--rr-muted); font-size: .9rem; line-height: 1.7; }
+
+@media (max-width: 900px) {
+  .rr-share { grid-template-columns: 1fr; gap: 2rem; }
+  .rr-share-grid { grid-template-columns: repeat(6, 1fr); }
+  .rr-spines li { width: 17px; height: 44px; }
+}

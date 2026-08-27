@@ -4,139 +4,142 @@ import SaleSparkline, { type SalePoint } from "@/components/SaleSparkline";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { normaliseSeriesKey } from "@/lib/catalogueBacklog";
 
-// A proposal, not a patch. Built with RAR's real covers, real verified sales
-// and real figures so it can be judged as a product rather than as a moodboard.
+// A proposal, rebuilt around what RAR is actually for.
 //
-// THE ARGUMENT
-// RAR is a market instrument for physical objects. It has to do two things
-// better than anyone else: show the object properly, and show the money
-// credibly. Everything currently on the page that does neither is chrome.
+// The first version led with "what your manga is actually worth". That is the
+// moat, not the reason anyone turns up. People come to track a collection and
+// show it off; tracking is what generates the data; the data is what nobody
+// else has. So the collection is the product and pricing is what makes it
+// defensible -- and the page has to be ordered that way round.
 //
-// WHAT IS TAKEN, AND FROM WHERE
-// - One chromatic accent, full stop. Every reference studied does this --
-//   Steep sienna, Seline cyan, Linear acid lime, Shop violet, Cosmos none at
-//   all. RAR presently runs gold AND orange AND green AND a status palette,
-//   which is why nothing on the page reads as important.
-// - Elevation from hairline borders and surface steps, never shadows (Linear,
-//   Cosmos). RAR has 50+ box-shadows; two independent references say the
-//   flatness is the point.
-// - A graduated dark surface ladder rather than one flat black (Linear:
-//   void / carbon / obsidian / graphite).
-// - Charts without axes or gridlines (Steep): "a gestural line, not a data
-//   dashboard".
-// - Metric plus a delta line in muted grey (Steep), one highlighted keyword
-//   per headline (Seline), full-bleed imagery with no internal padding (Shop).
+// It also matches the audience research already in the repo: 1.93M in
+// r/MangaCollectors mention shelving 311 times and grading once. The large
+// audience is the display-led one.
 //
-// WHAT IS DELIBERATELY NOT TAKEN
-// Every warm-paper reference is light-only. RAR is Night-default and its
-// audience browses in the evening, so the ladder is dark and the warm paper
-// becomes the accent's temperature instead of the canvas.
+// The visual language is unchanged from the first pass, because none of it was
+// ever about pricing: one chromatic accent (every reference studied uses
+// exactly one), depth from a surface ladder and hairlines rather than shadows,
+// full-bleed covers with no card around them, and a chart with no axes or
+// gridlines.
 export const dynamic = "force-dynamic";
 
-type Sale = { edition_id: string; sale_price: number; currency: string; sold_date: string | null; grading_company: string | null };
 type Edition = {
   id: string; title: string | null; series: string | null; volume_number: string | null;
-  language: string | null; publisher: string | null; isbn_13: string | null;
-  cover_image_url: string | null; cover_verification_status: string | null;
+  language: string | null; publisher: string | null; cover_image_url: string | null;
 };
+type Sale = { edition_id: string; sale_price: number; currency: string; sold_date: string | null; grading_company: string | null };
 
-function money(value: number, currency: string) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(value);
+function money(value: number, currency: string, digits = 0) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: digits }).format(value);
 }
 
 export default async function RedesignPage() {
   const admin = getSupabaseAdmin();
-
-  const [{ data: saleData }, { data: coverData }] = await Promise.all([
+  const [{ data: editionData }, { data: saleData }] = await Promise.all([
+    admin.from("manga_editions")
+      .select("id,title,series,volume_number,language,publisher,cover_image_url")
+      .eq("cover_verification_status", "verified").not("cover_image_url", "is", null).limit(200),
     admin.from("price_observations")
       .select("edition_id,sale_price,currency,sold_date,grading_company")
       .eq("match_status", "verified_match").eq("sale_status", "confirmed")
       .not("sold_date", "is", null).order("sold_date", { ascending: true }).limit(500),
-    admin.from("manga_editions")
-      .select("id,title,series,volume_number,language,publisher,isbn_13,cover_image_url,cover_verification_status")
-      .eq("cover_verification_status", "verified").not("cover_image_url", "is", null).limit(120),
   ]);
 
+  const editions = (editionData ?? []) as Edition[];
   const sales = (saleData ?? []) as Sale[];
-  const covers = (coverData ?? []) as Edition[];
-  const uniqueCovers = [...new Map(covers.map((cover) => [cover.cover_image_url, cover])).values()];
 
-  // Interleaved by series so the wall is not eighteen One Pieces.
+  // Real English series with their real volume spreads. Naruto genuinely has
+  // 1,2,3,4,5,7,8,10 in the catalogue, so the gaps shown below are RAR's own
+  // gaps rather than invented ones.
+  const englishBySeries = new Map<string, Edition[]>();
+  for (const edition of editions) {
+    if (edition.language !== "English" || !edition.series) continue;
+    const key = normaliseSeriesKey(edition.series);
+    englishBySeries.set(key, [...(englishBySeries.get(key) ?? []), edition]);
+  }
+
+  const shelves = [...englishBySeries.values()]
+    .map((group) => {
+      const volumes = [...new Set(group.map((item) => Number(item.volume_number)).filter((value) => Number.isInteger(value) && value > 0))].sort((a, b) => a - b);
+      const highest = volumes[volumes.length - 1] ?? 0;
+      const missing: number[] = [];
+      for (let volume = 1; volume <= highest; volume += 1) if (!volumes.includes(volume)) missing.push(volume);
+      const covers = [...new Map(group.map((item) => [item.cover_image_url, item])).values()];
+      return { series: group[0].series as string, volumes, highest, missing, covers };
+    })
+    .filter((shelf) => shelf.highest >= 4)
+    .sort((left, right) => right.volumes.length - left.volumes.length)
+    .slice(0, 4);
+
+  // Interleaved so the wall is not eighteen One Pieces.
   const bySeries = new Map<string, Edition[]>();
-  for (const cover of uniqueCovers) {
-    const key = normaliseSeriesKey(cover.series ?? cover.title);
-    bySeries.set(key, [...(bySeries.get(key) ?? []), cover]);
+  for (const edition of editions) {
+    const key = normaliseSeriesKey(edition.series ?? edition.title);
+    bySeries.set(key, [...(bySeries.get(key) ?? []), edition]);
   }
   const queues = [...bySeries.values()];
   const wallCovers: Array<{ url: string; label: string }> = [];
-  for (let round = 0; wallCovers.length < uniqueCovers.length; round += 1) {
+  const seen = new Set<string>();
+  for (let round = 0; wallCovers.length < editions.length; round += 1) {
     let added = false;
     for (const queue of queues) {
-      if (queue[round]) { wallCovers.push({ url: queue[round].cover_image_url as string, label: queue[round].series ?? "" }); added = true; }
+      const item = queue[round];
+      if (item?.cover_image_url && !seen.has(item.cover_image_url)) {
+        seen.add(item.cover_image_url);
+        wallCovers.push({ url: item.cover_image_url, label: item.series ?? "" });
+        added = true;
+      }
     }
     if (!added) break;
   }
 
-  // Editions with enough verified sales to say anything at all.
   const byEdition = new Map<string, Sale[]>();
   for (const sale of sales) byEdition.set(sale.edition_id, [...(byEdition.get(sale.edition_id) ?? []), sale]);
-  const tracked = [...byEdition.entries()].filter(([, rows]) => rows.length >= 3).slice(0, 3);
+  const priced = [...byEdition.entries()].filter(([, rows]) => rows.length >= 3);
 
-  const { data: trackedEditionData } = tracked.length
-    ? await admin.from("manga_editions")
-      .select("id,title,series,volume_number,language,publisher,isbn_13,cover_image_url,cover_verification_status")
-      .in("id", tracked.map(([id]) => id))
-    : { data: [] };
-  const editionById = new Map(((trackedEditionData ?? []) as Edition[]).map((edition) => [edition.id, edition]));
+  const hero = priced
+    .map(([id, rows]) => {
+      const edition = editions.find((item) => item.id === id);
+      const sorted = [...rows].sort((left, right) => String(left.sold_date).localeCompare(String(right.sold_date)));
+      return { edition, rows: sorted, latest: sorted[sorted.length - 1] };
+    })
+    .filter((item) => item.edition)
+    .sort((left, right) => Number(right.latest.sale_price) - Number(left.latest.sale_price))[0];
 
-  const cards = tracked.map(([id, rows]) => {
-    const edition = editionById.get(id);
-    const sorted = [...rows].sort((left, right) => String(left.sold_date).localeCompare(String(right.sold_date)));
-    const points: SalePoint[] = sorted.map((sale) => ({
-      date: String(sale.sold_date), price: Number(sale.sale_price),
-      currency: sale.currency, graded: Boolean(sale.grading_company),
-    }));
-    const latest = points[points.length - 1];
-    const first = points[0];
-    const change = first.price ? ((latest.price - first.price) / first.price) * 100 : 0;
-    return { edition, points, latest, first, change, count: rows.length };
-  }).filter((card) => card.edition);
+  const heroPoints: SalePoint[] = hero
+    ? hero.rows.map((sale) => ({ date: String(sale.sold_date), price: Number(sale.sale_price), currency: sale.currency, graded: Boolean(sale.grading_company) }))
+    : [];
 
-  const hero = cards[0];
+  const shelfVolumes = shelves.reduce((total, shelf) => total + shelf.volumes.length, 0);
+  const completeSets = shelves.filter((shelf) => shelf.missing.length === 0).length;
 
   return (
     <main className="rr">
       <header className="rr-nav">
         <Link className="rr-mark" href="/">RAR</Link>
-        <nav>
-          <span>Catalogue</span>
-          <span>Prices</span>
-          <span>Collection</span>
-        </nav>
-        <span className="rr-nav-action">Sign in</span>
+        <nav><span>My shelf</span><span>Browse</span><span>Prices</span></nav>
+        <span className="rr-nav-action">Share shelf</span>
       </header>
 
       {/* ------------------------------------------------------------ hero */}
+      {/* The shelf is the hero. Not a valuation question -- the thing the
+          person came to look at, which is their own books. */}
       <section className="rr-hero">
         <div className="rr-hero-copy">
-          <p className="rr-eyebrow">Manga market index</p>
-          {/* Seline's device: exactly one highlighted keyword in the headline,
-              never two. The highlight goes on the word carrying the claim. */}
-          <h1>What your manga is <mark>actually</mark> worth</h1>
+          <p className="rr-eyebrow">Your collection</p>
+          <h1>Every volume you own, <mark>in one shelf</mark></h1>
           <p className="rr-lede">
-            Every price here comes from a completed sale, matched to one exact edition, with a working link back to the receipt.
-            No estimates, no averages of guesses.
+            Add what you have, see what you are missing, and put the whole thing on a page worth sending to someone.
+            RAR knows the exact edition — printing, publisher, ISBN — not just the title.
           </p>
           <div className="rr-search">
-            <input placeholder="One Piece Vol. 1, or an ISBN" readOnly />
-            <button type="button">Search</button>
+            <input placeholder="Add a volume — title or ISBN" readOnly />
+            <button type="button">Add to shelf</button>
           </div>
-          {/* Steep's stat card: the figure, then a delta line in muted grey.
-              Real numbers -- an empty product should look empty. */}
           <dl className="rr-proof">
-            <div><dt>Verified sales</dt><dd>{sales.length}</dd></div>
-            <div><dt>Editions catalogued</dt><dd>{uniqueCovers.length}+</dd></div>
-            <div><dt>Tracked with a price</dt><dd>{byEdition.size}</dd></div>
+            <div><dt>Volumes</dt><dd>{shelfVolumes}</dd></div>
+            <div><dt>Series</dt><dd>{shelves.length}</dd></div>
+            <div><dt>Complete</dt><dd>{completeSets}</dd></div>
           </dl>
         </div>
         <div className="rr-hero-wall">
@@ -144,42 +147,83 @@ export default async function RedesignPage() {
         </div>
       </section>
 
-      {/* ----------------------------------------------------------- market */}
+      {/* ------------------------------------------------------ completion */}
+      {/* The loop. Someone who can see a hole in a run goes and fills it, and
+          filling it is what puts data into RAR. This is the product. */}
       <section className="rr-band">
         <div className="rr-band-head">
-          <h2>Moving this month</h2>
-          <p>Editions with at least three verified sales. Everything else is listed without a price rather than given one.</p>
+          <h2>What you are missing</h2>
+          <p>RAR counts what it can actually see, so a run reads &ldquo;7 of 10 tracked&rdquo; rather than pretending to know the published total. The gaps below are real gaps in the catalogue.</p>
         </div>
-        <div className="rr-cards">
-          {cards.map((card) => (
-            <article className="rr-card" key={card.edition!.id}>
-              <div className="rr-card-top">
-                {card.edition!.cover_image_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element -- publisher CDNs are not configured next/image hosts */
-                  <img alt="" className="rr-card-cover" loading="lazy" src={card.edition!.cover_image_url} />
-                ) : null}
-                <div>
-                  <h3>{card.edition!.series ?? card.edition!.title}</h3>
-                  <p className="rr-card-meta">Vol. {card.edition!.volume_number} · {card.edition!.language} · {card.edition!.publisher ?? "—"}</p>
-                </div>
+        <div className="rr-runs">
+          {shelves.map((shelf) => (
+            <article className="rr-run" key={shelf.series}>
+              <div className="rr-run-head">
+                <h3>{shelf.series}</h3>
+                <span className="rr-run-count">{shelf.volumes.length} of {shelf.highest} tracked</span>
               </div>
-              <p className="rr-figure">{money(card.latest.price, card.latest.currency)}</p>
-              <p className="rr-delta">
-                <span className={card.change >= 0 ? "up" : "down"}>{card.change >= 0 ? "↑" : "↓"} {Math.abs(card.change).toFixed(0)}%</span>
-                {" "}since {new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(card.first.date))} · {card.count} verified sales
-              </p>
-              <SaleSparkline points={card.points} width={420} height={96} />
+              {/* A spine per volume. Owned spines carry the accent; a gap is a
+                  hollow slot, which is the thing that nags. */}
+              <ol className="rr-spines" aria-label={`${shelf.series} volumes`}>
+                {Array.from({ length: shelf.highest }, (_, index) => index + 1).map((volume) => (
+                  <li
+                    className={shelf.volumes.includes(volume) ? "is-owned" : "is-gap"}
+                    key={volume}
+                    title={shelf.volumes.includes(volume) ? `Volume ${volume} — on your shelf` : `Volume ${volume} — missing`}
+                  >
+                    <span>{volume}</span>
+                  </li>
+                ))}
+              </ol>
+              {shelf.missing.length ? (
+                <p className="rr-run-gap">
+                  Missing <b>{shelf.missing.map((volume) => `Vol. ${volume}`).join(", ")}</b> · <span className="rr-link">find a copy</span>
+                </p>
+              ) : (
+                <p className="rr-run-gap rr-run-complete">Complete run · nothing missing</p>
+              )}
             </article>
           ))}
         </div>
       </section>
 
-      {/* ---------------------------------------------------------- edition */}
+      {/* --------------------------------------------------------- show off */}
+      <section className="rr-band rr-band-quiet">
+        <div className="rr-band-head">
+          <h2>A shelf worth sending</h2>
+          <p>One link, your covers, no account needed to look. You choose whether it is public, and it shows what you own — never what you paid.</p>
+        </div>
+        <div className="rr-share">
+          <div className="rr-share-card">
+            <div className="rr-share-bar"><span className="rr-share-url">rarindex.com/collectors/<b>shamar</b></span></div>
+            <div className="rr-share-grid">
+              {wallCovers.slice(0, 18).map((cover) => (
+                /* eslint-disable-next-line @next/next/no-img-element -- publisher CDNs are not configured next/image hosts */
+                <img alt="" key={cover.url} loading="lazy" src={cover.url} />
+              ))}
+            </div>
+            <div className="rr-share-foot">
+              <span><b>{shelfVolumes}</b> volumes</span>
+              <span><b>{shelves.length}</b> series</span>
+              <span><b>{completeSets}</b> complete</span>
+            </div>
+          </div>
+          <div className="rr-share-copy">
+            <h3>Built to be shown, not audited</h3>
+            <p>The public shelf carries covers and counts. Purchase prices, valuations and anything else private stay on your side of the login — a shelf you would happily post in a thread.</p>
+            <p className="rr-chart-note">Handles are opt-in, and a shelf that is not public returns nothing rather than confirming the handle exists.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ worth */}
+      {/* Last, deliberately. The edge that makes RAR hard to copy, offered as
+          something you find once you have a shelf -- not as the pitch. */}
       {hero?.edition ? (
-        <section className="rr-band rr-band-quiet">
+        <section className="rr-band">
           <div className="rr-band-head">
-            <h2>One edition, in full</h2>
-            <p>What an edition page becomes: the object first, the evidence beneath it, and nothing between them.</p>
+            <h2>And then, what it is worth</h2>
+            <p>Once a shelf exists, RAR can price it from completed sales matched to the exact edition. This is the part nobody else has — {sales.length} verified sales across {byEdition.size} editions so far.</p>
           </div>
           <div className="rr-edition">
             <div className="rr-edition-object">
@@ -189,41 +233,35 @@ export default async function RedesignPage() {
               ) : null}
             </div>
             <div className="rr-edition-body">
-              <p className="rr-eyebrow">{hero.edition.language} · {hero.edition.publisher}</p>
+              <p className="rr-eyebrow">On your shelf · {hero.edition.language} · {hero.edition.publisher}</p>
               <h3>{hero.edition.series ?? hero.edition.title}</h3>
               <p className="rr-edition-volume">Volume {hero.edition.volume_number}</p>
-
               <div className="rr-edition-price">
-                <p className="rr-figure rr-figure-lg">{money(hero.latest.price, hero.latest.currency)}</p>
-                <p className="rr-delta">Last verified sale · {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(hero.latest.date))}</p>
+                <p className="rr-figure rr-figure-lg">{money(Number(hero.latest.sale_price), hero.latest.currency)}</p>
+                <p className="rr-delta">Last verified sale · {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(String(hero.latest.sold_date)))}</p>
               </div>
-
-              <SaleSparkline points={hero.points} width={560} height={132} />
+              <SaleSparkline points={heroPoints} width={560} height={128} />
               <p className="rr-chart-note">
-                {hero.points.length} verified sales between {new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(hero.first.date))} and {new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(hero.latest.date))}.
-                Solid points are raw copies, rings are graded. The line is straight between sales because RAR does not know what happened in between.
+                {heroPoints.length} verified sales, each linked to its receipt. Points sit at their real dates, so uneven months look uneven.
+                The line stays straight between sales because RAR does not know what happened in between.
               </p>
-
-              <dl className="rr-facts">
-                <div><dt>ISBN-13</dt><dd>{hero.edition.isbn_13 ?? "Not recorded"}</dd></div>
-                <div><dt>Range</dt><dd>{money(Math.min(...hero.points.map((point) => point.price)), hero.latest.currency)} – {money(Math.max(...hero.points.map((point) => point.price)), hero.latest.currency)}</dd></div>
-                <div><dt>Evidence</dt><dd>{hero.points.length} sales · every one linked</dd></div>
-              </dl>
             </div>
           </div>
         </section>
       ) : null}
 
       <section className="rr-band rr-notes">
-        <h2>What changed, and why</h2>
+        <h2>What changed from the first version</h2>
         <ol>
-          <li><b>One accent instead of four.</b> Every reference studied uses exactly one — Steep sienna, Seline cyan, Linear acid lime, Shop violet. RAR runs gold, orange, green and a status palette at once, which is why nothing currently reads as important.</li>
-          <li><b>No shadows.</b> Depth comes from a surface ladder and hairline borders, the way Linear and Cosmos both do it. RAR has more than fifty box-shadows.</li>
-          <li><b>The chart lost its furniture.</b> No axes, no gridlines, no legend — five sales do not need a dashboard around them. What it gained is honesty: points sit at their real dates, graded copies are rings, and the sparseness shows.</li>
-          <li><b>The cover is the object, not a thumbnail.</b> Full-bleed, no padding, no card around it.</li>
-          <li><b>One highlighted word per headline.</b> The claim is &ldquo;actually&rdquo;, so that is the word that gets the accent.</li>
+          <li><b>The shelf leads, not the price.</b> The first pass opened with &ldquo;what your manga is actually worth&rdquo;, which is the moat rather than the reason anyone arrives. Tracking is what people come for, tracking is what generates the data, and the data is the edge — so the page runs in that order.</li>
+          <li><b>The gap is the hook.</b> A hollow slot in a run of spines is the thing that makes someone go and find Vol. 6. That single interaction is the whole flywheel, so it gets its own band rather than a progress bar in a sidebar.</li>
+          <li><b>Showing off is a feature, not a byproduct.</b> A shelf worth posting is how RAR reaches the 1.93M people who talk about shelving and never mention grading.</li>
+          <li><b>Price moved last and got quieter.</b> Still the sharpest thing RAR owns, offered as depth you find rather than the opening claim.</li>
+          <li><b>The visual language did not change</b> — one accent, no shadows, full-bleed covers, a chart with no furniture. None of it was ever about pricing.</li>
         </ol>
-        <p className="rr-chart-note">Real covers, real verified sales, real counts, straight from the live database. Nothing on this page is invented.</p>
+        <p className="rr-chart-note">
+          Real covers, real series, real gaps and real verified sales from the live database. The shelf contents are illustrative — RAR holds two real holdings today — but every volume, gap and price shown is genuine catalogue data.
+        </p>
       </section>
     </main>
   );
