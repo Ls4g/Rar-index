@@ -94,7 +94,7 @@ export default function HumanDecisionInbox({
   const [reviewer, setReviewer] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("rar_staff_reviewer") ?? "");
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState("");
+  const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<Banner | null>(null);
   const [filter, setFilter] = useState<"all" | DecisionKind>("all");
 
@@ -128,7 +128,7 @@ export default function HumanDecisionInbox({
       setBanner({ tone: "error", text: "Enter your name or initials once before making decisions." });
       return false;
     }
-    setBusy(key);
+    setBusyKeys((current) => new Set([...current, key]));
     setBanner(null);
     try {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, reviewer: reviewer.trim() }) });
@@ -149,7 +149,11 @@ export default function HumanDecisionInbox({
       setBanner({ tone: "error", text: "The decision could not be saved. Check the connection and try again." });
       return false;
     } finally {
-      setBusy("");
+      setBusyKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   }
 
@@ -238,8 +242,8 @@ export default function HumanDecisionInbox({
           <DecisionNote value={decisionNotes[`sale:${item.observationId}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`sale:${item.observationId}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
-            <button disabled={Boolean(busy)} onClick={() => void decideSale(item, true)} type="button">Yes — verify</button>
-            <button className="is-no" disabled={Boolean(busy)} onClick={() => void decideSale(item, false)} type="button">No — exclude</button>
+            <button disabled={busyKeys.has(`sale:${item.observationId}`)} onClick={() => void decideSale(item, true)} type="button">{busyKeys.has(`sale:${item.observationId}`) ? "Saving…" : "Yes — verify"}</button>
+            <button className="is-no" disabled={busyKeys.has(`sale:${item.observationId}`)} onClick={() => void decideSale(item, false)} type="button">No — exclude</button>
           </div>
         </article>
       ))}
@@ -251,8 +255,8 @@ export default function HumanDecisionInbox({
           <DecisionNote value={decisionNotes[`printing:${item.actionId}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`printing:${item.actionId}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.proofUrl || item.sourceUrl} target="_blank" rel="noreferrer">Check proof ↗</a>
-            <button disabled={Boolean(busy) || !item.proofUrl} onClick={() => void decidePrinting(item, true)} type="button">Yes — apply</button>
-            <button className="is-no" disabled={Boolean(busy)} onClick={() => void decidePrinting(item, false)} type="button">No — dismiss</button>
+            <button disabled={busyKeys.has(`printing:${item.actionId}`) || !item.proofUrl} onClick={() => void decidePrinting(item, true)} type="button">{busyKeys.has(`printing:${item.actionId}`) ? "Saving…" : "Yes — apply"}</button>
+            <button className="is-no" disabled={busyKeys.has(`printing:${item.actionId}`)} onClick={() => void decidePrinting(item, false)} type="button">No — dismiss</button>
           </div>
         </article>
       ))}
@@ -264,8 +268,8 @@ export default function HumanDecisionInbox({
           <DecisionNote value={decisionNotes[`catalogue:${item.id}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
-            {item.isEditionCandidate ? <button disabled={Boolean(busy)} onClick={() => void decideCatalogue(item, true)} type="button">Yes — add edition</button> : <Link href="/catalogue-review">Needs detailed review →</Link>}
-            <button className="is-no" disabled={Boolean(busy)} onClick={() => void decideCatalogue(item, false)} type="button">No — reject</button>
+            {item.isEditionCandidate ? <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button> : <Link href="/catalogue-review">Needs detailed review →</Link>}
+            <button className="is-no" disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, false)} type="button">No — reject</button>
           </div>
         </article>
       ))}
@@ -277,8 +281,8 @@ export default function HumanDecisionInbox({
           <DecisionNote value={decisionNotes[`proposal:${item.id}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`proposal:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             {item.destination ? <Link href={item.destination}>Inspect related work →</Link> : null}
-            <button disabled={Boolean(busy)} onClick={() => void decideProposal(item, true)} type="button">{item.canExecute ? "Approve and run" : "Approve plan"}</button>
-            <button className="is-no" disabled={Boolean(busy)} onClick={() => void decideProposal(item, false)} type="button">No — dismiss</button>
+            <button disabled={busyKeys.has(`proposal:${item.id}`)} onClick={() => void decideProposal(item, true)} type="button">{busyKeys.has(`proposal:${item.id}`) ? item.canExecute ? "Running…" : "Saving…" : item.canExecute ? "Approve and run" : "Approve plan"}</button>
+            <button className="is-no" disabled={busyKeys.has(`proposal:${item.id}`)} onClick={() => void decideProposal(item, false)} type="button">No — dismiss</button>
           </div>
         </article>
       ))}
