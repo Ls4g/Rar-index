@@ -2,7 +2,7 @@ import { isPlausibleLiveListing, type PlausibilityEdition } from "./liveListings
 
 export const SCOUT_PUBLIC_LISTING_TARGET = 5;
 export const SCOUT_PUBLIC_FRESHNESS_HOURS = 48;
-export const SCOUT_MAINTENANCE_SLOTS = 20;
+export const SCOUT_MAINTENANCE_SLOTS = 5;
 
 export type ScoutCoverageProfile = {
   id: string;
@@ -97,10 +97,6 @@ export function selectScoutProfiles<T extends ScoutCoverageProfile>(
   if (selected.length < limit) {
     selected = selected.concat(discovery.slice(discoveryLimit, discoveryLimit + (limit - selected.length)));
   }
-  if (selected.length < limit) {
-    selected = selected.concat(maintenance.slice(maintenanceLimit, maintenanceLimit + (limit - selected.length)));
-  }
-
   return {
     selected,
     coverageByProfile,

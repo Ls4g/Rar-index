@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildMarketplaceQuery } from "../lib/marketplaceQuery.ts";
 import { canSeedScoutProfile } from "../lib/scoutProfileSeed.ts";
-import { publicListingCoverage, selectScoutProfiles } from "../lib/scoutCoverage.ts";
+import { publicListingCoverage, SCOUT_MAINTENANCE_SLOTS, selectScoutProfiles } from "../lib/scoutCoverage.ts";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 const edition = { title: "One Piece 1", series: "One Piece", volume_number: 1, language: "Japanese", isbn_13: "9784088725093", publisher: "Shueisha", format: "Paperback" };
@@ -28,6 +28,19 @@ const selection = selectScoutProfiles(profiles, leads, 2, now);
 assert.deepEqual(selection.selected.map((item) => item.id), ["zero", "covered"], "discovery starts at zero while a maintenance slot preserves covered profiles");
 assert.equal(selection.discoverySelected, 1);
 assert.equal(selection.maintenanceSelected, 1);
+
+const maintenanceProfiles = Array.from({ length: 7 }, (_, index) => ({
+  ...profile,
+  id: `maintenance-${index}`,
+  last_checked_at: `2026-08-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
+}));
+const maintenanceLeads = maintenanceProfiles.flatMap((maintenanceProfile) =>
+  Array.from({ length: 5 }, (_, index) => lead({ profile_id: maintenanceProfile.id, external_id: `${maintenanceProfile.id}-${index}` })),
+);
+const cappedMaintenance = selectScoutProfiles(maintenanceProfiles, maintenanceLeads, 10, now);
+assert.equal(SCOUT_MAINTENANCE_SLOTS, 5);
+assert.equal(cappedMaintenance.selected.length, 5, "covered profiles never consume more than five maintenance searches");
+assert.equal(cappedMaintenance.maintenanceSelected, 5);
 
 const seedEdition = { ...edition, id: "edition", printing_number: 1, collectible_type: "tankobon", record_kind: "publication" };
 assert.equal(canSeedScoutProfile(seedEdition), true, "a complete verified publication can receive a profile");
