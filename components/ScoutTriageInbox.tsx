@@ -255,12 +255,12 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   // totals a reviewer can trust regardless of whatever the filters below
   // are currently narrowed to.
   const quickViewCounts: Record<QuickView, number> = useMemo(() => ({
-    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score >= 50).length,
-    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score >= 75).length,
-    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && isEndingSoon(lead.itemEndAt, now)).length,
+    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.score >= 50).length,
+    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.score >= 75).length,
+    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && isEndingSoon(lead.itemEndAt, now)).length,
     watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
     surplusBackups: leads.filter((lead) => lead.reviewStatus === "new" && lead.isSurplusBackup).length,
-    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && looksGraded(lead.listingTitle)).length,
+    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && looksGraded(lead.listingTitle)).length,
     staleBacklog: leads.filter((lead) => lead.reviewStatus === "new" && lead.isStale).length,
     lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score < 50).length,
     dismissed: leads.filter((lead) => lead.reviewStatus === "dismissed").length,
