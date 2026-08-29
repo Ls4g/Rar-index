@@ -37,6 +37,15 @@ assert.equal(diagnostics.expiredWithEndDate, 1);
 assert.equal(diagnostics.duplicateGroups, 1);
 assert.equal(diagnostics.duplicateRows, 1);
 
+const priorityDiagnostics = diagnoseScoutBacklog([
+  ...Array.from({ length: 5 }, (_, index) => ({ id: `watched-${index}`, externalId: `watched-${index}`, profileId: "covered", editionId: "edition-one", listingTitle: "One Piece manga Vol 1 Japanese Shueisha", itemEndAt: null, lastSeenAt: "2026-08-15T10:00:00.000Z", edition, reviewStatus: "watching" })),
+  { id: "raw-extra", externalId: "raw-extra", profileId: "covered", editionId: "edition-one", listingTitle: "One Piece manga Vol 1 Japanese Shueisha", itemEndAt: null, lastSeenAt: "2026-08-15T10:00:00.000Z", edition, reviewStatus: "new" },
+  { id: "graded-extra", externalId: "graded-extra", profileId: "covered", editionId: "edition-one", listingTitle: "CGC 9.0 One Piece manga Vol 1 Japanese Shueisha graded", itemEndAt: null, lastSeenAt: "2026-08-15T10:00:00.000Z", edition, reviewStatus: "new" },
+], now);
+assert.equal(priorityDiagnostics.total, 2, "watching rows support coverage but are not counted as new backlog");
+assert.equal(priorityDiagnostics.reviewNow, 0, "covered raw backups and graded copies stay out of the people queue");
+assert.equal(priorityDiagnostics.graded, 1, "graded backlog remains visible as a separate metric");
+
 assert.deepEqual(
   interpretEbayAvailabilityResponse(200, { itemEndDate: "2026-08-16T12:00:00.000Z", estimatedAvailabilities: [{ estimatedAvailabilityStatus: "IN_STOCK" }] }, now),
   { outcome: "active", itemEndAt: "2026-08-16T12:00:00.000Z", reason: "eBay confirms that the listing remains available." },

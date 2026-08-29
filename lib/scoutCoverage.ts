@@ -1,4 +1,5 @@
 import { isPlausibleLiveListing, type PlausibilityEdition } from "./liveListings.ts";
+import { looksGraded } from "./editionMatch.ts";
 
 export const SCOUT_PUBLIC_LISTING_TARGET = 5;
 export const SCOUT_PUBLIC_FRESHNESS_HOURS = 48;
@@ -28,6 +29,7 @@ export type ScoutTriageCoverageLead = {
   score: number;
   itemEndAt: string | null;
   lastSeenAt: string;
+  isGraded?: boolean;
 };
 
 function validDate(value: string | null) {
@@ -48,6 +50,7 @@ export function publicListingCoverage(
   for (const lead of leads) {
     if (lead.profile_id !== profile.id || seen.has(lead.external_id)) continue;
     if (lead.review_status !== "new" && lead.review_status !== "watching") continue;
+    if (looksGraded(lead.listing_title ?? "")) continue;
     const lastSeen = validDate(lead.last_seen_at);
     if (lastSeen === null || lastSeen < freshnessCutoff) continue;
     const endAt = validDate(lead.item_end_at);
@@ -73,7 +76,7 @@ export function surplusScoutLeadIds(
 ) {
   const byEdition = new Map<string, ScoutTriageCoverageLead[]>();
   for (const lead of leads) {
-    if (lead.reviewStatus === "dismissed" || lead.isExpired || lead.isStale) continue;
+    if (lead.reviewStatus === "dismissed" || lead.isExpired || lead.isStale || lead.isGraded) continue;
     const rows = byEdition.get(lead.editionId) ?? [];
     rows.push(lead);
     byEdition.set(lead.editionId, rows);

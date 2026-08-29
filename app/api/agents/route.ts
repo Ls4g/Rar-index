@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       const finalStatus = decision === "approved" && execute ? "executed" : decision;
       const suppliedNotes = clean(payload.notes);
       const executionNotes = execution
-        ? `Approved and ran a bounded Scout batch: ${execution.scannedProfiles} profiles checked, ${execution.activeLeads} active leads found and ${execution.failures} failures.`
+        ? `Approved and ran a coverage-aware Scout batch: ${execution.discoveryProfiles} profiles needing listings and ${execution.maintenanceProfiles} maintenance profiles checked, ${execution.activeLeads} active leads found and ${execution.failures} failures.`
         : rule && execute
           ? "Approved and ran the proposed Scout shadow test. The candidate rule still requires separate activation."
           : "";

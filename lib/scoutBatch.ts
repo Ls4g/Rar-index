@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { findActiveEbayListings, getEbayApplicationToken } from "./ebayScout.ts";
 import { buildScoutLeadRow, storeScoutLeads } from "./scoutIngest.ts";
 import { loadActiveScoutRules } from "./scoutRules.ts";
+import { SCOUT_PUBLIC_FRESHNESS_HOURS, selectScoutProfiles, type ScoutCoverageLead } from "./scoutCoverage.ts";
 
 type Profile = {
   id: string;
@@ -32,6 +33,8 @@ export type ScoutBatchResult = {
   activeLeads: number;
   failures: number;
   dueProfiles: number;
+  discoveryProfiles: number;
+  maintenanceProfiles: number;
 };
 
 function cleanLimit(value: unknown) {
@@ -59,14 +62,34 @@ export async function runScoutBatch(
     .eq("is_active", true)
     .eq("source.name", "eBay Sold")
     .order("last_checked_at", { ascending: true, nullsFirst: true })
-    .limit(options.dueOnly ? 1000 : limit);
+    .limit(1000);
 
   if (error) throw new Error("RAR could not load the next Scout profiles.");
   const usableProfiles = ((data ?? []) as unknown as Profile[])
     .filter((profile) => profile.source?.name === "eBay Sold" && profile.edition);
   const dueProfiles = usableProfiles.filter((profile) => isDue(profile, Date.now()));
-  const profiles = (options.dueOnly ? dueProfiles : usableProfiles).slice(0, limit);
-  if (!profiles.length) return { scannedProfiles: 0, activeLeads: 0, failures: 0, dueProfiles: dueProfiles.length };
+  const candidateProfiles = options.dueOnly ? dueProfiles : usableProfiles;
+  if (!candidateProfiles.length) return { scannedProfiles: 0, activeLeads: 0, failures: 0, dueProfiles: dueProfiles.length, discoveryProfiles: 0, maintenanceProfiles: 0 };
+
+  const recentLeads: ScoutCoverageLead[] = [];
+  const freshnessCutoff = new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
+  const pageSize = 1000;
+  for (let from = 0; from < 10_000; from += pageSize) {
+    const { data: leadPage, error: leadError } = await admin
+      .from("scout_listing_leads")
+      .select("profile_id,external_id,listing_title,item_end_at,last_seen_at,review_status")
+      .in("review_status", ["new", "watching"])
+      .gte("last_seen_at", freshnessCutoff)
+      .order("last_seen_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (leadError) throw new Error("RAR could not measure current Scout coverage.");
+    recentLeads.push(...((leadPage ?? []) as ScoutCoverageLead[]));
+    if ((leadPage ?? []).length < pageSize) break;
+  }
+
+  const selection = selectScoutProfiles(candidateProfiles, recentLeads, limit);
+  const profiles = selection.selected;
+  if (!profiles.length) return { scannedProfiles: 0, activeLeads: 0, failures: 0, dueProfiles: dueProfiles.length, discoveryProfiles: 0, maintenanceProfiles: 0 };
 
   let applicationToken: string;
   try {
@@ -105,5 +128,12 @@ export async function runScoutBatch(
     }
   }
 
-  return { scannedProfiles, activeLeads, failures, dueProfiles: dueProfiles.length };
+  return {
+    scannedProfiles,
+    activeLeads,
+    failures,
+    dueProfiles: dueProfiles.length,
+    discoveryProfiles: selection.discoverySelected,
+    maintenanceProfiles: selection.maintenanceSelected,
+  };
 }

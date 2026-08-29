@@ -39,6 +39,7 @@ export const config = {
     "/listing-outcomes/:path*",
     "/cover-review/:path*",
     "/agents/:path*",
+    "/agent-learning/:path*",
     "/api/review/:path*",
     "/api/listing-outcomes/:path*",
     "/api/print-classification/:path*",

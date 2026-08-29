@@ -14,6 +14,7 @@ assert.equal(publicListingCoverage(profile, [lead({ last_seen_at: "2026-08-20T11
 assert.equal(publicListingCoverage(profile, [lead({ item_end_at: "2026-08-24T10:00:00.000Z" })], now), 0, "ended listings do not count");
 assert.equal(publicListingCoverage(profile, [lead(), lead()], now), 1, "duplicate marketplace items count once");
 assert.equal(publicListingCoverage(profile, [lead({ listing_title: "One Piece manga Vol 8 Shueisha" })], now), 0, "the wrong volume does not count");
+assert.equal(publicListingCoverage(profile, [lead({ listing_title: "CGC 9.0 One Piece manga Vol 1 Shueisha graded" })], now), 0, "graded copies do not fill the raw-listing target");
 
 const profiles = [
   { ...profile, id: "zero", last_checked_at: "2026-08-20T00:00:00Z" },
@@ -60,6 +61,7 @@ const coveredByStaff = [
   triageLead("new-backup"),
 ];
 assert.deepEqual([...surplusScoutLeadIds(coveredByStaff)], ["new-backup"], "new listings become backups after five staff-watched listings");
+assert.equal(surplusScoutLeadIds([...sevenNewLeads, triageLead("graded", { isGraded: true, score: 99 })]).has("graded"), false, "graded copies stay in their own backlog instead of consuming raw coverage");
 assert.equal(surplusScoutLeadIds([triageLead("stale", { isStale: true }), triageLead("expired", { isExpired: true })]).size, 0, "stale and expired queues remain independent");
 
 const seedEdition = { ...edition, id: "edition", printing_number: 1, collectible_type: "tankobon", record_kind: "publication" };

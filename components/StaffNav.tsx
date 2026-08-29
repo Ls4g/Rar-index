@@ -28,6 +28,7 @@ const MORE_GROUPS: NavGroup[] = [
       { href: "/cover-review", label: "Cover images" },
       { href: "/catalogue-requests", label: "Edition requests" },
       { href: "/community-reports", label: "Community reports" },
+      { href: "/agent-learning", label: "Agent learning" },
     ],
   },
   {

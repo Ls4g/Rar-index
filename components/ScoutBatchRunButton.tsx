@@ -7,6 +7,8 @@ type BatchResult = {
   scannedProfiles?: number;
   activeLeads?: number;
   failures?: number;
+  discoveryProfiles?: number;
+  maintenanceProfiles?: number;
   error?: string;
 };
 
@@ -30,8 +32,10 @@ export default function ScoutBatchRunButton({ limit = 20 }: { limit?: number }) 
       const scanned = result.scannedProfiles ?? 0;
       const leads = result.activeLeads ?? 0;
       const failures = result.failures ?? 0;
+      const discovery = result.discoveryProfiles ?? 0;
+      const maintenance = result.maintenanceProfiles ?? 0;
       const failureText = failures ? "; " + failures + " failed" : "";
-      setMessage(scanned + " different edition profiles checked; " + leads + " active leads found" + failureText + ".");
+      setMessage(scanned + " profiles checked (" + discovery + " needing coverage, " + maintenance + " maintenance); " + leads + " active leads found" + failureText + ".");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Scout could not run the batch.");

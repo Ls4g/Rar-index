@@ -10,6 +10,7 @@ import { isScoutLeadStale } from "@/lib/scoutDiagnostics";
 import { isPrioritySeries } from "@/lib/prioritySeries";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
 import { surplusScoutLeadIds } from "@/lib/scoutCoverage";
+import { looksGraded } from "@/lib/editionMatch";
 
 function formatLastChecked(value: string | null) {
   if (!value) return "Never scanned";
@@ -151,6 +152,7 @@ export default async function ScoutPage() {
       isExpired: Boolean(primary.item_end_at) && new Date(primary.item_end_at as string).getTime() < now,
       isStale: isScoutLeadStale(primary.last_seen_at, now),
       isSurplusBackup: false,
+      isGraded: looksGraded(primary.listing_title),
       duplicateCount: otherProfiles.length,
       duplicateProfiles: otherProfiles,
     });

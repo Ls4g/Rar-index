@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { looksGraded } from "./editionMatch.ts";
 import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
+import { surplusScoutLeadIds, type ScoutTriageCoverageLead } from "./scoutCoverage.ts";
 
 export const SCOUT_STALE_AFTER_DAYS = 8;
 export const SCOUT_STALE_AFTER_MS = SCOUT_STALE_AFTER_DAYS * 86_400_000;
@@ -13,6 +14,8 @@ export type ScoutDiagnosticLead = {
   itemEndAt: string | null;
   lastSeenAt: string;
   edition: ScoutEdition | null;
+  editionId?: string;
+  reviewStatus?: "new" | "watching";
 };
 
 export type ScoutBacklogDiagnostics = {
@@ -36,7 +39,8 @@ type DatabaseLead = {
   listing_title: string;
   item_end_at: string | null;
   last_seen_at: string;
-  profile: { id: string; edition: ScoutEdition | null } | null;
+  review_status: "new" | "watching";
+  profile: { id: string; edition: (ScoutEdition & { id: string }) | null } | null;
 };
 
 export function isScoutLeadStale(lastSeenAt: string, now = Date.now()) {
@@ -55,13 +59,33 @@ export function diagnoseScoutBacklog(leads: ScoutDiagnosticLead[], now = Date.no
   let stale = 0;
   let expiredWithEndDate = 0;
   let graded = 0;
+  let total = 0;
+  const coverageLeads: ScoutTriageCoverageLead[] = [];
 
   for (const lead of leads) {
-    externalIds.set(lead.externalId, (externalIds.get(lead.externalId) ?? 0) + 1);
-    if (looksGraded(lead.listingTitle)) graded += 1;
-
+    const reviewStatus = lead.reviewStatus ?? "new";
+    const isNew = reviewStatus === "new";
+    const isGraded = looksGraded(lead.listingTitle);
     const expired = Boolean(lead.itemEndAt) && new Date(lead.itemEndAt as string).getTime() <= now;
     const isStale = isScoutLeadStale(lead.lastSeenAt, now);
+    const assessment = lead.edition ? assessScoutListing(lead.edition, lead.listingTitle) : null;
+    coverageLeads.push({
+      id: lead.id,
+      editionId: lead.editionId ?? lead.profileId,
+      reviewStatus,
+      isExpired: expired,
+      isStale,
+      isGraded,
+      score: assessment?.score ?? 0,
+      itemEndAt: lead.itemEndAt,
+      lastSeenAt: lead.lastSeenAt,
+    });
+
+    if (!isNew) continue;
+    total += 1;
+    externalIds.set(lead.externalId, (externalIds.get(lead.externalId) ?? 0) + 1);
+    if (isGraded) graded += 1;
+
     if (expired) expiredWithEndDate += 1;
     else if (isStale) stale += 1;
 
@@ -70,25 +94,31 @@ export function diagnoseScoutBacklog(leads: ScoutDiagnosticLead[], now = Date.no
       continue;
     }
 
-    const assessment = assessScoutListing(lead.edition, lead.listingTitle);
-    if (assessment.confidence === "strong") strong += 1;
-    else if (assessment.confidence === "partial") partial += 1;
-    else if (assessment.confidence === "conflict") unresolvedConflicts += 1;
+    if (assessment?.confidence === "strong") strong += 1;
+    else if (assessment?.confidence === "partial") partial += 1;
+    else if (assessment?.confidence === "conflict") unresolvedConflicts += 1;
     else lowConfidence += 1;
 
-    const reviewable = assessment.score >= 50;
-    if (reviewable && !expired && !isStale) reviewNow += 1;
+    const reviewable = (assessment?.score ?? 0) >= 50;
     const profile = profiles.get(lead.profileId) ?? { total: 0, reviewable: 0 };
     profile.total += 1;
     if (reviewable) profile.reviewable += 1;
     profiles.set(lead.profileId, profile);
   }
 
+  const surplusLeadIds = surplusScoutLeadIds(coverageLeads);
+  reviewNow = coverageLeads.filter((lead) => lead.reviewStatus === "new"
+    && !lead.isExpired
+    && !lead.isStale
+    && !lead.isGraded
+    && lead.score >= 50
+    && !surplusLeadIds.has(lead.id)).length;
+
   const duplicated = [...externalIds.values()].filter((count) => count > 1);
   const profilesNeedingTuning = [...profiles.values()].filter(({ total, reviewable }) => total >= 10 && reviewable / total < 0.25).length;
 
   return {
-    total: leads.length,
+    total,
     reviewNow,
     strong,
     partial,
@@ -109,8 +139,8 @@ export async function readScoutBacklog(admin: SupabaseClient): Promise<ScoutDiag
   for (let from = 0; from < 10_000; from += pageSize) {
     const { data, error } = await admin
       .from("scout_listing_leads")
-      .select("id,external_id,listing_title,item_end_at,last_seen_at,profile:marketplace_search_profiles!inner(id,edition:manga_editions!inner(title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no))")
-      .eq("review_status", "new")
+      .select("id,external_id,listing_title,item_end_at,last_seen_at,review_status,profile:marketplace_search_profiles!inner(id,edition:manga_editions!inner(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no))")
+      .in("review_status", ["new", "watching"])
       .order("created_at", { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw new Error(`Market Scout could not diagnose its lead backlog: ${error.message}`);
@@ -123,6 +153,8 @@ export async function readScoutBacklog(admin: SupabaseClient): Promise<ScoutDiag
       itemEndAt: lead.item_end_at,
       lastSeenAt: lead.last_seen_at,
       edition: lead.profile?.edition ?? null,
+      editionId: lead.profile?.edition?.id,
+      reviewStatus: lead.review_status,
     })));
     if (page.length < pageSize) break;
   }

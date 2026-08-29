@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
-import { looksGraded } from "@/lib/editionMatch";
 import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
 
 export type ScoutLead = {
@@ -36,6 +35,7 @@ export type ScoutLead = {
   isExpired: boolean;
   isStale: boolean;
   isSurplusBackup: boolean;
+  isGraded: boolean;
   duplicateCount: number;
   duplicateProfiles: Array<{ profileId: string; editionId: string; editionLabel: string }>;
 };
@@ -48,6 +48,7 @@ type SortMode = "scoreThenEnd" | "endThenScore";
 type FreshnessFilter = "current" | "stale" | "all";
 type TriageMode = "focus" | "batch";
 type CoverageFilter = "needed" | "surplus" | "all";
+type ListingKindFilter = "raw" | "graded" | "all";
 
 type Filters = {
   status: StatusFilter;
@@ -65,7 +66,7 @@ type Filters = {
   listingType: ListingTypeFilter;
   endsSoonOnly: boolean;
   priorityOnly: boolean;
-  gradedOnly: boolean;
+  listingKind: ListingKindFilter;
   coverage: CoverageFilter;
   sortBy: SortMode;
 };
@@ -86,7 +87,7 @@ const DEFAULT_FILTERS: Filters = {
   listingType: "all",
   endsSoonOnly: false,
   priorityOnly: false,
-  gradedOnly: false,
+  listingKind: "raw",
   coverage: "needed",
   sortBy: "scoreThenEnd",
 };
@@ -147,7 +148,7 @@ const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
   { key: "reviewNow", label: "Review now" },
   { key: "highConfidence", label: "High-confidence" },
   { key: "endsSoon", label: "Ends soon" },
-  { key: "graded", label: "Graded copies" },
+  { key: "graded", label: "Graded backlog" },
   { key: "watching", label: "Watching" },
   { key: "surplusBackups", label: "Coverage backups" },
   { key: "staleBacklog", label: "Stale / recheck" },
@@ -230,7 +231,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     if (filters.listingType !== "all" && listingType(lead.rawPayload) !== filters.listingType) return false;
     if (filters.endsSoonOnly && !isEndingSoon(lead.itemEndAt, now)) return false;
     if (filters.priorityOnly && !lead.isPriority) return false;
-    if (filters.gradedOnly && !looksGraded(lead.listingTitle)) return false;
+    if (filters.listingKind === "raw" && lead.isGraded) return false;
+    if (filters.listingKind === "graded" && !lead.isGraded) return false;
     if (filters.coverage === "needed" && lead.isSurplusBackup) return false;
     if (filters.coverage === "surplus" && !lead.isSurplusBackup) return false;
     return true;
@@ -255,12 +257,12 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   // totals a reviewer can trust regardless of whatever the filters below
   // are currently narrowed to.
   const quickViewCounts: Record<QuickView, number> = useMemo(() => ({
-    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.score >= 50).length,
-    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.score >= 75).length,
-    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && isEndingSoon(lead.itemEndAt, now)).length,
+    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= 50).length,
+    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= 75).length,
+    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && isEndingSoon(lead.itemEndAt, now)).length,
     watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
     surplusBackups: leads.filter((lead) => lead.reviewStatus === "new" && lead.isSurplusBackup).length,
-    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && looksGraded(lead.listingTitle)).length,
+    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.isGraded).length,
     staleBacklog: leads.filter((lead) => lead.reviewStatus === "new" && lead.isStale).length,
     lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score < 50).length,
     dismissed: leads.filter((lead) => lead.reviewStatus === "dismissed").length,
@@ -272,7 +274,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     else if (view === "endsSoon") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" }, view);
     else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
     else if (view === "surplusBackups") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", coverage: "surplus" }, view);
-    else if (view === "graded") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", gradedOnly: true }, view);
+    else if (view === "graded") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", listingKind: "graded" }, view);
     else if (view === "staleBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", freshness: "stale", includeExpired: true }, view);
     else if (view === "lowConfidenceBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "below50" }, view);
     else if (view === "dismissed") updateFilters({ ...DEFAULT_FILTERS, status: "dismissed", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
@@ -404,6 +406,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
           <label>Listing type<select onChange={(event) => onManualFilterChange({ listingType: event.target.value as ListingTypeFilter })} value={filters.listingType}>
             <option value="all">Any</option><option value="Auction">Auction</option><option value="Buy it now">Buy it now</option>
           </select></label>
+          <label>Copy type<select onChange={(event) => onManualFilterChange({ listingKind: event.target.value as ListingKindFilter })} value={filters.listingKind}>
+            <option value="raw">Raw / ungraded only</option><option value="graded">Graded backlog only</option><option value="all">Raw and graded</option>
+          </select></label>
           <label>Series<select onChange={(event) => onManualFilterChange({ series: event.target.value })} value={filters.series}>
             <option value="all">All series</option>{seriesOptions.map((value) => <option key={value} value={value}>{value}</option>)}
           </select></label>
@@ -428,7 +433,6 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
           <label><input checked={filters.includeExpired} onChange={(event) => onManualFilterChange({ includeExpired: event.target.checked })} type="checkbox" /> Include expired listings</label>
           <label><input checked={filters.endsSoonOnly} onChange={(event) => onManualFilterChange({ endsSoonOnly: event.target.checked })} type="checkbox" /> Ends within 48 hours</label>
           <label><input checked={filters.priorityOnly} onChange={(event) => onManualFilterChange({ priorityOnly: event.target.checked })} type="checkbox" /> Priority series only</label>
-          <label><input checked={filters.gradedOnly} onChange={(event) => onManualFilterChange({ gradedOnly: event.target.checked })} type="checkbox" /> Graded copies only</label>
           <label><input checked={filters.sortBy === "endThenScore"} onChange={(event) => onManualFilterChange({ sortBy: event.target.checked ? "endThenScore" : "scoreThenEnd" })} type="checkbox" /> Sort by ending soonest first</label>
         </div>
       </details>
