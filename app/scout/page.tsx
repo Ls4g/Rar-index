@@ -9,6 +9,7 @@ import { scoutListingGroupKey } from "@/lib/scoutGrouping";
 import { isScoutLeadStale } from "@/lib/scoutDiagnostics";
 import { isPrioritySeries } from "@/lib/prioritySeries";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
+import { surplusScoutLeadIds } from "@/lib/scoutCoverage";
 
 function formatLastChecked(value: string | null) {
   if (!value) return "Never scanned";
@@ -149,10 +150,14 @@ export default async function ScoutPage() {
       isPriority: isPrioritySeries(edition.series),
       isExpired: Boolean(primary.item_end_at) && new Date(primary.item_end_at as string).getTime() < now,
       isStale: isScoutLeadStale(primary.last_seen_at, now),
+      isSurplusBackup: false,
       duplicateCount: otherProfiles.length,
       duplicateProfiles: otherProfiles,
     });
   }
+
+  const surplusLeadIds = surplusScoutLeadIds(leads);
+  const prioritisedLeads = leads.map((lead) => ({ ...lead, isSurplusBackup: surplusLeadIds.has(lead.id) }));
 
   return (
     <main className="review-page">
@@ -174,10 +179,10 @@ export default async function ScoutPage() {
             actually open, which is the difference between a backlog someone
             starts and one they avoid. They stay fetched and stay reachable
             through the Dismissed filter. */}
-        <div className="queue-total"><strong>{leads.filter((lead) => lead.reviewStatus !== "dismissed").length}</strong><span>open listings across {profiles.length} profiles</span></div>
+        <div className="queue-total"><strong>{prioritisedLeads.filter((lead) => lead.reviewStatus !== "dismissed" && !lead.isSurplusBackup).length}</strong><span>priority listings across {profiles.length} profiles · {surplusLeadIds.size} backups separated</span></div>
       </section>
       <section className="catalogue-content">
-        <ScoutTriageInbox leads={leads} />
+        <ScoutTriageInbox leads={prioritisedLeads} />
 
         <details className="profile-editor scout-profile-scan">
           <summary><span>Scan one profile on demand</span><small>{profiles.length} active search profiles</small></summary>

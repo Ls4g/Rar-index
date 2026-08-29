@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildMarketplaceQuery } from "../lib/marketplaceQuery.ts";
 import { canSeedScoutProfile } from "../lib/scoutProfileSeed.ts";
-import { publicListingCoverage, SCOUT_MAINTENANCE_SLOTS, selectScoutProfiles } from "../lib/scoutCoverage.ts";
+import { publicListingCoverage, SCOUT_MAINTENANCE_SLOTS, selectScoutProfiles, surplusScoutLeadIds } from "../lib/scoutCoverage.ts";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 const edition = { title: "One Piece 1", series: "One Piece", volume_number: 1, language: "Japanese", isbn_13: "9784088725093", publisher: "Shueisha", format: "Paperback" };
@@ -41,6 +41,26 @@ const cappedMaintenance = selectScoutProfiles(maintenanceProfiles, maintenanceLe
 assert.equal(SCOUT_MAINTENANCE_SLOTS, 5);
 assert.equal(cappedMaintenance.selected.length, 5, "covered profiles never consume more than five maintenance searches");
 assert.equal(cappedMaintenance.maintenanceSelected, 5);
+
+const triageLead = (id, overrides = {}) => ({
+  id,
+  editionId: "edition-a",
+  reviewStatus: "new",
+  isExpired: false,
+  isStale: false,
+  score: 70,
+  itemEndAt: null,
+  lastSeenAt: "2026-08-24T11:00:00.000Z",
+  ...overrides,
+});
+const sevenNewLeads = Array.from({ length: 7 }, (_, index) => triageLead(`new-${index}`, { score: 70 - index }));
+assert.deepEqual([...surplusScoutLeadIds(sevenNewLeads)].sort(), ["new-5", "new-6"], "only the five strongest new listings stay in the priority queue");
+const coveredByStaff = [
+  ...Array.from({ length: 5 }, (_, index) => triageLead(`watching-${index}`, { reviewStatus: "watching" })),
+  triageLead("new-backup"),
+];
+assert.deepEqual([...surplusScoutLeadIds(coveredByStaff)], ["new-backup"], "new listings become backups after five staff-watched listings");
+assert.equal(surplusScoutLeadIds([triageLead("stale", { isStale: true }), triageLead("expired", { isExpired: true })]).size, 0, "stale and expired queues remain independent");
 
 const seedEdition = { ...edition, id: "edition", printing_number: 1, collectible_type: "tankobon", record_kind: "publication" };
 assert.equal(canSeedScoutProfile(seedEdition), true, "a complete verified publication can receive a profile");

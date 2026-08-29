@@ -35,6 +35,7 @@ export type ScoutLead = {
   isPriority: boolean;
   isExpired: boolean;
   isStale: boolean;
+  isSurplusBackup: boolean;
   duplicateCount: number;
   duplicateProfiles: Array<{ profileId: string; editionId: string; editionLabel: string }>;
 };
@@ -46,6 +47,7 @@ type ListingTypeFilter = "all" | "Auction" | "Buy it now";
 type SortMode = "scoreThenEnd" | "endThenScore";
 type FreshnessFilter = "current" | "stale" | "all";
 type TriageMode = "focus" | "batch";
+type CoverageFilter = "needed" | "surplus" | "all";
 
 type Filters = {
   status: StatusFilter;
@@ -64,6 +66,7 @@ type Filters = {
   endsSoonOnly: boolean;
   priorityOnly: boolean;
   gradedOnly: boolean;
+  coverage: CoverageFilter;
   sortBy: SortMode;
 };
 
@@ -84,6 +87,7 @@ const DEFAULT_FILTERS: Filters = {
   endsSoonOnly: false,
   priorityOnly: false,
   gradedOnly: false,
+  coverage: "needed",
   sortBy: "scoreThenEnd",
 };
 
@@ -138,13 +142,14 @@ function formatSeenDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(value));
 }
 
-type QuickView = "reviewNow" | "highConfidence" | "endsSoon" | "graded" | "watching" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
+type QuickView = "reviewNow" | "highConfidence" | "endsSoon" | "graded" | "watching" | "surplusBackups" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
 const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
   { key: "reviewNow", label: "Review now" },
   { key: "highConfidence", label: "High-confidence" },
   { key: "endsSoon", label: "Ends soon" },
   { key: "graded", label: "Graded copies" },
   { key: "watching", label: "Watching" },
+  { key: "surplusBackups", label: "Coverage backups" },
   { key: "staleBacklog", label: "Stale / recheck" },
   { key: "lowConfidenceBacklog", label: "Low-confidence backlog" },
   { key: "dismissed", label: "Dismissed / archive" },
@@ -226,6 +231,8 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     if (filters.endsSoonOnly && !isEndingSoon(lead.itemEndAt, now)) return false;
     if (filters.priorityOnly && !lead.isPriority) return false;
     if (filters.gradedOnly && !looksGraded(lead.listingTitle)) return false;
+    if (filters.coverage === "needed" && lead.isSurplusBackup) return false;
+    if (filters.coverage === "surplus" && !lead.isSurplusBackup) return false;
     return true;
   }), [leads, filters, now]);
 
@@ -252,6 +259,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score >= 75).length,
     endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && isEndingSoon(lead.itemEndAt, now)).length,
     watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
+    surplusBackups: leads.filter((lead) => lead.reviewStatus === "new" && lead.isSurplusBackup).length,
     graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && looksGraded(lead.listingTitle)).length,
     staleBacklog: leads.filter((lead) => lead.reviewStatus === "new" && lead.isStale).length,
     lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score < 50).length,
@@ -263,6 +271,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     else if (view === "highConfidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "75plus" }, view);
     else if (view === "endsSoon") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" }, view);
     else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
+    else if (view === "surplusBackups") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", coverage: "surplus" }, view);
     else if (view === "graded") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", gradedOnly: true }, view);
     else if (view === "staleBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", freshness: "stale", includeExpired: true }, view);
     else if (view === "lowConfidenceBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "below50" }, view);
@@ -389,6 +398,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
           <label>Confidence<select onChange={(event) => onManualFilterChange({ confidence: event.target.value as ConfidenceFilter })} value={filters.confidence}>
             <option value="all">Any</option><option value="strong">Strong</option><option value="partial">Partial</option><option value="insufficient">Insufficient</option><option value="conflict">Conflict</option>
           </select></label>
+          <label>Coverage need<select onChange={(event) => onManualFilterChange({ coverage: event.target.value as CoverageFilter })} value={filters.coverage}>
+            <option value="needed">Still needed</option><option value="surplus">Backups only</option><option value="all">All listings</option>
+          </select></label>
           <label>Listing type<select onChange={(event) => onManualFilterChange({ listingType: event.target.value as ListingTypeFilter })} value={filters.listingType}>
             <option value="all">Any</option><option value="Auction">Auction</option><option value="Buy it now">Buy it now</option>
           </select></label>
@@ -466,6 +478,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                   <div className="scout-lead-badges">
                     <span className={`coverage-badge ${confidenceTone(lead.confidence)}`}>{confidenceLabels[lead.confidence]} · {lead.score}/100</span>
                     <span className={`coverage-badge ${statusTone(lead.reviewStatus)}`}>{statusLabels[lead.reviewStatus]}</span>
+                    {lead.isSurplusBackup ? <span className="coverage-badge coverage-neutral">Backup · coverage full</span> : null}
                     {lead.reviewStatus !== "new" ? (
                       <p className="scout-lead-decided"><strong>{lead.reviewedBy ?? "Unknown reviewer"}</strong>{lead.reviewNotes || "No note recorded."}</p>
                     ) : null}

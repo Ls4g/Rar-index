@@ -19,6 +19,17 @@ export type ScoutCoverageLead = {
   review_status: string;
 };
 
+export type ScoutTriageCoverageLead = {
+  id: string;
+  editionId: string;
+  reviewStatus: string;
+  isExpired: boolean;
+  isStale: boolean;
+  score: number;
+  itemEndAt: string | null;
+  lastSeenAt: string;
+};
+
 function validDate(value: string | null) {
   if (!value) return null;
   const timestamp = new Date(value).getTime();
@@ -50,6 +61,40 @@ export function publicListingCoverage(
 
 function checkedAt(profile: ScoutCoverageProfile) {
   return validDate(profile.last_checked_at) ?? Number.NEGATIVE_INFINITY;
+}
+
+function listingEndAt(lead: ScoutTriageCoverageLead) {
+  return validDate(lead.itemEndAt) ?? Number.POSITIVE_INFINITY;
+}
+
+export function surplusScoutLeadIds(
+  leads: ScoutTriageCoverageLead[],
+  target = SCOUT_PUBLIC_LISTING_TARGET,
+) {
+  const byEdition = new Map<string, ScoutTriageCoverageLead[]>();
+  for (const lead of leads) {
+    if (lead.reviewStatus === "dismissed" || lead.isExpired || lead.isStale) continue;
+    const rows = byEdition.get(lead.editionId) ?? [];
+    rows.push(lead);
+    byEdition.set(lead.editionId, rows);
+  }
+
+  const surplus = new Set<string>();
+  for (const editionLeads of byEdition.values()) {
+    const approvedCount = editionLeads.filter((lead) => lead.reviewStatus === "watching").length;
+    const availableReviewSlots = Math.max(0, target - approvedCount);
+    const candidates = editionLeads
+      .filter((lead) => lead.reviewStatus === "new" && lead.score >= 50)
+      .sort((left, right) => {
+        const scoreDifference = right.score - left.score;
+        if (scoreDifference) return scoreDifference;
+        const endDifference = listingEndAt(left) - listingEndAt(right);
+        if (endDifference) return endDifference;
+        return (validDate(right.lastSeenAt) ?? 0) - (validDate(left.lastSeenAt) ?? 0);
+      });
+    for (const lead of candidates.slice(availableReviewSlots)) surplus.add(lead.id);
+  }
+  return surplus;
 }
 
 export type ScoutProfileSelection<T extends ScoutCoverageProfile> = {
