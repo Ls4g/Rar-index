@@ -414,7 +414,7 @@ export default async function Home() {
                 <HomePrice rateDate={feature.latest.sold_date} rates={homepageFxRates} sourceCurrency={feature.latest.currency} value={feature.latest.sale_price} />
               </p>
               <p className="home-feature-delta">Last verified sale · {formatSaleDate(feature.latest.sold_date)}</p>
-              <SaleSparkline height={128} points={featurePoints} width={560} />
+              <SaleSparkline height={166} points={featurePoints} rates={homepageFxRates} width={560} />
               {/* The chart is drawn from one comparison group in one currency,
                   which is the only way a line between sales means anything.
                   Saying so is not a caveat — it is what the chart is. */}

@@ -3051,7 +3051,40 @@ html[data-theme="day"] .public-page {
 .home-feature-descriptor { margin: 0 0 1.2rem; color: var(--muted); font-size: .85rem; }
 .home-figure { margin: 0; color: var(--canvas-heading); font-family: var(--font-display); font-size: clamp(2rem, 4vw, 2.7rem); font-weight: 700; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
 .home-feature-delta { margin: .5rem 0 1.2rem; color: var(--muted); font-size: .78rem; }
+.sale-spark-shell { margin-top: .9rem; }
+.sale-spark-readout {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: .45rem .75rem;
+  align-items: baseline;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 .25rem auto;
+  color: var(--muted);
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+}
+.sale-spark-readout strong { color: var(--canvas-heading); font-size: 1rem; }
+.sale-spark-readout em { color: var(--accent-positive-text); font-style: normal; font-weight: 650; }
 .sale-spark { display: block; width: 100%; height: auto; overflow: visible; }
+.sale-spark-point { cursor: pointer; outline: none; }
+.sale-spark-hit { fill: transparent; }
+.sale-spark-point:focus circle:not(.sale-spark-hit) { filter: drop-shadow(0 0 3px var(--accent-label-text)); }
+.sale-spark-price-label {
+  fill: var(--canvas-heading);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--surface-card);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.sale-spark-point:not(.is-active) .sale-spark-price-label { fill: var(--muted); font-weight: 600; }
+.sale-spark-dates { display: flex; justify-content: space-between; gap: 1rem; margin-top: -.15rem; color: var(--muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
+.sale-spark-mobile-points { display: none; }
 .home-chart-note { max-width: 64ch; margin: .9rem 0 0; color: var(--muted); font-size: .77rem; line-height: 1.6; }
 
 /* ---------------------------------------------------------------- share */
@@ -3084,6 +3117,18 @@ html[data-theme="day"] .public-page {
   .home-btn { flex: 1 1 auto; padding: .8rem 1rem; text-align: center; }
   .home-feature { grid-template-columns: 1fr; padding: 1.25rem; }
   .home-feature-object { max-width: 156px; }
+  .sale-spark-readout { grid-template-columns: auto auto; margin-left: 0; }
+  .sale-spark-readout em { grid-column: 1 / -1; }
+  .sale-spark-price-label { display: none; }
+  .sale-spark-mobile-points { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; margin-top: .75rem; }
+  .sale-spark-mobile-points button {
+    display: grid; gap: .18rem; min-width: 0; padding: .65rem .7rem;
+    border: 1px solid var(--line); border-radius: .45rem;
+    background: transparent; color: var(--muted); text-align: left;
+  }
+  .sale-spark-mobile-points button.is-active { border-color: var(--accent-label-text); background: color-mix(in srgb, var(--accent-label-text) 8%, transparent); }
+  .sale-spark-mobile-points span { overflow: hidden; font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
+  .sale-spark-mobile-points strong { color: var(--canvas-heading); font-size: .88rem; font-variant-numeric: tabular-nums; }
   .home-run { padding: 1.1rem 1.15rem; }
   .home-spines { gap: 3px; }
   .home-spines li a { width: 17px; height: 42px; font-size: .5rem; }
