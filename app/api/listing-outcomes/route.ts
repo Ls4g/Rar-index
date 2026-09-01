@@ -23,6 +23,16 @@ type DecisionBody = {
   soldAt?: string;
 };
 
+async function capabilitySample(admin: ReturnType<typeof getSupabaseAdmin>) {
+  const { data } = await admin
+    .from("listing_outcomes")
+    .select("external_id,marketplace")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? { itemId: data.external_id as string, marketplace: (data.marketplace as string | null) ?? null } : undefined;
+}
+
 // Mirrors the decisions staff already make elsewhere in RAR, so the vocabulary
 // is the same one they use in Scout triage and price review.
 const DECISION_STATUS: Record<string, string> = {
@@ -41,14 +51,14 @@ export async function POST(request: Request) {
   const admin = getSupabaseAdmin();
 
   if (body.action === "probe") {
-    return Response.json({ capabilities: await probeOutcomeProviders() });
+    return Response.json({ capabilities: await probeOutcomeProviders(await capabilitySample(admin)) });
   }
 
   if (body.action === "run") {
     const captured = await captureWatchedListings(admin);
     const promoted = await promoteEndedListings(admin);
     const checks = await runOutcomeChecks(admin);
-    return Response.json({ captured, promoted, checks, capabilities: await probeOutcomeProviders() });
+    return Response.json({ captured, promoted, checks, capabilities: await probeOutcomeProviders(await capabilitySample(admin)) });
   }
 
   if (body.action === "test-ebay-user-access") {

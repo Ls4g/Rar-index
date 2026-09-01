@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
 import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
+import { SCOUT_HIGH_CONFIDENCE_MIN_SCORE, SCOUT_REVIEW_NOW_MIN_SCORE, isScoutNeedsEvidenceScore } from "@/lib/scoutTriagePolicy";
 
 export type ScoutLead = {
   id: string;
@@ -41,7 +42,7 @@ export type ScoutLead = {
 };
 
 type StatusFilter = "all" | "new" | "watching" | "dismissed";
-type ScoreBand = "all" | "75plus" | "50plus" | "below50" | "50to74" | "25to49" | "below25";
+type ScoreBand = "all" | "75plus" | "65plus" | "50plus" | "below50" | "50to64" | "50to74" | "25to49" | "below25";
 type ConfidenceFilter = "all" | "strong" | "partial" | "insufficient" | "conflict";
 type ListingTypeFilter = "all" | "Auction" | "Buy it now";
 type SortMode = "scoreThenEnd" | "endThenScore";
@@ -75,7 +76,7 @@ const DEFAULT_FILTERS: Filters = {
   status: "new",
   freshness: "current",
   includeExpired: false,
-  scoreBand: "50plus",
+  scoreBand: "65plus",
   confidence: "all",
   series: "all",
   language: "all",
@@ -107,8 +108,10 @@ function loadStoredReviewer() {
 
 function matchesScoreBand(score: number, band: ScoreBand) {
   if (band === "75plus") return score >= 75;
+  if (band === "65plus") return score >= SCOUT_REVIEW_NOW_MIN_SCORE;
   if (band === "50plus") return score >= 50;
   if (band === "below50") return score < 50;
+  if (band === "50to64") return isScoutNeedsEvidenceScore(score);
   if (band === "50to74") return score >= 50 && score < 75;
   if (band === "25to49") return score >= 25 && score < 50;
   if (band === "below25") return score < 25;
@@ -143,10 +146,11 @@ function formatSeenDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(value));
 }
 
-type QuickView = "reviewNow" | "highConfidence" | "endsSoon" | "graded" | "watching" | "surplusBackups" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
+type QuickView = "reviewNow" | "highConfidence" | "needsEvidence" | "endsSoon" | "graded" | "watching" | "surplusBackups" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
 const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
   { key: "reviewNow", label: "Review now" },
   { key: "highConfidence", label: "High-confidence" },
+  { key: "needsEvidence", label: "Needs more evidence" },
   { key: "endsSoon", label: "Ends soon" },
   { key: "graded", label: "Graded backlog" },
   { key: "watching", label: "Watching" },
@@ -257,8 +261,9 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   // totals a reviewer can trust regardless of whatever the filters below
   // are currently narrowed to.
   const quickViewCounts: Record<QuickView, number> = useMemo(() => ({
-    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= 50).length,
-    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= 75).length,
+    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= SCOUT_REVIEW_NOW_MIN_SCORE).length,
+    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= SCOUT_HIGH_CONFIDENCE_MIN_SCORE).length,
+    needsEvidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && isScoutNeedsEvidenceScore(lead.score)).length,
     endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && isEndingSoon(lead.itemEndAt, now)).length,
     watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
     surplusBackups: leads.filter((lead) => lead.reviewStatus === "new" && lead.isSurplusBackup).length,
@@ -271,6 +276,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   function applyQuickView(view: QuickView) {
     if (view === "reviewNow") updateFilters(DEFAULT_FILTERS, view);
     else if (view === "highConfidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "75plus" }, view);
+    else if (view === "needsEvidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "50to64" }, view);
     else if (view === "endsSoon") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" }, view);
     else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
     else if (view === "surplusBackups") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", coverage: "surplus" }, view);
@@ -395,7 +401,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
             <option value="current">Seen in the last 8 days</option><option value="stale">Needs availability recheck</option><option value="all">Any freshness</option>
           </select></label>
           <label>Match score<select onChange={(event) => onManualFilterChange({ scoreBand: event.target.value as ScoreBand })} value={filters.scoreBand}>
-            <option value="all">Any score</option><option value="75plus">75+ (strong)</option><option value="50plus">50+ (review now)</option><option value="50to74">50–74 only</option><option value="25to49">25–49 only</option><option value="below25">Below 25</option>
+            <option value="all">Any score</option><option value="75plus">75+ (strong)</option><option value="65plus">65+ (review now)</option><option value="50plus">50+ (all plausible)</option><option value="50to64">50–64 (needs evidence)</option><option value="50to74">50–74 only</option><option value="25to49">25–49 only</option><option value="below25">Below 25</option>
           </select></label>
           <label>Confidence<select onChange={(event) => onManualFilterChange({ confidence: event.target.value as ConfidenceFilter })} value={filters.confidence}>
             <option value="all">Any</option><option value="strong">Strong</option><option value="partial">Partial</option><option value="insufficient">Insufficient</option><option value="conflict">Conflict</option>

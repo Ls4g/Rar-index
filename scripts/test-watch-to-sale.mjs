@@ -13,7 +13,7 @@ import {
   MAX_OUTCOME_ATTEMPTS,
   validateManualBestOfferEvidence,
 } from "../lib/listingOutcome.ts";
-import { tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
+import { resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -116,6 +116,8 @@ check("but is not checked while it is still being seen live",
 console.log("\n--- Trading GetItem user-token provider ---");
 const originalUserToken = process.env.EBAY_USER_TOKEN;
 const originalAuthNAuthToken = process.env.EBAY_AUTH_N_AUTH_TOKEN;
+const originalClientId = process.env.EBAY_CLIENT_ID;
+const originalClientSecret = process.env.EBAY_CLIENT_SECRET;
 const originalFetch = globalThis.fetch;
 process.env.EBAY_USER_TOKEN = "test-user-token";
 
@@ -131,6 +133,8 @@ check("GetItem completed listing with quantity sold returns an explicit sold sig
 check("the explicit GetItem sale passes the existing evidence classifier",
   classifyListingOutcome(tradingSold.signal).status === "sold_candidate",
   JSON.stringify({ signal: tradingSold.signal, raw: tradingSold.rawResponse, classification: classifyListingOutcome(tradingSold.signal) }));
+check("a live readable GetItem result is the only thing that enables Trading sale confirmation",
+  tradingCapabilityFromResult(tradingSold).canConfirmSales === true);
 
 globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 0 }), { status: 200 });
 const tradingUnsold = await tradingOutcomeProvider("123456789012", "EBAY_GB");
@@ -158,11 +162,33 @@ check("Auth'n'Auth does not masquerade as an OAuth IAF token",
 check("Auth'n'Auth GetItem response uses the same safe classifier",
   legacyTrading.signal.listingState === "active");
 
+globalThis.fetch = async () => new Response(
+  `<?xml version="1.0"?><GetItemResponse xmlns="urn:ebay:apis:eBLBaseComponents"><Ack>Failure</Ack><Errors><ShortMessage>Invalid item</ShortMessage><LongMessage>This item cannot be accessed.</LongMessage><ErrorCode>17</ErrorCode></Errors></GetItemResponse>`,
+  { status: 200 },
+);
+const rejectedTrading = await tradingOutcomeProvider("123456789012", "EBAY_GB");
+const rejectedCapability = tradingCapabilityFromResult(rejectedTrading);
+check("GetItem error 17 is visible as reached-but-not-sold-capable",
+  rejectedCapability.available === true && rejectedCapability.canConfirmSales === false && rejectedCapability.detail.includes("error 17"));
+
+delete process.env.EBAY_CLIENT_ID;
+delete process.env.EBAY_CLIENT_SECRET;
+const fallbackResult = await resolveListingOutcome("123456789012", "EBAY_GB", "One Piece manga Vol 1");
+check("a failed Trading read remains visible when the pipeline falls back",
+  fallbackResult.attempts?.[0]?.provider === "eBay Trading GetItem"
+    && fallbackResult.attempts[0].detail.includes("error 17")
+    && fallbackResult.attempts.length === 3,
+  JSON.stringify(fallbackResult.attempts));
+
 globalThis.fetch = originalFetch;
 if (originalUserToken === undefined) delete process.env.EBAY_USER_TOKEN;
 else process.env.EBAY_USER_TOKEN = originalUserToken;
 if (originalAuthNAuthToken === undefined) delete process.env.EBAY_AUTH_N_AUTH_TOKEN;
 else process.env.EBAY_AUTH_N_AUTH_TOKEN = originalAuthNAuthToken;
+if (originalClientId === undefined) delete process.env.EBAY_CLIENT_ID;
+else process.env.EBAY_CLIENT_ID = originalClientId;
+if (originalClientSecret === undefined) delete process.env.EBAY_CLIENT_SECRET;
+else process.env.EBAY_CLIENT_SECRET = originalClientSecret;
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);

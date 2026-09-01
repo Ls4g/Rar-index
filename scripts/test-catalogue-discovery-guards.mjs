@@ -70,6 +70,10 @@ check("a different series at the same volume is rejected", !candidateMatchesDisc
 
 const wrongLanguage = { ...realVolume2, candidate_language: "Japanese" };
 check("a different language is rejected", !candidateMatchesDiscoveryTarget(wrongLanguage, kagurabachiTarget));
+check("a missing language is rejected rather than silently relabelled English",
+  !candidateMatchesDiscoveryTarget({ ...realVolume2, candidate_language: null }, kagurabachiTarget));
+check("a title containing the series name is not automatically the series",
+  !candidateMatchesDiscoveryTarget({ ...realVolume2, candidate_title: "Kagurabachi Fan Guide, Vol. 2" }, kagurabachiTarget));
 
 console.log("\n--- real title shapes ---");
 check("Hunter x Hunter volume parsing", volumeFromCatalogueTitle("Hunter x Hunter, Vol. 37") === 37);

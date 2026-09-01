@@ -39,11 +39,38 @@ export type OutcomeProviderResult = {
   signal: OutcomeSignal;
   httpStatus: number | null;
   rawResponse: unknown;
+  attempts?: ProviderAttempt[];
 };
+
+export type ProviderAttempt = {
+  provider: string;
+  listingState: OutcomeSignal["listingState"];
+  httpStatus: number | null;
+  detail: string;
+};
+
+export type OutcomeProbeSample = {
+  itemId: string;
+  marketplace: string | null;
+};
+
+function providerAttempt(result: OutcomeProviderResult): ProviderAttempt {
+  return {
+    provider: result.signal.provider,
+    listingState: result.signal.listingState,
+    httpStatus: result.httpStatus,
+    detail: result.signal.detail,
+  };
+}
+
+function withAttempts(result: OutcomeProviderResult, attempts: ProviderAttempt[]): OutcomeProviderResult {
+  return { ...result, attempts };
+}
 
 const MARKETPLACE_INSIGHTS_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.marketplace.insights";
 
 let cachedUserAccessToken: { value: string; expiresAt: number } | null = null;
+let cachedTradingCapability: { key: string; value: ProviderCapability; expiresAt: number } | null = null;
 
 export function hasEbayUserCredentials() {
   return Boolean(
@@ -399,7 +426,24 @@ export async function marketplaceInsightsOutcomeProvider(
 // Asks eBay what RAR is allowed to do, rather than assuming. Surfaced on the
 // agent dashboard so a degraded integration is visible instead of silently
 // producing nothing.
-export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
+export function tradingCapabilityFromResult(result: OutcomeProviderResult): ProviderCapability {
+  const readable = ["active", "completed_sold", "completed_unsold"].includes(result.signal.listingState);
+  const reachedTrading = result.httpStatus !== null;
+  return {
+    provider: "eBay Trading (GetItem)",
+    available: reachedTrading,
+    // Configuring a token is not proof that GetItem can read the listings RAR
+    // watches. Only a live readable sample earns the sold-capable status.
+    canConfirmSales: readable,
+    detail: readable
+      ? `Live test passed (${result.signal.listingState}). GetItem can read watched third-party listings; Best Offer prices remain unconfirmed.`
+      : reachedTrading
+        ? `Credentials reached eBay, but the live sample was not readable: ${result.signal.detail}`
+        : `The live test could not reach GetItem: ${result.signal.detail}`,
+  };
+}
+
+export async function probeOutcomeProviders(sample?: OutcomeProbeSample): Promise<ProviderCapability[]> {
   const capabilities: ProviderCapability[] = [];
 
   if (!hasEbayApplicationCredentials()) {
@@ -445,14 +489,30 @@ export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
     });
   }
 
-  capabilities.push({
-    provider: "eBay Trading (GetItem)",
-    available: hasEbayUserCredentials(),
-    canConfirmSales: hasEbayUserCredentials(),
-    detail: hasEbayUserCredentials()
-      ? "RAR account access is configured. GetItem can read watched third-party listings after they end; Best Offer prices remain unconfirmed."
-      : "The RAR eBay account has not authorised this app yet. Add EBAY_AUTH_N_AUTH_TOKEN or an OAuth refresh token after consent; the existing client-credentials token cannot read ended listings.",
-  });
+  if (!hasEbayUserCredentials()) {
+    capabilities.push({
+      provider: "eBay Trading (GetItem)",
+      available: false,
+      canConfirmSales: false,
+      detail: "The RAR eBay account has not authorised this app yet. Add EBAY_AUTH_N_AUTH_TOKEN or an OAuth refresh token after consent; the existing client-credentials token cannot read ended listings.",
+    });
+  } else if (!sample) {
+    capabilities.push({
+      provider: "eBay Trading (GetItem)",
+      available: true,
+      canConfirmSales: false,
+      detail: "Credentials are configured, but no watched listing was available for a live read test. Sale confirmation is not claimed until one succeeds.",
+    });
+  } else {
+    const cacheKey = `${sample.marketplace ?? "default"}:${sample.itemId}`;
+    if (cachedTradingCapability && cachedTradingCapability.key === cacheKey && cachedTradingCapability.expiresAt > Date.now()) {
+      capabilities.push(cachedTradingCapability.value);
+    } else {
+      const capability = tradingCapabilityFromResult(await tradingOutcomeProvider(sample.itemId, sample.marketplace));
+      cachedTradingCapability = { key: cacheKey, value: capability, expiresAt: Date.now() + 10 * 60_000 };
+      capabilities.push(capability);
+    }
+  }
 
   return capabilities;
 }
@@ -460,20 +520,24 @@ export async function probeOutcomeProviders(): Promise<ProviderCapability[]> {
 // The provider actually used for a check: the best one available, preferring
 // anything that can confirm a sale.
 export async function resolveListingOutcome(itemId: string, marketplace: string | null, listingTitle: string): Promise<OutcomeProviderResult> {
+  const attempts: ProviderAttempt[] = [];
   if (hasEbayUserCredentials()) {
     const trading = await tradingOutcomeProvider(itemId, marketplace);
-    if (["active", "completed_sold", "completed_unsold"].includes(trading.signal.listingState)) return trading;
+    attempts.push(providerAttempt(trading));
+    if (["active", "completed_sold", "completed_unsold"].includes(trading.signal.listingState)) return withAttempts(trading, attempts);
   }
   const insights = await marketplaceInsightsOutcomeProvider(itemId, marketplace, listingTitle);
-  if (insights.signal.listingState === "completed_sold") return insights;
+  attempts.push(providerAttempt(insights));
+  if (insights.signal.listingState === "completed_sold") return withAttempts(insights, attempts);
 
   const browse = await browseOutcomeProvider(itemId, marketplace);
+  attempts.push(providerAttempt(browse));
   // Browse saying "still active" is a real answer and outranks Insights
   // finding nothing.
-  if (browse.signal.listingState === "active") return browse;
+  if (browse.signal.listingState === "active") return withAttempts(browse, attempts);
   // Insights authorised and silent on this id is more informative than Browse
   // simply not carrying ended listings, but neither proves anything, so the
   // more explicit detail wins for the audit trail.
-  if (insights.httpStatus === 200) return insights;
-  return browse;
+  if (insights.httpStatus === 200) return withAttempts(insights, attempts);
+  return withAttempts(browse, attempts);
 }

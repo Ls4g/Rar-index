@@ -60,6 +60,15 @@ const correctCandidate = {
 assert.equal(candidateMatchesDiscoveryTarget(correctCandidate, target), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 8" }, target), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: "Japanese" }, target), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: null }, target), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_publisher: null }, target), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece Adventures, Vol. 2" }, target), false);
+
+const akiraTarget = { ...target, title: "Akira Vol. 1", series: "Akira", volumeNumber: "1", publisher: null };
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Akira, Vol. 1", candidate_volume_number: "1" }, akiraTarget), true);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Akira Failing in Love, Vol. 1", candidate_volume_number: "1" }, akiraTarget), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Vagabond Books, Vol. 1", candidate_volume_number: "1" }, { ...akiraTarget, title: "Vagabond Vol. 1", series: "Vagabond" }), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 2: Buggy the Clown", candidate_volume_number: "2" }, target), true);
 
 const isbnTarget = { ...target, isbn13: "9781591160571", volumeNumber: null };
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Unexpected catalogue title" }, isbnTarget), true);

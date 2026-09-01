@@ -119,18 +119,35 @@ function titleStem(value: string | null | undefined) {
     .replace(/\d{1,3}\s*巻/g, " "));
 }
 
+function catalogueSeriesStem(value: string | null | undefined) {
+  const title = value ?? "";
+  // Bibliographic titles commonly look like "Naruto, Vol. 2: The Worst
+  // Client". Compare the part before the explicit volume marker so a real
+  // subtitle does not become a false rejection, while unrelated titles such
+  // as "Akira Failing in Love" still cannot pass by substring.
+  const volumeMarker = title.search(/vol(?:ume)?\.?\s*\d{1,3}/i);
+  return titleStem(volumeMarker > 0 ? title.slice(0, volumeMarker) : title);
+}
+
 function languageMatches(candidate: string | null, target: string | null) {
-  if (!candidate || !target) return true;
+  if (!target) return true;
+  // A missing language is not evidence for the requested language. Open
+  // Library often omits it, and the old fallback silently relabelled foreign
+  // records as English before staff saw them.
+  if (!candidate) return false;
   return normalise(candidate) === normalise(target);
 }
 
 function publisherMatches(candidate: string | null, target: string | null) {
-  if (!candidate || !target) return true;
+  if (!target) return true;
+  if (!candidate) return false;
   const aliases: Record<string, string> = {
     shueisha: "shueisha",
     集英社: "shueisha",
     vizmedia: "vizmedia",
     vizmediallc: "vizmedia",
+    shonenjump: "vizmedia",
+    shonenjumpadvanced: "vizmedia",
   };
   const canonical = (value: string) => aliases[normalise(value)] ?? normalise(value);
   const left = canonical(candidate);
@@ -156,8 +173,12 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
   if (!publisherMatches(candidate.candidate_publisher, target.publisher)) return false;
 
-  const candidateStem = titleStem(candidate.candidate_title);
-  if (!targetTitleNeedles(target).some((needle) => candidateStem.includes(needle) || needle.includes(candidateStem))) return false;
+  const candidateStem = catalogueSeriesStem(candidate.candidate_title);
+  // A series name merely appearing inside another title is not a match:
+  // "Akira Failing in Love" is not Akira and "Vagabond Books" is not
+  // Vagabond. Volume wording is already removed by titleStem, so exact title
+  // identity is the conservative and repeatable boundary here.
+  if (!targetTitleNeedles(target).some((needle) => candidateStem === needle)) return false;
 
   const targetVolume = integerVolume(target.volumeNumber);
   if (targetVolume === null) return true;
@@ -390,7 +411,9 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
           source_id: sourceId,
           candidate_series: target.series,
           candidate_volume_number: detectedVolume === null ? null : String(detectedVolume),
-          candidate_language: candidate.candidate_language ?? target.language,
+          // Never manufacture a language from the search target. Eligibility
+          // above now requires the bibliographic record itself to state it.
+          candidate_language: candidate.candidate_language,
           raw_payload: {
             ...candidate.raw_payload,
             agent_discovery: {

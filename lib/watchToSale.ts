@@ -184,6 +184,10 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
     const classification = classifyListingOutcome(providerResult.signal);
     const exhausted = !classification.resolved && attempt >= MAX_OUTCOME_ATTEMPTS;
     const final = exhausted ? exhaustedOutcome(providerResult.signal.provider, attempt) : classification;
+    const providerTrail = providerResult.attempts ?? [];
+    const auditDetail = providerTrail.length > 1
+      ? `${final.reason} Provider path: ${providerTrail.map((item) => `${item.provider}=${item.listingState}${item.detail ? ` (${item.detail})` : ""}`).join(" -> ")}`
+      : final.reason;
 
     await admin.from("listing_outcome_checks").insert({
       outcome_id: row.id,
@@ -192,8 +196,10 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
       http_status: providerResult.httpStatus,
       listing_state: providerResult.signal.listingState,
       resulting_status: final.status,
-      detail: final.reason,
-      raw_response: (providerResult.rawResponse ?? null) as Record<string, unknown> | null,
+      detail: auditDetail,
+      raw_response: (providerTrail.length
+        ? { final_response: providerResult.rawResponse ?? null, provider_attempts: providerTrail }
+        : providerResult.rawResponse ?? null) as Record<string, unknown> | null,
     });
 
     // Never overwrite a human. If someone reviewed this row while the check

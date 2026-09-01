@@ -114,11 +114,11 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
   try {
     const { data: editionData } = await admin
       .from("manga_editions")
-      .select("series,volume_number,language,collectible_type,title")
+      .select("series,volume_number,language,publisher,collectible_type,title")
       .eq("is_verified", true)
       .limit(5000);
 
-    const held = new Map<string, { series: string; language: "English" | "Japanese"; volumes: number[] }>();
+    const held = new Map<string, { series: string; language: "English" | "Japanese"; publisher: string | null; volumes: number[] }>();
     for (const edition of (editionData ?? []) as Array<Record<string, unknown>>) {
       if ((edition.collectible_type ?? "tankobon") !== "tankobon") continue;
       const series = (edition.series as string | null) ?? null;
@@ -127,7 +127,9 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
       const volume = Number.parseInt(String(edition.volume_number ?? ""), 10);
       if (!Number.isInteger(volume) || volume <= 0) continue;
       const key = `${normaliseSeriesKey(series)}:${language}`;
-      const entry = held.get(key) ?? { series, language, volumes: [] };
+      const publisher = typeof edition.publisher === "string" ? edition.publisher : null;
+      const entry = held.get(key) ?? { series, language, publisher, volumes: [] };
+      if (!entry.publisher && publisher) entry.publisher = publisher;
       entry.volumes.push(volume);
       held.set(key, entry);
     }
@@ -170,6 +172,7 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
         source_url: null,
         source_metadata: {
           held_volumes: entry.volumes.sort((left, right) => left - right),
+          expected_publisher: entry.publisher,
           note: entry.language === "Japanese"
             ? "Japanese volumes are only staged from an exact Shueisha record. Held for research rather than searched broadly."
             : "Next volume to look for. Existence is not inferred from the previous volume -- the search must find an exact record.",
@@ -191,6 +194,9 @@ export function backlogTargetToDiscoveryTarget(target: BacklogTarget): Catalogue
   const title = target.title_english || target.title_romaji || target.title_native;
   if (!title) return null;
   const volume = target.next_missing_volume ?? 1;
+  const expectedPublisher = typeof target.source_metadata?.expected_publisher === "string"
+    ? target.source_metadata.expected_publisher
+    : null;
   return {
     key: `backlog:${target.id}`,
     source: "open_library",
@@ -199,7 +205,7 @@ export function backlogTargetToDiscoveryTarget(target: BacklogTarget): Catalogue
     series: title,
     volumeNumber: String(volume),
     language: "English",
-    publisher: null,
+    publisher: expectedPublisher,
     isbn13: null,
     requestId: null,
     reason: `lane_${target.lane}`,
@@ -209,7 +215,7 @@ export function backlogTargetToDiscoveryTarget(target: BacklogTarget): Catalogue
 export async function readDueBacklog(admin: SupabaseClient, limit = 400): Promise<BacklogTarget[]> {
   const { data } = await admin
     .from("catalogue_discovery_targets")
-    .select("id,discovery_source,external_id,title_english,title_romaji,title_native,series_key,lane,language,score,series_status,reported_volume_count,next_missing_volume,status,source_url,last_checked_at,next_check_at,failure_count,last_result")
+    .select("id,discovery_source,external_id,title_english,title_romaji,title_native,series_key,lane,language,score,series_status,reported_volume_count,next_missing_volume,status,source_url,source_metadata,last_checked_at,next_check_at,failure_count,last_result")
     .in("status", ["researchable", "watching"])
     .order("score", { ascending: false, nullsFirst: false })
     .limit(limit);

@@ -30,6 +30,7 @@ export type BacklogTarget = {
   next_missing_volume: number | null;
   status: TargetStatus;
   source_url: string | null;
+  source_metadata?: Record<string, unknown> | null;
   last_checked_at: string | null;
   next_check_at: string | null;
   failure_count: number;

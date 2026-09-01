@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { looksGraded } from "./editionMatch.ts";
 import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
 import { surplusScoutLeadIds, type ScoutTriageCoverageLead } from "./scoutCoverage.ts";
+import { SCOUT_REVIEW_NOW_MIN_SCORE } from "./scoutTriagePolicy.ts";
 
 export const SCOUT_STALE_AFTER_DAYS = 8;
 export const SCOUT_STALE_AFTER_MS = SCOUT_STALE_AFTER_DAYS * 86_400_000;
@@ -111,7 +112,7 @@ export function diagnoseScoutBacklog(leads: ScoutDiagnosticLead[], now = Date.no
     && !lead.isExpired
     && !lead.isStale
     && !lead.isGraded
-    && lead.score >= 50
+    && lead.score >= SCOUT_REVIEW_NOW_MIN_SCORE
     && !surplusLeadIds.has(lead.id)).length;
 
   const duplicated = [...externalIds.values()].filter((count) => count > 1);

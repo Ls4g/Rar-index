@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { interpretEbayAvailabilityResponse } from "../lib/ebayScout.ts";
 import { diagnoseScoutBacklog, isScoutLeadStale } from "../lib/scoutDiagnostics.ts";
+import { isScoutNeedsEvidenceScore, isScoutReviewNowScore } from "../lib/scoutTriagePolicy.ts";
 
 const now = Date.parse("2026-08-15T12:00:00.000Z");
 const edition = {
@@ -22,6 +23,10 @@ const edition = {
 
 assert.equal(isScoutLeadStale("2026-08-08T11:59:59.000Z", now), false, "eight-day boundary must not hide a current lead early");
 assert.equal(isScoutLeadStale("2026-08-07T11:59:59.000Z", now), true, "records older than eight days are stale");
+assert.equal(isScoutReviewNowScore(64), false, "a 64-point lead stays outside the default human queue");
+assert.equal(isScoutReviewNowScore(65), true, "a 65-point lead enters the default human queue");
+assert.equal(isScoutNeedsEvidenceScore(50), true, "50-point leads remain available for evidence gathering");
+assert.equal(isScoutNeedsEvidenceScore(65), false, "review-now leads are not duplicated in the evidence queue");
 
 const diagnostics = diagnoseScoutBacklog([
   { id: "1", externalId: "same", profileId: "good", listingTitle: "One Piece manga Vol 1 Japanese Shueisha first print", itemEndAt: null, lastSeenAt: "2026-08-15T10:00:00.000Z", edition },
@@ -56,4 +61,4 @@ assert.equal(interpretEbayAvailabilityResponse(404, { errors: [{ message: "Item 
 assert.equal(interpretEbayAvailabilityResponse(429, { errors: [{ message: "Rate limit" }] }, now).outcome, "inconclusive");
 assert.equal(interpretEbayAvailabilityResponse(500, null, now).outcome, "inconclusive");
 
-console.log("Scout phase 3 diagnostics and availability checks: 13 assertions passed.");
+console.log("Scout phase 3 diagnostics and availability checks: 17 assertions passed.");

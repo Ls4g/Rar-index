@@ -8,7 +8,7 @@ import { probeOutcomeProviders } from "@/lib/listingOutcomeProviders";
 export const dynamic = "force-dynamic";
 
 type OutcomeRecord = {
-  id: string; external_id: string; status: string; edition_id: string; profile_id: string | null;
+  id: string; external_id: string; marketplace: string; status: string; edition_id: string; profile_id: string | null;
   listing_title: string; image_url: string | null; source_listing_url: string;
   asking_price: number | null; currency: string | null;
   sold_price: number | null; sold_currency: string | null; sold_at: string | null;
@@ -24,7 +24,7 @@ type OutcomeRecord = {
 export default async function ListingOutcomesPage() {
   const admin = getSupabaseAdmin();
 
-  const outcomeSelect = "id,external_id,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
+  const outcomeSelect = "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
   // Fetch actionable outcomes separately so hundreds of active listings cannot
   // push a sold candidate or unresolved Best Offer beyond the page limit.
@@ -109,9 +109,14 @@ export default async function ListingOutcomesPage() {
     checks: checksByOutcome.get(record.id) ?? [],
   }));
 
+  // Prefer a listing eBay still reports as active: a successful GetItem read
+  // proves much more than merely finding a token in the environment.
+  const capabilitySample = records.find((record) => record.status === "active") ?? records[0] ?? null;
+
   const [counts, capabilities] = await Promise.all([
     readWatchToSaleMetrics(admin),
-    probeOutcomeProviders().catch((): OutcomeCapability[] => [{ provider: "eBay", available: false, canConfirmSales: false, detail: "The capability probe could not reach eBay." }]),
+    probeOutcomeProviders(capabilitySample ? { itemId: capabilitySample.external_id, marketplace: capabilitySample.marketplace } : undefined)
+      .catch((): OutcomeCapability[] => [{ provider: "eBay", available: false, canConfirmSales: false, detail: "The capability probe could not reach eBay." }]),
   ]);
 
   return (
