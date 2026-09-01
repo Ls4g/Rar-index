@@ -42,6 +42,7 @@ export type CatalogueBulkRecord = {
     issueYear: string | null;
     issueNumberLabel: string | null;
   };
+  approvalProblem: string | null;
 };
 
 type BulkDecision = "approve_new" | "rejected" | "duplicate" | "needs_review";
@@ -50,7 +51,7 @@ type BulkDecision = "approve_new" | "rejected" | "duplicate" | "needs_review";
 // never create an edition -- the database refuses it too. Excluding it from
 // the approve selection keeps that a design rule rather than a failed row.
 function canApprove(record: CatalogueBulkRecord) {
-  if (record.kind !== "edition_candidate" || !record.title || !record.language) return false;
+  if (record.kind !== "edition_candidate" || !record.title || !record.language || record.approvalProblem) return false;
   const hasMagazineIdentity = Boolean(record.reviewMetadata.magazineTitleId || record.reviewMetadata.issueYear || record.reviewMetadata.issueNumberLabel);
   if (record.reviewMetadata.collectibleType !== "zasshi") return !hasMagazineIdentity;
   return Boolean(record.reviewMetadata.magazineTitleId && record.reviewMetadata.issueYear && record.reviewMetadata.issueNumberLabel);
@@ -195,7 +196,8 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
               ) : null}
               <span className="catalogue-bulk-source">
                 {record.kind === "series_reference" ? <em>Series reference — cannot create an edition</em> : null}
-                {record.kind === "edition_candidate" && !isApprovable ? <em>{record.reviewMetadata.collectibleType === "zasshi" ? "Magazine identity is incomplete" : "Missing a title or language"}</em> : null}
+                {record.approvalProblem ? <em>{record.approvalProblem}</em> : null}
+                {record.kind === "edition_candidate" && !isApprovable && !record.approvalProblem ? <em>{record.reviewMetadata.collectibleType === "zasshi" ? "Magazine identity is incomplete" : "Missing a title or language"}</em> : null}
                 {record.marketplaceUrl ? <a className="is-visual" href={record.marketplaceUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (JP title) ↗</a> : null}
                 {record.marketplaceAltUrl ? <a className="is-visual" href={record.marketplaceAltUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (EN title) ↗</a> : null}
                 {record.readableUrl ? <a className="is-raw" href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrlLabel ?? "Library record"} ↗</a> : null}

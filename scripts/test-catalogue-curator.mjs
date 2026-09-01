@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { candidateMatchesDiscoveryTarget, planCatalogueDiscoveryTargets, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
+import { candidateMatchesDiscoveryTarget, cataloguePublisherMatches, planCatalogueDiscoveryTargets, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
+import { catalogueApprovalProblem } from "../lib/catalogueApprovalGuard.ts";
 
 assert.equal(volumeFromCatalogueTitle("ONE PIECE 2"), 2);
 assert.equal(volumeFromCatalogueTitle("呪術廻戦 3巻"), 3);
@@ -69,9 +70,19 @@ assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_ti
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Akira Failing in Love, Vol. 1", candidate_volume_number: "1" }, akiraTarget), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Vagabond Books, Vol. 1", candidate_volume_number: "1" }, { ...akiraTarget, title: "Vagabond Vol. 1", series: "Vagabond" }), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 2: Buggy the Clown", candidate_volume_number: "2" }, target), true);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece Academy, Vol. 2" }, target), false);
+assert.equal(cataloguePublisherMatches("SHONEN JUMP ADVANCED", "VIZ Media"), true);
 
 const isbnTarget = { ...target, isbn13: "9781591160571", volumeNumber: null };
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Unexpected catalogue title" }, isbnTarget), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_isbn_13: "9780000000002" }, isbnTarget), false);
+
+const guardedRow = {
+  ...correctCandidate,
+  raw_payload: { agent_discovery: { target_key: "gap:one-piece:english:2", series: "One Piece", title: "One Piece 2", volume_number: "2", language: "English", publisher: "VIZ Media", query: "One Piece 2" } },
+};
+assert.equal(catalogueApprovalProblem(guardedRow, [{ series: "One Piece", language: "English", publisher: "VIZ Media" }]), null);
+assert.match(catalogueApprovalProblem({ ...guardedRow, candidate_publisher: "Norma Editorial" }, [{ series: "One Piece", language: "English", publisher: "VIZ Media" }]), /Publisher conflict|no longer matches/);
+assert.equal(catalogueApprovalProblem({ ...guardedRow, raw_payload: {} }, []), null);
 
 console.log("Catalogue Curator discovery tests passed.");

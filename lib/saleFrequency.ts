@@ -43,7 +43,10 @@ function frequencyLabel(perMonth: number) {
   if (perMonth >= 0.75) return "roughly one a month";
 
   const monthsPerSale = 1 / perMonth;
-  if (monthsPerSale <= 11) return `roughly one every ${Math.round(monthsPerSale)} months`;
+  if (monthsPerSale <= 11) {
+    const months = Math.max(1, Math.round(monthsPerSale));
+    return months === 1 ? "roughly one every month" : `roughly one every ${months} months`;
+  }
 
   const yearsPerSale = monthsPerSale / 12;
   if (yearsPerSale < 1.5) return "roughly one a year";

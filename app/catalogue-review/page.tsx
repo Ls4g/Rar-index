@@ -4,12 +4,14 @@ import CataloguePhotoButton from "@/components/CataloguePhotoButton";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
 import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
 import StaffNav from "@/components/StaffNav";
+import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 type CatalogueRecord = {
   id: string;
+  external_id: string;
   candidate_kind: "edition_candidate" | "series_reference";
   candidate_title: string;
   candidate_series: string | null;
@@ -19,6 +21,8 @@ type CatalogueRecord = {
   candidate_language: string | null;
   candidate_isbn_13: string | null;
   candidate_release_date: string | null;
+  candidate_format: string | null;
+  candidate_cover_image_url: string | null;
   source_name: string | null;
   source_record_url: string;
   raw_payload: {
@@ -110,12 +114,17 @@ function formatDate(value: string) {
 
 export default async function CatalogueReviewPage() {
   const admin = getSupabaseAdmin();
-  const { data } = await admin
-    .from("catalogue_review_queue")
-    .select("id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, source_name, source_record_url, raw_payload, imported_at")
-    .order("imported_at", { ascending: false })
-    .limit(50);
+  const [{ data }, { data: knownEditionData }] = await Promise.all([
+    admin
+      .from("catalogue_review_queue")
+      .select("id, external_id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, candidate_format, candidate_cover_image_url, source_name, source_record_url, raw_payload, imported_at")
+      .order("imported_at", { ascending: false })
+      .limit(50),
+    admin.from("manga_editions").select("series,language,publisher").eq("is_verified", true).limit(5000),
+  ]);
   const records = (data ?? []) as CatalogueRecord[];
+  const knownEditions = (knownEditionData ?? []) as KnownCatalogueEdition[];
+  const approvalProblems = new Map(records.map((record) => [record.id, catalogueApprovalProblem(record as unknown as CatalogueApprovalQueueRow, knownEditions)]));
   const bulkRecords: CatalogueBulkRecord[] = records.map((record) => ({
     id: record.id,
     kind: record.candidate_kind,
@@ -140,6 +149,7 @@ export default async function CatalogueReviewPage() {
       issueYear: record.raw_payload?.review_metadata?.issue_year ?? null,
       issueNumberLabel: record.raw_payload?.review_metadata?.issue_number_label ?? null,
     },
+    approvalProblem: approvalProblems.get(record.id) ?? null,
   }));
 
   return (
@@ -179,11 +189,13 @@ export default async function CatalogueReviewPage() {
               isEditionCandidate={record.candidate_kind === "edition_candidate"}
               candidate={{ title: record.candidate_title, language: record.candidate_language, isbn13: record.candidate_isbn_13, publisher: record.candidate_publisher, releaseDate: record.candidate_release_date }}
             />
+            {approvalProblems.get(record.id) ? <p className="catalogue-approval-conflict" role="alert"><strong>Curator conflict:</strong> {approvalProblems.get(record.id)}</p> : null}
             {record.candidate_kind === "series_reference" ? <div className="review-note"><span>Physical-edition safeguard</span><p>A MangaDex series reference can support research, but it cannot create a physical RAR edition. Link it to an exact existing edition or keep it in review.</p></div> : null}
             <CatalogueDecisionForm
               catalogueImportId={record.id}
               isEditionCandidate={record.candidate_kind === "edition_candidate"}
               candidateTitle={record.candidate_title}
+              approvalProblem={approvalProblems.get(record.id) ?? null}
               candidate={{
                 title: record.candidate_title,
                 series: record.candidate_series,

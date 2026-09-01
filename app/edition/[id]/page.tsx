@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
@@ -89,6 +89,7 @@ type LiveListingProfile = {
 
 type LiveListing = {
   id: string;
+  external_id: string | null;
   profile_id: string;
   review_status: "new" | "watching" | "dismissed";
   source_listing_url: string;
@@ -371,7 +372,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const { data: liveLeadData } = liveProfileIds.length
     ? await admin
       .from("scout_listing_leads")
-      .select("id,profile_id,review_status,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
+      .select("id,external_id,profile_id,review_status,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at,raw_payload")
       .in("profile_id", liveProfileIds)
       .in("review_status", ["new", "watching"])
       .gte("last_seen_at", liveListingFreshnessCutoff)
@@ -379,12 +380,12 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .order("item_end_at", { ascending: true, nullsFirst: false })
       .limit(50)
     : { data: [] };
-  const liveListings = ((liveLeadData ?? []) as LiveListing[])
+  const liveListings = dedupeLiveListings(((liveLeadData ?? []) as LiveListing[])
     // A staff member marking a listing as Watching is an explicit human
     // confirmation that it belongs on this exact publication's live feed.
     // New leads still need the conservative automatic plausibility check.
-    .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition))
-    .slice(0, 6);
+    .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition)))
+    .slice(0, 5);
   const latestScoutCheck = liveProfiles
     .map((profile) => profile.last_checked_at)
     .filter((value): value is string => Boolean(value))

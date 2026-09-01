@@ -1,7 +1,8 @@
 // Regression checks for bugs found during the August staff workflow audit.
 // Run with: node --experimental-strip-types scripts/test-workflow-regressions.mjs
 import { assessEditionMatch, splitIssueNumbers } from "../lib/editionMatch.ts";
-import { listingIsMultiVolumeLot } from "../lib/liveListings.ts";
+import { dedupeLiveListings, listingIsMultiVolumeLot } from "../lib/liveListings.ts";
+import { describeSaleFrequency } from "../lib/saleFrequency.ts";
 import { queuedReviewMetadata, catalogueMetadataProblem } from "../lib/catalogueReviewMetadata.ts";
 import { scoutListingGroupKey } from "../lib/scoutGrouping.ts";
 
@@ -33,6 +34,13 @@ const actualFirst = assessEditionMatch(firstPrint, listing("Kagurabachi Vol. 1 M
 check("matching first-print wording does not conflict", actualFirst.confidence !== "conflict" && actualFirst.reasons.includes("printing 1 matches"), JSON.stringify(actualFirst));
 
 check("hash-prefixed volume ranges are lots", listingIsMultiVolumeLot("Initial D #1-3 English Manga", 1));
+const deduped = dedupeLiveListings([
+  { external_id: "123", source_listing_url: "https://www.ebay.com/itm/123?foo=1" },
+  { external_id: "123", source_listing_url: "https://www.ebay.co.uk/itm/123?bar=2" },
+  { external_id: "456", source_listing_url: "https://www.ebay.com/itm/456" },
+]);
+check("live listings found through multiple profiles display once", deduped.length === 2);
+check("monthly sale-frequency grammar is singular", !describeSaleFrequency(["2026-01-01", "2026-02-01", "2026-03-01"])?.label.includes("1 months"));
 
 const dragonBall = { ...firstPrint, title: "Dragon Ball, Vol. 1", series: "Dragon Ball", printing_number: null };
 for (const variant of ["Dragon Ball Z Vol. 1 Manga", "Dragon Ball Super Vol. 1 Manga"]) {

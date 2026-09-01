@@ -9,6 +9,29 @@ export function normaliseListingText(value: string | null | undefined) {
   return (value ?? "").toLocaleLowerCase().replace(CROSS_CHARACTERS, "x").replace(/[^a-z0-9]/g, "");
 }
 
+function listingIdentity(value: { external_id?: string | null; source_listing_url?: string | null }) {
+  if (value.external_id?.trim()) return `external:${value.external_id.trim()}`;
+  if (!value.source_listing_url) return null;
+  try {
+    const url = new URL(value.source_listing_url);
+    const itemId = url.pathname.match(/\/itm\/(?:[^/]+\/)?(\d+)/)?.[1];
+    return itemId ? `ebay:${itemId}` : `url:${url.origin}${url.pathname}`;
+  } catch {
+    return `url:${value.source_listing_url.split("?")[0]}`;
+  }
+}
+
+/** One marketplace listing may be found by several profiles in a print family. */
+export function dedupeLiveListings<T extends { external_id?: string | null; source_listing_url?: string | null }>(listings: T[]) {
+  const seen = new Set<string>();
+  return listings.filter((listing, index) => {
+    const key = listingIdentity(listing) ?? `row:${index}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // A record with no separate series and a volume baked into its title
 // ("ONE PIECE 1") would otherwise demand listings contain "onepiece1".
 // Drop the trailing volume token, but only when it is this edition's own

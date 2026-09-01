@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { catalogueMetadataProblem, queuedReviewMetadata } from "@/lib/catalogueReviewMetadata";
+import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
 type ApprovedMetadata = {
@@ -44,6 +45,16 @@ function isStaffRequest(request: Request) {
 }
 
 const MAX_BULK_RECORDS = 40;
+const APPROVAL_QUEUE_FIELDS = "id,external_id,source_record_url,raw_payload,candidate_kind,candidate_title,candidate_series,candidate_volume_number,candidate_author,candidate_publisher,candidate_language,candidate_isbn_13,candidate_release_date,candidate_format,candidate_cover_image_url";
+
+async function loadKnownEditions(admin: ReturnType<typeof getSupabaseAdmin>) {
+  const { data, error } = await admin
+    .from("manga_editions")
+    .select("series,language,publisher")
+    .eq("is_verified", true)
+    .limit(5000);
+  return { editions: (data ?? []) as KnownCatalogueEdition[], error };
+}
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (item: T) => Promise<R>) {
   const results = new Array<R>(items.length);
@@ -97,17 +108,23 @@ export async function POST(request: Request) {
       return Response.json({ error: `Decide at most ${MAX_BULK_RECORDS} records at a time.` }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
-    const { data: queuedRows, error: queueError } = await admin
+    const [{ data: queuedRows, error: queueError }, knownResult] = await Promise.all([
+      admin
       .from("catalogue_import_queue")
-      .select("id,raw_payload")
-      .in("id", catalogueImportIds);
-    if (queueError) return Response.json({ error: "RAR could not load the selected catalogue candidates." }, { status: 500 });
-    const queuedById = new Map((queuedRows ?? []).map((row) => [row.id as string, row.raw_payload]));
+      .select(APPROVAL_QUEUE_FIELDS)
+      .in("id", catalogueImportIds),
+      loadKnownEditions(admin),
+    ]);
+    if (queueError || knownResult.error) return Response.json({ error: "RAR could not load the selected catalogue candidates." }, { status: 500 });
+    const queuedById = new Map(((queuedRows ?? []) as Array<CatalogueApprovalQueueRow & { id: string }>).map((row) => [row.id, row]));
     const outcomes = await mapWithConcurrency(catalogueImportIds, 4, async (id) => {
-      if (!queuedById.has(id)) return { id, error: "This catalogue candidate no longer exists." };
-      const sourceMetadata = queuedReviewMetadata(queuedById.get(id));
+      const queuedRow = queuedById.get(id);
+      if (!queuedRow) return { id, error: "This catalogue candidate no longer exists." };
+      const sourceMetadata = queuedReviewMetadata(queuedRow.raw_payload);
       const metadataProblem = decision === "approve_new" ? catalogueMetadataProblem(sourceMetadata) : null;
       if (metadataProblem) return { id, error: metadataProblem };
+      const approvalProblem = decision === "approve_new" ? catalogueApprovalProblem(queuedRow, knownResult.editions) : null;
+      if (approvalProblem) return { id, error: approvalProblem };
       const { error } = await admin.rpc("apply_catalogue_review", {
         p_catalogue_import_id: id,
         p_decision: decision,
@@ -137,15 +154,20 @@ export async function POST(request: Request) {
   }
 
   const admin = getSupabaseAdmin();
-  const { data: queuedRow, error: queueError } = await admin
-    .from("catalogue_import_queue")
-    .select("raw_payload")
-    .eq("id", catalogueImportId)
-    .maybeSingle();
-  if (queueError || !queuedRow) return Response.json({ error: "This catalogue candidate no longer exists." }, { status: 404 });
+  const [{ data: queuedRow, error: queueError }, knownResult] = await Promise.all([
+    admin
+      .from("catalogue_import_queue")
+      .select(APPROVAL_QUEUE_FIELDS)
+      .eq("id", catalogueImportId)
+      .maybeSingle(),
+    loadKnownEditions(admin),
+  ]);
+  if (queueError || knownResult.error || !queuedRow) return Response.json({ error: "This catalogue candidate no longer exists." }, { status: 404 });
   const sourceMetadata = queuedReviewMetadata(queuedRow.raw_payload);
   const metadataProblem = decision === "approve_new" ? catalogueMetadataProblem(sourceMetadata) : null;
   if (metadataProblem) return Response.json({ error: metadataProblem }, { status: 400 });
+  const approvalProblem = decision === "approve_new" ? catalogueApprovalProblem(queuedRow as CatalogueApprovalQueueRow, knownResult.editions) : null;
+  if (approvalProblem) return Response.json({ error: approvalProblem }, { status: 400 });
   const { error } = await admin.rpc("apply_catalogue_review", {
     p_catalogue_import_id: catalogueImportId,
     p_decision: decision,

@@ -138,7 +138,7 @@ function languageMatches(candidate: string | null, target: string | null) {
   return normalise(candidate) === normalise(target);
 }
 
-function publisherMatches(candidate: string | null, target: string | null) {
+export function cataloguePublisherMatches(candidate: string | null, target: string | null) {
   if (!target) return true;
   if (!candidate) return false;
   const aliases: Record<string, string> = {
@@ -171,7 +171,7 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   const candidateIsbn = cleanIsbn(candidate.candidate_isbn_13);
   if (targetIsbn && candidateIsbn) return targetIsbn === candidateIsbn;
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
-  if (!publisherMatches(candidate.candidate_publisher, target.publisher)) return false;
+  if (!cataloguePublisherMatches(candidate.candidate_publisher, target.publisher)) return false;
 
   const candidateStem = catalogueSeriesStem(candidate.candidate_title);
   // A series name merely appearing inside another title is not a match:
@@ -179,6 +179,7 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   // Vagabond. Volume wording is already removed by titleStem, so exact title
   // identity is the conservative and repeatable boundary here.
   if (!targetTitleNeedles(target).some((needle) => candidateStem === needle)) return false;
+  if (target.language === "English" && /\bin japanese\b/i.test(candidate.candidate_title)) return false;
 
   const targetVolume = integerVolume(target.volumeNumber);
   if (targetVolume === null) return true;
@@ -335,7 +336,15 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   const backlogChosen = chosen.slice(0, remaining);
   const backlogTargets = backlogChosen
     .map((target) => backlogTargetToDiscoveryTarget(target))
-    .filter((target): target is CatalogueDiscoveryTarget => target !== null);
+    .filter((target): target is CatalogueDiscoveryTarget => target !== null)
+    .map((target) => {
+      const knownPublisher = editions.find((edition) => (
+        normalise(edition.series) === normalise(target.series)
+        && normalise(edition.language) === normalise(target.language)
+        && Boolean(edition.publisher)
+      ))?.publisher ?? null;
+      return { ...target, publisher: target.publisher ?? knownPublisher };
+    });
   // Which backlog row produced which target, so the outcome can be written
   // back against it after the search.
   const backlogByKey = new Map(backlogChosen.map((target) => [`backlog:${target.id}`, target]));
@@ -422,8 +431,12 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
               reason: target.reason,
               request_id: target.requestId,
               series: target.series,
+              title: target.title,
               volume_number: target.volumeNumber,
               language: target.language,
+              publisher: target.publisher,
+              isbn_13: target.isbn13,
+              source: target.source,
               query: target.query,
               matched_at: new Date().toISOString(),
             },

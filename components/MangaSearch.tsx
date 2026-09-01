@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import EditionCover from "@/components/EditionCover";
+import { browseSeriesKey, compareBrowseEditions } from "@/lib/browseOrder";
 
 export type Manga = {
   id: string | number;
@@ -20,9 +21,9 @@ export type Manga = {
   printing_number: number | null;
   variant_name: string | null;
   collectible_type: string | null;
-  issue_year?: number | null;
-  issue_number_label?: string | null;
-  cumulative_issue_no?: number | null;
+  issue_year: number | null;
+  issue_number_label: string | null;
+  cumulative_issue_no: number | null;
   madb_id?: string | null;
   cover_image_url: string | null;
   cover_verification_status: string | null;
@@ -78,7 +79,11 @@ export default function MangaSearch() {
       return;
     }
 
-    setResults((data ?? []) as Manga[]);
+    const natural = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+    const ordered = [...((data ?? []) as Manga[])].sort((left, right) => (
+      natural.compare(browseSeriesKey(left), browseSeriesKey(right)) || compareBrowseEditions(left, right)
+    ));
+    setResults(ordered);
   }
 
   useEffect(() => {

@@ -31,7 +31,7 @@ const decisions: Array<{ value: CatalogueDecision; label: string; hint: string }
 
 type EditionSuggestion = { id: string; title: string | null; language: string | null; isbn_13: string | null; printing_number: number | null; is_verified?: boolean };
 
-export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle, candidate }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string; candidate: CandidateMetadata }) {
+export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle, candidate, approvalProblem }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string; candidate: CandidateMetadata; approvalProblem: string | null }) {
   const router = useRouter();
   const [decision, setDecision] = useState<CatalogueDecision>("needs_review");
   const [reviewer, setReviewer] = useState("");
@@ -67,7 +67,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
     return () => controller.abort();
   }, [decision, metadata.isbn13]);
 
-  const allowedDecisions = isEditionCandidate ? decisions : decisions.filter((item) => item.value !== "approve_new");
+  const allowedDecisions = isEditionCandidate && !approvalProblem ? decisions : decisions.filter((item) => item.value !== "approve_new");
   const currentIsbnMatches = isbnMatches.filter((edition) => edition.isbn_13 === metadata.isbn13);
 
   async function saveDecision(event: React.FormEvent<HTMLFormElement>) {
@@ -104,6 +104,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
   return (
     <form className="review-decision catalogue-decision" onSubmit={saveDecision}>
       <div className="review-decision-heading"><span>Catalogue decision</span><small>Approval records a durable evidence note.</small></div>
+      {approvalProblem ? <p className="catalogue-approval-conflict" role="alert"><strong>Publishing blocked:</strong> {approvalProblem}</p> : null}
       <div className="catalogue-options" role="radiogroup" aria-label="Catalogue decision">
         {allowedDecisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
           <input checked={decision === option.value} name={`catalogue-decision-${catalogueImportId}`} onChange={() => { setDecision(option.value); setPrintingOfEditionId(""); }} type="radio" value={option.value} />
