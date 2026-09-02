@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type OutcomeRow = {
@@ -40,12 +40,33 @@ export type OutcomeRow = {
 export type OutcomeCapability = { provider: string; available: boolean; canConfirmSales: boolean; detail: string };
 
 const DECISIONS: Array<{ key: string; label: string; tone?: string }> = [
-  { key: "confirm_sale", label: "Confirm sale and exact edition", tone: "primary" },
-  { key: "mark_unsold", label: "Mark unsold" },
+  { key: "confirm_sale", label: "Yes — verify this sale", tone: "primary" },
+  { key: "mark_unsold", label: "No — it did not sell" },
   { key: "wrong_edition", label: "Wrong edition" },
-  { key: "mark_ambiguous", label: "Ambiguous" },
-  { key: "dismiss", label: "Dismiss" },
+  { key: "mark_ambiguous", label: "Not enough evidence" },
+  { key: "dismiss", label: "Remove from queue" },
 ];
+
+type OutcomeView = "attention" | "watching" | "finished";
+
+function viewFor(row: OutcomeRow): OutcomeView {
+  if (row.reviewedBy || ["unsold", "review_complete"].includes(row.status)) return "finished";
+  if (row.status === "active") return "watching";
+  return "attention";
+}
+
+function plainStatus(row: OutcomeRow) {
+  switch (row.status) {
+    case "sold_candidate": return { label: "Possible sale", help: "eBay reported a completed sale. Check the source and confirm that it is the exact RAR edition." };
+    case "ended_pending_check": return { label: "Listing ended", help: "The listing ended, but RAR cannot yet prove whether it sold. Review the source before deciding." };
+    case "ambiguous": return { label: "Outcome unclear", help: "RAR found conflicting or incomplete evidence. A human decision is needed." };
+    case "inaccessible": return { label: "Could not be checked", help: "eBay no longer provides enough information for RAR to determine the outcome automatically." };
+    case "active": return { label: "Still live", help: "No decision is needed while this listing remains active." };
+    case "unsold": return { label: "Did not sell", help: "This listing has already been classified as unsold." };
+    case "review_complete": return { label: "Review complete", help: "A staff decision has already been recorded." };
+    default: return { label: row.status.replaceAll("_", " "), help: "Review the listing information below." };
+  }
+}
 
 function decisionsFor(row: OutcomeRow) {
   return DECISIONS.filter((decision) => {
@@ -78,9 +99,27 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
   const [testingEbay, setTestingEbay] = useState(false);
+  const [view, setView] = useState<OutcomeView>("attention");
+  const [visibleLimit, setVisibleLimit] = useState(25);
   const [bestOfferInputs, setBestOfferInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
 
   const canConfirmSales = capabilities.some((capability) => capability.canConfirmSales);
+  const viewCounts = rows.reduce<Record<OutcomeView, number>>((totals, row) => {
+    totals[viewFor(row)] += 1;
+    return totals;
+  }, { attention: 0, watching: 0, finished: 0 });
+  const visibleRows = rows.filter((row) => viewFor(row) === view);
+  const displayedRows = visibleRows.slice(0, visibleLimit);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function updateReviewer(value: string) {
+    setReviewer(value);
+    window.localStorage.setItem("rar_staff_reviewer", value);
+  }
 
   async function runPipeline() {
     setRunning(true);
@@ -173,56 +212,59 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   return (
     <section className="listing-outcomes">
       <div className="section-intro">
-        <p className="eyebrow">Watch to sale</p>
-        <h2>Listing outcomes</h2>
+        <p className="eyebrow">Watched eBay listings</p>
+        <h2>Did these listings sell?</h2>
         <p className="section-copy">
-          Listings Scout saw live, revisited after they end. A listing that disappeared did not necessarily sell, and nothing here becomes evidence without the confirm action below.
+          RAR watches live listings and checks them again after they end. You only need to review the uncertain results shown below.
         </p>
       </div>
 
-      <div className="outcome-counts">
-        {[
-          ["Watching", counts.watch_listings_active],
-          ["Awaiting end", counts.watch_awaiting_end],
-          ["Checks due", counts.watch_checks_due],
-          ["Sold candidates", counts.watch_sold_candidates],
-          ["Confirmed sales", counts.watch_confirmed_sales],
-          ["Unsold", counts.watch_unsold],
-          ["Ambiguous", counts.watch_ambiguous],
-          ["Inaccessible", counts.watch_inaccessible],
-          ["API failures", counts.watch_api_failures],
-        ].map(([label, value]) => (
-          <div key={String(label)}><strong>{value ?? 0}</strong><span>{label}</span></div>
-        ))}
+      <div className="outcome-workspace-summary" aria-label="Listing outcome summary">
+        <div className="is-attention"><strong>{viewCounts.attention}</strong><span>Need your decision</span></div>
+        <div><strong>{counts.watch_listings_active ?? 0}</strong><span>Still being watched</span></div>
+        <div><strong>{counts.watch_confirmed_sales ?? 0}</strong><span>Sales confirmed</span></div>
       </div>
       {counts.watch_next_check_at ? <p className="outcome-next-check">Next outcome check due {when(String(counts.watch_next_check_at))}.</p> : null}
 
-      {/* A degraded integration is stated rather than left to be inferred from
-          an empty queue. Without a sold-capable provider this pipeline is
-          working correctly when it produces nothing. */}
-      <div className={`outcome-capabilities${canConfirmSales ? "" : " is-degraded"}`}>
-        <strong>{canConfirmSales ? "Sale confirmation available" : "Sale confirmation unavailable — pipeline is degraded"}</strong>
-        <ul>
-          {capabilities.map((capability) => (
-            <li key={capability.provider}>
-              <span className={capability.available ? "ok" : "off"}>{capability.available ? "✓" : "✕"}</span>
-              <b>{capability.provider}</b> {capability.detail}
-            </li>
-          ))}
-        </ul>
-        {canConfirmSales ? null : <p>Outcome checks still run and are recorded, but no listing can become a sold candidate until a provider that reports completed sales is authorised. Listings will resolve as ambiguous or inaccessible, which is the correct result rather than a failure.</p>}
-      </div>
-
-      <div className="outcome-actions">
-        <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
-        <button type="button" disabled={running} onClick={runPipeline}>{running ? "Running…" : "Run outcome checks"}</button>
-        <button type="button" className="secondary-action" disabled={testingEbay} onClick={testEbayUserAccess}>{testingEbay ? "Testing…" : "Test eBay account access"}</button>
+      <div className={`outcome-reviewer-panel${reviewer.trim() ? " is-ready" : ""}`}>
+        <div><strong>Before reviewing</strong><p>Enter your name or initials once. RAR adds it to every decision you make.</p></div>
+        <label htmlFor="outcome-reviewer">Your reviewer name or initials</label>
+        <input id="outcome-reviewer" onChange={(event) => updateReviewer(event.target.value)} placeholder="Example: SP" value={reviewer} />
+        <span>{reviewer.trim() ? `Ready — decisions will be recorded as ${reviewer.trim()}.` : "Required before decision buttons can be used."}</span>
       </div>
       {message ? <p className="outcome-message" role="status">{message}</p> : null}
 
-      {rows.length ? (
+      <div className="outcome-view-tabs" role="tablist" aria-label="Listing outcome views">
+        {([[
+          "attention", "Needs your decision", viewCounts.attention,
+        ], [
+          "watching", "Still watching", viewCounts.watching,
+        ], [
+          "finished", "Finished", viewCounts.finished,
+        ]] as Array<[OutcomeView, string, number]>).map(([key, label, count]) => (
+          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => { setView(key); setVisibleLimit(25); }} role="tab" type="button">
+            {label} <span>{count}</span>
+          </button>
+        ))}
+      </div>
+
+      <details className={`outcome-system-tools${canConfirmSales ? "" : " is-degraded"}`}>
+        <summary>{canConfirmSales ? "System status and manual checks" : "System limitation: automatic sale confirmation is unavailable"}</summary>
+        <div className="outcome-system-tools-body">
+          <p>{canConfirmSales ? "RAR can currently retrieve completed-sale evidence from an authorised provider." : "RAR can detect that a listing disappeared, but it cannot currently prove that it sold. This is why some results need a human decision."}</p>
+          <ul>{capabilities.map((capability) => <li key={capability.provider}><b>{capability.provider}:</b> {capability.detail}</li>)}</ul>
+          <div className="outcome-actions">
+            <button className="outcome-run-button" type="button" disabled={running} onClick={runPipeline}>{running ? "Checking listings…" : "Run outcome checks now"}</button>
+            <button type="button" className="secondary-action" disabled={testingEbay} onClick={testEbayUserAccess}>{testingEbay ? "Testing…" : "Test eBay connection"}</button>
+          </div>
+        </div>
+      </details>
+
+      {visibleRows.length ? (
         <div className="outcome-list">
-          {rows.map((row) => (
+          {displayedRows.map((row) => {
+            const status = plainStatus(row);
+            return (
             <article className={`outcome-card status-${row.status}`} key={row.id}>
               <div className="outcome-card-head">
                 {row.imageUrl ? (
@@ -230,13 +272,22 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                   <img alt="" className="outcome-thumb" loading="lazy" src={row.imageUrl} />
                 ) : null}
                 <div>
-                  <span className={`coverage-pill status-${row.status}`}>{row.status.replaceAll("_", " ")}</span>
+                  <span className={`coverage-pill status-${row.status}`}>{status.label}</span>
                   <h3>{row.listingTitle}</h3>
                   <p className="outcome-edition">
-                    {row.editionLabel} · <a href={`/edition/${row.editionId}`}>edition</a>
-                    {row.profileId ? <> · <a href={`/collection-profiles/${row.profileId}`}>search profile</a></> : null}
-                    {row.observationId ? <> · <a href={`/review?observation=${row.observationId}`}>resulting sale</a></> : null}
+                    {row.editionLabel}
                   </p>
+                </div>
+              </div>
+
+              <div className="outcome-human-prompt">
+                <strong>{row.status === "active" ? "What happens next" : row.reviewedBy ? "Decision recorded" : "What you need to decide"}</strong>
+                <p>{status.help}</p>
+                <div className="outcome-source-links">
+                  <a href={row.sourceListingUrl} rel="noreferrer" target="_blank">Open original eBay listing ↗</a>
+                  <a href={`/edition/${row.editionId}`}>Open RAR edition</a>
+                  {row.profileId ? <a href={`/collection-profiles/${row.profileId}`}>Open search profile</a> : null}
+                  {row.observationId ? <a href={`/review?observation=${row.observationId}`}>Open resulting sale</a> : null}
                 </div>
               </div>
 
@@ -244,16 +295,10 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                 <div><dt>Reported sale</dt><dd>{money(row.soldPrice, row.soldCurrency)}</dd></div>
                 <div><dt>Sold / ended</dt><dd>{when(row.soldAt ?? row.scheduledEndAt)}</dd></div>
                 <div><dt>Asking price when seen</dt><dd>{money(row.askingPrice, row.currency)}</dd></div>
-                <div><dt>Format</dt><dd>{row.buyingFormat?.replaceAll("_", " ").toLowerCase() ?? "—"}{row.bidCount !== null ? ` · ${row.bidCount} bids` : ""}</dd></div>
-                <div><dt>Watched from</dt><dd>{when(row.firstSeenAt)}</dd></div>
                 <div><dt>Match</dt><dd>{row.matchScore ?? "—"}{row.matchConfidence ? ` · ${row.matchConfidence}` : ""}</dd></div>
               </dl>
 
               {row.outcomeReason ? <p className="outcome-evidence"><b>Evidence:</b> {row.outcomeReason}</p> : null}
-              {row.matchConflicts.length ? <p className="outcome-conflict"><b>Conflicts:</b> {row.matchConflicts.join("; ")}</p> : null}
-              {row.matchReasons.length ? <p className="outcome-reasons">{row.matchReasons.join(" · ")}</p> : null}
-              {row.lastError ? <p className="outcome-conflict"><b>Last error:</b> {row.lastError}{row.nextCheckAt ? ` · retry ${when(row.nextCheckAt)}` : ""}</p> : null}
-
               {!row.reviewedBy
                 && row.soldPrice === null
                 && (row.buyingFormat ?? "").toUpperCase().includes("OFFER")
@@ -285,7 +330,16 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
               ) : null}
 
               <details className="outcome-history">
-                <summary>Outcome check history ({row.checkAttempts} attempt{row.checkAttempts === 1 ? "" : "s"}) and original snapshot</summary>
+                <summary>Technical details and check history ({row.checkAttempts})</summary>
+                <dl className="outcome-technical-facts">
+                  <div><dt>Listing format</dt><dd>{row.buyingFormat?.replaceAll("_", " ").toLowerCase() ?? "—"}{row.bidCount !== null ? ` · ${row.bidCount} bids` : ""}</dd></div>
+                  <div><dt>First watched</dt><dd>{when(row.firstSeenAt)}</dd></div>
+                  <div><dt>Last seen live</dt><dd>{when(row.lastSeenAt)}</dd></div>
+                  <div><dt>eBay item number</dt><dd>{row.externalId}</dd></div>
+                </dl>
+                {row.matchConflicts.length ? <p className="outcome-conflict"><b>Match conflicts:</b> {row.matchConflicts.join("; ")}</p> : null}
+                {row.matchReasons.length ? <p className="outcome-reasons"><b>Match signals:</b> {row.matchReasons.join(" · ")}</p> : null}
+                {row.lastError ? <p className="outcome-conflict"><b>Last system error:</b> {row.lastError}{row.nextCheckAt ? ` · retry ${when(row.nextCheckAt)}` : ""}</p> : null}
                 <ol>
                   {row.checks.map((check) => (
                     <li key={`${check.attempt}-${check.checkedAt}`}>
@@ -294,7 +348,6 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                   ))}
                   {row.checks.length ? null : <li>No checks recorded yet.</li>}
                 </ol>
-                <p><a href={row.sourceListingUrl} rel="noreferrer" target="_blank">Original listing ↗</a> · first seen {when(row.firstSeenAt)}, last seen live {when(row.lastSeenAt)}</p>
               </details>
 
               {row.reviewedBy ? (
@@ -307,7 +360,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                     {decisionsFor(row).map((decision) => (
                       <button
                         className={decision.tone === "primary" ? "catalogue-bulk-approve" : "secondary-action"}
-                        disabled={Boolean(saving)}
+                        disabled={!reviewer.trim() || Boolean(saving)}
                         key={decision.key}
                         onClick={() => void decide(row.id, decision.key)}
                         type="button"
@@ -319,10 +372,18 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                 </>
               )}
             </article>
-          ))}
+          );})}
+          {visibleRows.length > displayedRows.length ? (
+            <button className="outcome-load-more" onClick={() => setVisibleLimit((current) => current + 25)} type="button">
+              Show 25 more ({visibleRows.length - displayedRows.length} remaining)
+            </button>
+          ) : null}
         </div>
       ) : (
-        <p className="outcome-empty">No listing outcomes recorded yet. Run the outcome checks to start watching the listings Scout has already found.</p>
+        <div className="outcome-empty">
+          <strong>{view === "attention" ? "Nothing needs your decision" : view === "watching" ? "No listings are currently being watched" : "No finished decisions are loaded"}</strong>
+          <p>{view === "attention" ? "You are caught up. RAR will place uncertain outcomes here after the next check." : "Choose another tab or run an outcome check from System status."}</p>
+        </div>
       )}
     </section>
   );
