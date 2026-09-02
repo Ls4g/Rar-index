@@ -2563,6 +2563,43 @@ html[data-theme="day"] .public-page {
 .agent-proposal-list small { color: #7f776f; }
 .agent-proposal-list article.is-feedback { border-color: rgba(93,204,159,.25); }
 .agent-learning-workbench, .agent-rule-workbench { display: grid; gap: 1rem; padding: 1.35rem; border: 1px solid rgba(255,255,255,.1); border-radius: .85rem; background: #191714; }
+.agent-reliability-panel { display: grid; gap: 1rem; width: 100%; max-width: 1240px; margin: 2rem auto 0; padding: 1.35rem clamp(1rem, 4vw, 4rem); color: #f5eee4; }
+.agent-reliability-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: 1.35rem; border: 1px solid rgba(93,204,159,.3); border-radius: .85rem; background: linear-gradient(135deg, rgba(93,204,159,.08), #191714 55%); }
+.agent-reliability-heading h2 { margin: .2rem 0 .4rem; font: 650 1.7rem/1.1 var(--font-display); }
+.agent-reliability-heading p { margin: 0; max-width: 67ch; color: #bdb4a9; font-size: .82rem; line-height: 1.55; }
+.agent-reliability-runner { display: flex; align-items: end; gap: .55rem; flex: 0 0 auto; }
+.agent-reliability-runner label { display: grid; gap: .3rem; }
+.agent-reliability-runner label span { color: #9f978d; font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.agent-reliability-runner input { width: 10rem; padding: .68rem .75rem; border: 1px solid rgba(255,255,255,.16); border-radius: .4rem; background: #11100e; color: #fff; }
+.agent-reliability-runner button, .agent-reliability-grid button { padding: .68rem .82rem; border: 1px solid #c84c32; border-radius: .4rem; background: #c84c32; color: #fff; cursor: pointer; font-weight: 800; }
+.agent-reliability-runner button:disabled, .agent-reliability-grid button:disabled { cursor: not-allowed; opacity: .45; }
+.agent-reliability-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.agent-reliability-grid article { display: grid; align-content: start; gap: .8rem; padding: 1rem; border: 1px solid rgba(255,255,255,.1); border-radius: .7rem; background: #1b1916; }
+.agent-reliability-grid article.is-passing { border-color: rgba(93,204,159,.42); }
+.agent-reliability-grid article.is-learning { border-color: rgba(238,171,91,.42); }
+.agent-reliability-grid article.is-unmeasured { border-style: dashed; }
+.agent-reliability-card-head { display: flex; justify-content: space-between; gap: .8rem; }
+.agent-reliability-card-head span { color: #df765f; font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.agent-reliability-card-head b { color: #a9e7cd; font-size: .64rem; text-transform: uppercase; }
+.agent-reliability-grid article.is-learning .agent-reliability-card-head b { color: #efb76f; }
+.agent-reliability-grid h3 { margin: 0; color: #f5eee4; font-size: 1rem; }
+.agent-reliability-grid article > p { margin: 0; color: #9f978d; font-size: .73rem; line-height: 1.45; }
+.agent-reliability-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+.agent-reliability-metrics p { display: grid; gap: .2rem; margin: 0; padding: .6rem; border-radius: .45rem; background: rgba(255,255,255,.035); }
+.agent-reliability-metrics strong { color: #f5eee4; font-size: 1.15rem; }
+.agent-reliability-metrics span { color: #8f877e; font-size: .57rem; line-height: 1.3; text-transform: uppercase; }
+.agent-reliability-grid details summary { color: #bdb4a9; cursor: pointer; font-size: .7rem; font-weight: 800; }
+.agent-reliability-grid details ul { display: grid; gap: .25rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.agent-reliability-grid details li { display: flex; justify-content: space-between; gap: .6rem; color: #9f978d; font-size: .64rem; }
+.agent-reliability-grid details li b { color: #ddd3c7; }
+.agent-reliability-grid button.secondary { justify-self: start; border-color: rgba(255,255,255,.16); background: transparent; color: #ddd3c7; }
+.agent-reliability-safety { margin: 0; padding: .75rem 1rem; border-left: 2px solid #5dcc9f; background: rgba(93,204,159,.05); color: #bdb4a9; font-size: .75rem; }
+@media (max-width: 900px) {
+  .agent-reliability-heading { align-items: stretch; flex-direction: column; }
+  .agent-reliability-runner { align-items: stretch; flex-direction: column; }
+  .agent-reliability-runner input { width: 100%; }
+  .agent-reliability-grid { grid-template-columns: 1fr; }
+}
 .agent-label-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .8rem; border: 1px solid rgba(255,255,255,.08); border-radius: .6rem; background: #211e1a; }
 .agent-label-toolbar strong { margin-right: auto; color: #f5eee4; font-size: .82rem; }
 .agent-label-toolbar select, .agent-rule-phrases input { min-width: 13rem; padding: .65rem .75rem; border: 1px solid rgba(255,255,255,.16); border-radius: .4rem; background: #11100e; color: #f5eee4; }
@@ -3235,9 +3272,11 @@ html[data-theme="day"] .public-page {
 .human-decision-facts p { margin: 0; overflow-wrap: anywhere; font-size: .88rem; font-weight: 650; line-height: 1.4; }
 .human-decision-facts b { color: #6f5520; font-size: .78rem; }
 .human-decision-facts small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
-.human-decision-note { grid-column: 1 / -1; display: grid; gap: .35rem; padding-top: .25rem; }
+.human-decision-note { grid-column: 1 / -1; display: grid; gap: .55rem; padding-top: .25rem; }
+.human-decision-note summary { color: var(--muted); cursor: pointer; font-size: .7rem; font-weight: 750; }
+.human-decision-note label { display: grid; gap: .35rem; }
 .human-decision-note span { color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-.human-decision-note textarea { width: 100%; resize: vertical; min-height: 3.3rem; border: 1px solid #d8cfbf; border-radius: .5rem; padding: .65rem .75rem; background: #fff; color: var(--ink); font: inherit; font-size: .78rem; line-height: 1.4; }
+.human-decision-note textarea, .human-decision-note select { width: 100%; resize: vertical; min-height: 2.7rem; border: 1px solid #d8cfbf; border-radius: .5rem; padding: .65rem .75rem; background: #fff; color: var(--ink); font: inherit; font-size: .78rem; line-height: 1.4; }
 .human-decision-note textarea:focus { outline: 2px solid rgba(36,113,91,.2); border-color: #24715b; }
 .human-decision-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .55rem; padding-top: .9rem; border-top: 1px solid #e3dbcd; }
 .human-decision-actions a { margin-right: auto; color: #86551d; font-size: .76rem; font-weight: 750; }

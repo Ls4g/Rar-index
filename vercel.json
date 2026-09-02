@@ -13,6 +13,10 @@
       "schedule": "0 11 * * *"
     },
     {
+      "path": "/api/cron/agent-reliability",
+      "schedule": "30 11 * * *"
+    },
+    {
       "path": "/api/cron/listing-outcomes",
       "schedule": "30 9 * * *"
     }

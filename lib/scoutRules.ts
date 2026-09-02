@@ -87,6 +87,20 @@ export function applyScoutRules(
 }
 
 export async function loadActiveScoutRules(admin: SupabaseClient): Promise<ScoutRule[]> {
+  const { data: regressionIncident, error: incidentError } = await admin
+    .from("agent_incidents")
+    .select("id")
+    .eq("incident_key", "reliability:market_scout_match")
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
+  if (incidentError && incidentError.code !== "42P01" && incidentError.code !== "PGRST205") {
+    throw new Error(`Scout could not check reliability incidents: ${incidentError.message}`);
+  }
+  // A learned rule is an optional score layer. If a later human benchmark
+  // proves a safety regression, the stable deterministic scorer takes over
+  // until staff resolve the incident. Nothing is silently rolled back.
+  if (regressionIncident) return [];
   const { data, error } = await admin
     .from("scout_rule_versions")
     .select("id,rule_key,version,rule_type,config,status")

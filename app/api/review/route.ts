@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
+import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
 
 type ReviewDecision = "verified_match" | "needs_review" | "excluded";
 type PrintClassification = "known_later_print" | "first_print_proven";
@@ -23,7 +24,7 @@ async function applyAll(observationIds: string[], apply: (observationId: string)
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { observationId?: unknown; observationIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; printClassification?: unknown; proofUrl?: unknown; printingNumber?: unknown };
+  let payload: { observationId?: unknown; observationIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; printClassification?: unknown; proofUrl?: unknown; printingNumber?: unknown; feedbackReason?: unknown };
   try { payload = await request.json(); } catch { return Response.json({ error: "Send a valid review decision." }, { status: 400 }); }
 
   const requestedIds = Array.isArray(payload.observationIds)
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
   const decision = clean(payload.decision) as ReviewDecision;
   const notes = clean(payload.notes);
   const reviewer = clean(payload.reviewer);
+  const feedbackReason = clean(payload.feedbackReason);
   const printClassification = clean(payload.printClassification) as PrintClassification | "";
   const proofUrl = clean(payload.proofUrl);
   const printingNumberRaw = clean(payload.printingNumber);
@@ -96,6 +98,14 @@ export async function POST(request: Request) {
   await Promise.all(affectedEditions.map(async (editionId) => {
     try { await snapshotHoldersOfEdition(admin, editionId); } catch { /* The review decision itself already succeeded. */ }
   }));
+  await recordAgentHumanFeedback(admin, {
+    workflow: "sale",
+    subjectKeys: saved.map((result) => `sale:${result.observationId}`),
+    outcome: decision,
+    reasonLabel: feedbackReason,
+    note: notes,
+    reviewedBy: reviewer,
+  });
 
   if (!saved.length) return Response.json({ error: failed[0]?.error ?? "The review decision could not be saved.", saved: [], failed }, { status: 500 });
   return Response.json({

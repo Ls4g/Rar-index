@@ -57,18 +57,13 @@ type AgentProposal = {
 type DecisionKind = "sale" | "printing" | "catalogue" | "proposal";
 type Banner = { tone: "ok" | "error"; text: string };
 
-function DecisionNote({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function DecisionNote({ value, reason, onChange, onReasonChange }: { value: string; reason: string; onChange: (value: string) => void; onReasonChange: (value: string) => void }) {
   return (
-    <label className="human-decision-note">
-      <span>Optional feedback</span>
-      <textarea
-        maxLength={500}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="What did the agent get right or wrong?"
-        rows={2}
-        value={value}
-      />
-    </label>
+    <details className="human-decision-note">
+      <summary>Give the agent a reason (optional)</summary>
+      <label><span>Reason</span><select onChange={(event) => onReasonChange(event.target.value)} value={reason}><option value="">Choose only if useful</option><option value="exact_match">Exact match</option><option value="wrong_edition">Wrong edition</option><option value="insufficient_evidence">Not enough evidence</option><option value="source_problem">Source problem</option><option value="workflow_problem">Workflow problem</option><option value="other">Other</option></select></label>
+      <label><span>Extra note</span><textarea maxLength={500} onChange={(event) => onChange(event.target.value)} placeholder="Anything else the agent should learn?" rows={2} value={value} /></label>
+    </details>
   );
 }
 
@@ -94,6 +89,7 @@ export default function HumanDecisionInbox({
   const [reviewer, setReviewer] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("rar_staff_reviewer") ?? "");
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
+  const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<Banner | null>(null);
   const [filter, setFilter] = useState<"all" | DecisionKind>("all");
@@ -143,6 +139,11 @@ export default function HumanDecisionInbox({
         delete next[key];
         return next;
       });
+      setDecisionReasons((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
       setBanner({ tone: "ok", text: result.message ?? "Decision saved. The item has left your inbox and the audit trail was updated." });
       return true;
     } catch {
@@ -163,13 +164,14 @@ export default function HumanDecisionInbox({
       observationIds: [item.observationId],
       decision: accepted ? "verified_match" : "excluded",
       notes: decisionNotes[key] ?? "",
+      feedbackReason: decisionReasons[key] ?? "",
     });
   }
 
   async function decidePrinting(item: PrintDecision, accepted: boolean) {
     const key = `printing:${item.actionId}`;
     if (!accepted) {
-      await request(key, "/api/agents", { command: "review_action", actionId: item.actionId, decision: "rejected", notes: decisionNotes[key] ?? "" });
+      await request(key, "/api/agents", { command: "review_action", actionId: item.actionId, decision: "rejected", notes: decisionNotes[key] ?? "", feedbackReason: decisionReasons[key] ?? "" });
       return;
     }
     await request(key, "/api/print-classification", {
@@ -179,6 +181,7 @@ export default function HumanDecisionInbox({
       printingNumber: item.printingNumber?.toString() ?? "",
       notes: decisionNotes[key] ?? "",
       suggestionActionId: item.actionId,
+      feedbackReason: decisionReasons[key] ?? "",
     });
   }
 
@@ -199,6 +202,7 @@ export default function HumanDecisionInbox({
         releaseDate: item.releaseDate,
         ...item.reviewMetadata,
       },
+      feedbackReason: decisionReasons[key] ?? "",
     });
   }
 
@@ -210,6 +214,7 @@ export default function HumanDecisionInbox({
       decision: accepted ? "approved" : "rejected",
       execute: accepted && item.canExecute,
       notes: decisionNotes[key] ?? "",
+      feedbackReason: decisionReasons[key] ?? "",
     });
   }
 
@@ -239,7 +244,7 @@ export default function HumanDecisionInbox({
         <article className="human-decision-card" key={item.observationId}>
           <div className="human-decision-question"><span>Market Scout asks</span><h2>Does this completed sale match the proposed edition?</h2></div>
           <div className="human-decision-facts"><strong>{formatPrice(item.price, item.currency)}</strong><span>{item.soldDate ?? "Sale date not recorded"}</span><p>{item.listingTitle}</p><b>{item.editionLabel}</b>{item.reason ? <small>{item.reason}</small> : null}</div>
-          <DecisionNote value={decisionNotes[`sale:${item.observationId}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`sale:${item.observationId}`]: value }))} />
+          <DecisionNote reason={decisionReasons[`sale:${item.observationId}`] ?? ""} value={decisionNotes[`sale:${item.observationId}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`sale:${item.observationId}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`sale:${item.observationId}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
             <button disabled={busyKeys.has(`sale:${item.observationId}`)} onClick={() => void decideSale(item, true)} type="button">{busyKeys.has(`sale:${item.observationId}`) ? "Saving…" : "Yes — verify"}</button>
@@ -252,7 +257,7 @@ export default function HumanDecisionInbox({
         <article className="human-decision-card" key={item.actionId}>
           <div className="human-decision-question"><span>Evidence Auditor asks · {confidenceLabel(item.confidence)}</span><h2>{item.classification === "first_print_proven" ? "Does this image prove a first printing?" : "Does this image prove a later printing?"}</h2></div>
           <div className="human-decision-facts"><p>{item.listingTitle}</p><b>{item.editionLabel}</b><small>{item.rationale}</small></div>
-          <DecisionNote value={decisionNotes[`printing:${item.actionId}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`printing:${item.actionId}`]: value }))} />
+          <DecisionNote reason={decisionReasons[`printing:${item.actionId}`] ?? ""} value={decisionNotes[`printing:${item.actionId}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`printing:${item.actionId}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`printing:${item.actionId}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.proofUrl || item.sourceUrl} target="_blank" rel="noreferrer">Check proof ↗</a>
             <button disabled={busyKeys.has(`printing:${item.actionId}`) || !item.proofUrl} onClick={() => void decidePrinting(item, true)} type="button">{busyKeys.has(`printing:${item.actionId}`) ? "Saving…" : "Yes — apply"}</button>
@@ -265,7 +270,7 @@ export default function HumanDecisionInbox({
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Catalogue Curator asks</span><h2>Is this a real physical edition RAR should add?</h2></div>
           <div className="human-decision-facts"><p>{item.title}</p><b>{[item.series, item.volumeNumber ? `Vol. ${item.volumeNumber}` : null, item.language].filter(Boolean).join(" · ")}</b><small>{[item.publisher, item.isbn13 ? `ISBN ${item.isbn13}` : null, item.releaseDate].filter(Boolean).join(" · ")}</small></div>
-          <DecisionNote value={decisionNotes[`catalogue:${item.id}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} />
+          <DecisionNote reason={decisionReasons[`catalogue:${item.id}`] ?? ""} value={decisionNotes[`catalogue:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
             {item.isEditionCandidate ? <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button> : <Link href="/catalogue-review">Needs detailed review →</Link>}
@@ -278,7 +283,7 @@ export default function HumanDecisionInbox({
         <article className="human-decision-card is-plan" key={item.id}>
           <div className="human-decision-question"><span>{item.agentKey.replaceAll("_", " ")} asks · {confidenceLabel(item.confidence)}</span><h2>Should RAR act on this recommendation?</h2></div>
           <div className="human-decision-facts"><p>{item.title}</p><small>{item.rationale}</small>{item.canExecute ? <b>Ready to run immediately after approval.</b> : <b>Approval records permission only; execution is not automated yet.</b>}</div>
-          <DecisionNote value={decisionNotes[`proposal:${item.id}`] ?? ""} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`proposal:${item.id}`]: value }))} />
+          <DecisionNote reason={decisionReasons[`proposal:${item.id}`] ?? ""} value={decisionNotes[`proposal:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`proposal:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`proposal:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             {item.destination ? <Link href={item.destination}>Inspect related work →</Link> : null}
             <button disabled={busyKeys.has(`proposal:${item.id}`)} onClick={() => void decideProposal(item, true)} type="button">{busyKeys.has(`proposal:${item.id}`) ? item.canExecute ? "Running…" : "Saving…" : item.canExecute ? "Approve and run" : "Approve plan"}</button>

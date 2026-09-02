@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { catalogueMetadataProblem, queuedReviewMetadata } from "@/lib/catalogueReviewMetadata";
 import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
+import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
 type ApprovedMetadata = {
@@ -73,7 +74,7 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (
 export async function POST(request: Request) {
   if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { catalogueImportId?: unknown; catalogueImportIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown };
+  let payload: { catalogueImportId?: unknown; catalogueImportIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown; feedbackReason?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   const existingEditionId = typeof payload.existingEditionId === "string" && payload.existingEditionId.trim() ? payload.existingEditionId.trim() : null;
   const metadata = cleanMetadata(payload.metadata);
+  const feedbackReason = typeof payload.feedbackReason === "string" ? payload.feedbackReason.trim() : "";
 
   if (!reviewer) {
     return Response.json({ error: "Identify the reviewer." }, { status: 400 });
@@ -136,6 +138,14 @@ export async function POST(request: Request) {
       return { id, error: error?.message ?? null };
     });
     const failed = outcomes.filter((outcome) => outcome.error);
+    await recordAgentHumanFeedback(admin, {
+      workflow: "catalogue",
+      subjectKeys: outcomes.filter((outcome) => !outcome.error).map((outcome) => `catalogue:${outcome.id}`),
+      outcome: decision,
+      reasonLabel: feedbackReason,
+      note: notes,
+      reviewedBy: reviewer,
+    });
     return Response.json({
       ok: failed.length === 0,
       saved: outcomes.length - failed.length,
@@ -182,5 +192,13 @@ export async function POST(request: Request) {
       : "The catalogue decision could not be saved. Check the edition evidence and try again.";
     return Response.json({ error: message }, { status: 500 });
   }
+  await recordAgentHumanFeedback(admin, {
+    workflow: "catalogue",
+    subjectKeys: [`catalogue:${catalogueImportId}`],
+    outcome: decision,
+    reasonLabel: feedbackReason,
+    note: notes,
+    reviewedBy: reviewer,
+  });
   return Response.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
+import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
 
 type Classification = "printing_not_identified" | "known_later_print" | "first_print_proven";
 
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Print classification actions are not configured yet." }, { status: 503 });
   }
 
-  let payload: { observationId?: unknown; observationIds?: unknown; classification?: unknown; proofUrl?: unknown; printingNumber?: unknown; notes?: unknown; reviewer?: unknown; suggestionActionId?: unknown };
+  let payload: { observationId?: unknown; observationIds?: unknown; classification?: unknown; proofUrl?: unknown; printingNumber?: unknown; notes?: unknown; reviewer?: unknown; suggestionActionId?: unknown; feedbackReason?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
   const notes = clean(payload.notes);
   const reviewer = clean(payload.reviewer);
   const suggestionActionId = clean(payload.suggestionActionId);
+  const feedbackReason = clean(payload.feedbackReason);
 
   if (!observationIds.length || !classifications.includes(classification as Classification)) {
     return Response.json({ error: "Choose a classification for at least one sale." }, { status: 400 });
@@ -156,6 +158,14 @@ export async function POST(request: Request) {
       // Best-effort: the classification decisions themselves already succeeded.
     }
   }));
+  await recordAgentHumanFeedback(supabaseAdmin, {
+    workflow: "printing",
+    subjectKeys: saved.map((result) => `printing:${result.observationId}`),
+    outcome: classification,
+    reasonLabel: feedbackReason,
+    note: notes,
+    reviewedBy: reviewer,
+  });
 
   if (!saved.length) {
     return Response.json({ error: failed[0]?.error ?? "The print classification could not be saved." }, { status: 500 });

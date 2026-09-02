@@ -56,5 +56,6 @@ export const config = {
     "/api/scout-labels/:path*",
     "/api/cover-review/:path*",
     "/api/agents/:path*",
+    "/api/agent-reliability/:path*",
   ],
 };
