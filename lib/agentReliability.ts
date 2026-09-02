@@ -444,14 +444,24 @@ export async function runReliabilitySuite(
   }
 
   if (criticalFailures > 0) {
-    await admin.from("agent_incidents").upsert({
-      incident_key: `reliability:${evaluatorKey}`,
+    const incidentKey = `reliability:${evaluatorKey}`;
+    const { data: openIncident, error: incidentLookupError } = await admin.from("agent_incidents")
+      .select("id")
+      .eq("incident_key", incidentKey)
+      .eq("status", "open")
+      .maybeSingle();
+    if (incidentLookupError) throw new Error(`Reliability incident could not be checked: ${incidentLookupError.message}`);
+    const incidentValues = {
       incident_type: "rule_regression",
       severity: "critical",
-      status: "open",
       title: `${evaluatorKey.replaceAll("_", " ")} failed a safety gate`,
       details: { evaluation_run_id: run.id, critical_failures: criticalFailures },
-    }, { onConflict: "incident_key", ignoreDuplicates: true });
+      updated_at: createdAt,
+    };
+    const { error: incidentWriteError } = openIncident
+      ? await admin.from("agent_incidents").update(incidentValues).eq("id", openIncident.id)
+      : await admin.from("agent_incidents").insert({ ...incidentValues, incident_key: incidentKey, status: "open" });
+    if (incidentWriteError) throw new Error(`Reliability incident could not be saved: ${incidentWriteError.message}`);
   }
 
   return { id: run.id, evaluatorKey, agentKey, passed, caseCount: cases.length, positiveCount, negativeCount, distinctSubjects, regressionCount: criticalFailures, metrics, gates, createdAt };
