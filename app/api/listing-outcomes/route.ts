@@ -3,6 +3,7 @@ import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
 import { validateManualBestOfferEvidence } from "@/lib/listingOutcome";
+import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 type DecisionBody = {
   action?: string;
   outcomeId?: string;
+  outcomeIds?: string[];
   decision?: "confirm_sale" | "keep_watching" | "mark_unsold" | "wrong_edition" | "mark_ambiguous" | "dismiss";
   reviewer?: string;
   notes?: string;
@@ -22,6 +24,12 @@ type DecisionBody = {
   soldCurrency?: string;
   soldAt?: string;
 };
+
+// One request should not sit on the connection while it walks a whole queue.
+const BULK_LIMIT = 200;
+const BULK_CONCURRENCY = 6;
+
+type DecisionResult = { ok: true; status: string } | { ok: false; error: string; httpStatus: number };
 
 async function capabilitySample(admin: ReturnType<typeof getSupabaseAdmin>) {
   const { data } = await admin
@@ -41,6 +49,84 @@ const DECISION_STATUS: Record<string, string> = {
   mark_ambiguous: "ambiguous",
   dismiss: "review_complete",
 };
+
+/**
+ * Every decision except confirm_sale, for one outcome.
+ *
+ * Extracted so the single-row buttons and the bulk bar run identical code:
+ * the same guards, the same audit rows, the same refusal to overwrite a
+ * decision someone has already made. A second bulk-only path would be a
+ * second set of rules to keep in step, which is how the two drift apart.
+ */
+async function applyDecision(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  outcomeId: string,
+  decision: string,
+  reviewer: string,
+  notes: string | null,
+): Promise<DecisionResult> {
+  const { data: outcome } = await admin
+    .from("listing_outcomes")
+    .select("id, status, reviewed_by, resulting_observation_id, check_attempts")
+    .eq("id", outcomeId)
+    .maybeSingle();
+  if (!outcome) return { ok: false, error: "That listing outcome no longer exists.", httpStatus: 404 };
+  if (outcome.resulting_observation_id) {
+    return { ok: false, error: "This listing has already produced a sale. It was not changed.", httpStatus: 409 };
+  }
+  if (outcome.status === "review_complete" && outcome.reviewed_by) {
+    return { ok: false, error: `Already reviewed by ${outcome.reviewed_by}. It was not changed.`, httpStatus: 409 };
+  }
+
+  const now = new Date().toISOString();
+
+  // Multi-quantity fixed-price listings may remain live after one or more
+  // copies sell. A human can therefore return an uncertain outcome to active
+  // monitoring without claiming that a sale did or did not happen.
+  if (decision === "keep_watching") {
+    if (!["active", "ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
+      return { ok: false, error: "Only an uncertain or inaccessible listing can be returned to the watch queue.", httpStatus: 400 };
+    }
+    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
+    const detail = `Human ${reviewer} confirmed that this listing is still live and should remain watched.${notes ? ` Note: ${notes}` : ""}`;
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
+      outcome_id: outcome.id,
+      provider: "human review",
+      attempt_number: nextAttempt,
+      http_status: null,
+      listing_state: "active",
+      resulting_status: "active",
+      detail,
+      raw_response: { decision: "keep_watching", reviewed_by: reviewer, notes },
+      checked_at: now,
+    });
+    if (auditError) return { ok: false, error: "The review audit could not be saved. Nothing was changed.", httpStatus: 500 };
+
+    const { error: updateError } = await admin.from("listing_outcomes").update({
+      status: "active",
+      last_seen_at: now,
+      last_checked_at: now,
+      next_check_at: null,
+      last_error: null,
+      outcome_reason: detail,
+      outcome_provider: "human review",
+      check_attempts: nextAttempt,
+      updated_at: now,
+    }).eq("id", outcome.id);
+    if (updateError) return { ok: false, error: "The listing could not be returned to monitoring. The audit attempt remains visible.", httpStatus: 500 };
+    return { ok: true, status: "active" };
+  }
+
+  const status = DECISION_STATUS[decision];
+  if (!status) return { ok: false, error: "Unknown decision.", httpStatus: 400 };
+  const { error } = await admin.from("listing_outcomes").update({
+    status, reviewed_by: reviewer, reviewed_at: now, review_notes: notes,
+    // A human has answered; stop spending API calls on it.
+    next_check_at: null, updated_at: now,
+  }).eq("id", outcome.id);
+  if (error) return { ok: false, error: "The decision could not be saved.", httpStatus: 500 };
+  return { ok: true, status };
+}
 
 export async function POST(request: Request) {
   if (!await isStaffRequest(request)) {
@@ -82,6 +168,37 @@ export async function POST(request: Request) {
   }
 
   const reviewer = (body.reviewer ?? "").trim();
+
+  // ------------------------------------------------------------- bulk ----
+  if (body.action === "bulk-decide") {
+    if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
+    const ids = [...new Set((body.outcomeIds ?? []).filter((id): id is string => typeof id === "string" && id.length > 0))];
+    if (!ids.length) return Response.json({ error: "Select at least one listing." }, { status: 400 });
+    if (ids.length > BULK_LIMIT) return Response.json({ error: `Select at most ${BULK_LIMIT} listings at a time.` }, { status: 400 });
+    if (!body.decision || !isBulkSafeDecision(body.decision)) {
+      return Response.json({
+        error: "That decision cannot be applied in bulk. Verifying a sale is done one listing at a time, so the exact edition can be checked.",
+      }, { status: 400 });
+    }
+    const bulkNotes = (body.notes ?? "").trim() || null;
+    const decision = body.decision;
+
+    // Each row is applied independently: one failure never rolls back the
+    // rest, and every failure is reported with its own reason so the ones
+    // that did not save can stay selected.
+    const saved: string[] = [];
+    const failures: Array<{ outcomeId: string; error: string }> = [];
+    for (let index = 0; index < ids.length; index += BULK_CONCURRENCY) {
+      const chunk = ids.slice(index, index + BULK_CONCURRENCY);
+      const results = await Promise.all(chunk.map(async (id) => ({ id, result: await applyDecision(admin, id, decision, reviewer, bulkNotes) })));
+      for (const { id, result } of results) {
+        if (result.ok) saved.push(id);
+        else failures.push({ outcomeId: id, error: result.error });
+      }
+    }
+    return Response.json({ ok: failures.length === 0, saved: saved.length, savedIds: saved, failed: failures.length, failures });
+  }
+
   if (!body.outcomeId || (!body.decision && body.action !== "record-best-offer-price")) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
   if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
   // Notes stay optional throughout RAR: the decision and the reviewer are the
@@ -149,55 +266,12 @@ export async function POST(request: Request) {
 
   if (!body.decision) return Response.json({ error: "A decision is required." }, { status: 400 });
 
-  // Multi-quantity fixed-price listings may remain live after one or more
-  // copies sell. A human can therefore return an uncertain outcome to active
-  // monitoring without claiming that a sale did or did not happen. The check
-  // row keeps the decision attributable while the outcome remains available
-  // for a later, genuinely completed-sale signal.
-  if (body.decision === "keep_watching") {
-    if (!["active", "ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
-      return Response.json({ error: "Only an uncertain or inaccessible listing can be returned to the watch queue." }, { status: 400 });
-    }
-    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
-    const detail = `Human ${reviewer} confirmed that this listing is still live and should remain watched.${notes ? ` Note: ${notes}` : ""}`;
-    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
-      outcome_id: outcome.id,
-      provider: "human review",
-      attempt_number: nextAttempt,
-      http_status: null,
-      listing_state: "active",
-      resulting_status: "active",
-      detail,
-      raw_response: { decision: "keep_watching", reviewed_by: reviewer, notes },
-      checked_at: now,
-    });
-    if (auditError) return Response.json({ error: "The review audit could not be saved. Nothing was changed." }, { status: 500 });
-
-    const { error: updateError } = await admin.from("listing_outcomes").update({
-      status: "active",
-      last_seen_at: now,
-      last_checked_at: now,
-      next_check_at: null,
-      last_error: null,
-      outcome_reason: detail,
-      outcome_provider: "human review",
-      check_attempts: nextAttempt,
-      updated_at: now,
-    }).eq("id", outcome.id);
-    if (updateError) return Response.json({ error: "The listing could not be returned to monitoring. The audit attempt remains visible." }, { status: 500 });
-    return Response.json({ ok: true, status: "active" });
-  }
-
+  // Every decision but confirm_sale runs through the same function the bulk
+  // bar uses, so a single click and a batch of forty cannot diverge.
   if (body.decision !== "confirm_sale") {
-    const status = DECISION_STATUS[body.decision];
-    if (!status) return Response.json({ error: "Unknown decision." }, { status: 400 });
-    const { error } = await admin.from("listing_outcomes").update({
-      status, reviewed_by: reviewer, reviewed_at: now, review_notes: notes,
-      // A human has answered; stop spending API calls on it.
-      next_check_at: null, updated_at: now,
-    }).eq("id", outcome.id);
-    if (error) return Response.json({ error: "The decision could not be saved." }, { status: 500 });
-    return Response.json({ ok: true, status });
+    const result = await applyDecision(admin, outcome.id, body.decision, reviewer, notes);
+    if (!result.ok) return Response.json({ error: result.error }, { status: result.httpStatus });
+    return Response.json({ ok: true, status: result.status });
   }
 
   // ---------------------------------------------------------- confirm ----

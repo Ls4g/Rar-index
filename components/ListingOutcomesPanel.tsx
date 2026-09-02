@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { decisionsFor, sharedDecisionsFor } from "@/lib/listingOutcomeDecisions";
 
 export type OutcomeRow = {
   id: string;
@@ -39,14 +40,6 @@ export type OutcomeRow = {
 
 export type OutcomeCapability = { provider: string; available: boolean; canConfirmSales: boolean; detail: string };
 
-const DECISIONS: Array<{ key: string; label: string; tone?: string }> = [
-  { key: "confirm_sale", label: "Yes — verify this sale", tone: "primary" },
-  { key: "keep_watching", label: "Still live — keep watching", tone: "watch" },
-  { key: "mark_unsold", label: "No — it did not sell" },
-  { key: "wrong_edition", label: "Wrong edition" },
-  { key: "mark_ambiguous", label: "Not enough evidence" },
-  { key: "dismiss", label: "Remove from queue" },
-];
 
 type OutcomeView = "attention" | "watching" | "finished";
 
@@ -69,18 +62,6 @@ function plainStatus(row: OutcomeRow) {
   }
 }
 
-function decisionsFor(row: OutcomeRow) {
-  return DECISIONS.filter((decision) => {
-    if (decision.key === "confirm_sale") {
-      return row.status === "sold_candidate" && row.soldPrice !== null && Boolean(row.soldCurrency && row.soldAt);
-    }
-    if (decision.key === "keep_watching") {
-      return ["ended_pending_check", "ambiguous", "inaccessible"].includes(row.status);
-    }
-    if (decision.key === "mark_unsold" && row.status === "active") return false;
-    return true;
-  });
-}
 
 function money(value: number | null, currency: string | null) {
   if (value === null || !currency) return "Not reported";
@@ -106,6 +87,9 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   const [view, setView] = useState<OutcomeView>("attention");
   const [visibleLimit, setVisibleLimit] = useState(25);
   const [bestOfferInputs, setBestOfferInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const canConfirmSales = capabilities.some((capability) => capability.canConfirmSales);
   const viewCounts = rows.reduce<Record<OutcomeView, number>>((totals, row) => {
@@ -114,6 +98,75 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
   }, { attention: 0, watching: 0, finished: 0 });
   const visibleRows = rows.filter((row) => viewFor(row) === view);
   const displayedRows = visibleRows.slice(0, visibleLimit);
+  // A finished row has already been answered, and the API refuses to overwrite
+  // a recorded decision — so it never gets a checkbox in the first place.
+  const selectable = view !== "finished";
+  const selectableRows = selectable ? displayedRows : [];
+  const selectedRows = rows.filter((row) => selected.has(row.id));
+  const bulkDecisions = sharedDecisionsFor(selectedRows);
+
+  function toggleSelected(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelected((current) => {
+      const ids = selectableRows.map((row) => row.id);
+      const allSelected = ids.length > 0 && ids.every((id) => current.has(id));
+      const next = new Set(current);
+      for (const id of ids) { if (allSelected) next.delete(id); else next.add(id); }
+      return next;
+    });
+  }
+
+  function changeView(next: OutcomeView) {
+    setView(next);
+    setVisibleLimit(25);
+    // Selection is per-view. Carrying it across tabs would let a batch act on
+    // rows the reviewer can no longer see.
+    setSelected(new Set());
+  }
+
+  async function decideSelected(decision: string) {
+    if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
+    if (!selectedRows.length) return;
+    setBulkSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/listing-outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulk-decide",
+          outcomeIds: selectedRows.map((row) => row.id),
+          decision,
+          reviewer,
+          notes: bulkNote,
+        }),
+      });
+      const result = await response.json() as { error?: string; saved?: number; savedIds?: string[]; failed?: number; failures?: Array<{ outcomeId: string; error: string }> };
+      if (!response.ok) { setMessage(result.error ?? "The decisions could not be saved."); return; }
+      const savedIds = new Set(result.savedIds ?? []);
+      // Anything that failed stays selected, so a retry does not need the
+      // reviewer to work out which ones were missed.
+      setSelected((current) => new Set([...current].filter((id) => !savedIds.has(id))));
+      if (!result.failed) {
+        setBulkNote("");
+        setMessage(`Saved ${result.saved} listing${result.saved === 1 ? "" : "s"}.`);
+      } else {
+        setMessage(`Saved ${result.saved}. ${result.failed} could not be saved and remain selected — ${result.failures?.[0]?.error ?? "try again or review them individually."}`);
+      }
+      router.refresh();
+    } catch {
+      setMessage("The decisions could not be saved. Check the connection and try again.");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
@@ -250,7 +303,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
         ], [
           "finished", "Finished", viewCounts.finished,
         ]] as Array<[OutcomeView, string, number]>).map(([key, label, count]) => (
-          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => { setView(key); setVisibleLimit(25); }} role="tab" type="button">
+          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => changeView(key)} role="tab" type="button">
             {label} <span>{count}</span>
           </button>
         ))}
@@ -268,13 +321,34 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
         </div>
       </details>
 
+      {visibleRows.length && selectable ? (
+        <label className="outcome-select-all">
+          <input
+            checked={selectableRows.length > 0 && selectableRows.every((row) => selected.has(row.id))}
+            onChange={toggleSelectAllVisible}
+            type="checkbox"
+          />
+          Select all {selectableRows.length} shown
+          {selected.size ? <span> · {selected.size} selected</span> : null}
+        </label>
+      ) : null}
+
       {visibleRows.length ? (
         <div className="outcome-list">
           {displayedRows.map((row) => {
             const status = plainStatus(row);
             return (
-            <article className={`outcome-card status-${row.status}`} key={row.id}>
+            <article className={`outcome-card status-${row.status}${selected.has(row.id) ? " is-selected" : ""}`} key={row.id}>
               <div className="outcome-card-head">
+                {selectable ? (
+                  <input
+                    aria-label={`Select ${row.listingTitle}`}
+                    checked={selected.has(row.id)}
+                    className="outcome-select"
+                    onChange={() => toggleSelected(row.id)}
+                    type="checkbox"
+                  />
+                ) : null}
                 {row.imageUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element -- marketplace CDN, not a configured next/image host */
                   <img alt="" className="outcome-thumb" loading="lazy" src={row.imageUrl} />
@@ -393,6 +467,33 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
           <p>{view === "attention" ? "You are caught up. RAR will place uncertain outcomes here after the next check." : "Choose another tab or run an outcome check from System status."}</p>
         </div>
       )}
+
+      {/* Same sticky bar Scout triage uses, deliberately — a staff member who
+          has learned one bulk workflow should not have to learn a second. */}
+      {selected.size > 0 ? (
+        <div className="scout-bulk-bar outcome-bulk-bar">
+          <strong>{selected.size} selected</strong>
+          <input onChange={(event) => setBulkNote(event.target.value)} placeholder="Optional note for all selected" value={bulkNote} />
+          {bulkDecisions.map((decision) => (
+            <button
+              className={decision.tone === "watch" ? "is-watch" : decision.key === "dismiss" ? "is-dismiss" : "is-clear"}
+              disabled={bulkSaving || !reviewer.trim()}
+              key={decision.key}
+              onClick={() => void decideSelected(decision.key)}
+              type="button"
+            >
+              {bulkSaving ? "Saving…" : decision.label}
+            </button>
+          ))}
+          <button className="is-clear" disabled={bulkSaving} onClick={() => setSelected(new Set())} type="button">Clear</button>
+          {/* Said plainly rather than left as a silently missing button. */}
+          {selectedRows.some((row) => decisionsFor(row).some((decision) => decision.key === "confirm_sale")) ? (
+            <small>Verifying a sale stays one at a time, so the exact edition can be checked.</small>
+          ) : null}
+          {!bulkDecisions.length ? <small>No decision applies to every selected listing. Narrow the selection.</small> : null}
+          {!reviewer.trim() ? <small>Add your name above first.</small> : null}
+        </div>
+      ) : null}
     </section>
   );
 }
