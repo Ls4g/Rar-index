@@ -2877,6 +2877,7 @@ html[data-theme="day"] .public-page {
 .outcome-note { display: grid; gap: .25rem; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .outcome-decisions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .outcome-decisions .catalogue-bulk-approve { border-color: #176a54; background: #176a54; color: #fff; }
+.outcome-decisions .outcome-keep-watching { border-color: #315f9e; background: #315f9e; color: #fff; }
 .best-offer-corroboration { display: grid; gap: .75rem; padding: .9rem; border: 1px solid var(--accent-warning-text); border-radius: .65rem; background: color-mix(in srgb, var(--surface-card) 92%, var(--accent-warning-text)); }
 .best-offer-corroboration strong { color: var(--canvas-heading); font-size: .85rem; }
 .best-offer-corroboration p { margin: .2rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.55; }

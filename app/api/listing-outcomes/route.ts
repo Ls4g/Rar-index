@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 type DecisionBody = {
   action?: string;
   outcomeId?: string;
-  decision?: "confirm_sale" | "mark_unsold" | "wrong_edition" | "mark_ambiguous" | "dismiss";
+  decision?: "confirm_sale" | "keep_watching" | "mark_unsold" | "wrong_edition" | "mark_ambiguous" | "dismiss";
   reviewer?: string;
   notes?: string;
   soldPrice?: number;
@@ -148,6 +148,45 @@ export async function POST(request: Request) {
   }
 
   if (!body.decision) return Response.json({ error: "A decision is required." }, { status: 400 });
+
+  // Multi-quantity fixed-price listings may remain live after one or more
+  // copies sell. A human can therefore return an uncertain outcome to active
+  // monitoring without claiming that a sale did or did not happen. The check
+  // row keeps the decision attributable while the outcome remains available
+  // for a later, genuinely completed-sale signal.
+  if (body.decision === "keep_watching") {
+    if (!["ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
+      return Response.json({ error: "Only an uncertain or inaccessible listing can be returned to the watch queue." }, { status: 400 });
+    }
+    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
+    const detail = `Human ${reviewer} confirmed that this listing is still live and should remain watched.${notes ? ` Note: ${notes}` : ""}`;
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
+      outcome_id: outcome.id,
+      provider: "human review",
+      attempt_number: nextAttempt,
+      http_status: null,
+      listing_state: "active",
+      resulting_status: "active",
+      detail,
+      raw_response: { decision: "keep_watching", reviewed_by: reviewer, notes },
+      checked_at: now,
+    });
+    if (auditError) return Response.json({ error: "The review audit could not be saved. Nothing was changed." }, { status: 500 });
+
+    const { error: updateError } = await admin.from("listing_outcomes").update({
+      status: "active",
+      last_seen_at: now,
+      last_checked_at: now,
+      next_check_at: null,
+      last_error: null,
+      outcome_reason: detail,
+      outcome_provider: "human review",
+      check_attempts: nextAttempt,
+      updated_at: now,
+    }).eq("id", outcome.id);
+    if (updateError) return Response.json({ error: "The listing could not be returned to monitoring. The audit attempt remains visible." }, { status: 500 });
+    return Response.json({ ok: true, status: "active" });
+  }
 
   if (body.decision !== "confirm_sale") {
     const status = DECISION_STATUS[body.decision];

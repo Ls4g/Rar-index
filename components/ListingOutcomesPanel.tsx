@@ -41,6 +41,7 @@ export type OutcomeCapability = { provider: string; available: boolean; canConfi
 
 const DECISIONS: Array<{ key: string; label: string; tone?: string }> = [
   { key: "confirm_sale", label: "Yes — verify this sale", tone: "primary" },
+  { key: "keep_watching", label: "Still live — keep watching", tone: "watch" },
   { key: "mark_unsold", label: "No — it did not sell" },
   { key: "wrong_edition", label: "Wrong edition" },
   { key: "mark_ambiguous", label: "Not enough evidence" },
@@ -72,6 +73,9 @@ function decisionsFor(row: OutcomeRow) {
   return DECISIONS.filter((decision) => {
     if (decision.key === "confirm_sale") {
       return row.status === "sold_candidate" && row.soldPrice !== null && Boolean(row.soldCurrency && row.soldAt);
+    }
+    if (decision.key === "keep_watching") {
+      return ["ended_pending_check", "ambiguous", "inaccessible"].includes(row.status);
     }
     if (decision.key === "mark_unsold" && row.status === "active") return false;
     return true;
@@ -150,7 +154,11 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The decision could not be saved.");
-      setMessage(decision === "confirm_sale" ? "Sale created and verified in one step. It is now in the catalogue evidence." : "Decision saved.");
+      setMessage(decision === "confirm_sale"
+        ? "Sale created and verified in one step. It is now in the catalogue evidence."
+        : decision === "keep_watching"
+          ? "Listing returned to the watch queue. No sale evidence was created."
+          : "Decision saved.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The decision could not be saved.");
@@ -359,7 +367,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts }: {
                   <div className="outcome-decisions">
                     {decisionsFor(row).map((decision) => (
                       <button
-                        className={decision.tone === "primary" ? "catalogue-bulk-approve" : "secondary-action"}
+                        className={decision.tone === "primary" ? "catalogue-bulk-approve" : decision.tone === "watch" ? "outcome-keep-watching" : "secondary-action"}
                         disabled={!reviewer.trim() || Boolean(saving)}
                         key={decision.key}
                         onClick={() => void decide(row.id, decision.key)}
