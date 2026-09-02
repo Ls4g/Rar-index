@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   // row keeps the decision attributable while the outcome remains available
   // for a later, genuinely completed-sale signal.
   if (body.decision === "keep_watching") {
-    if (!["ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
+    if (!["active", "ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
       return Response.json({ error: "Only an uncertain or inaccessible listing can be returned to the watch queue." }, { status: 400 });
     }
     const nextAttempt = (outcome.check_attempts ?? 0) + 1;
