@@ -117,6 +117,10 @@ async function applyDecision(
     return { ok: true, status: "active" };
   }
 
+  if (decision === "mark_unsold" && outcome.status === "active") {
+    return { ok: false, error: "A live listing cannot be marked unsold. Keep watching it or dismiss it for another reason.", httpStatus: 400 };
+  }
+
   const status = DECISION_STATUS[decision];
   if (!status) return { ok: false, error: "Unknown decision.", httpStatus: 400 };
   const { error } = await admin.from("listing_outcomes").update({

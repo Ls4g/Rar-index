@@ -128,7 +128,7 @@ export default async function ListingOutcomesPage() {
         <StaffNav current="/listing-outcomes" />
       </header>
       <section className="catalogue-content">
-        <ListingOutcomesPanel capabilities={capabilities} counts={counts} rows={rows} />
+        <ListingOutcomesPanel capabilities={capabilities} counts={counts} renderedAt={new Date().toISOString()} rows={rows} />
       </section>
     </main>
   );
