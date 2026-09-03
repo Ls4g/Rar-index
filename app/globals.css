@@ -3334,17 +3334,49 @@ html[data-theme="day"] .public-page {
 .shelf-run-count strong { color: var(--canvas-heading); font-size: .95rem; }
 .shelf-run-gapcount { color: var(--accent-warning-text); font-weight: 600; }
 
-.shelf-ledge-wrap { position: relative; padding-bottom: .85rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
-.shelf-ledge-wrap::-webkit-scrollbar { display: none; }
-.shelf-books { display: flex; align-items: flex-end; gap: 3px; margin: 0; padding: 1.5rem .25rem 0; list-style: none; min-width: min-content; }
+/* Shelf materials, warm on BOTH themes. The first version took the page's
+   neutral greys and the result read as a table of contents with pictures --
+   the references are all wood, paper and warm light, and that is most of what
+   makes a shelf feel like an object rather than a list. Night is the base
+   here, as everywhere; Day overrides the same tokens. */
+.shelf {
+  --shelf-wall: #221d17;
+  --shelf-wall-lit: #2e261d;
+  --shelf-rail: #3a2c1f;
+  --shelf-rail-top: #5c4631;
+  --shelf-rail-shadow: rgba(0, 0, 0, .55);
+  --shelf-contact: rgba(0, 0, 0, .62);
+  --shelf-slot-line: rgba(244, 240, 232, .26);
+}
+html[data-theme="day"] .shelf {
+  --shelf-wall: #ece2ce;
+  --shelf-wall-lit: #f6f0e2;
+  --shelf-rail: #6d5237;
+  --shelf-rail-top: #8d6b47;
+  --shelf-rail-shadow: rgba(58, 41, 26, .38);
+  --shelf-contact: rgba(58, 41, 26, .5);
+  --shelf-slot-line: rgba(58, 41, 26, .3);
+}
 
-/* The ledge. A plate with a lit top edge, so books sit ON it rather than
-   in front of a line. */
+/* The niche. Books stand INSIDE a lit recess rather than on a bare line --
+   the wall behind them, brighter at the top as if lit from above, is what
+   gives the row somewhere to be. The background stays put while the books
+   scroll, so the shelf reads as fixed furniture. */
+.shelf-ledge-wrap {
+  position: relative; padding-bottom: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  border-radius: 6px 6px 3px 3px;
+  background: radial-gradient(130% 90% at 50% -20%, var(--shelf-wall-lit) 0%, var(--shelf-wall) 68%);
+  box-shadow: inset 0 14px 24px -16px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(0, 0, 0, .12);
+}
+.shelf-ledge-wrap::-webkit-scrollbar { display: none; }
+.shelf-books { display: flex; align-items: flex-end; gap: 2px; margin: 0; padding: 1.9rem .55rem 0; list-style: none; min-width: min-content; }
+
+/* The rail. Thickness, a lit front edge, and a shadow thrown down the wall
+   below it -- without the cast shadow it is a coloured bar, not a shelf. */
 .shelf-ledge {
-  height: 12px; border-radius: 0 0 4px 4px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--canvas-heading) 20%, var(--surface-card)) 0%, var(--surface-chip) 40%, var(--surface-card) 100%);
-  border-top: 1px solid color-mix(in srgb, var(--canvas-heading) 40%, transparent);
-  box-shadow: 0 3px 8px color-mix(in srgb, var(--canvas-heading) 18%, transparent);
+  height: 14px; border-radius: 0 0 3px 3px;
+  background: linear-gradient(180deg, var(--shelf-rail-top) 0%, var(--shelf-rail) 42%, var(--shelf-rail) 100%);
+  box-shadow: 0 6px 12px -3px var(--shelf-rail-shadow), inset 0 1px 0 rgba(255, 255, 255, .16);
 }
 
 .shelf-book { position: relative; flex: 0 0 auto; }
@@ -3364,8 +3396,8 @@ html[data-theme="day"] .public-page {
 /* Contact shadow: the book meeting the ledge. */
 .shelf-book-face::before {
   content: ""; position: absolute; left: -2%; right: -2%; bottom: -7px; height: 10px;
-  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--canvas-heading) 55%, transparent) 0%, transparent 70%);
-  opacity: .55;
+  background: radial-gradient(ellipse at 50% 0%, var(--shelf-contact) 0%, transparent 72%);
+  opacity: .8;
 }
 .shelf-book-face:hover { transform: translateY(-9px); }
 .shelf-book-face:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
@@ -3391,11 +3423,11 @@ html[data-theme="day"] .public-page {
 .shelf-slot-inner {
   display: grid; align-content: center; justify-items: center; gap: .2rem;
   width: 88px; aspect-ratio: 2 / 3;
-  border: 1px dashed color-mix(in srgb, var(--canvas-heading) 30%, transparent);
-  border-radius: 2px; background: var(--surface-hairline-fill);
+  border: 1px dashed var(--shelf-slot-line);
+  border-radius: 2px; background: rgba(0, 0, 0, .16);
   color: var(--muted); transition: border-color .18s ease, background .18s ease, color .18s ease;
 }
-.shelf-slot-inner:hover { border-color: var(--orange); background: var(--surface-chip); color: var(--canvas-heading); }
+.shelf-slot-inner:hover { border-color: var(--orange); border-style: solid; background: rgba(0, 0, 0, .28); color: var(--paper); }
 .shelf-slot-inner:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .shelf-slot-number { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .shelf-slot-hint { font-size: .56rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
