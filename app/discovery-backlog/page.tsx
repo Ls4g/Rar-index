@@ -1,7 +1,7 @@
 import Link from "next/link";
 import StaffNav from "@/components/StaffNav";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { isDue, planRun, describeRunFairness, type BacklogTarget } from "@/lib/catalogueBacklog";
+import { isDue, isStaffFastTrack, planRun, describeRunFairness, type BacklogTarget } from "@/lib/catalogueBacklog";
 
 // What the Catalogue Curator is monitoring and what it will do next.
 //
@@ -60,6 +60,7 @@ export default async function DiscoveryBacklogPage() {
   const blocked = targets.filter((target) => target.status === "blocked");
   const caughtUp = targets.filter((target) => target.status === "caught_up");
   const dueNow = targets.filter((target) => isDue(target));
+  const fastTrack = targets.filter(isStaffFastTrack);
 
   return (
     <main className="review-page">
@@ -87,6 +88,7 @@ export default async function DiscoveryBacklogPage() {
             <div className="outcome-counts">
               {[
                 ["Due now", dueNow.length],
+                ["Fast-track", fastTrack.length],
                 ["Series gaps", gaps.length],
                 ["Awaiting Vol. 1", awaitingVolumeOne.length],
                 ["Blocked", blocked.length],
@@ -133,6 +135,7 @@ export default async function DiscoveryBacklogPage() {
                       <li className={nextRunIds.has(target.id) ? "is-debut" : undefined} key={target.id}>
                         <span className="issue-lineup-work">
                           {titleOf(target)}{target.next_missing_volume ? ` Vol. ${target.next_missing_volume}` : ""}
+                          {isStaffFastTrack(target) ? " · FAST-TRACK" : ""}
                         </span>
                         <span className="issue-lineup-creator">
                           <span className="issue-lineup-original">{STATUS_NOTE[target.status] ?? target.status}</span>

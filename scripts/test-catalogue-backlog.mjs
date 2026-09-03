@@ -123,5 +123,19 @@ const mixed = planRun([
 ]);
 check("a title never looked at outranks a high-scoring one already checked", mixed[0].series_key === "berserk", JSON.stringify(mixed.map((item) => item.series_key)));
 
+console.log("\n--- staff fast-track jumps ordinary discovery ---");
+const staffBatch = Array.from({ length: 12 }, (_, index) => target({
+  discovery_source: "staff_fast_track",
+  external_id: `staff-${index}`,
+  series_key: `staff title ${index}`,
+  lane: "established",
+  next_missing_volume: 1,
+  score: 1_000_000,
+}));
+const normalHighScore = target({ series_key: "ordinary discovery", lane: "series_gap", score: 9_000_000 });
+const fastRun = planRun([normalHighScore, ...staffBatch]);
+check("fast-track targets fill the run first", fastRun.every((item) => item.discovery_source === "staff_fast_track"), JSON.stringify(fastRun.map((item) => item.discovery_source)));
+check("fast-track run still respects the overall cap", fastRun.length === TARGETS_PER_RUN, `got ${fastRun.length}`);
+
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);

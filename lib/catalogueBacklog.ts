@@ -86,6 +86,26 @@ function targetScore(target: BacklogTarget) {
   return target.score ?? 0;
 }
 
+export function isStaffFastTrack(target: Pick<BacklogTarget, "discovery_source">) {
+  return target.discovery_source === "staff_fast_track";
+}
+
+function compareTargets(left: BacklogTarget, right: BacklogTarget) {
+  // An explicit staff fast-track is the only thing allowed to jump the normal
+  // lane rotation. It still creates research work only; it cannot publish.
+  const leftPriority = isStaffFastTrack(left) ? 0 : 1;
+  const rightPriority = isStaffFastTrack(right) ? 0 : 1;
+  if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+  const leftSeen = left.last_checked_at ? 1 : 0;
+  const rightSeen = right.last_checked_at ? 1 : 0;
+  if (leftSeen !== rightSeen) return leftSeen - rightSeen;
+  if (left.failure_count !== right.failure_count) return left.failure_count - right.failure_count;
+  const leftVolume = left.next_missing_volume ?? 0;
+  const rightVolume = right.next_missing_volume ?? 0;
+  if (leftVolume !== rightVolume) return leftVolume - rightVolume;
+  return targetScore(right) - targetScore(left);
+}
+
 /**
  * Choose this run's targets.
  *
@@ -103,31 +123,24 @@ export function planRun(
   const now = options.now ?? Date.now();
 
   const due = backlog.filter((target) => isDue(target, now));
+  const fastTrack = due.filter(isStaffFastTrack).sort(compareTargets);
+  const normal = due.filter((target) => !isStaffFastTrack(target));
   const byLane = new Map<DiscoveryLane, BacklogTarget[]>();
   for (const lane of LANES) byLane.set(lane, []);
-  for (const target of due) byLane.get(target.lane)?.push(target);
+  for (const target of normal) byLane.get(target.lane)?.push(target);
 
   for (const lane of LANES) {
-    byLane.get(lane)!.sort((left, right) => {
-      // Never looked at yet beats already looked at, so a newly discovered
-      // title is not stuck behind a long-standing one forever.
-      const leftSeen = left.last_checked_at ? 1 : 0;
-      const rightSeen = right.last_checked_at ? 1 : 0;
-      if (leftSeen !== rightSeen) return leftSeen - rightSeen;
-      // Fewer past failures first: a target that keeps coming back empty
-      // should not crowd out one that has never been tried.
-      if (left.failure_count !== right.failure_count) return left.failure_count - right.failure_count;
-      // An early volume matters more than a late one -- volume 2 of a series
-      // RAR half-holds is worth more than volume 40.
-      const leftVolume = left.next_missing_volume ?? 0;
-      const rightVolume = right.next_missing_volume ?? 0;
-      if (leftVolume !== rightVolume) return leftVolume - rightVolume;
-      return targetScore(right) - targetScore(left);
-    });
+    byLane.get(lane)!.sort(compareTargets);
   }
 
   const chosen: BacklogTarget[] = [];
   const perSeries = new Map<string, number>();
+  for (const target of fastTrack) {
+    if (chosen.length >= limit) break;
+    if ((perSeries.get(target.series_key) ?? 0) >= maxPerSeries) continue;
+    chosen.push(target);
+    perSeries.set(target.series_key, (perSeries.get(target.series_key) ?? 0) + 1);
+  }
   let laneIndex = 0;
   let exhaustedLanes = 0;
 
