@@ -3310,3 +3310,126 @@ html[data-theme="day"] .public-page {
   .human-learning-queue li { grid-template-columns: 1fr auto; }
   .human-learning-queue li a { grid-column: 1 / -1; }
 }
+
+/* ---------------------------------------------------------------------
+   The shelf: a collection as rows of books standing on a ledge.
+
+   Everything here exists to make a cover read as an OBJECT rather than a
+   thumbnail — a contact shadow where the book meets the ledge, a spine
+   highlight down the left edge, and the ledge itself sitting slightly
+   proud of the row. The books are flush against each other the way they
+   are on a real shelf, not spaced out in a grid.
+
+   The empty slot is the point of the whole component. It keeps a missing
+   volume's footprint so a run reads at its true length, and it is the only
+   thing on the shelf that asks to be clicked.
+   --------------------------------------------------------------------- */
+.shelf { display: grid; gap: 2.75rem; }
+.shelf-empty { margin: 0; color: var(--muted); font-size: .9rem; }
+
+.shelf-run-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .3rem 1rem; margin-bottom: .9rem; }
+.shelf-run-head h3 { display: inline; margin: 0; font-size: 1.05rem; letter-spacing: -.02em; }
+.shelf-run-lang { margin-left: .5rem; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.shelf-run-count { margin: 0; color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.shelf-run-count strong { color: var(--canvas-heading); font-size: .95rem; }
+.shelf-run-gapcount { color: var(--accent-warning-text); font-weight: 600; }
+
+.shelf-ledge-wrap { position: relative; padding-bottom: .85rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.shelf-ledge-wrap::-webkit-scrollbar { display: none; }
+.shelf-books { display: flex; align-items: flex-end; gap: 3px; margin: 0; padding: 1.5rem .25rem 0; list-style: none; min-width: min-content; }
+
+/* The ledge. A plate with a lit top edge, so books sit ON it rather than
+   in front of a line. */
+.shelf-ledge {
+  height: 12px; border-radius: 0 0 4px 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--canvas-heading) 20%, var(--surface-card)) 0%, var(--surface-chip) 40%, var(--surface-card) 100%);
+  border-top: 1px solid color-mix(in srgb, var(--canvas-heading) 40%, transparent);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--canvas-heading) 18%, transparent);
+}
+
+.shelf-book { position: relative; flex: 0 0 auto; }
+.shelf-book-face {
+  position: relative; display: block; width: 88px; padding: 0; border: 0;
+  background: transparent; cursor: pointer;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), filter .22s ease;
+  transform-origin: bottom center;
+}
+.shelf-book-cover { display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 1px 3px 3px 1px; }
+/* The spine edge. One inset highlight down the left of every cover is what
+   stops a flush row reading as a single flat strip of artwork. */
+.shelf-book-face::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 1px 3px 3px 1px;
+  background: linear-gradient(90deg, rgba(0,0,0,.34) 0%, rgba(0,0,0,.06) 5%, transparent 12%, transparent 92%, rgba(0,0,0,.16) 100%);
+}
+/* Contact shadow: the book meeting the ledge. */
+.shelf-book-face::before {
+  content: ""; position: absolute; left: -2%; right: -2%; bottom: -7px; height: 10px;
+  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--canvas-heading) 55%, transparent) 0%, transparent 70%);
+  opacity: .55;
+}
+.shelf-book-face:hover { transform: translateY(-9px); }
+.shelf-book-face:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.shelf-book.is-open .shelf-book-face { transform: translateY(-22px) scale(1.06); z-index: 3; }
+.shelf-book.is-open .shelf-book-cover { box-shadow: 0 14px 26px color-mix(in srgb, var(--canvas-heading) 30%, transparent); }
+
+.shelf-book-number {
+  position: absolute; left: 50%; bottom: -1.35rem; transform: translateX(-50%);
+  color: var(--muted); font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  opacity: 0; transition: opacity .18s ease;
+}
+.shelf-book-face:hover .shelf-book-number, .shelf-book.is-open .shelf-book-number { opacity: 1; }
+
+/* The pulled-out book, named under its own shelf. */
+.shelf-selected { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .7rem; margin: .85rem 0 0; }
+.shelf-selected strong { color: var(--canvas-heading); font-size: .92rem; }
+.shelf-selected span { color: var(--muted); font-size: .8rem; }
+.shelf-selected a { color: var(--accent-label-text); font-size: .78rem; font-weight: 700; }
+.shelf-selected a:hover { text-decoration: underline; }
+
+/* The hole in the run. */
+.shelf-slot { flex: 0 0 auto; }
+.shelf-slot-inner {
+  display: grid; align-content: center; justify-items: center; gap: .2rem;
+  width: 88px; aspect-ratio: 2 / 3;
+  border: 1px dashed color-mix(in srgb, var(--canvas-heading) 30%, transparent);
+  border-radius: 2px; background: var(--surface-hairline-fill);
+  color: var(--muted); transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+.shelf-slot-inner:hover { border-color: var(--orange); background: var(--surface-chip); color: var(--canvas-heading); }
+.shelf-slot-inner:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.shelf-slot-number { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shelf-slot-hint { font-size: .56rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+
+@media (max-width: 700px) {
+  /* Narrower books, so a run of ten is still a run rather than a scroll
+     marathon; the row scrolls horizontally either way. */
+  .shelf { gap: 2.25rem; }
+  .shelf-books { padding-top: 1.25rem; }
+  .shelf-book-face, .shelf-slot-inner { width: 62px; }
+  .shelf-slot-number { font-size: .9rem; }
+  .shelf-slot-hint { font-size: .5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf-book-face { transition: none; }
+}
+
+/* Internal component preview. Deliberately plain, so the components on it are
+   the only thing being judged. */
+.preview-intro { max-width: 1240px; margin: auto; padding: 2.5rem 2rem 0; }
+.preview-intro h1 { margin: 0 0 .7rem; font-size: clamp(1.9rem, 4vw, 2.7rem); }
+.preview-intro p { max-width: 70ch; margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.65; }
+.preview-body { display: grid; gap: 3.5rem; max-width: 1240px; margin: auto; padding: 2.5rem 2rem 5rem; }
+.preview-case { padding-top: 2rem; border-top: 1px solid var(--line); }
+.preview-case-head { margin-bottom: 1.5rem; }
+.preview-case-head h2 { margin: 0 0 .35rem; font-size: 1.2rem; letter-spacing: -.02em; }
+.preview-case-head p { max-width: 70ch; margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+@media (max-width: 600px) {
+  .preview-intro { padding: 1.75rem 1rem 0; }
+  .preview-body { gap: 2.5rem; padding: 1.75rem 1rem 3.5rem; }
+}
+
+/* Grid and flex children default to min-width:auto, which lets them size to
+   their content and blow straight past an overflow-x:auto ancestor. A 24
+   volume run then pushes the whole PAGE sideways instead of scrolling inside
+   its own row. */
+.shelf-run, .shelf-ledge-wrap, .preview-case { min-width: 0; }
