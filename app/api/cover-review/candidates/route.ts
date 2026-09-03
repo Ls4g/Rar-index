@@ -1,6 +1,7 @@
 import { discoverCoverCandidates } from "@/lib/coverDiscovery";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
+import { compareCoverResearchPriority } from "@/lib/coveragePriority";
 
 const MAX_BATCH_SIZE = 20;
 
@@ -12,6 +13,7 @@ type QueueEdition = {
   language: string | null;
   publisher: string | null;
   isbn_13: string | null;
+  verified_sale_count: number;
 };
 
 function requestedLimit(value: unknown) {
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("cover_review_queue")
-    .select("edition_id,title,series,volume_number,language,publisher,isbn_13")
+    .select("edition_id,title,series,volume_number,language,publisher,isbn_13,verified_sale_count")
     .not("isbn_13", "is", null)
     .order("verified_sale_count", { ascending: false })
     .order("series", { ascending: true })
@@ -69,14 +71,10 @@ export async function POST(request: Request) {
   const lastScan = new Map<string, string>();
   for (const scan of scanData ?? []) if (!lastScan.has(scan.edition_id)) lastScan.set(scan.edition_id, scan.scanned_at);
   const editions = [...queue]
-    .sort((left, right) => {
-      const leftScan = lastScan.get(left.edition_id);
-      const rightScan = lastScan.get(right.edition_id);
-      if (!leftScan && rightScan) return -1;
-      if (leftScan && !rightScan) return 1;
-      if (!leftScan && !rightScan) return 0;
-      return String(leftScan).localeCompare(String(rightScan));
-    })
+    .sort((left, right) => compareCoverResearchPriority(
+      { series: left.series, verified_sale_count: left.verified_sale_count, lastScan: lastScan.get(left.edition_id) ?? null },
+      { series: right.series, verified_sale_count: right.verified_sale_count, lastScan: lastScan.get(right.edition_id) ?? null },
+    ))
     .slice(0, limit);
   const discovered = await mapWithConcurrency(editions, 4, async (edition) => {
     const result = await discoverCoverCandidates({

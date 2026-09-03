@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 import { isPrioritySeries } from "@/lib/prioritySeries";
+import { coveragePriorityRank, coverageStrength, isCoveragePrioritySeries, STRONG_COVERAGE_SALE_TARGET } from "@/lib/coveragePriority";
 
 export type CoverageRow = {
   editionId: string;
@@ -22,6 +23,7 @@ export type CoverageRow = {
   verifiedSaleCount: number;
   reviewSaleCount: number;
   comparableSaleCount: number;
+  rawSaleCount: number;
   profileId: string | null;
   pendingLeadCount: number;
 };
@@ -31,7 +33,7 @@ type ProfileFilter = "all" | "has" | "missing";
 
 function isTargetSprintRow(row: CoverageRow) {
   if (row.volumeNumber !== "1") return false;
-  return isPrioritySeries(row.series);
+  return isCoveragePrioritySeries(row.series) || isPrioritySeries(row.series);
 }
 
 const coverLabels: Record<CoverageRow["coverStatus"], string> = {
@@ -100,6 +102,7 @@ function CoverageTable({ rows, emptyMessage }: { rows: CoverageRow[]; emptyMessa
             <th>Verified sales</th>
             <th>Cover</th>
             <th>Profile</th>
+            <th>Coverage</th>
             <th>Next action</th>
             <th>Direct links</th>
           </tr>
@@ -107,12 +110,18 @@ function CoverageTable({ rows, emptyMessage }: { rows: CoverageRow[]; emptyMessa
         <tbody>
           {rows.map((row) => {
             const action = primaryAction(row);
+            const strength = coverageStrength({
+              coverVerified: row.coverStatus === "verified",
+              hasActiveProfile: Boolean(row.profileId),
+              comparableSaleCount: row.rawSaleCount,
+            });
             return (
               <tr key={row.editionId}>
                 <td><RowIdentity row={row} /></td>
                 <td>{row.verifiedSaleCount} verified{row.comparableSaleCount !== row.verifiedSaleCount ? ` (${row.comparableSaleCount} comparable)` : ""}{row.reviewSaleCount ? ` · ${row.reviewSaleCount} in review` : ""}</td>
                 <td><span className={`coverage-badge ${coverToneClass(row.coverStatus)}`}>{coverLabels[row.coverStatus]}</span></td>
                 <td>{row.profileId ? <span className="coverage-badge coverage-good">Active</span> : <span className="coverage-badge coverage-neutral">None</span>}</td>
+                <td><span className={`coverage-badge ${strength.strong ? "coverage-good" : "coverage-warning"}`}>{strength.strong ? "Strong" : `${strength.completed}/${strength.total}`}</span>{strength.missing.length ? <small className="coverage-gap-copy">Needs {strength.missing.join(" · ")}</small> : null}</td>
                 <td><Link className={`coverage-badge ${action.tone}`} href={action.href}>{action.label}</Link></td>
                 <td><RowActions row={row} /></td>
               </tr>
@@ -164,11 +173,21 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
     // real number of leads, and say how many publications they span.
     pendingLeads: rows.reduce((total, row) => total + row.pendingLeadCount, 0),
     withPendingLeads: rows.filter((row) => row.pendingLeadCount > 0).length,
+    strongCoverage: rows.filter((row) => coverageStrength({
+      coverVerified: row.coverStatus === "verified",
+      hasActiveProfile: Boolean(row.profileId),
+      comparableSaleCount: row.rawSaleCount,
+    }).strong).length,
   }), [rows]);
 
   const targetSprintRows = useMemo(() => rows
     .filter(isTargetSprintRow)
-    .sort((a, b) => a.verifiedSaleCount - b.verifiedSaleCount || a.comparableSaleCount - b.comparableSaleCount || (a.series ?? "").localeCompare(b.series ?? "") || (a.language ?? "").localeCompare(b.language ?? "")),
+    .sort((a, b) => {
+      const leftRank = coveragePriorityRank(a.series);
+      const rightRank = coveragePriorityRank(b.series);
+      if (Number.isFinite(leftRank) !== Number.isFinite(rightRank)) return Number.isFinite(leftRank) ? -1 : 1;
+      return leftRank - rightRank || (a.language ?? "").localeCompare(b.language ?? "");
+    }),
     [rows]);
 
   const missingSales = useMemo(() => filteredRows
@@ -203,12 +222,13 @@ export default function CoverageDashboardClient({ rows }: { rows: CoverageRow[] 
         <div><span>{counts.withVerifiedSale}</span><strong>With a verified sale</strong><p>At least one completed sale RAR has proven for this publication, including a verified print-run record where one exists.</p></div>
         <div><span>{counts.chartReady}</span><strong>Chart-ready (3+ comparable)</strong><p>3+ verified sales in the same raw/graded group.</p></div>
         <div><span>{counts.withVerifiedCover}</span><strong>With a verified cover</strong><p>Cover art confirmed against a publisher or licensed catalogue record.</p></div>
+        <div><span>{counts.strongCoverage}</span><strong>Strongly covered</strong><p>Verified cover, active search profile and {STRONG_COVERAGE_SALE_TARGET}+ comparable verified raw sales.</p></div>
         <div><span>{counts.missingBoth}</span><strong>Missing sales AND cover</strong><p>Weakest public pages — no market evidence, no confirmed cover.</p></div>
         <div><span>{counts.pendingLeads}</span><strong>Live Scout leads waiting</strong><p>New listing leads not yet reviewed by staff, across {counts.withPendingLeads} publication{counts.withPendingLeads === 1 ? "" : "s"}.</p></div>
       </div>
 
       <section className="review-list-section coverage-target-sprint">
-        <div className="section-intro"><p className="eyebrow">Pricing coverage sprint</p><h2>Target editions</h2><p className="section-copy">One Piece, Hunter × Hunter, Jujutsu Kaisen, Kagurabachi, Naruto, Bleach, Demon Slayer, Attack on Titan, and Initial D — Vol. 1, Japanese and English. Weakest evidence first. This list ignores the filters below; it always shows every target edition.</p></div>
+        <div className="section-intro"><p className="eyebrow">Priority coverage programme</p><h2>Important Volume 1 editions</h2><p className="section-copy">The leading titles from SP&apos;s fast-track list, plus RAR&apos;s existing strategic subjects. Strong means a verified cover, an active marketplace profile and {STRONG_COVERAGE_SALE_TARGET}+ comparable verified raw sales. Uncertain evidence never fills a gap.</p></div>
         <CoverageTable rows={targetSprintRows} emptyMessage="No target-sprint editions found." />
       </section>
 

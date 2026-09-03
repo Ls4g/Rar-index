@@ -105,6 +105,7 @@ export default async function CoverageDashboardPage() {
   // just 3 verified sales overall — this mirrors the exact grouping used by
   // the price chart and collection-profiles workbench.
   const comparableCountByEdition = new Map<string, number>();
+  const rawSaleCountByPublication = new Map<string, number>();
   const groupCounts = new Map<string, Map<string, number>>();
   const reviewSaleCountByPublication = new Map<string, number>();
   const verifiedSaleCountByPublication = new Map<string, number>();
@@ -115,6 +116,9 @@ export default async function CoverageDashboardPage() {
     }
     if (sale.sale_status !== "confirmed" || sale.match_status !== "verified_match") continue;
     verifiedSaleCountByPublication.set(publicationId, (verifiedSaleCountByPublication.get(publicationId) ?? 0) + 1);
+    if (!sale.grading_company && !sale.grade_label) {
+      rawSaleCountByPublication.set(publicationId, (rawSaleCountByPublication.get(publicationId) ?? 0) + 1);
+    }
     const groups = groupCounts.get(publicationId) ?? new Map<string, number>();
     const { key } = comparisonGroup({ sold_date: null, sale_price: 0, currency: "", grading_company: sale.grading_company, grade_label: sale.grade_label });
     groups.set(key, (groups.get(key) ?? 0) + 1);
@@ -166,6 +170,7 @@ export default async function CoverageDashboardPage() {
     verifiedSaleCount: verifiedSaleCountByPublication.get(row.edition_id) ?? 0,
     reviewSaleCount: reviewSaleCountByPublication.get(row.edition_id) ?? 0,
     comparableSaleCount: comparableCountByEdition.get(row.edition_id) ?? 0,
+    rawSaleCount: rawSaleCountByPublication.get(row.edition_id) ?? 0,
     profileId: profileByPublication.get(row.edition_id) ?? null,
     pendingLeadCount: pendingLeadCountByPublication.get(row.edition_id) ?? 0,
   }));

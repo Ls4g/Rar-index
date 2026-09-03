@@ -1,5 +1,6 @@
 import { isPlausibleLiveListing, type PlausibilityEdition } from "./liveListings.ts";
 import { looksGraded } from "./editionMatch.ts";
+import { coveragePriorityRank } from "./coveragePriority.ts";
 
 export const SCOUT_PUBLIC_LISTING_TARGET = 5;
 export const SCOUT_PUBLIC_FRESHNESS_HOURS = 48;
@@ -130,7 +131,14 @@ export function selectScoutProfiles<T extends ScoutCoverageProfile>(
     .filter((profile) => (coverageByProfile.get(profile.id) ?? 0) < SCOUT_PUBLIC_LISTING_TARGET)
     .sort((left, right) => {
       const coverageDifference = (coverageByProfile.get(left.id) ?? 0) - (coverageByProfile.get(right.id) ?? 0);
-      return coverageDifference || checkedAt(left) - checkedAt(right);
+      if (coverageDifference) return coverageDifference;
+      const leftRank = coveragePriorityRank(left.edition?.series);
+      const rightRank = coveragePriorityRank(right.edition?.series);
+      const leftPriority = Number.isFinite(leftRank);
+      const rightPriority = Number.isFinite(rightRank);
+      if (leftPriority !== rightPriority) return leftPriority ? -1 : 1;
+      if (leftPriority && leftRank !== rightRank) return leftRank - rightRank;
+      return checkedAt(left) - checkedAt(right);
     });
   const maintenance = profiles
     .filter((profile) => (coverageByProfile.get(profile.id) ?? 0) >= SCOUT_PUBLIC_LISTING_TARGET)

@@ -8,6 +8,7 @@ import { analyseLiveScoutFeedback, type ScoutFeedbackAnalysis } from "@/lib/scou
 import { refreshDiscoveryBacklog, readBacklogSummary } from "@/lib/catalogueDiscovery";
 import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
+import { ensurePriorityMarketplaceProfiles, type PriorityProfileResult } from "@/lib/priorityCoverage";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -247,6 +248,7 @@ export async function runAgentObservation(
     let availabilityResult: ScoutAvailabilityResult | null = null;
     let feedbackResult: ScoutFeedbackAnalysis | null = null;
     let printingSuggestionResult: PrintingSuggestionRun | null = null;
+    let priorityProfileResult: PriorityProfileResult | null = null;
     const autonomyLevel = Number(system?.autonomy_level ?? 1);
     if (agentKey === "catalogue_curator" && autonomyLevel >= 4 && typedControl.mode === "prepare") {
       // Refresh first so a run always plans from current discovery data.
@@ -280,6 +282,31 @@ export async function runAgentObservation(
           executed_at: now,
         });
         if (actionError) throw new Error(`Catalogue Curator could not audit its discovery run: ${actionError.message}`);
+      }
+      // A verified priority publication should immediately become searchable.
+      // This only creates a collection specification; it cannot create a lead,
+      // sale, valuation or review decision.
+      priorityProfileResult = await ensurePriorityMarketplaceProfiles(admin, { apply: true });
+      if (priorityProfileResult.created > 0) {
+        const now = new Date().toISOString();
+        const { error: profileActionError } = await admin.from("agent_actions").insert({
+          run_id: run.id,
+          agent_key: agentKey,
+          action_type: "create_priority_collection_profiles",
+          target_type: "marketplace_search_profiles",
+          dedupe_key: `catalogue:priority-profiles:${run.id}`,
+          title: `Created ${priorityProfileResult.created} priority collection profile${priorityProfileResult.created === 1 ? "" : "s"}`,
+          rationale: "Verified priority Volume 1 publications need a bounded eBay search before Market Scout can build availability coverage.",
+          risk_level: "low",
+          confidence: 1,
+          status: "executed",
+          evidence: priorityProfileResult,
+          reviewed_by: "RAR Catalogue Curator",
+          review_notes: "Created collection specifications only. No listing or sale evidence was created or verified.",
+          reviewed_at: now,
+          executed_at: now,
+        });
+        if (profileActionError) throw new Error(`Catalogue Curator could not audit priority profile creation: ${profileActionError.message}`);
       }
     }
     if (agentKey === "market_scout" && autonomyLevel >= 2 && typedControl.mode === "safe_actions") {
@@ -347,6 +374,11 @@ export async function runAgentObservation(
       metrics.catalogue_candidates_staged = catalogueDiscoveryResult.candidatesStaged;
       metrics.catalogue_candidates_already_queued = catalogueDiscoveryResult.candidatesAlreadyQueued;
       metrics.catalogue_candidates_already_published = catalogueDiscoveryResult.candidatesAlreadyPublished;
+    }
+    if (priorityProfileResult) {
+      metrics.priority_publications = priorityProfileResult.priorityPublications;
+      metrics.priority_profiles_created = priorityProfileResult.created;
+      metrics.priority_profiles_missing_before_run = priorityProfileResult.missing;
     }
     if (safeActionResult) {
       metrics.auto_triage_examined = safeActionResult.examined;
