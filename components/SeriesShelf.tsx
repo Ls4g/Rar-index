@@ -113,15 +113,27 @@ function ShelfBook({ volume, open, onToggle }: { volume: SeriesVolume; open: boo
         onClick={onToggle}
         type="button"
       >
-        <EditionCover
-          className="shelf-book-cover"
-          imageStatus={volume.coverStatus}
-          imageUrl={volume.coverImageUrl}
-          language={volume.language}
-          series={volume.series}
-          title={volume.title}
-          volumeNumber={volume.volumeNumber}
-        />
+        {/* A real cuboid, not a gradient pretending to be one. The cover is
+            the front face; the spine is a second face hinged on its left edge
+            and rotated back into the shelf, so turning the book actually
+            reveals it. This is what the flat version was missing -- depth you
+            can rotate, rather than depth painted on. */}
+        <span className="shelf-book-3d">
+          <span className="shelf-book-front">
+            <EditionCover
+              className="shelf-book-cover"
+              imageStatus={volume.coverStatus}
+              imageUrl={volume.coverImageUrl}
+              language={volume.language}
+              series={volume.series}
+              title={volume.title}
+              volumeNumber={volume.volumeNumber}
+            />
+          </span>
+          {/* The spine carries the volume number, which is exactly what a
+              manga spine carries on a real shelf. */}
+          <span className="shelf-book-spine"><b>{label}</b></span>
+        </span>
         <span className="shelf-book-number">{label}</span>
       </button>
     </li>

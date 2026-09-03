@@ -3340,6 +3340,8 @@ html[data-theme="day"] .public-page {
    makes a shelf feel like an object rather than a list. Night is the base
    here, as everywhere; Day overrides the same tokens. */
 .shelf {
+  --shelf-book-w: 150px;
+  --shelf-book-d: 24px;
   --shelf-wall: #221d17;
   --shelf-wall-lit: #2e261d;
   --shelf-rail: #3a2c1f;
@@ -3347,6 +3349,8 @@ html[data-theme="day"] .public-page {
   --shelf-rail-shadow: rgba(0, 0, 0, .55);
   --shelf-contact: rgba(0, 0, 0, .62);
   --shelf-slot-line: rgba(244, 240, 232, .26);
+  --shelf-spine: #cfc4ac;
+  --shelf-spine-ink: #2b241c;
 }
 html[data-theme="day"] .shelf {
   --shelf-wall: #ece2ce;
@@ -3356,6 +3360,8 @@ html[data-theme="day"] .shelf {
   --shelf-rail-shadow: rgba(58, 41, 26, .38);
   --shelf-contact: rgba(58, 41, 26, .5);
   --shelf-slot-line: rgba(58, 41, 26, .3);
+  --shelf-spine: #e3dac4;
+  --shelf-spine-ink: #3a2c1f;
 }
 
 /* The niche. Books stand INSIDE a lit recess rather than on a bare line --
@@ -3369,7 +3375,16 @@ html[data-theme="day"] .shelf {
   box-shadow: inset 0 14px 24px -16px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(0, 0, 0, .12);
 }
 .shelf-ledge-wrap::-webkit-scrollbar { display: none; }
-.shelf-books { display: flex; align-items: flex-end; gap: 2px; margin: 0; padding: 1.9rem .55rem 0; list-style: none; min-width: min-content; }
+.shelf-books {
+  display: flex; align-items: flex-end; gap: var(--shelf-book-d); margin: 0;
+  /* Headroom for a book being pulled out: overflow-x also clips
+     vertically, so without it the lifted volume is sliced off at the top of
+     the niche. It also reads better -- books on a real shelf do not touch
+     the underside of the one above. */
+  padding: 4.6rem 1.2rem 0; list-style: none; min-width: min-content;
+  /* One shared vanishing point, so every book on the row turns as though
+     lit and seen from the same place. */
+}
 
 /* The rail. Thickness, a lit front edge, and a shadow thrown down the wall
    below it -- without the cast shadow it is a coloured bar, not a shelf. */
@@ -3381,32 +3396,58 @@ html[data-theme="day"] .shelf {
 
 .shelf-book { position: relative; flex: 0 0 auto; }
 .shelf-book-face {
-  position: relative; display: block; width: 88px; padding: 0; border: 0;
+  position: relative; display: block; width: var(--shelf-book-w); padding: 0; border: 0;
+  perspective: 900px;
   background: transparent; cursor: pointer;
-  transition: transform .22s cubic-bezier(.2,.8,.2,1), filter .22s ease;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1);
   transform-origin: bottom center;
 }
-.shelf-book-cover { display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 1px 3px 3px 1px; }
-/* The spine edge. One inset highlight down the left of every cover is what
-   stops a flush row reading as a single flat strip of artwork. */
-.shelf-book-face::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 1px 3px 3px 1px;
-  background: linear-gradient(90deg, rgba(0,0,0,.34) 0%, rgba(0,0,0,.06) 5%, transparent 12%, transparent 92%, rgba(0,0,0,.16) 100%);
+/* The cuboid. Rotated slightly so the spine is visible at rest -- a shelf of
+   books seen perfectly square-on is just a row of pictures, which is exactly
+   how the flat version read. */
+.shelf-book-3d {
+  position: relative; display: block; width: 100%; aspect-ratio: 2 / 3;
+  transform-style: preserve-3d;
+  transform: rotateY(var(--book-turn, 24deg));
+  transition: transform .34s cubic-bezier(.2,.8,.2,1);
 }
-/* Contact shadow: the book meeting the ledge. */
+.shelf-book-front { position: absolute; inset: 0; }
+.shelf-book-cover { display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 1px 3px 3px 1px; }
+.shelf-book-cover img { width: 100%; height: 100%; object-fit: cover; }
+/* Hinged on the cover's left edge and folded back into the shelf. */
+.shelf-book-spine {
+  position: absolute; top: 0; bottom: 0;
+  left: calc(var(--shelf-book-d) * -1); width: var(--shelf-book-d);
+  transform-origin: 100% 50%; transform: rotateY(-90deg);
+  display: grid; place-items: center; overflow: hidden;
+  border-radius: 2px 0 0 2px;
+  /* Lit from the front edge and falling away into the shelf. */
+  background: linear-gradient(90deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.06) 45%, rgba(0,0,0,.3) 100%);
+  background-color: var(--shelf-spine);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.22);
+}
+.shelf-book-spine b {
+  color: var(--shelf-spine-ink); font-size: .6rem; font-weight: 700;
+  font-variant-numeric: tabular-nums; writing-mode: vertical-rl; letter-spacing: .08em;
+}
+/* Contact shadow where the book meets the rail. */
 .shelf-book-face::before {
-  content: ""; position: absolute; left: -2%; right: -2%; bottom: -7px; height: 10px;
+  content: ""; position: absolute; left: -6%; right: -6%; bottom: -7px; height: 11px;
   background: radial-gradient(ellipse at 50% 0%, var(--shelf-contact) 0%, transparent 72%);
-  opacity: .8;
+  opacity: .85;
 }
-.shelf-book-face:hover { transform: translateY(-9px); }
-.shelf-book-face:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.shelf-book.is-open .shelf-book-face { transform: translateY(-22px) scale(1.06); z-index: 3; }
-.shelf-book.is-open .shelf-book-cover { box-shadow: 0 14px 26px color-mix(in srgb, var(--canvas-heading) 30%, transparent); }
+.shelf-book-face:hover { transform: translateY(-10px); z-index: 2; }
+.shelf-book-face:hover .shelf-book-3d { --book-turn: 36deg; }
+.shelf-book-face:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+/* Pulled off the shelf and squared up to be looked at. */
+.shelf-book.is-open { z-index: 4; }
+.shelf-book.is-open .shelf-book-face { transform: translateY(-30px) scale(1.16); }
+.shelf-book.is-open .shelf-book-3d { --book-turn: 0deg; }
+.shelf-book.is-open .shelf-book-cover { box-shadow: 0 20px 34px var(--shelf-contact); }
 
 .shelf-book-number {
-  position: absolute; left: 50%; bottom: -1.35rem; transform: translateX(-50%);
-  color: var(--muted); font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  position: absolute; left: 50%; bottom: -1.4rem; transform: translateX(-50%);
+  color: var(--muted); font-size: .64rem; font-weight: 700; font-variant-numeric: tabular-nums;
   opacity: 0; transition: opacity .18s ease;
 }
 .shelf-book-face:hover .shelf-book-number, .shelf-book.is-open .shelf-book-number { opacity: 1; }
@@ -3421,15 +3462,19 @@ html[data-theme="day"] .shelf {
 /* The hole in the run. */
 .shelf-slot { flex: 0 0 auto; }
 .shelf-slot-inner {
-  display: grid; align-content: center; justify-items: center; gap: .2rem;
-  width: 88px; aspect-ratio: 2 / 3;
-  border: 1px dashed var(--shelf-slot-line);
-  border-radius: 2px; background: rgba(0, 0, 0, .16);
-  color: var(--muted); transition: border-color .18s ease, background .18s ease, color .18s ease;
+  display: grid; align-content: end; justify-items: center; gap: .15rem;
+  width: var(--shelf-book-w); aspect-ratio: 2 / 3;
+  padding-bottom: .7rem; border-radius: 2px;
+  /* A void in the row: darker at the base where a book would sit, fading up
+     into the wall. No dashed outline -- an empty space on a shelf has no
+     border, it is simply where a book is not. */
+  background: linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, .3) 100%);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .35);
+  color: var(--muted); transition: background .18s ease, color .18s ease;
 }
-.shelf-slot-inner:hover { border-color: var(--orange); border-style: solid; background: rgba(0, 0, 0, .28); color: var(--paper); }
+.shelf-slot-inner:hover { background: linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--orange) 45%, transparent) 100%); color: var(--paper); }
 .shelf-slot-inner:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.shelf-slot-number { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shelf-slot-number { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .shelf-slot-hint { font-size: .56rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 
 @media (max-width: 700px) {
@@ -3437,12 +3482,12 @@ html[data-theme="day"] .shelf {
      marathon; the row scrolls horizontally either way. */
   .shelf { gap: 2.25rem; }
   .shelf-books { padding-top: 1.25rem; }
-  .shelf-book-face, .shelf-slot-inner { width: 62px; }
+  .shelf { --shelf-book-w: 104px; --shelf-book-d: 16px; }
   .shelf-slot-number { font-size: .9rem; }
   .shelf-slot-hint { font-size: .5rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shelf-book-face { transition: none; }
+  .shelf-book-face, .shelf-book-3d { transition: none; }
 }
 
 /* Internal component preview. Deliberately plain, so the components on it are
