@@ -156,6 +156,49 @@ async function saleCases(admin: SupabaseClient): Promise<CandidateCase[]> {
     }));
 }
 
+async function rejectedSaleIntakeCases(admin: SupabaseClient): Promise<CandidateCase[]> {
+  type Row = {
+    id: string; edition_id: string; source_id: string; external_id: string;
+    source_listing_url: string; listing_title: string; reason_label: string | null;
+    detector_output: Json | null; submitted_payload: Json | null; decision_notes: string | null;
+    reviewed_by: string; created_at: string;
+  };
+  const rows = await readAll<Row>((from, to) => admin.from("sale_intake_decisions")
+    .select("id,edition_id,source_id,external_id,source_listing_url,listing_title,reason_label,detector_output,submitted_payload,decision_notes,reviewed_by,created_at")
+    .eq("decision", "rejected")
+    .order("created_at", { ascending: false }).range(from, to));
+  return rows.filter((row) => isHuman(row.reviewed_by)).map((row) => {
+    const suppliedFields = asObject(asObject(row.submitted_payload).supplied_fields);
+    return {
+      agent_key: "evidence_auditor",
+      evaluator_key: "evidence_sale_guard",
+      subject_key: `sale-intake:${row.id}`,
+      source_decision_table: "sale_intake_decisions",
+      source_decision_id: row.id,
+      input_snapshot: {
+        observation: {
+          edition_id: row.edition_id,
+          source_id: row.source_id,
+          external_id: row.external_id,
+          source_listing_url: row.source_listing_url,
+          listing_title: row.listing_title,
+          sold_date: suppliedFields.soldDate ?? null,
+          sale_price: suppliedFields.salePrice ?? null,
+          currency: suppliedFields.currency ?? null,
+          sale_status: "unknown",
+        },
+        detectorOutput: row.detector_output,
+        submittedPayload: row.submitted_payload,
+        decisionNotes: row.decision_notes,
+      },
+      expected_outcome: "reject",
+      reason_label: row.reason_label,
+      reviewed_by: row.reviewed_by,
+      decided_at: row.created_at,
+    };
+  });
+}
+
 async function printCases(admin: SupabaseClient): Promise<CandidateCase[]> {
   type Row = {
     id: string; observation_id: string; classification: string; decision_notes: string | null;
@@ -232,7 +275,7 @@ async function scoutCases(admin: SupabaseClient): Promise<CandidateCase[]> {
 }
 
 export async function syncReliabilityBenchmarks(admin: SupabaseClient) {
-  const groups = await Promise.all([scoutCases(admin), catalogueCases(admin), saleCases(admin), printCases(admin), coverCases(admin)]);
+  const groups = await Promise.all([scoutCases(admin), catalogueCases(admin), saleCases(admin), rejectedSaleIntakeCases(admin), printCases(admin), coverCases(admin)]);
   const feedbackRows = await readAll<{ workflow: string; subject_key: string; outcome: string; reason_label: string | null; note: string | null; reviewed_by: string; created_at: string }>((from, to) => admin
     .from("agent_human_feedback").select("workflow,subject_key,outcome,reason_label,note,reviewed_by,created_at")
     .order("created_at", { ascending: false }).range(from, to));
@@ -302,7 +345,7 @@ export function evaluateReliabilityCase(item: BenchmarkCase): ReliabilityCaseRes
     const observation = asObject(snapshot.observation);
     const confirmed = observation.sale_status === "confirmed";
     const source = validHttpUrl(observation.source_listing_url);
-    const price = Number(observation.price) > 0;
+    const price = Number(observation.sale_price ?? observation.price) > 0;
     const currency = typeof observation.currency === "string" && /^[A-Z]{3}$/.test(observation.currency);
     const date = typeof observation.sold_date === "string" && Boolean(observation.sold_date);
     const edition = typeof observation.edition_id === "string" && Boolean(observation.edition_id);

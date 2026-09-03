@@ -1,8 +1,7 @@
-import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
-import { extractEbayLegacyItemId, ebayMarketplaceFromUrl } from "@/lib/ebayEvidence";
-import { getEbayListingEvidence } from "@/lib/ebayScout";
+import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
+import { detectGrading, detectsBestOffer } from "@/lib/submittedSale";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 type Edition = {
@@ -19,14 +18,28 @@ type Edition = {
 };
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
+function positiveNumber(value: unknown) {
+  const number = typeof value === "number" ? value : Number(text(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+function nonNegativeNumber(value: unknown) {
+  if (value === null || value === undefined || text(value) === "") return null;
+  const number = typeof value === "number" ? value : Number(text(value));
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+function positiveInteger(value: unknown) {
+  const number = typeof value === "number" ? value : Number(text(value));
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && date <= new Date();
 }
 function validUrl(value: string) {
   try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; }
 }
+
 async function exactEdition(id: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.from("manga_editions")
@@ -36,129 +49,185 @@ async function exactEdition(id: string) {
   return (data as Edition | null) ?? null;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
-  const query = text(request.nextUrl.searchParams.get("q"));
-  const editionId = text(request.nextUrl.searchParams.get("editionId"));
-  const listingUrl = text(request.nextUrl.searchParams.get("listingUrl"));
+  const url = new URL(request.url);
+  const query = text(url.searchParams.get("q"));
+  const editionId = text(url.searchParams.get("editionId"));
   const admin = getSupabaseAdmin();
-
-  if (listingUrl) {
-    if (!validUrl(listingUrl)) return Response.json({ error: "Paste a valid eBay item link first." }, { status: 400 });
-    const legacyItemId = extractEbayLegacyItemId(listingUrl);
-    if (!legacyItemId) return Response.json({ error: "RAR could not find the numeric item ID in that eBay link." }, { status: 400 });
-    try {
-      const listing = await getEbayListingEvidence(
-        legacyItemId,
-        ebayMarketplaceFromUrl(listingUrl) ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US",
-      );
-      return Response.json(listing);
-    } catch (error) {
-      return Response.json({ error: error instanceof Error ? error.message : "eBay listing photos could not be loaded." }, { status: 502 });
-    }
-  }
 
   if (editionId) {
     const [edition, sourceResult] = await Promise.all([
       exactEdition(editionId),
       admin.from("sources").select("id,name").eq("is_active", true).order("name"),
     ]);
-    if (!edition) return Response.json({ error: "Choose a verified RAR edition before adding a sale." }, { status: 404 });
+    if (!edition) return Response.json({ error: "Choose a verified RAR edition before approving a sale." }, { status: 404 });
     if (sourceResult.error) return Response.json({ error: "Sale sources could not be loaded." }, { status: 500 });
     return Response.json({ edition, sources: sourceResult.data ?? [] });
   }
 
   const [{ data: sources, error: sourceError }, editionResult] = await Promise.all([
     admin.from("sources").select("id,name").eq("is_active", true).order("name"),
-    query.length >= 2 ? admin.from("manga_editions").select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name")
-      .ilike("title", `%${query.replace(/[\\%_]/g, "\\$&")}%`).eq("is_verified", true).order("title").limit(8)
+    query.length >= 2 ? admin.from("manga_editions").select("id,title,series,volume_number,language,isbn_13,publisher,printing_number,edition_statement,variant_name")
+      .ilike("title", `%${query.replace(/[\\%_]/g, "\\$&")}%`)
+      .eq("is_verified", true).order("title").limit(10)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (sourceError || editionResult.error) return Response.json({ error: "Quick sale details could not be loaded." }, { status: 500 });
+  if (sourceError || editionResult.error) return Response.json({ error: "Approved-listing details could not be loaded." }, { status: 500 });
   return Response.json({ editions: editionResult.data ?? [], sources: sources ?? [] });
 }
 
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   let payload: Record<string, unknown>;
-  try { payload = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "Send a valid completed-sale record." }, { status: 400 }); }
+  try { payload = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "Send valid submitted sale evidence." }, { status: 400 }); }
 
-  const editionId = text(payload.editionId); const sourceId = text(payload.sourceId);
-  const sourceListingUrl = text(payload.sourceListingUrl); const listingTitle = text(payload.listingTitle); const soldDate = text(payload.soldDate);
-  const currency = text(payload.currency).toUpperCase(); const saleType = text(payload.saleType) || "unknown";
-  const evidenceImageUrl = text(payload.evidenceImageUrl); const intakeNotes = text(payload.intakeNotes); const suppliedExternalId = text(payload.externalId);
-  const salePrice = typeof payload.salePrice === "number" ? payload.salePrice : Number(text(payload.salePrice));
+  const action = text(payload.action) || "approve";
+  const editionId = text(payload.editionId);
+  const sourceId = text(payload.sourceId);
+  const sourceListingUrl = text(payload.sourceListingUrl);
+  const listingTitle = text(payload.listingTitle);
+  const submittedText = text(payload.submittedText).slice(0, 20_000);
+  const suppliedExternalId = text(payload.externalId);
   const reviewer = text(payload.reviewer);
-  const verifyExactMatch = payload.verifyExactMatch === true;
-  const printClassification = text(payload.printClassification) || "printing_not_identified";
-  const knownPrintingNumberRaw = text(payload.knownPrintingNumber);
-  const knownPrintingNumber = knownPrintingNumberRaw ? Number(knownPrintingNumberRaw) : null;
-  if (!editionId || !sourceId || !sourceListingUrl || !listingTitle || !soldDate || !currency) return Response.json({ error: "Select the exact edition, then add the original completed-sale link, source, title, date, price, and currency." }, { status: 400 });
-  if (!validUrl(sourceListingUrl)) return Response.json({ error: "The original listing link must be a valid http or https URL." }, { status: 400 });
-  if (evidenceImageUrl && !validUrl(evidenceImageUrl)) return Response.json({ error: "The optional proof image link must be a valid http or https URL." }, { status: 400 });
-  if (!validDate(soldDate)) return Response.json({ error: "Use a real sale date in YYYY-MM-DD format." }, { status: 400 });
-  if (!Number.isFinite(salePrice) || salePrice <= 0) return Response.json({ error: "Sale price must be greater than zero." }, { status: 400 });
-  if (!/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Currency must use a three-letter code such as GBP, USD, or JPY." }, { status: 400 });
-  if (!(["auction", "best_offer", "fixed_price", "unknown"] as string[]).includes(saleType)) return Response.json({ error: "Choose a recognised sale type." }, { status: 400 });
-  if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
-  const classifying = printClassification !== "printing_not_identified";
-  if ((classifying || verifyExactMatch) && !reviewer) return Response.json({ error: "A reviewer name is required to verify or classify this sale." }, { status: 400 });
-  if (printClassification === "first_print_proven" && !evidenceImageUrl) return Response.json({ error: "A first-print classification requires the copyright-page proof link." }, { status: 400 });
-  if (knownPrintingNumberRaw && (!Number.isFinite(knownPrintingNumber) || (knownPrintingNumber as number) < 1)) return Response.json({ error: "Known printing number must be a positive number." }, { status: 400 });
+  const intakeNotes = text(payload.intakeNotes).slice(0, 2_000);
+
+  if (!editionId || !sourceId || !sourceListingUrl || !listingTitle || !reviewer) {
+    return Response.json({ error: "Choose the exact edition and source, then provide the listing link, title, and reviewer." }, { status: 400 });
+  }
+  if (!validUrl(sourceListingUrl)) return Response.json({ error: "The original completed-listing link must be a valid URL." }, { status: 400 });
 
   try {
-    const edition = await exactEdition(editionId);
-    if (!edition) return Response.json({ error: "Choose a verified RAR edition before adding a sale." }, { status: 400 });
     const admin = getSupabaseAdmin();
-    const { data: source, error: sourceError } = await admin.from("sources").select("id,name").eq("id", sourceId).eq("is_active", true).maybeSingle();
-    if (sourceError || !source) return Response.json({ error: "Choose an active RAR marketplace source." }, { status: 400 });
-    const externalId = suppliedExternalId || (source.name === "eBay Sold" ? extractEbayLegacyItemId(sourceListingUrl) : "");
-    if (!externalId) return Response.json({ error: "Add the marketplace listing ID. For eBay, it is normally the number in the item link." }, { status: 400 });
-    const { data: duplicate, error: duplicateError } = await admin.from("price_observations").select("id").eq("source_id", source.id).eq("external_id", externalId).maybeSingle();
-    if (duplicateError) return Response.json({ error: "RAR could not check for an existing sale." }, { status: 500 });
-    if (duplicate) return Response.json({ error: "This marketplace listing already exists in RAR. It was not changed." }, { status: 409 });
-    const { data: observation, error: insertError } = await admin.from("price_observations").insert({
-      edition_id: edition.id, collection_run_id: null, source_id: source.id, source_listing_url: sourceListingUrl, external_id: externalId,
-      listing_title: listingTitle, sold_date: soldDate, sale_price: salePrice, currency, quantity: 1, sale_type: saleType,
-      is_verified: false, match_status: "needs_review", sale_status: "confirmed",
-      raw_payload: { source: "quick-sale-v1", intake_method: "manual_source_entry", captured_at: new Date().toISOString(), selected_edition: edition, evidence_image_url: evidenceImageUrl || null, intake_notes: intakeNotes || null },
-      notes: "Added through Quick sale intake. Awaiting staff review of the original listing and exact-edition evidence.",
-    }).select("id").single();
-    if (insertError?.code === "23505") return Response.json({ error: "This marketplace listing already exists in RAR. It was not changed." }, { status: 409 });
-    if (insertError || !observation) return Response.json({ error: "The sale could not be queued. Nothing was verified automatically." }, { status: 500 });
+    const [edition, sourceResult] = await Promise.all([
+      exactEdition(editionId),
+      admin.from("sources").select("id,name").eq("id", sourceId).eq("is_active", true).maybeSingle(),
+    ]);
+    if (!edition) return Response.json({ error: "Choose a verified RAR edition." }, { status: 400 });
+    if (sourceResult.error || !sourceResult.data) return Response.json({ error: "Choose an active marketplace source." }, { status: 400 });
 
-    // The sale always lands printing_not_identified via the plain insert
-    // above. A printing classification only ever happens through this
-    // audited RPC — never a raw column set — so it always gets a named
-    // reviewer and a permanent row in
-    // price_print_classification_decisions, exactly like every other
-    // staff decision in RAR.
-    if (classifying) {
-      const { error: classificationError } = await admin.rpc("apply_price_print_classification", {
-        p_observation_id: observation.id,
-        p_classification: printClassification,
-        p_printing_proof_url: evidenceImageUrl || null,
-        p_known_printing_number: knownPrintingNumber,
+    const sourceName = text(sourceResult.data.name);
+    const externalId = suppliedExternalId || (sourceName === "eBay Sold" ? extractEbayLegacyItemId(sourceListingUrl) : "");
+    if (!externalId) return Response.json({ error: "Add the marketplace listing ID. For eBay, RAR reads it from the item link." }, { status: 400 });
+
+    const detectionText = `${listingTitle}\n${submittedText}`;
+    const gradingDetection = detectGrading(detectionText);
+    const bestOfferDetected = detectsBestOffer(detectionText);
+    const detectorOutput = { grading: gradingDetection, bestOfferDetected };
+    const submittedPayload = {
+      raw_submitted_text: submittedText || null,
+      supplied_fields: {
+        source_listing_url: sourceListingUrl,
+        external_id: externalId,
+        listing_title: listingTitle,
+      },
+    };
+
+    if (action === "reject") {
+      const rejectionReason = text(payload.rejectionReason);
+      const { data, error } = await admin.rpc("reject_submitted_sale", {
+        p_edition_id: edition.id,
+        p_source_id: sourceId,
+        p_source_listing_url: sourceListingUrl,
+        p_external_id: externalId,
+        p_listing_title: listingTitle,
+        p_reason_label: rejectionReason,
+        p_submitted_payload: submittedPayload,
+        p_detector_output: detectorOutput,
         p_decision_notes: intakeNotes,
         p_reviewed_by: reviewer,
       });
-      if (classificationError) return Response.json({ error: `The sale was saved, but its printing classification could not be recorded: ${classificationError.message}` }, { status: 500 });
+      if (error) return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ rejected: true, intakeDecisionId: data });
     }
 
-    // Staff can finish the exact-edition decision during manual intake, but
-    // only after explicitly opting in. This is the same audited RPC used by
-    // the review queue; selecting an edition alone never verifies a sale.
-    if (verifyExactMatch) {
-      const { error: reviewError } = await admin.rpc("apply_price_review", {
-        p_observation_id: observation.id,
-        p_decision: "verified_match",
-        p_decision_notes: intakeNotes,
-        p_reviewed_by: reviewer,
-      });
-      if (reviewError) return Response.json({ error: `The sale was saved, but its exact-edition review could not be recorded: ${reviewError.message}` }, { status: 500 });
-      try { await snapshotHoldersOfEdition(admin, edition.id); } catch { /* The review succeeded; portfolio refresh is best-effort. */ }
+    if (action !== "approve" || payload.humanConfirmed !== true) {
+      return Response.json({ error: "Confirm that you personally inspected this completed sale and exact edition." }, { status: 400 });
     }
 
-    return Response.json({ observationId: observation.id, verified: verifyExactMatch, classified: classifying });
-  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "The sale could not be queued." }, { status: 400 }); }
+    const soldDate = text(payload.soldDate);
+    const salePrice = positiveNumber(payload.salePrice);
+    const shippingPrice = nonNegativeNumber(payload.shippingPrice);
+    const quantity = positiveInteger(payload.quantity);
+    const currency = text(payload.currency).toUpperCase();
+    const saleType = text(payload.saleType) || "unknown";
+    const printClassification = text(payload.printClassification) || "printing_not_identified";
+    const printingProofUrl = text(payload.printingProofUrl);
+    const priceCorroborationUrl = text(payload.priceCorroborationUrl);
+    const knownPrintingNumberText = text(payload.knownPrintingNumber);
+    const knownPrintingNumber = knownPrintingNumberText ? positiveInteger(knownPrintingNumberText) : null;
+    const isGraded = payload.isGraded === true;
+    const gradingCompany = isGraded ? text(payload.gradingCompany).toUpperCase() : "";
+    const gradeLabel = isGraded ? text(payload.gradeLabel) : "";
+
+    if (!validDate(soldDate)) return Response.json({ error: "Enter the completed sale date." }, { status: 400 });
+    if (salePrice === null) return Response.json({ error: "Enter the item price that was actually paid, excluding delivery." }, { status: 400 });
+    if (shippingPrice === null && text(payload.shippingPrice)) return Response.json({ error: "Delivery must be zero or a positive amount." }, { status: 400 });
+    if (quantity === null) return Response.json({ error: "Quantity must be at least one." }, { status: 400 });
+    if (!/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Use a three-letter currency such as GBP, USD, or JPY." }, { status: 400 });
+    if (!(["auction", "best_offer", "fixed_price", "unknown"] as string[]).includes(saleType)) return Response.json({ error: "Choose a recognised sale type." }, { status: 400 });
+    if (!(["printing_not_identified", "known_later_print", "first_print_proven"] as string[]).includes(printClassification)) return Response.json({ error: "Choose a recognised print classification." }, { status: 400 });
+    if (isGraded && (!gradingCompany || !gradeLabel)) return Response.json({ error: "Confirm both the grading company and exact grade." }, { status: 400 });
+    if (printClassification === "first_print_proven" && (!printingProofUrl || !validUrl(printingProofUrl))) return Response.json({ error: "A proven first print requires a direct copyright-page proof URL." }, { status: 400 });
+    if (printingProofUrl && !validUrl(printingProofUrl)) return Response.json({ error: "Printing proof must be a valid URL." }, { status: 400 });
+    if (saleType === "best_offer" && (!priceCorroborationUrl || !validUrl(priceCorroborationUrl))) return Response.json({ error: "Best Offer sales require a link confirming the actual accepted price." }, { status: 400 });
+    if (priceCorroborationUrl && !validUrl(priceCorroborationUrl)) return Response.json({ error: "Price corroboration must be a valid URL." }, { status: 400 });
+    if (knownPrintingNumberText && knownPrintingNumber === null) return Response.json({ error: "Known printing number must be a positive whole number." }, { status: 400 });
+
+    const confirmedOutput = {
+      sold_date: soldDate,
+      sale_price: salePrice,
+      currency,
+      shipping_price: shippingPrice,
+      quantity,
+      sale_type: saleType,
+      grading_company: gradingCompany || null,
+      grade_label: gradeLabel || null,
+      print_classification: printClassification,
+      printing_proof_url: printingProofUrl || null,
+      price_corroboration_url: priceCorroborationUrl || null,
+    };
+    const enrichedPayload = {
+      ...submittedPayload,
+      selected_edition: edition,
+      confirmed_fields: confirmedOutput,
+      human_corrections: {
+        grading: gradingDetection.isGraded !== isGraded || gradingDetection.company !== gradingCompany || gradingDetection.grade !== gradeLabel,
+        best_offer: bestOfferDetected !== (saleType === "best_offer"),
+      },
+    };
+
+    const { data: observationId, error } = await admin.rpc("approve_submitted_sale", {
+      p_edition_id: edition.id,
+      p_source_id: sourceId,
+      p_source_listing_url: sourceListingUrl,
+      p_external_id: externalId,
+      p_listing_title: listingTitle,
+      p_sold_date: soldDate,
+      p_sale_price: salePrice,
+      p_currency: currency,
+      p_shipping_price: shippingPrice,
+      p_quantity: quantity,
+      p_sale_type: saleType,
+      p_grading_company: gradingCompany || null,
+      p_grade_label: gradeLabel || null,
+      p_print_classification: printClassification,
+      p_printing_proof_url: printingProofUrl || null,
+      p_known_printing_number: knownPrintingNumber,
+      p_price_corroboration_url: priceCorroborationUrl || null,
+      p_submitted_payload: enrichedPayload,
+      p_detector_output: detectorOutput,
+      p_decision_notes: intakeNotes,
+      p_reviewed_by: reviewer,
+    });
+    if (error) {
+      const status = error.message.includes("already exists") ? 409 : 400;
+      return Response.json({ error: error.message }, { status });
+    }
+
+    try { await snapshotHoldersOfEdition(admin, edition.id); } catch { /* The evidence transaction already succeeded. */ }
+    return Response.json({ observationId, verified: true, classified: true });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "The approved listing could not be saved." }, { status: 400 });
+  }
 }
