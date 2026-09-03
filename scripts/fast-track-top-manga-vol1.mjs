@@ -13,9 +13,11 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { normaliseSeriesKey, planRun } from "../lib/catalogueBacklog.ts";
+import { stageCatalogueCandidates } from "../lib/catalogueCurator.ts";
 
 const BATCH_KEY = "top-selling-vol-1-2026-09";
 const APPLY = process.argv.includes("--apply");
+const RESEARCH = process.argv.includes("--research");
 
 const SERIES = [
   { name: "One Piece", aliases: ["ONE PIECE"] },
@@ -224,6 +226,10 @@ if (APPLY && rows.length) {
   if (error) throw error;
 }
 
+const researchResult = RESEARCH
+  ? await stageCatalogueCandidates(admin, `staff-fast-track:${BATCH_KEY}:${crypto.randomUUID()}`)
+  : null;
+
 const counts = coverage.reduce((result, item) => {
   result[item.state] = (result[item.state] ?? 0) + 1;
   return result;
@@ -246,5 +252,6 @@ console.log(JSON.stringify({
   wouldWrite: rows.length,
   existingSeries,
   nextRun: nextRun.map((target) => ({ title: target.title_english, language: target.language, volume: target.next_missing_volume, source: target.discovery_source })),
+  researchResult,
   safety: "No manga edition was created or verified by this script.",
 }, null, 2));

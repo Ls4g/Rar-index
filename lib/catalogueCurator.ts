@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
 import { searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
 import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
-import { describeRunFairness, type BacklogTarget } from "./catalogueBacklog.ts";
+import { describeRunFairness, isStaffFastTrack } from "./catalogueBacklog.ts";
 
 const DISCOVERY_TARGET_LIMIT = 10;
 const CANDIDATES_PER_TARGET = 1;
@@ -321,19 +321,23 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   const editions = (editionResult.data ?? []) as CatalogueDiscoveryEdition[];
   const queued = (queueResult.data ?? []) as CatalogueDiscoveryQueued[];
 
-  // Collector requests still come first and still use the original planner,
-  // including its Japanese exact-ISBN rule. Someone asking for a specific book
-  // outranks anything RAR chose for itself.
-  const requestTargets = planCatalogueDiscoveryTargets(requests, [], queued, DISCOVERY_TARGET_LIMIT)
-    .filter((target) => target.reason === "collector_request");
+  // An explicit staff fast-track is the one deliberate queue jump. It still
+  // only stages candidates for human review and never publishes an edition.
+  const { chosen } = await planBacklogRun(admin);
+  const fastTrackChosen = chosen.filter(isStaffFastTrack);
+  const regularChosen = chosen.filter((target) => !isStaffFastTrack(target));
 
-  // Everything else comes from the persistent backlog through the fair
-  // scheduler, which rotates lanes and caps any one series at two slots. The
-  // old path sorted by prioritySeries index -- One Piece is index 0 -- and
-  // took four targets, which is why the review queue filled with One Piece.
-  const remaining = Math.max(0, DISCOVERY_TARGET_LIMIT - requestTargets.length);
-  const { chosen } = remaining > 0 ? await planBacklogRun(admin) : { chosen: [] as BacklogTarget[] };
-  const backlogChosen = chosen.slice(0, remaining);
+  // Collector requests follow the explicit staff batch and still keep their
+  // exact-ISBN safeguard for Japanese editions.
+  const requestLimit = Math.max(0, DISCOVERY_TARGET_LIMIT - fastTrackChosen.length);
+  const requestTargets = requestLimit > 0
+    ? planCatalogueDiscoveryTargets(requests, [], queued, requestLimit)
+      .filter((target) => target.reason === "collector_request")
+    : [];
+
+  // Normal backlog work fills whatever remains through the fair scheduler.
+  const regularLimit = Math.max(0, DISCOVERY_TARGET_LIMIT - fastTrackChosen.length - requestTargets.length);
+  const backlogChosen = [...fastTrackChosen, ...regularChosen.slice(0, regularLimit)];
   const backlogTargets = backlogChosen
     .map((target) => backlogTargetToDiscoveryTarget(target))
     .filter((target): target is CatalogueDiscoveryTarget => target !== null)
@@ -349,7 +353,12 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   // back against it after the search.
   const backlogByKey = new Map(backlogChosen.map((target) => [`backlog:${target.id}`, target]));
 
-  const targets = [...requestTargets, ...backlogTargets];
+  const fastTrackKeys = new Set(fastTrackChosen.map((target) => `backlog:${target.id}`));
+  const targets = [
+    ...backlogTargets.filter((target) => fastTrackKeys.has(target.key)),
+    ...requestTargets,
+    ...backlogTargets.filter((target) => !fastTrackKeys.has(target.key)),
+  ];
   const sources = new Map((sourceResult.data ?? []).map((source) => [source.name as string, source.id as string]));
   const existingKeys = new Set(queued.map((candidate) => `${candidate.source_id}:${candidate.external_id}`));
   const existingIsbns = new Set(editions.map((edition) => cleanIsbn(edition.isbn_13)).filter(Boolean));
