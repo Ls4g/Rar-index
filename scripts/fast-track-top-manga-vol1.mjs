@@ -12,7 +12,7 @@
 
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import { normaliseSeriesKey } from "../lib/catalogueBacklog.ts";
+import { normaliseSeriesKey, planRun } from "../lib/catalogueBacklog.ts";
 
 const BATCH_KEY = "top-selling-vol-1-2026-09";
 const APPLY = process.argv.includes("--apply");
@@ -144,7 +144,7 @@ function editionMatches(entry, edition) {
   return editionKeys.some((key) => wanted.has(key) || [...wanted].some((alias) => key.startsWith(`${alias} `)));
 }
 
-function targetRow(entry, language, existing) {
+function targetRow(entry, language, priorityIndex, existing) {
   const seriesKey = normaliseSeriesKey(entry.name);
   const now = new Date().toISOString();
   const status = language === "English" ? "researchable" : "watching";
@@ -159,7 +159,8 @@ function targetRow(entry, language, existing) {
     series_key: seriesKey,
     lane: "established",
     language,
-    score: 1_000_000,
+    // Preserve SP's order inside the fast-track batch.
+    score: 1_000_000 - priorityIndex,
     series_status: existing?.series_status ?? null,
     reported_volume_count: existing?.reported_volume_count ?? null,
     next_missing_volume: 1,
@@ -206,13 +207,13 @@ const existingByIdentity = new Map((existingTargets ?? []).map((target) => [
 
 const coverage = [];
 const rows = [];
-for (const entry of SERIES) {
+for (const [priorityIndex, entry] of SERIES.entries()) {
   for (const language of ["English", "Japanese"]) {
     const edition = exactVolumeOne.find((candidate) => candidate.language === language && editionMatches(entry, candidate));
     const seriesKey = normaliseSeriesKey(entry.name);
     const existing = existingByIdentity.get(`${seriesKey}:${language}:1`) ?? null;
     coverage.push({ series: entry.name, language, state: edition ? "already_published" : existing?.status ? `target_${existing.status}` : "missing" });
-    if (!edition && existing?.status !== "staged" && existing?.status !== "published") rows.push(targetRow(entry, language, existing));
+    if (!edition && existing?.status !== "staged" && existing?.status !== "published") rows.push(targetRow(entry, language, priorityIndex, existing));
   }
 }
 
@@ -233,6 +234,7 @@ const byLanguage = coverage.reduce((result, item) => {
   return result;
 }, {});
 const existingSeries = [...new Set(coverage.filter((item) => item.state === "already_published").map((item) => item.series))];
+const nextRun = planRun((existingTargets ?? []).filter((target) => target.status === "researchable"));
 console.log(JSON.stringify({
   mode: APPLY ? "applied" : "dry_run",
   batch: BATCH_KEY,
@@ -243,5 +245,6 @@ console.log(JSON.stringify({
   targetsWritten: APPLY ? rows.length : 0,
   wouldWrite: rows.length,
   existingSeries,
+  nextRun: nextRun.map((target) => ({ title: target.title_english, language: target.language, volume: target.next_missing_volume, source: target.discovery_source })),
   safety: "No manga edition was created or verified by this script.",
 }, null, 2));
