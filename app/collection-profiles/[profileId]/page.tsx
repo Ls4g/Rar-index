@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import CollectionRunForm from "@/components/CollectionRunForm";
 import CollectionProfileEditForm from "@/components/CollectionProfileEditForm";
 import StaffNav from "@/components/StaffNav";
 
@@ -121,12 +120,12 @@ export default async function CollectionWorkbenchPage({ params }: { params: Prom
           </div>
           <div className="review-note"><span>Edition boundary</span><p>{profile.scope_notes}</p></div>
           <CollectionProfileEditForm profileId={profile.id} searchQuery={profile.search_query} scopeNotes={profile.scope_notes} collectionIntervalDays={profile.collection_interval_days} isActive={profile.is_active} />
-          <CollectionRunForm profileId={profile.id} />
+          <div className="review-note"><span>Automatic run history</span><p>Scout scans and committed sale imports add accountable run records automatically.</p></div>
         </section>
 
         <section className="review-list-section workbench-section">
           <div className="section-intro"><p className="eyebrow">Run history</p><h2>Traceable collection activity</h2></div>
-          {runs.length ? <div className="review-list">{runs.map((run) => <article className="review-card" key={run.id}><div className="review-card-topline"><span>{formatDate(run.checked_at)}</span><span>{run.candidate_count} candidates</span></div><p className="review-condition">Checked by {run.checked_by}</p><div className="review-note"><span>Run note</span><p>{run.notes}</p></div></article>)}</div> : <div className="review-empty"><strong>No completed-listings run recorded.</strong><p>Start with the exact saved search, then record the collection run before importing candidates.</p></div>}
+          {runs.length ? <div className="review-list">{runs.map((run) => <article className="review-card" key={run.id}><div className="review-card-topline"><span>{formatDate(run.checked_at)}</span><span>{run.candidate_count} candidates</span></div><p className="review-condition">Checked by {run.checked_by}</p><div className="review-note"><span>Run note</span><p>{run.notes}</p></div></article>)}</div> : <div className="review-empty"><strong>No automated run recorded yet.</strong><p>The next Scout scan or committed sale import will create this audit trail automatically.</p></div>}
         </section>
 
         <section className="review-list-section workbench-section">

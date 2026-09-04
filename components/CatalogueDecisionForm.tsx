@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
 type CandidateMetadata = {
@@ -34,7 +35,7 @@ type EditionSuggestion = { id: string; title: string | null; language: string | 
 export default function CatalogueDecisionForm({ catalogueImportId, isEditionCandidate, candidateTitle, candidate, approvalProblem }: { catalogueImportId: string; isEditionCandidate: boolean; candidateTitle: string; candidate: CandidateMetadata; approvalProblem: string | null }) {
   const router = useRouter();
   const [decision, setDecision] = useState<CatalogueDecision>("needs_review");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [existingEditionId, setExistingEditionId] = useState("");
   const [message, setMessage] = useState("");

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { findActiveEbayListings, getEbayApplicationToken } from "./ebayScout.ts";
 import { buildScoutLeadRow, storeScoutLeads } from "./scoutIngest.ts";
 import { loadActiveScoutRules } from "./scoutRules.ts";
+import { recordAutomaticCollectionRun } from "./collectionRunAudit.ts";
 import { SCOUT_PUBLIC_FRESHNESS_HOURS, selectScoutProfiles, type ScoutCoverageLead } from "./scoutCoverage.ts";
 
 type Profile = {
@@ -110,6 +111,7 @@ export async function runScoutBatch(
       const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt, rules));
       await storeScoutLeads(admin, profile.id, builds);
 
+      await recordAutomaticCollectionRun(admin, { profileId: profile.id, checkedAt, checkedBy: "RAR Market Scout", candidateCount: builds.length, notes: "Automatically recorded from a Market Scout batch scan." });
       const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
       if (scanError) throw new Error("RAR could not record the completed Scout scan.");
 

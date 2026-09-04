@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
 import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
 import { SCOUT_HIGH_CONFIDENCE_MIN_SCORE, SCOUT_REVIEW_NOW_MIN_SCORE, isScoutNeedsEvidenceScore } from "@/lib/scoutTriagePolicy";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type ScoutLead = {
   id: string;
@@ -95,17 +96,6 @@ const DEFAULT_FILTERS: Filters = {
 
 const PAGE_SIZE = 25;
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
-const REVIEWER_STORAGE_KEY = "rar-scout-reviewer";
-
-function loadStoredReviewer() {
-  if (typeof window === "undefined") return "";
-  try {
-    return window.localStorage.getItem(REVIEWER_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
 function matchesScoreBand(score: number, band: ScoreBand) {
   if (band === "75plus") return score >= 75;
   if (band === "65plus") return score >= SCOUT_REVIEW_NOW_MIN_SCORE;
@@ -172,11 +162,7 @@ const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
 
 export default function ScoutTriageInbox({ leads: initialLeads }: { leads: ScoutLead[] }) {
   const [leads, setLeads] = useState(initialLeads);
-  // Lazy-initialised (not an effect) so it reads localStorage exactly once,
-  // on mount, without the extra render pass a setState-in-effect causes.
-  // The value can legitimately differ from the server-rendered "", so the
-  // input below opts out of the hydration-mismatch warning for it.
-  const [reviewer, setReviewer] = useState(loadStoredReviewer);
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeQuickView, setActiveQuickView] = useState<QuickView | null>("reviewNow");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -336,16 +322,6 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     }
   }
 
-  function updateReviewer(value: string) {
-    setReviewer(value);
-    try {
-      window.localStorage.setItem(REVIEWER_STORAGE_KEY, value);
-    } catch {
-      // Storage can be unavailable (private browsing, disabled storage); the
-      // name still works for this session, it just won't persist.
-    }
-  }
-
   function toggleSelected(id: string) {
     setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
@@ -369,7 +345,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   return (
     <div className="scout-inbox">
       <div className="scout-reviewer-bar">
-        <label>Reviewer<input onChange={(event) => updateReviewer(event.target.value)} placeholder="Your name or initials" suppressHydrationWarning value={reviewer} /></label>
+        <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials" value={reviewer} /></label>
         <small>Remembered on this device — every Watch, Dismiss, and bulk decision below uses this name.</small>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { decisionsFor, sharedDecisionsFor } from "@/lib/listingOutcomeDecisions";
 import {
@@ -11,6 +11,7 @@ import {
   type DismissalReason,
   type OutcomeQueue,
 } from "@/lib/listingOutcomeTriage";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type OutcomeRow = {
   id: string;
@@ -107,7 +108,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
   renderedAt: string;
 }) {
   const router = useRouter();
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [dismissReasons, setDismissReasons] = useState<Record<string, DismissalReason>>({});
   const [dismissOpen, setDismissOpen] = useState<Set<string>>(new Set());
@@ -226,16 +227,6 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
     }
   }
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  function updateReviewer(value: string) {
-    setReviewer(value);
-    window.localStorage.setItem("rar_staff_reviewer", value);
-  }
-
   async function runPipeline() {
     setRunning(true);
     setMessage("");
@@ -341,7 +332,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       <div className={`outcome-reviewer-panel${reviewer.trim() ? " is-ready" : ""}`}>
         <div><strong>Reviewer</strong><p>Enter this once. Every decision remains attributable.</p></div>
         <label htmlFor="outcome-reviewer">Name or initials</label>
-        <input id="outcome-reviewer" onChange={(event) => updateReviewer(event.target.value)} placeholder="Example: SP" value={reviewer} />
+        <input id="outcome-reviewer" onChange={(event) => setReviewer(event.target.value)} placeholder="Example: SP" value={reviewer} />
         <span>{reviewer.trim() ? `Ready — recording decisions as ${reviewer.trim()}.` : "Required before saving decisions."}</span>
       </div>
       {message ? <p className="outcome-message" role="status">{message}</p> : null}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Gate = { passed?: boolean; actual?: number; required?: number };
 type LatestRun = {
@@ -38,14 +39,9 @@ function percent(value: number | undefined) {
 
 export default function AgentReliabilityDashboard({ dashboard }: { dashboard: Dashboard }) {
   const router = useRouter();
-  const [reviewer, setReviewer] = useState(() => typeof window === "undefined" ? "" : window.localStorage.getItem("rar_staff_reviewer") ?? "");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
-
-  function updateReviewer(value: string) {
-    setReviewer(value);
-    window.localStorage.setItem("rar_staff_reviewer", value);
-  }
 
   async function run(command: "run_changed_suites" | "run_suite", evaluatorKey?: string) {
     if (!reviewer.trim()) {
@@ -80,7 +76,7 @@ export default function AgentReliabilityDashboard({ dashboard }: { dashboard: Da
       <div className="agent-reliability-heading">
         <div><p className="eyebrow">Safety before autonomy</p><h2>Agent reliability</h2><p>Human decisions become permanent test cases. Checks replay stored evidence only—no eBay or catalogue API calls.</p></div>
         <div className="agent-reliability-runner">
-          <label><span>Staff name</span><input onChange={(event) => updateReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
+          <label><span>Staff name</span><input onChange={(event) => setReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
           <button disabled={Boolean(busy)} onClick={() => void run("run_changed_suites")} type="button">{busy === "all" ? "Checking…" : "Run reliability check"}</button>
         </div>
       </div>

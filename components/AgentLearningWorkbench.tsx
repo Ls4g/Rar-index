@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type RuleVersion = {
   id: string;
@@ -30,19 +31,9 @@ export default function AgentLearningWorkbench({
   ruleDashboard: ScoutRuleDashboard;
 }) {
   const router = useRouter();
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  function updateReviewer(value: string) {
-    setReviewer(value);
-    window.localStorage.setItem("rar_staff_reviewer", value);
-  }
 
   async function runRuleCommand(key: string, command: string, ruleVersionId: string) {
     if (!reviewer.trim()) {
@@ -71,7 +62,7 @@ export default function AgentLearningWorkbench({
   return (
     <div className="agent-control-content">
       <section className="agent-identity-bar">
-        <label><span>Staff name</span><input onChange={(event) => updateReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
+        <label><span>Staff name</span><input onChange={(event) => setReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
         <p>{message || "Saved on this device and attached to every learning decision."}</p>
       </section>
 

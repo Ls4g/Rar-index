@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type CatalogueBulkRecord = {
   id: string;
@@ -59,7 +60,7 @@ function canApprove(record: CatalogueBulkRecord) {
 
 export default function CatalogueBulkPanel({ records }: { records: CatalogueBulkRecord[] }) {
   const router = useRouter();
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [decidedIds, setDecidedIds] = useState<Set<string>>(new Set());

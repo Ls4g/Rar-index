@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { assessEditionMatch, type EditionMatchAssessment } from "@/lib/editionMatch";
+import { ensureProfileAndRunForEdition } from "@/lib/collectionRunAudit";
+import { isStaffRequest } from "@/lib/staffSession";
 
 const REQUIRED_HEADERS = [
   "source_id",
@@ -80,21 +82,6 @@ type PreparedSale = {
   printClassification: PrintClassification;
   knownPrintingNumber: number | null;
 };
-
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
-
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
-
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
-  }
-}
 
 function clean(value: string | undefined) {
   return (value ?? "").trim();
@@ -426,7 +413,7 @@ function publicPreflight(result: Awaited<ReturnType<typeof preflight>>) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
   const isbn = (request.nextUrl.searchParams.get("isbn") ?? "").trim();
   const query = (request.nextUrl.searchParams.get("q") ?? "").trim();
@@ -484,7 +471,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
   let payload: { editionId?: unknown; collectionRunId?: unknown; csv?: unknown; dryRun?: unknown; reviewer?: unknown };
   try {
@@ -499,22 +486,30 @@ export async function POST(request: Request) {
   const dryRun = payload.dryRun !== false;
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
   if (!editionId) return Response.json({ error: "Select the exact RAR edition for this batch." }, { status: 400 });
-  if (!collectionRunId) return Response.json({ error: "Choose the recorded collection run that found this batch." }, { status: 400 });
   if (!csv.trim()) return Response.json({ error: "Paste a CSV batch before running preflight." }, { status: 400 });
   if (csv.length > MAX_CSV_CHARACTERS) return Response.json({ error: "This CSV is too large. Split it into smaller batches of up to 500 rows." }, { status: 400 });
 
   try {
     const edition = await loadEdition(editionId);
     if (!edition) return Response.json({ error: "Select a verified RAR edition before importing sales." }, { status: 400 });
-    const collectionRun = await loadCollectionRun(collectionRunId, edition.id);
-    if (!collectionRun) return Response.json({ error: "Choose an active collection run for this exact edition." }, { status: 400 });
+    let collectionRun = collectionRunId ? await loadCollectionRun(collectionRunId, edition.id) : null;
+    if (collectionRunId && !collectionRun) return Response.json({ error: "The selected collection run does not belong to this exact edition." }, { status: 400 });
 
     const result = await preflight(csv, edition);
     if (dryRun || !result.ready.length) return Response.json({ ...publicPreflight(result), committed: 0 });
 
-    const classifiedRows = result.ready.filter((sale) => sale.printClassification !== "printing_not_identified");
-    if (classifiedRows.length && !reviewer) {
-      return Response.json({ error: "Add a reviewer name before committing — it is required to record a printing classification, which is an audited decision." }, { status: 400 });
+    if (!reviewer) {
+      return Response.json({ error: "Add your name before committing this batch. RAR remembers it across staff tools." }, { status: 400 });
+    }
+
+    if (!collectionRun) {
+      collectionRun = await ensureProfileAndRunForEdition(getSupabaseAdmin(), {
+        edition,
+        sourceId: result.ready[0].sourceId,
+        checkedBy: reviewer,
+        candidateCount: result.ready.length,
+        notes: `Automatically recorded from a committed ${result.ready.length}-row completed-sale import batch.`,
+      });
     }
 
     const importedAt = new Date().toISOString();

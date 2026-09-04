@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Control = {
   agent_key: string;
@@ -180,21 +181,11 @@ export default function AgentControlCentre({
   scoutPriorityCount: number | null;
 }) {
   const router = useRouter();
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
   const [ebayHealth, setEbayHealth] = useState(initialEbayHealth);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setReviewer(window.localStorage.getItem("rar_staff_reviewer") ?? ""), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  function updateReviewer(value: string) {
-    setReviewer(value);
-    window.localStorage.setItem("rar_staff_reviewer", value);
-  }
 
   async function testEbayConnection() {
     if (!reviewer.trim()) {
@@ -316,7 +307,7 @@ export default function AgentControlCentre({
       </section>
 
       <section className="agent-identity-bar">
-        <label><span>Staff name</span><input onChange={(event) => updateReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
+        <label><span>Staff name</span><input onChange={(event) => setReviewer(event.target.value)} placeholder="e.g. SP" value={reviewer} /></label>
         <p>{message || "Saved on this device and attached to every manual agent action."}</p>
       </section>
 

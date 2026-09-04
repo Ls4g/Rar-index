@@ -3,6 +3,7 @@ import { isStaffRequest } from "@/lib/staffSession";
 import { findActiveEbayListings } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
+import { recordAutomaticCollectionRun } from "@/lib/collectionRunAudit";
 
 type Profile = {
   id: string;
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
     const rules = await loadActiveScoutRules(admin);
     const builds = listings.map((listing) => buildScoutLeadRow(profile.id, profile.source!.id, profile.edition!, listing, checkedAt, rules));
     await storeScoutLeads(admin, profile.id, builds);
+    await recordAutomaticCollectionRun(admin, { profileId: profile.id, checkedAt, checkedBy: "RAR Market Scout", candidateCount: builds.length, notes: "Automatically recorded from an on-demand eBay Browse scan." });
     const { error: scanError } = await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "completed", result_count: builds.length });
     if (scanError) throw new Error("RAR could not record the completed Scout scan.");
     const { error: checkedError } = await admin

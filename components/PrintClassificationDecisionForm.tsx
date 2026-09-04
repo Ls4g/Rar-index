@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Classification = "printing_not_identified" | "known_later_print" | "first_print_proven";
 
@@ -23,7 +24,7 @@ export default function PrintClassificationDecisionForm({ observationId, current
   const [classification, setClassification] = useState<Classification>(currentClassification);
   const [proofUrl, setProofUrl] = useState(currentProofUrl ?? "");
   const [printingNumber, setPrintingNumber] = useState(currentPrintingNumber ? String(currentPrintingNumber) : "");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
   // A rejected save and a successful one previously rendered as identical

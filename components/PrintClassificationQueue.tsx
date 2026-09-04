@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type PrintClassificationRecord = {
   observation_id: string;
@@ -53,7 +54,7 @@ export default function PrintClassificationQueue({ records }: { records: PrintCl
   // Typed once and reused for every decision on the page, instead of being
   // re-entered on each row. Decisions update the list in place rather than
   // refreshing the route, so this survives a whole working session.
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   // Classified sales are tracked as a set of ids and filtered out during
   // render, rather than copying `records` into state and mutating the copy
   // -- deriving avoids the prop/state sync that made the list go stale.

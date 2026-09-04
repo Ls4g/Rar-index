@@ -23,7 +23,7 @@ export default async function PriceImportPage({ searchParams }: PriceImportPageP
         <div>
           <p className="eyebrow">Repeatable price workflow</p>
           <h1>Preflight a sale batch</h1>
-          <p>Check a structured CSV before it touches RAR. Each batch must link to one recorded collection run for one selected edition before it can enter the review queue.</p>
+          <p>Check a structured CSV before it touches RAR. Select one exact edition; RAR records the collection-run provenance automatically when the batch is committed.</p>
         </div>
       </section>
       <section className="catalogue-content">

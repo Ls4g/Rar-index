@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Decision = "reviewed" | "rejected" | "converted";
 
@@ -14,7 +15,7 @@ const decisions: Array<{ value: Decision; label: string; hint: string }> = [
 export default function CommunityReportDecisionForm({ reportId }: { reportId: string }) {
   const router = useRouter();
   const [decision, setDecision] = useState<Decision>("reviewed");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);

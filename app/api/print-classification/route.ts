@@ -1,25 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
+import { isStaffRequest } from "@/lib/staffSession";
 
 type Classification = "printing_not_identified" | "known_later_print" | "first_print_proven";
 
 const BULK_CONCURRENCY = 6;
-
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
-
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
-
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
-  }
-}
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,7 +36,7 @@ async function applyAll(
 }
 
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) {
+  if (!(await isStaffRequest(request))) {
     return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   }
 

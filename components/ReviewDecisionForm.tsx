@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type ReviewDecision = "verified_match" | "needs_review" | "excluded";
 
@@ -14,7 +15,7 @@ const decisions: Array<{ value: ReviewDecision; label: string; hint: string }> =
 export default function ReviewDecisionForm({ observationId }: { observationId: string }) {
   const router = useRouter();
   const [decision, setDecision] = useState<ReviewDecision>("needs_review");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
   // A rejected save and a successful one previously rendered as identical

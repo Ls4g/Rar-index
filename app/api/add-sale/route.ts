@@ -4,6 +4,7 @@ import { ebayMarketplaceFromUrl, extractEbayLegacyItemId } from "@/lib/ebayEvide
 import { getSubmittedEbaySaleEvidence } from "@/lib/listingOutcomeProviders";
 import { detectGrading, detectsBestOffer } from "@/lib/submittedSale";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
+import { ensureProfileAndRunForEdition } from "@/lib/collectionRunAudit";
 
 type Edition = {
   id: string;
@@ -248,6 +249,19 @@ export async function POST(request: Request) {
       return Response.json({ error: error.message }, { status });
     }
 
+    try {
+      const run = await ensureProfileAndRunForEdition(admin, {
+        edition,
+        sourceId,
+        checkedBy: reviewer,
+        candidateCount: 1,
+        notes: `Automatically recorded from approved completed-sale submission ${externalId}.`,
+      });
+      await admin.from("price_observations").update({ collection_run_id: run.id }).eq("id", observationId);
+    } catch {
+      // The verified sale is already safely committed. Its intake-decision
+      // audit remains authoritative if optional collection-run enrichment is unavailable.
+    }
     try { await snapshotHoldersOfEdition(admin, edition.id); } catch { /* The evidence transaction already succeeded. */ }
     return Response.json({ observationId, verified: true, classified: true });
   } catch (error) {

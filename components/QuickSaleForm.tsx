@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
 import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Edition = {
   id: string;
@@ -70,7 +71,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [printingProofUrl, setPrintingProofUrl] = useState("");
   const [knownPrintingNumber, setKnownPrintingNumber] = useState("");
   const [intakeNotes, setIntakeNotes] = useState("");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [rejectionReason, setRejectionReason] = useState("");
   const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -82,17 +83,6 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     const text = `${listingTitle}\n${submittedText}`;
     return { grading: detectGrading(text), bestOffer: detectsBestOffer(text) };
   }, [listingTitle, submittedText]);
-
-  useEffect(() => {
-    const saved = window.sessionStorage.getItem("rar-sale-reviewer");
-    if (!saved) return;
-    const timer = window.setTimeout(() => setReviewer(saved), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (reviewer.trim()) window.sessionStorage.setItem("rar-sale-reviewer", reviewer.trim());
-  }, [reviewer]);
 
   useEffect(() => {
     if (!initialEditionId || selectedEdition) return;

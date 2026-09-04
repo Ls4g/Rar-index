@@ -3326,6 +3326,7 @@ html[data-theme="day"] .public-page {
 .human-decision-facts p { margin: 0; overflow-wrap: anywhere; font-size: .88rem; font-weight: 650; line-height: 1.4; }
 .human-decision-facts b { color: #6f5520; font-size: .78rem; }
 .human-decision-facts small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
+.human-decision-cover { width: 76px; max-height: 112px; object-fit: contain; border-radius: .35rem; border: 1px solid #d8cfbf; background: #f4efe5; }
 .human-decision-note { grid-column: 1 / -1; display: grid; gap: .55rem; padding-top: .25rem; }
 .human-decision-note summary { color: var(--muted); cursor: pointer; font-size: .7rem; font-weight: 750; }
 .human-decision-note label { display: grid; gap: .35rem; }

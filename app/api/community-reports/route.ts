@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isStaffRequest } from "@/lib/staffSession";
 
 type Decision = "reviewed" | "rejected" | "converted";
 
@@ -28,25 +28,8 @@ type CommunityReport = {
   } | null;
 };
 
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) return Response.json({ error: "Community report review is not configured yet." }, { status: 503 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
   let payload: { reportId?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown };
   try {
@@ -64,7 +47,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Choose a decision and identify the reviewer." }, { status: 400 });
   }
 
-  const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const admin = getSupabaseAdmin();
   const { error } = await admin.rpc("apply_community_report_decision", {
     p_report_id: reportId,
     p_decision: decision,
@@ -76,7 +59,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
   const reportId = new URL(request.url).searchParams.get("id")?.trim() ?? "";
   if (!reportId) return Response.json({ error: "Choose a community report." }, { status: 400 });
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Props = {
   profileId: string;
@@ -17,7 +18,7 @@ export default function CollectionProfileEditForm({ profileId, searchQuery: init
   const [scopeNotes, setScopeNotes] = useState(initialScope);
   const [interval, setInterval] = useState(String(initialInterval));
   const [isActive, setIsActive] = useState(initialActive);
-  const [changedBy, setChangedBy] = useState("");
+  const [changedBy, setChangedBy] = useStaffReviewer();
   const [changeNote, setChangeNote] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);

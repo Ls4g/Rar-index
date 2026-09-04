@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
-import Link from "next/link";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Edition = {
   id: string;
@@ -39,14 +39,6 @@ type Preflight = {
   committed?: number;
 };
 
-type CollectionRun = {
-  id: string;
-  checked_at: string;
-  checked_by: string;
-  candidate_count: number;
-  notes: string;
-};
-
 type MarketplaceSource = { id: string; name: string | null; base_url: string | null };
 type CommunityReportHandoff = {
   id: string;
@@ -73,11 +65,6 @@ function editionLabel(edition: Edition) {
   ].filter(Boolean).join(" | ");
 }
 
-function collectionRunLabel(run: CollectionRun) {
-  const checkedAt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(run.checked_at));
-  return `${checkedAt} · ${run.checked_by} · ${run.candidate_count} candidates`;
-}
-
 function csvCell(value: unknown) {
   const text = value === null || value === undefined ? "" : String(value);
   return `"${text.replaceAll('"', '""')}"`;
@@ -87,14 +74,11 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
-  const [collectionRuns, setCollectionRuns] = useState<CollectionRun[]>([]);
-  const [selectedCollectionRunId, setSelectedCollectionRunId] = useState("");
   const [csv, setCsv] = useState("");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [result, setResult] = useState<Preflight | null>(null);
   const [message, setMessage] = useState("");
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [loadingCollectionRuns, setLoadingCollectionRuns] = useState(false);
   const [working, setWorking] = useState(false);
   const visibleSuggestions = !selectedEdition && query.trim().length >= 2 ? suggestions : [];
   const [communityReport, setCommunityReport] = useState<CommunityReportHandoff | null>(null);
@@ -133,24 +117,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   }, [query, selectedEdition]);
 
   useEffect(() => {
-    if (!selectedEdition) return;
-
-    const controller = new AbortController();
-    fetch(`/api/collection-runs?editionId=${encodeURIComponent(selectedEdition.id)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const data = (await response.json()) as { runs?: CollectionRun[]; error?: string };
-        if (!response.ok) throw new Error(data.error ?? "Collection runs could not be loaded.");
-        setCollectionRuns(data.runs ?? []);
-      })
-      .catch((error) => {
-        if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "Collection runs could not be loaded.");
-      })
-      .finally(() => setLoadingCollectionRuns(false));
-
-    return () => controller.abort();
-  }, [selectedEdition]);
-
-  useEffect(() => {
     if (!initialEditionId || communityReportId) return;
     const controller = new AbortController();
     fetch(`/api/price-import?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
@@ -160,9 +126,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
         if (data.edition) {
           setSelectedEdition(data.edition);
           setSuggestions([]);
-          setCollectionRuns([]);
-          setSelectedCollectionRunId("");
-          setLoadingCollectionRuns(true);
         }
       })
       .catch((error) => {
@@ -186,9 +149,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
         setHandoffCurrency(data.report.currency ?? "");
         setHandoffSoldDate(data.report.soldDate ?? "");
         setSelectedEdition(data.report.edition);
-        setCollectionRuns([]);
-        setSelectedCollectionRunId("");
-        setLoadingCollectionRuns(true);
       })
       .catch((error) => {
         if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The community report handoff could not be loaded.");
@@ -200,9 +160,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   function selectEdition(edition: Edition) {
     setSelectedEdition(edition);
     setSuggestions([]);
-    setCollectionRuns([]);
-    setSelectedCollectionRunId("");
-    setLoadingCollectionRuns(true);
     setResult(null);
   }
 
@@ -210,9 +167,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
     setSelectedEdition(null);
     setQuery("");
     setSuggestions([]);
-    setCollectionRuns([]);
-    setSelectedCollectionRunId("");
-    setLoadingCollectionRuns(false);
     setResult(null);
   }
 
@@ -241,7 +195,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
     ];
     setCsv(`${headers.join(",")}\n${row.map(csvCell).join(",")}`);
     setResult(null);
-    setMessage(`Prepared one ${source.name ?? "marketplace"} row from the community report. Choose its recorded collection run, then run preflight.`);
+    setMessage(`Prepared one ${source.name ?? "marketplace"} row from the community report. Run preflight when ready.`);
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -257,10 +211,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       setMessage("Select the exact verified RAR edition first.");
       return;
     }
-    if (!selectedCollectionRunId) {
-      setMessage("Record or choose the collection run that found this batch first.");
-      return;
-    }
     if (!csv.trim()) {
       setMessage("Paste a CSV or choose a .csv file first.");
       return;
@@ -272,7 +222,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       const response = await fetch("/api/price-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editionId: selectedEdition.id, collectionRunId: selectedCollectionRunId, csv, dryRun, reviewer }),
+        body: JSON.stringify({ editionId: selectedEdition.id, csv, dryRun, reviewer }),
       });
       const data = (await response.json()) as Preflight & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "The CSV could not be processed.");
@@ -329,15 +279,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
           )}
         </div>
 
-        {selectedEdition ? (
-          <div className="price-import-field">
-            <label htmlFor="collection-run">Recorded collection run</label>
-            {loadingCollectionRuns ? <p className="field-help">Loading runs for this exact edition...</p> : null}
-            {!loadingCollectionRuns && !collectionRuns.length ? <p className="field-help">No run recorded yet. <Link href="/collection-profiles">Record the completed-listings check first.</Link></p> : null}
-            {collectionRuns.length ? <select id="collection-run" value={selectedCollectionRunId} onChange={(event) => { setSelectedCollectionRunId(event.target.value); setResult(null); }}><option value="">Choose the run that found this batch</option>{collectionRuns.map((run) => <option key={run.id} value={run.id}>{collectionRunLabel(run)}</option>)}</select> : null}
-          </div>
-        ) : null}
-
         <div className="price-import-field">
           <label htmlFor="csv-file">CSV batch</label>
           <input id="csv-file" type="file" accept=".csv,text/csv" onChange={handleFile} />
@@ -351,13 +292,13 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
 
         <div className="price-import-field">
           <label htmlFor="import-reviewer">Reviewer name</label>
-          <input id="import-reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Required only if any row sets print_classification" />
-          <p className="field-help">Only required when queuing a batch where a row&apos;s <code>print_classification</code> column is not blank — that becomes an audited decision, same as any other staff classification.</p>
+          <input id="import-reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Your saved staff name" />
+          <p className="field-help">RAR remembers this across staff tools and automatically records collection-run provenance when you commit.</p>
         </div>
 
         <div className="price-import-actions">
-          <button type="button" disabled={working || !selectedCollectionRunId} onClick={() => runImport(true)}>{working ? "Checking..." : "Run preflight"}</button>
-          <button className="secondary-action" type="button" disabled={working || !selectedCollectionRunId || !result?.readyCount} onClick={() => runImport(false)}>Queue {result?.readyCount ?? 0} safe sale{result?.readyCount === 1 ? "" : "s"}</button>
+          <button type="button" disabled={working} onClick={() => runImport(true)}>{working ? "Checking..." : "Run preflight"}</button>
+          <button className="secondary-action" type="button" disabled={working || !result?.readyCount} onClick={() => runImport(false)}>Queue {result?.readyCount ?? 0} safe sale{result?.readyCount === 1 ? "" : "s"}</button>
           {message ? <p role="status">{message}</p> : null}
         </div>
       </section>

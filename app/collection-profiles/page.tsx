@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import CollectionRunForm from "@/components/CollectionRunForm";
 import StaffNav from "@/components/StaffNav";
 import { publicListingCoverage, SCOUT_PUBLIC_FRESHNESS_HOURS, SCOUT_PUBLIC_LISTING_TARGET, type ScoutCoverageLead } from "@/lib/scoutCoverage";
 
@@ -172,7 +171,7 @@ export default async function CollectionProfilesPage() {
               <div className="review-note"><span>Chart evidence</span><p><strong>{chartEvidence.label}</strong><br />{chartEvidence.detail}</p></div>
               <div className="review-note"><span>Scout coverage</span><p><strong>{liveCoverage} of {SCOUT_PUBLIC_LISTING_TARGET} usable live listings</strong><br />{liveCoverage >= SCOUT_PUBLIC_LISTING_TARGET ? "Covered — Scout treats this as maintenance work." : `Discovery priority — Scout still needs ${SCOUT_PUBLIC_LISTING_TARGET - liveCoverage}.`}</p></div>
               <div className="review-note"><span>Exact-edition rules</span><p>{profile.scope_notes}</p></div>
-              <CollectionRunForm profileId={profile.id} />
+              <div className="review-note"><span>Automatic run history</span><p>Scout scans and committed sale imports record their own provenance. Staff no longer need to log a run by hand.</p></div>
               <div className="review-note"><span>Recent collection runs</span>{runs.length ? <ul>{runs.slice(0, 3).map((run) => <li key={run.id}>{formatDate(run.checked_at)} · {run.checked_by} · {run.candidate_count} candidates — {run.notes}</li>)}</ul> : <p>No run has been recorded yet.</p>}</div>
             </article>
           );

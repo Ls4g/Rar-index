@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- staff-only cover candidates use external source URLs */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type SaleDecision = {
   observationId: string;
@@ -54,7 +56,50 @@ type AgentProposal = {
   canExecute: boolean;
 };
 
-type DecisionKind = "sale" | "printing" | "catalogue" | "proposal";
+type CoverDecision = {
+  id: string;
+  editionId: string;
+  editionLabel: string;
+  imageUrl: string;
+  sourceUrl: string;
+  sourceName: string;
+  candidateTitle: string | null;
+  score: number;
+  reasons: string[];
+};
+
+type ListingOutcomeDecision = {
+  id: string;
+  status: string;
+  editionLabel: string;
+  listingTitle: string;
+  sourceUrl: string;
+  price: number | null;
+  currency: string | null;
+  soldAt: string | null;
+  score: number | null;
+};
+
+type CommunityDecision = {
+  id: string;
+  reportType: string;
+  editionLabel: string;
+  sourceUrl: string;
+  listingTitle: string | null;
+  price: number | null;
+  currency: string | null;
+  notes: string;
+};
+
+type CatalogueRequestDecision = {
+  id: string;
+  title: string;
+  editionLabel: string;
+  sourceUrl: string | null;
+  notes: string;
+};
+
+type DecisionKind = "sale" | "printing" | "catalogue" | "cover" | "outcome" | "request" | "proposal";
 type Banner = { tone: "ok" | "error"; text: string };
 
 function DecisionNote({ value, reason, onChange, onReasonChange }: { value: string; reason: string; onChange: (value: string) => void; onReasonChange: (value: string) => void }) {
@@ -79,14 +124,22 @@ export default function HumanDecisionInbox({
   sales,
   printing,
   catalogue,
+  covers,
+  outcomes,
+  communityReports,
+  catalogueRequests,
   proposals,
 }: {
   sales: SaleDecision[];
   printing: PrintDecision[];
   catalogue: CatalogueDecision[];
+  covers: CoverDecision[];
+  outcomes: ListingOutcomeDecision[];
+  communityReports: CommunityDecision[];
+  catalogueRequests: CatalogueRequestDecision[];
   proposals: AgentProposal[];
 }) {
-  const [reviewer, setReviewer] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("rar_staff_reviewer") ?? "");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
   const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
@@ -94,13 +147,13 @@ export default function HumanDecisionInbox({
   const [banner, setBanner] = useState<Banner | null>(null);
   const [filter, setFilter] = useState<"all" | DecisionKind>("all");
 
-  useEffect(() => {
-    if (reviewer.trim()) window.sessionStorage.setItem("rar_staff_reviewer", reviewer.trim());
-  }, [reviewer]);
-
   const visibleSales = sales.filter((item) => !resolved.has(`sale:${item.observationId}`));
   const visiblePrinting = printing.filter((item) => !resolved.has(`printing:${item.actionId}`));
   const visibleCatalogue = catalogue.filter((item) => !resolved.has(`catalogue:${item.id}`));
+  const visibleCovers = covers.filter((item) => !resolved.has(`cover:${item.id}`));
+  const visibleOutcomes = outcomes.filter((item) => !resolved.has(`outcome:${item.id}`));
+  const visibleCommunityReports = communityReports.filter((item) => !resolved.has(`community:${item.id}`));
+  const visibleCatalogueRequests = catalogueRequests.filter((item) => !resolved.has(`request:${item.id}`));
   const visibleProposals = proposals.filter((item) => !resolved.has(`proposal:${item.id}`));
   // Confidence controls prioritisation only. A human still makes every
   // verification decision, including suggestions that eventually score 90%+.
@@ -108,10 +161,13 @@ export default function HumanDecisionInbox({
   const learningProposals = visibleProposals.filter((item) => item.confidence === null || item.confidence < 0.9);
 
   const counts = {
-    all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + highConfidenceProposals.length,
+    all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
     sale: visibleSales.length,
     printing: visiblePrinting.length,
     catalogue: visibleCatalogue.length,
+    cover: visibleCovers.length,
+    outcome: visibleOutcomes.length,
+    request: visibleCommunityReports.length + visibleCatalogueRequests.length,
     proposal: highConfidenceProposals.length,
   };
 
@@ -218,6 +274,43 @@ export default function HumanDecisionInbox({
     });
   }
 
+  async function decideCover(item: CoverDecision, accepted: boolean) {
+    const key = `cover:${item.id}`;
+    await request(key, "/api/cover-review", {
+      candidateId: item.id,
+      editionId: item.editionId,
+      decision: accepted ? "verified" : "rejected",
+      notes: decisionNotes[key] ?? "",
+    });
+  }
+
+  async function decideOutcome(item: ListingOutcomeDecision, accepted: boolean) {
+    const key = `outcome:${item.id}`;
+    await request(key, "/api/listing-outcomes", {
+      outcomeId: item.id,
+      decision: accepted ? (item.status === "sold_candidate" ? "confirm_sale" : "keep_watching") : "dismiss",
+      notes: decisionNotes[key] ?? "",
+    });
+  }
+
+  async function decideCommunityReport(item: CommunityDecision, accepted: boolean) {
+    const key = `community:${item.id}`;
+    await request(key, "/api/community-reports", {
+      reportId: item.id,
+      decision: accepted ? (item.reportType === "sale" ? "converted" : "reviewed") : "rejected",
+      notes: decisionNotes[key] ?? "",
+    });
+  }
+
+  async function decideCatalogueRequest(item: CatalogueRequestDecision, accepted: boolean) {
+    const key = `request:${item.id}`;
+    await request(key, "/api/catalogue-requests", {
+      requestId: item.id,
+      decision: accepted ? "queued_for_research" : "declined",
+      notes: decisionNotes[key] ?? "",
+    });
+  }
+
   const empty = counts.all === 0;
 
   return (
@@ -230,9 +323,9 @@ export default function HumanDecisionInbox({
       {banner ? <p className={`human-decision-banner is-${banner.tone}`} role="status">{banner.text}</p> : null}
 
       <nav className="human-decision-filters" aria-label="Decision categories">
-        {(["all", "sale", "printing", "catalogue", "proposal"] as const).map((kind) => (
+        {(["all", "sale", "printing", "catalogue", "cover", "outcome", "request", "proposal"] as const).map((kind) => (
           <button aria-pressed={filter === kind} key={kind} onClick={() => setFilter(kind)} type="button">
-            {kind === "all" ? "All decisions" : kind === "sale" ? "Sales" : kind === "printing" ? "Printing" : kind === "catalogue" ? "Catalogue" : "Agent plans"}
+            {kind === "all" ? "All decisions" : kind === "sale" ? "Sales" : kind === "printing" ? "Printing" : kind === "catalogue" ? "Catalogue" : kind === "cover" ? "Covers" : kind === "outcome" ? "Ended listings" : kind === "request" ? "Requests" : "Agent plans"}
             <span>{counts[kind]}</span>
           </button>
         ))}
@@ -276,6 +369,42 @@ export default function HumanDecisionInbox({
             {item.isEditionCandidate ? <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button> : <Link href="/catalogue-review">Needs detailed review →</Link>}
             <button className="is-no" disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, false)} type="button">No — reject</button>
           </div>
+        </article>
+      ))}
+
+      {canShow("cover") && visibleCovers.map((item) => (
+        <article className="human-decision-card" key={item.id}>
+          <div className="human-decision-question"><span>Cover Curator asks · {item.score}% match</span><h2>Is this the correct cover for this exact edition?</h2></div>
+          <div className="human-decision-facts"><img alt={item.candidateTitle ?? item.editionLabel} className="human-decision-cover" src={item.imageUrl} /><p>{item.candidateTitle ?? "Cover candidate"}</p><b>{item.editionLabel}</b><small>{item.sourceName}{item.reasons.length ? ` · ${item.reasons.join(" · ")}` : ""}</small></div>
+          <DecisionNote reason={decisionReasons[`cover:${item.id}`] ?? ""} value={decisionNotes[`cover:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`cover:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`cover:${item.id}`]: value }))} />
+          <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a><button disabled={busyKeys.has(`cover:${item.id}`)} onClick={() => void decideCover(item, true)} type="button">{busyKeys.has(`cover:${item.id}`) ? "Saving…" : "Yes — verify cover"}</button><button className="is-no" disabled={busyKeys.has(`cover:${item.id}`)} onClick={() => void decideCover(item, false)} type="button">No — reject</button></div>
+        </article>
+      ))}
+
+      {canShow("outcome") && visibleOutcomes.map((item) => (
+        <article className="human-decision-card" key={item.id}>
+          <div className="human-decision-question"><span>Outcome Monitor asks{item.score === null ? "" : ` · ${item.score}% match`}</span><h2>{item.status === "sold_candidate" ? "Did this listing sell as the exact edition shown?" : "Should RAR keep watching this unresolved listing?"}</h2></div>
+          <div className="human-decision-facts">{item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}<span>{item.soldAt ?? item.status.replaceAll("_", " ")}</span><p>{item.listingTitle}</p><b>{item.editionLabel}</b></div>
+          <DecisionNote reason={decisionReasons[`outcome:${item.id}`] ?? ""} value={decisionNotes[`outcome:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`outcome:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`outcome:${item.id}`]: value }))} />
+          <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check listing ↗</a><button disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, true)} type="button">{busyKeys.has(`outcome:${item.id}`) ? "Saving…" : item.status === "sold_candidate" ? "Yes — verify sale" : "Yes — keep watching"}</button><button className="is-no" disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, false)} type="button">No — dismiss</button></div>
+        </article>
+      ))}
+
+      {canShow("request") && visibleCommunityReports.map((item) => (
+        <article className="human-decision-card" key={item.id}>
+          <div className="human-decision-question"><span>Community report</span><h2>{item.reportType === "sale" ? "Should this reported sale enter RAR's evidence workflow?" : "Should staff accept this reported issue?"}</h2></div>
+          <div className="human-decision-facts">{item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}<p>{item.listingTitle ?? item.reportType.replaceAll("_", " ")}</p><b>{item.editionLabel}</b><small>{item.notes}</small></div>
+          <DecisionNote reason={decisionReasons[`community:${item.id}`] ?? ""} value={decisionNotes[`community:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`community:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`community:${item.id}`]: value }))} />
+          <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a><button disabled={busyKeys.has(`community:${item.id}`)} onClick={() => void decideCommunityReport(item, true)} type="button">{busyKeys.has(`community:${item.id}`) ? "Saving…" : "Yes — accept lead"}</button><button className="is-no" disabled={busyKeys.has(`community:${item.id}`)} onClick={() => void decideCommunityReport(item, false)} type="button">No — reject</button></div>
+        </article>
+      ))}
+
+      {canShow("request") && visibleCatalogueRequests.map((item) => (
+        <article className="human-decision-card" key={item.id}>
+          <div className="human-decision-question"><span>Collector request</span><h2>Should the Catalogue Curator research this requested edition?</h2></div>
+          <div className="human-decision-facts"><p>{item.title}</p><b>{item.editionLabel}</b><small>{item.notes}</small></div>
+          <DecisionNote reason={decisionReasons[`request:${item.id}`] ?? ""} value={decisionNotes[`request:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`request:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`request:${item.id}`]: value }))} />
+          <div className="human-decision-actions">{item.sourceUrl ? <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a> : null}<button disabled={busyKeys.has(`request:${item.id}`)} onClick={() => void decideCatalogueRequest(item, true)} type="button">{busyKeys.has(`request:${item.id}`) ? "Saving…" : "Yes — research"}</button><button className="is-no" disabled={busyKeys.has(`request:${item.id}`)} onClick={() => void decideCatalogueRequest(item, false)} type="button">No — decline</button></div>
         </article>
       ))}
 

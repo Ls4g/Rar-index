@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type CoverQueueRow = {
   editionId: string;
@@ -387,7 +388,7 @@ function CandidateFinder() {
 }
 
 export default function CoverReviewClient({ rows, focusedRow, candidates }: { rows: CoverQueueRow[]; focusedRow: CoverQueueRow | null; candidates: CoverCandidateRow[] }) {
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [series, setSeries] = useState("all");
   const [language, setLanguage] = useState("all");
   const [publisher, setPublisher] = useState("all");

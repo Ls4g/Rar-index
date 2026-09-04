@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export default function CollectionRunForm({ profileId }: { profileId: string }) {
   const router = useRouter();
-  const [checkedBy, setCheckedBy] = useState("");
+  const [checkedBy, setCheckedBy] = useStaffReviewer();
   const [candidateCount, setCandidateCount] = useState("0");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");

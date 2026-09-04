@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 const options = [
   ["queued_for_research", "Queue for research", "Keep this as a lead for the normal catalogue workflow."],
@@ -10,7 +11,7 @@ const options = [
 
 export default function CatalogueRequestDecisionForm({ requestId }: { requestId: string }) {
   const [decision, setDecision] = useState<typeof options[number][0]>("queued_for_research");
-  const [reviewer, setReviewer] = useState("");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");

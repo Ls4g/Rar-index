@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { catalogueMetadataProblem, queuedReviewMetadata } from "@/lib/catalogueReviewMetadata";
 import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
 import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
+import { isStaffRequest } from "@/lib/staffSession";
 
 type CatalogueDecision = "approve_new" | "link_existing" | "needs_review" | "rejected" | "duplicate";
 type ApprovedMetadata = {
@@ -32,19 +33,6 @@ function cleanMetadata(value: unknown) {
   };
 }
 
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
-  }
-}
-
 const MAX_BULK_RECORDS = 40;
 const APPROVAL_QUEUE_FIELDS = "id,external_id,source_record_url,raw_payload,candidate_kind,candidate_title,candidate_series,candidate_volume_number,candidate_author,candidate_publisher,candidate_language,candidate_isbn_13,candidate_release_date,candidate_format,candidate_cover_image_url";
 
@@ -72,7 +60,7 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (
 }
 
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
   let payload: { catalogueImportId?: unknown; catalogueImportIds?: unknown; decision?: unknown; notes?: unknown; reviewer?: unknown; existingEditionId?: unknown; metadata?: unknown; feedbackReason?: unknown };
   try {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type PriceReviewRecord = {
   observation_id: string;
@@ -36,15 +37,13 @@ function formatDate(value: string | null) {
 }
 
 export default function PriceReviewQueue({ records }: { records: PriceReviewRecord[] }) {
-  const [reviewer, setReviewer] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("rar_staff_reviewer") ?? "");
+  const [reviewer, setReviewer] = useStaffReviewer();
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const rows = useMemo(() => records.filter((record) => !resolved.has(record.observation_id)), [records, resolved]);
-
-  useEffect(() => { if (reviewer.trim()) window.sessionStorage.setItem("rar_staff_reviewer", reviewer.trim()); }, [reviewer]);
 
   function toggle(id: string) {
     setSelected((current) => {

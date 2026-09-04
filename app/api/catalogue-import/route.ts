@@ -1,20 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue } from "@/lib/catalogueSources";
-
-function isStaffRequest(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const username = process.env.RAR_REVIEW_USERNAME;
-  const password = process.env.RAR_REVIEW_PASSWORD;
-
-  if (!username || !password || !authorization?.startsWith("Basic ")) return false;
-
-  try {
-    const [providedUsername, providedPassword] = atob(authorization.slice(6)).split(":");
-    return providedUsername === username && providedPassword === password;
-  } catch {
-    return false;
-  }
-}
+import { isStaffRequest } from "@/lib/staffSession";
 
 function languageName(value: string | undefined) {
   if (value === "eng" || value === "en") return "English";
@@ -122,7 +108,7 @@ async function publisherRecordCandidates(query: string, publisherSource: Publish
 }
 
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
+  if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
   let payload: { source?: unknown; publisherSource?: unknown; query?: unknown; queries?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
   try {
