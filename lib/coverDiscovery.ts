@@ -1,4 +1,5 @@
 import { assessCoverCandidate, normalizeIsbn, type CoverMatchTarget } from "@/lib/coverCandidateMatch";
+import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 
 export type DiscoveredCoverCandidate = {
   sourceName: "Google Books" | "Open Library";
@@ -18,6 +19,11 @@ export type DiscoveredCoverCandidate = {
 export type CoverDiscoveryResult = {
   candidates: DiscoveredCoverCandidate[];
   errors: string[];
+  providerStates: Array<{
+    sourceName: "Google Books" | "Open Library";
+    status: "checked" | "skipped" | "rate_limited" | "failed";
+    message?: string;
+  }>;
 };
 
 type GoogleVolume = {
@@ -42,10 +48,10 @@ function googleImage(volume: GoogleVolume) {
   return secureImageUrl(images.extraLarge ?? images.large ?? images.medium ?? images.small ?? images.thumbnail ?? images.smallThumbnail);
 }
 
-async function findGoogleBooks(target: CoverMatchTarget): Promise<DiscoveredCoverCandidate[]> {
+async function findGoogleBooks(target: CoverMatchTarget, apiKey: string): Promise<DiscoveredCoverCandidate[]> {
   const isbn = normalizeIsbn(target.isbn13);
   if (!isbn) return [];
-  const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=10&projection=full`, {
+  const response = await fetch(googleBooksRequestUrl(isbn, apiKey), {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": "RAR-Index-Cover-Research/1.0" },
   });
@@ -130,14 +136,40 @@ async function findOpenLibrary(target: CoverMatchTarget): Promise<DiscoveredCove
   }];
 }
 
-export async function discoverCoverCandidates(target: CoverMatchTarget): Promise<CoverDiscoveryResult> {
-  const results = await Promise.allSettled([findGoogleBooks(target), findOpenLibrary(target)]);
+export async function discoverCoverCandidates(target: CoverMatchTarget, googleBooksGate?: GoogleBooksBatchGate): Promise<CoverDiscoveryResult> {
   const candidates: DiscoveredCoverCandidate[] = [];
   const errors: string[] = [];
-  for (const result of results) {
-    if (result.status === "fulfilled") candidates.push(...result.value);
-    else errors.push(result.reason instanceof Error ? result.reason.message : "A cover source could not be checked");
+  const providerStates: CoverDiscoveryResult["providerStates"] = [];
+  const jobs: Array<{ sourceName: "Google Books" | "Open Library"; promise: Promise<DiscoveredCoverCandidate[]> }> = [
+    { sourceName: "Open Library", promise: findOpenLibrary(target) },
+  ];
+  if (googleBooksGate?.canRequest() && googleBooksGate.apiKey) {
+    jobs.push({ sourceName: "Google Books", promise: findGoogleBooks(target, googleBooksGate.apiKey) });
+  } else {
+    const reason = googleBooksGate?.skipReason() ?? "not_configured";
+    providerStates.push({
+      sourceName: "Google Books",
+      status: reason === "rate_limited" ? "rate_limited" : "skipped",
+      message: reason === "rate_limited" ? "Paused for the rest of this batch after HTTP 429." : "Skipped because GOOGLE_BOOKS_API_KEY is not configured.",
+    });
+  }
+  const results = await Promise.allSettled(jobs.map((job) => job.promise));
+  results.forEach((result, index) => {
+    const sourceName = jobs[index].sourceName;
+    if (result.status === "fulfilled") {
+      candidates.push(...result.value);
+      providerStates.push({ sourceName, status: "checked" });
+      return;
+    }
+    const message = result.reason instanceof Error ? result.reason.message : "A cover source could not be checked";
+    const rateLimited = sourceName === "Google Books" && message.includes("429");
+    if (rateLimited) googleBooksGate?.recordStatus(429);
+    errors.push(`${sourceName}: ${message}`);
+    providerStates.push({ sourceName, status: rateLimited ? "rate_limited" : "failed", message });
+  });
+  if (googleBooksGate?.skipReason() === "rate_limited" && !providerStates.some((state) => state.sourceName === "Google Books")) {
+    providerStates.push({ sourceName: "Google Books", status: "rate_limited", message: "Paused for the rest of this batch after HTTP 429." });
   }
   const unique = new Map(candidates.map((candidate) => [`${candidate.sourceName}:${candidate.externalId}`, candidate]));
-  return { candidates: [...unique.values()], errors };
+  return { candidates: [...unique.values()], errors, providerStates };
 }

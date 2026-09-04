@@ -2,6 +2,7 @@ import { discoverCoverCandidates } from "@/lib/coverDiscovery";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { compareCoverResearchPriority } from "@/lib/coveragePriority";
+import { createGoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 
 const MAX_BATCH_SIZE = 20;
 
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       { series: right.series, verified_sale_count: right.verified_sale_count, lastScan: lastScan.get(right.edition_id) ?? null },
     ))
     .slice(0, limit);
+  const googleBooksGate = createGoogleBooksBatchGate(process.env.GOOGLE_BOOKS_API_KEY);
   const discovered = await mapWithConcurrency(editions, 4, async (edition) => {
     const result = await discoverCoverCandidates({
       title: edition.title,
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
       language: edition.language,
       publisher: edition.publisher,
       isbn13: edition.isbn_13,
-    });
+    }, googleBooksGate);
     return { edition, ...result };
   });
 
@@ -129,5 +131,9 @@ export async function POST(request: Request) {
     candidatesFound: rows.length,
     candidatesQueued: queued,
     sourceWarnings: discovered.flatMap(({ edition, errors }) => errors.map((message) => `${edition.title ?? edition.edition_id}: ${message}`)),
+    providerSummary: {
+      googleBooks: googleBooksGate.skipReason() ?? "checked",
+      openLibrary: discovered.some(({ providerStates }) => providerStates.some((state) => state.sourceName === "Open Library" && state.status === "checked")) ? "checked" : "failed",
+    },
   });
 }

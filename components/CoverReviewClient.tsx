@@ -365,12 +365,25 @@ function CandidateFinder() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       });
-      const result = (await response.json()) as { error?: string; editionsScanned?: number; candidatesFound?: number; candidatesQueued?: number; sourceWarnings?: string[] };
+      const result = (await response.json()) as {
+        error?: string;
+        editionsScanned?: number;
+        candidatesFound?: number;
+        candidatesQueued?: number;
+        sourceWarnings?: string[];
+        providerSummary?: { googleBooks?: string; openLibrary?: string };
+      };
       if (!response.ok) {
         setMessage(result.error ?? "The candidate search could not run.");
         return;
       }
-      setMessage(`Checked ${result.editionsScanned ?? 0} editions. Found ${result.candidatesFound ?? 0} matching covers; ${result.candidatesQueued ?? 0} were new.`);
+      const googleNote = result.providerSummary?.googleBooks === "not_configured"
+        ? " Google Books was skipped because its API key is not configured; Open Library still ran."
+        : result.providerSummary?.googleBooks === "rate_limited"
+          ? " Google Books reached its limit and was paused for the rest of this batch; Open Library still ran."
+          : "";
+      const warningNote = result.sourceWarnings?.length ? ` ${result.sourceWarnings.length} source check${result.sourceWarnings.length === 1 ? "" : "s"} reported a warning.` : "";
+      setMessage(`Checked ${result.editionsScanned ?? 0} editions. Found ${result.candidatesFound ?? 0} matching covers; ${result.candidatesQueued ?? 0} were new.${googleNote}${warningNote}`);
       router.refresh();
     } catch {
       setMessage("The candidate search could not run. Check the connection and try again.");
@@ -381,7 +394,7 @@ function CandidateFinder() {
 
   return (
     <section className="cover-candidate-finder">
-      <div><p className="eyebrow">Automated research, human approval</p><h2>Find the next cover batch</h2><p>Checks Google Books and Open Library by exact ISBN for the 20 highest-priority gaps. Results stay staff-only until you verify them.</p></div>
+      <div><p className="eyebrow">Automated research, human approval</p><h2>Find the next cover batch</h2><p>Checks configured sources by exact ISBN for the 20 highest-priority gaps. Open Library always runs; Google Books runs when its server-side API key is configured. Results stay staff-only until you verify them.</p></div>
       <div><button disabled={running} onClick={findCandidates} type="button">{running ? "Checking sources…" : "Find covers for next 20"}</button>{message ? <p role="status">{message}</p> : null}</div>
     </section>
   );

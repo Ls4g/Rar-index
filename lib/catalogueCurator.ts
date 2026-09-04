@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
-import { searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
 import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
 import { describeRunFairness, isStaffFastTrack } from "./catalogueBacklog.ts";
 
@@ -131,10 +131,9 @@ function catalogueSeriesStem(value: string | null | undefined) {
 
 function languageMatches(candidate: string | null, target: string | null) {
   if (!target) return true;
-  // A missing language is not evidence for the requested language. Open
-  // Library often omits it, and the old fallback silently relabelled foreign
-  // records as English before staff saw them.
-  if (!candidate) return false;
+  // Missing source metadata may enter the human review queue, but it is never
+  // relabelled from the search target. An explicit conflict is still rejected.
+  if (!candidate) return true;
   return normalise(candidate) === normalise(target);
 }
 
@@ -169,8 +168,8 @@ function targetTitleNeedles(target: CatalogueDiscoveryTarget) {
 export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandidate, target: CatalogueDiscoveryTarget) {
   const targetIsbn = cleanIsbn(target.isbn13);
   const candidateIsbn = cleanIsbn(candidate.candidate_isbn_13);
-  if (targetIsbn && candidateIsbn) return targetIsbn === candidateIsbn;
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
+  if (targetIsbn && candidateIsbn) return targetIsbn === candidateIsbn;
   if (!cataloguePublisherMatches(candidate.candidate_publisher, target.publisher)) return false;
 
   const candidateStem = catalogueSeriesStem(candidate.candidate_title);
@@ -299,12 +298,43 @@ export function planCatalogueDiscoveryTargets(
   return targets;
 }
 
-function sourceName(source: CatalogueDiscoveryTarget["source"]) {
-  return source === "shueisha_direct" ? "Shueisha Direct" : "Open Library";
-}
+type CuratorSourceName = "Open Library" | "Shueisha Direct" | "OpenBD";
 
-async function findCandidates(target: CatalogueDiscoveryTarget) {
-  return target.source === "shueisha_direct" ? searchShueishaCatalogue(target.query) : searchOpenLibraryCatalogue(target.query);
+type CatalogueLookup = {
+  sourceName: CuratorSourceName;
+  candidates: CatalogueSourceCandidate[];
+  warnings: string[];
+};
+
+async function findCandidates(target: CatalogueDiscoveryTarget): Promise<CatalogueLookup> {
+  if (target.source === "open_library") {
+    return { sourceName: "Open Library", candidates: await searchOpenLibraryCatalogue(target.query), warnings: [] };
+  }
+
+  // Japanese catalogue discovery remains exact-ISBN only. Shueisha is the
+  // preferred first-party record for its own books; OpenBD is a resilient
+  // structured fallback and the primary verifier for other publishers.
+  const shueishaTarget = cataloguePublisherMatches(target.publisher, "Shueisha");
+  const attempts: Array<{ name: CuratorSourceName; run: () => Promise<CatalogueSourceCandidate[]> }> = shueishaTarget
+    ? [
+      { name: "Shueisha Direct", run: () => searchShueishaCatalogue(target.query) },
+      { name: "OpenBD", run: () => searchOpenBdCatalogue(target.query) },
+    ]
+    : [
+      { name: "OpenBD", run: () => searchOpenBdCatalogue(target.query) },
+      ...(target.publisher ? [] : [{ name: "Shueisha Direct" as const, run: () => searchShueishaCatalogue(target.query) }]),
+    ];
+  const warnings: string[] = [];
+  for (const attempt of attempts) {
+    try {
+      const candidates = await attempt.run();
+      if (candidates.length) return { sourceName: attempt.name, candidates, warnings };
+    } catch (caught) {
+      warnings.push(`${attempt.name}: ${caught instanceof Error ? caught.message : "source_failed"}`);
+    }
+  }
+  if (warnings.length === attempts.length) throw new Error(warnings.join(" | "));
+  return { sourceName: attempts.at(-1)?.name ?? "OpenBD", candidates: [], warnings };
 }
 
 export async function stageCatalogueCandidates(admin: SupabaseClient, runId: string): Promise<CatalogueCuratorResult> {
@@ -312,7 +342,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100),
     admin.from("manga_editions").select("title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000),
     admin.from("catalogue_import_queue").select("source_id,external_id,candidate_title,candidate_series,candidate_volume_number,candidate_language,candidate_isbn_13,raw_payload").limit(5000),
-    admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library"]),
+    admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library", "OpenBD"]),
   ]);
   const error = requestResult.error || editionResult.error || queueResult.error || sourceResult.error;
   if (error) throw new Error(`Catalogue Curator could not prepare discovery: ${error.message}`);
@@ -378,15 +408,24 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   };
 
   const discoveries = await Promise.all(targets.map(async (target) => {
-    const sourceId = sources.get(sourceName(target.source)) ?? null;
-    if (!sourceId) return { target, sourceId, candidates: [] as CatalogueSourceCandidate[], error: "source_not_configured" };
     try {
-      return { target, sourceId, candidates: await findCandidates(target), error: null };
-    } catch (caught) {
+      const lookup = await findCandidates(target);
+      const sourceId = sources.get(lookup.sourceName) ?? null;
       return {
         target,
         sourceId,
+        sourceName: lookup.sourceName,
+        candidates: lookup.candidates,
+        warnings: lookup.warnings,
+        error: sourceId ? null : "source_not_configured",
+      };
+    } catch (caught) {
+      return {
+        target,
+        sourceId: null,
+        sourceName: target.source === "open_library" ? "Open Library" : "OpenBD",
         candidates: [] as CatalogueSourceCandidate[],
+        warnings: [] as string[],
         error: caught instanceof Error ? caught.message : "source_failed",
       };
     }
@@ -396,7 +435,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     const { target, sourceId, candidates } = discovery;
     if (discovery.error || !sourceId) {
       result.targetsFailed += 1;
-      result.targetSummaries.push({ key: target.key, source: target.source, result: discovery.error ?? "source_not_configured" });
+      result.targetSummaries.push({ key: target.key, source: discovery.sourceName, result: discovery.error ?? "source_not_configured" });
       continue;
     }
     try {
@@ -445,7 +484,9 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
               language: target.language,
               publisher: target.publisher,
               isbn_13: target.isbn13,
-              source: target.source,
+              source: discovery.sourceName,
+              source_strategy: target.source,
+              source_warnings: discovery.warnings,
               query: target.query,
               matched_at: new Date().toISOString(),
             },
@@ -465,14 +506,14 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
         result.candidatesStaged += inserted?.length ?? 0;
       }
       const outcome = rows.length ? "staged" : eligible.length ? "already_known" : "no_exact_candidate";
-      result.targetSummaries.push({ key: target.key, source: target.source, result: outcome });
+      result.targetSummaries.push({ key: target.key, source: discovery.sourceName, result: outcome });
       // Written back so the target backs off rather than being re-searched
       // every run. An unreleased volume returning nothing is the normal case.
       const backlogRow = backlogByKey.get(target.key);
       if (backlogRow) await recordTargetOutcome(admin, backlogRow.id, outcome, backlogRow.failure_count);
     } catch (caught) {
       result.targetsFailed += 1;
-      result.targetSummaries.push({ key: target.key, source: target.source, result: caught instanceof Error ? caught.message : "source_failed" });
+      result.targetSummaries.push({ key: target.key, source: discovery.sourceName, result: caught instanceof Error ? caught.message : "source_failed" });
       const failedRow = backlogByKey.get(target.key);
       if (failedRow) await recordTargetOutcome(admin, failedRow.id, "failed", failedRow.failure_count);
     }

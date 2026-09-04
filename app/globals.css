@@ -687,6 +687,7 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .review-note span { color: #72571c; font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .review-note p { margin: .28rem 0 0; color: #5c554a; font-size: .88rem; line-height: 1.5; }
 .catalogue-approval-conflict { margin: .8rem 0; border-left: 3px solid var(--accent-warning-text); padding: .65rem .8rem; background: color-mix(in srgb, var(--accent-warning-text) 8%, transparent); color: var(--ink); font-size: .82rem; line-height: 1.45; }
+.catalogue-language-warning { margin: .8rem 0; border-left: 3px solid var(--accent-warning-text); padding: .65rem .8rem; background: color-mix(in srgb, var(--accent-warning-text) 7%, transparent); color: var(--ink); font-size: .82rem; line-height: 1.45; }
 .review-decision, .community-report-decision { display: grid; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .review-decision-heading { display: grid; gap: .25rem; }
 .review-decision-heading > span { color: var(--gold); font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }

@@ -106,6 +106,7 @@ export default function CatalogueDecisionForm({ catalogueImportId, isEditionCand
     <form className="review-decision catalogue-decision" onSubmit={saveDecision}>
       <div className="review-decision-heading"><span>Catalogue decision</span><small>Approval records a durable evidence note.</small></div>
       {approvalProblem ? <p className="catalogue-approval-conflict" role="alert"><strong>Publishing blocked:</strong> {approvalProblem}</p> : null}
+      {decision === "approve_new" && !candidate.language ? <p className="catalogue-language-warning" role="status"><strong>Language required:</strong> confirm it below. The curator deliberately left this blank because the source did not supply one.</p> : null}
       <div className="catalogue-options" role="radiogroup" aria-label="Catalogue decision">
         {allowedDecisions.map((option) => <label className={decision === option.value ? "selected" : ""} key={option.value}>
           <input checked={decision === option.value} name={`catalogue-decision-${catalogueImportId}`} onChange={() => { setDecision(option.value); setPrintingOfEditionId(""); }} type="radio" value={option.value} />

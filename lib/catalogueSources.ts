@@ -1,4 +1,5 @@
 export type CatalogueSourceCandidate = {
+  source_name?: "Open Library" | "Shueisha Direct" | "OpenBD";
   external_id: string;
   source_record_url: string;
   raw_payload: Record<string, unknown>;
@@ -13,6 +14,27 @@ export type CatalogueSourceCandidate = {
   candidate_release_date: string | null;
   candidate_format?: string | null;
   candidate_cover_image_url?: string | null;
+};
+
+type OpenBdRecord = {
+  summary?: {
+    isbn?: string;
+    title?: string;
+    volume?: string;
+    series?: string;
+    publisher?: string;
+    pubdate?: string;
+    cover?: string;
+    author?: string;
+  };
+  onix?: {
+    RecordReference?: string;
+    DescriptiveDetail?: {
+      ProductFormDetail?: string;
+      Language?: Array<{ LanguageCode?: string }>;
+    };
+  };
+  hanmoto?: Record<string, unknown>;
 };
 
 function decodeHtml(value: string) {
@@ -72,6 +94,61 @@ function htmlMatch(html: string, pattern: RegExp) {
   return decodeHtml(html.match(pattern)?.[1] || "") || null;
 }
 
+function openBdDate(value: string | undefined) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length >= 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  if (digits.length >= 6) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-01`;
+  if (digits.length >= 4) return `${digits.slice(0, 4)}-01-01`;
+  return null;
+}
+
+export async function searchOpenBdCatalogue(query: string): Promise<CatalogueSourceCandidate[]> {
+  const isbn = cleanIsbn(query);
+  if (!/^\d{9}[\dX]$/.test(isbn) && !/^97[89]\d{10}$/.test(isbn)) {
+    throw new Error("OpenBD needs a Japanese ISBN-10 or ISBN-13, not a title search.");
+  }
+  const isbn13 = isbn.length === 10 ? isbn13From10(isbn) : isbn;
+  if (!isbn13) throw new Error("That ISBN could not be read.");
+
+  const sourceRecordUrl = `https://api.openbd.jp/v1/get?isbn=${encodeURIComponent(isbn13)}`;
+  const response = await fetch(sourceRecordUrl, {
+    headers: { Accept: "application/json", "User-Agent": "RAR-Index catalogue curator" },
+    signal: AbortSignal.timeout(15_000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`OpenBD returned ${response.status}.`);
+  const payload = await response.json() as Array<OpenBdRecord | null>;
+  const record = payload[0];
+  if (!record) return [];
+
+  const summary = record.summary ?? {};
+  const returnedIsbn = cleanIsbn(summary.isbn ?? record.onix?.RecordReference ?? "");
+  const returnedIsbn13 = returnedIsbn.length === 10 ? isbn13From10(returnedIsbn) : returnedIsbn;
+  if (returnedIsbn13 !== isbn13) return [];
+  const title = summary.title?.trim();
+  if (!title) return [];
+
+  const languageCode = record.onix?.DescriptiveDetail?.Language?.[0]?.LanguageCode;
+  return [{
+    source_name: "OpenBD",
+    external_id: isbn13,
+    source_record_url: sourceRecordUrl,
+    raw_payload: { importer: "openbd", isbn_query: isbn, source_record: record },
+    candidate_kind: "edition_candidate",
+    candidate_title: title,
+    candidate_series: summary.series?.trim() || null,
+    candidate_volume_number: summary.volume?.trim() || null,
+    candidate_author: summary.author?.trim() || null,
+    candidate_publisher: summary.publisher?.trim() || null,
+    candidate_language: languageName(languageCode),
+    candidate_isbn_13: isbn13,
+    candidate_release_date: openBdDate(summary.pubdate),
+    candidate_format: record.onix?.DescriptiveDetail?.ProductFormDetail ?? null,
+    candidate_cover_image_url: summary.cover?.replace(/^http:\/\//i, "https://") || null,
+  }];
+}
+
 export async function searchShueishaCatalogue(query: string): Promise<CatalogueSourceCandidate[]> {
   const isbn = cleanIsbn(query);
   if (!/^\d{9}[\dX]$/.test(isbn) && !/^97[89]\d{10}$/.test(isbn)) {
@@ -97,6 +174,7 @@ export async function searchShueishaCatalogue(query: string): Promise<CatalogueS
   if (!title) return [];
 
   return [{
+    source_name: "Shueisha Direct",
     external_id: isbn13,
     source_record_url: sourceRecordUrl,
     raw_payload: { importer: "shueisha_direct", isbn_query: isbn, source_html: html },
@@ -191,6 +269,7 @@ export async function searchOpenLibraryCatalogue(query: string): Promise<Catalog
       const coverId = edition.cover_i || record.cover_i;
 
       return [{
+        source_name: "Open Library" as const,
         external_id: externalId,
         source_record_url: `https://openlibrary.org/books/${externalId}`,
         raw_payload: { importer: "open_library", query, source_record: record, selected_edition: edition },

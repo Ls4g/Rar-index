@@ -61,9 +61,12 @@ const correctCandidate = {
 assert.equal(candidateMatchesDiscoveryTarget(correctCandidate, target), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 8" }, target), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: "Japanese" }, target), false);
-assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: null }, target), false);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: null }, target), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_publisher: null }, target), false);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece Adventures, Vol. 2" }, target), false);
+const exactIsbnTarget = { ...target, isbn13: correctCandidate.candidate_isbn_13 };
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: null }, exactIsbnTarget), true);
+assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_language: "Japanese" }, exactIsbnTarget), false);
 
 const akiraTarget = { ...target, title: "Akira Vol. 1", series: "Akira", volumeNumber: "1", publisher: null };
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Akira, Vol. 1", candidate_volume_number: "1" }, akiraTarget), true);
