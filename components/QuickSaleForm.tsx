@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- staff-only eBay evidence URLs are arbitrary and short-lived */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
 import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
@@ -77,6 +77,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const initialEditionLoaded = useRef(false);
 
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
   const liveDetection = useMemo(() => {
@@ -85,7 +86,8 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   }, [listingTitle, submittedText]);
 
   useEffect(() => {
-    if (!initialEditionId || selectedEdition) return;
+    if (!initialEditionId || initialEditionLoaded.current) return;
+    initialEditionLoaded.current = true;
     const controller = new AbortController();
     fetch(`/api/add-sale?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
       .then(async (response) => {
@@ -100,7 +102,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
         if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The selected edition could not be loaded.");
       });
     return () => controller.abort();
-  }, [initialEditionId, selectedEdition]);
+  }, [initialEditionId]);
 
   useEffect(() => {
     const controller = new AbortController();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -107,6 +107,7 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
   const [message, setMessage] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const initialEditionLoaded = useRef(false);
 
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
   const pastedLinkCount = useMemo(() => parseSubmittedSaleLinks(pastedLinks).length, [pastedLinks]);
@@ -114,7 +115,8 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
   const savedCount = rows.filter((row) => row.status === "saved").length;
 
   useEffect(() => {
-    if (!initialEditionId || selectedEdition) return;
+    if (!initialEditionId || initialEditionLoaded.current) return;
+    initialEditionLoaded.current = true;
     const controller = new AbortController();
     fetch(`/api/add-sale?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
       .then(async (response) => {
@@ -125,7 +127,7 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
       })
       .catch((error) => { if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The edition could not be loaded."); });
     return () => controller.abort();
-  }, [initialEditionId, selectedEdition]);
+  }, [initialEditionId]);
 
   useEffect(() => {
     const controller = new AbortController();
