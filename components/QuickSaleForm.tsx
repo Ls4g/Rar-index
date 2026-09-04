@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- staff-only eBay evidence URLs are arbitrary and short-lived */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
 import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
@@ -48,6 +49,7 @@ function editionLabel(edition: Edition) {
 }
 
 export default function QuickSaleForm({ initialEditionId = "" }: { initialEditionId?: string }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
@@ -132,6 +134,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   function resetEdition() {
     setSelectedEdition(null);
     setQuery("");
+    if (initialEditionId) router.replace("/add-sale", { scroll: false });
   }
 
   function changeListingUrl(value: string) {

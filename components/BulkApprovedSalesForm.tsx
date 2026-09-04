@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -97,6 +98,7 @@ function rowIsReady(row: BatchRow) {
 }
 
 export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initialEditionId?: string }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
@@ -148,6 +150,13 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
 
   function updateRow(key: string, values: Partial<BatchRow>) {
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...values, status: row.status === "saved" ? "saved" : "draft", resultMessage: "" } : row));
+  }
+
+  function changeEdition() {
+    setSelectedEdition(null);
+    setRows([]);
+    setQuery("");
+    if (initialEditionId) router.replace("/add-sale", { scroll: false });
   }
 
   async function prepareBatch() {
@@ -239,7 +248,7 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
 
     <div className="bulk-sale-edition">
       <span>1</span><div><strong>Which exact edition do all these links belong to?</strong>
-      {selectedEdition ? <div className="selected-edition"><strong>{editionLabel(selectedEdition)}</strong><button type="button" onClick={() => { setSelectedEdition(null); setRows([]); setQuery(""); }}>Change edition</button></div> : <>
+      {selectedEdition ? <div className="selected-edition"><strong>{editionLabel(selectedEdition)}</strong><button type="button" onClick={changeEdition}>Change edition</button></div> : <>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or series" autoComplete="off" />
         {visibleSuggestions.length ? <div className="edition-suggestions">{visibleSuggestions.map((edition) => <button type="button" key={edition.id} onClick={() => { setSelectedEdition(edition); setSuggestions([]); }}>{editionLabel(edition)}</button>)}</div> : null}
       </>}</div>
