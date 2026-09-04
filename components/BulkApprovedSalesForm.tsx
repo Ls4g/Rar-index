@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -97,56 +96,33 @@ function rowIsReady(row: BatchRow) {
   return row.status !== "saved";
 }
 
-export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initialEditionId?: string }) {
-  const router = useRouter();
+export default function BulkApprovedSalesForm({
+  initialEditionId = "",
+  editions,
+  sources,
+}: {
+  initialEditionId?: string;
+  editions: Edition[];
+  sources: Source[];
+}) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Edition[]>([]);
-  const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
-  const [sourceId, setSourceId] = useState("");
+  const [selectedEdition, setSelectedEdition] = useState<Edition | null>(() => editions.find((edition) => edition.id === initialEditionId) ?? null);
+  const [sourceId] = useState(() => sources.find((source) => source.name === "eBay Sold")?.id ?? "");
   const [reviewer, setReviewer] = useStaffReviewer();
   const [pastedLinks, setPastedLinks] = useState("");
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [message, setMessage] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const initialEditionLoaded = useRef(false);
-
-  const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
+  const visibleSuggestions = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (needle.length < 2 || selectedEdition) return [];
+    return editions.filter((edition) => [edition.title, edition.series, edition.isbn_13, edition.publisher]
+      .some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 10);
+  }, [editions, query, selectedEdition]);
   const pastedLinkCount = useMemo(() => parseSubmittedSaleLinks(pastedLinks).length, [pastedLinks]);
   const readyCount = useMemo(() => rows.filter(rowIsReady).length, [rows]);
   const savedCount = rows.filter((row) => row.status === "saved").length;
-
-  useEffect(() => {
-    if (!initialEditionId || initialEditionLoaded.current) return;
-    initialEditionLoaded.current = true;
-    const controller = new AbortController();
-    fetch(`/api/add-sale?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const data = await response.json() as { edition?: Edition; sources?: Source[]; error?: string };
-        if (!response.ok || !data.edition) throw new Error(data.error ?? "The selected edition could not be loaded.");
-        setSelectedEdition(data.edition);
-        setSourceId(data.sources?.find((source) => source.name === "eBay Sold")?.id ?? "");
-      })
-      .catch((error) => { if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "The edition could not be loaded."); });
-    return () => controller.abort();
-  }, [initialEditionId]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      if (selectedEdition || query.trim().length < 2) return;
-      try {
-        const response = await fetch(`/api/add-sale?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal });
-        const data = await response.json() as { editions?: Edition[]; sources?: Source[]; error?: string };
-        if (!response.ok) throw new Error(data.error ?? "Edition suggestions could not be loaded.");
-        setSuggestions(data.editions ?? []);
-        setSourceId((current) => current || data.sources?.find((source) => source.name === "eBay Sold")?.id || "");
-      } catch (error) {
-        if ((error as Error).name !== "AbortError") setMessage(error instanceof Error ? error.message : "Edition suggestions could not be loaded.");
-      }
-    }, 220);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [query, selectedEdition]);
 
   function updateRow(key: string, values: Partial<BatchRow>) {
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...values, status: row.status === "saved" ? "saved" : "draft", resultMessage: "" } : row));
@@ -156,7 +132,6 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
     setSelectedEdition(null);
     setRows([]);
     setQuery("");
-    if (initialEditionId) router.replace("/add-sale", { scroll: false });
   }
 
   async function prepareBatch() {
@@ -250,7 +225,7 @@ export default function BulkApprovedSalesForm({ initialEditionId = "" }: { initi
       <span>1</span><div><strong>Which exact edition do all these links belong to?</strong>
       {selectedEdition ? <div className="selected-edition"><strong>{editionLabel(selectedEdition)}</strong><button type="button" onClick={changeEdition}>Change edition</button></div> : <>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or series" autoComplete="off" />
-        {visibleSuggestions.length ? <div className="edition-suggestions">{visibleSuggestions.map((edition) => <button type="button" key={edition.id} onClick={() => { setSelectedEdition(edition); setSuggestions([]); }}>{editionLabel(edition)}</button>)}</div> : null}
+        {visibleSuggestions.length ? <div className="edition-suggestions">{visibleSuggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setSelectedEdition(edition)}>{editionLabel(edition)}</button>)}</div> : null}
       </>}</div>
     </div>
 

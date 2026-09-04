@@ -21,10 +21,19 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
   const parameters = await searchParams;
   const initialEditionId = typeof parameters.editionId === "string" ? parameters.editionId : "";
   const admin = getSupabaseAdmin();
-  const { data: profileData } = await admin.from("marketplace_search_profiles")
-    .select("id,edition_id,search_query,edition:manga_editions(id,title,series,volume_number,language),source:sources(name)")
-    .eq("is_active", true)
-    .limit(1000);
+  const [{ data: profileData }, { data: verifiedEditions }, { data: activeSources }] = await Promise.all([
+    admin.from("marketplace_search_profiles")
+      .select("id,edition_id,search_query,edition:manga_editions(id,title,series,volume_number,language),source:sources(name)")
+      .eq("is_active", true)
+      .limit(1000),
+    admin.from("manga_editions")
+      .select("id,title,series,volume_number,language,isbn_13,publisher")
+      .eq("is_verified", true)
+      .order("series", { nullsFirst: false })
+      .order("volume_number", { nullsFirst: false })
+      .limit(2000),
+    admin.from("sources").select("id,name").eq("is_active", true).order("name"),
+  ]);
   const profiles = ((profileData ?? []) as unknown as SearchProfile[])
     .filter((profile) => profile.source?.name === "eBay Sold" && profile.edition);
   const editionIds = [...new Set(profiles.map((profile) => profile.edition_id))];
@@ -69,7 +78,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
           <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}`}>Select edition</Link></div>
         </article>)}</div>
       </section> : null}
-      <BulkApprovedSalesForm initialEditionId={initialEditionId} />
+      <BulkApprovedSalesForm initialEditionId={initialEditionId} editions={verifiedEditions ?? []} sources={activeSources ?? []} />
       <details className="single-approved-sale">
         <summary>Add one sale instead</summary>
         <QuickSaleForm initialEditionId={initialEditionId} />
