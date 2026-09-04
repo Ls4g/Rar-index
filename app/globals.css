@@ -2110,6 +2110,21 @@ html[data-theme="day"] .public-page {
 .quick-sale-verify span { display: grid; gap: .2rem; }
 .quick-sale-verify strong { font-size: .8rem; }
 .quick-sale-verify small { color: #3f6b60 !important; line-height: 1.4; }
+.manual-sale-fallback { border: 1px solid #ded6c7; border-radius: .65rem; padding: .8rem .9rem; color: var(--muted); }
+.manual-sale-fallback summary { cursor: pointer; font-size: .76rem; font-weight: 700; color: var(--ink); }
+.manual-sale-fallback[open] { display: grid; gap: .75rem; }
+.manual-sale-fallback label { display: grid; gap: .4rem; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.manual-sale-fallback textarea { width: 100%; min-height: 7rem; padding: .7rem; border: 1px solid #ded6c7; border-radius: .55rem; background: #fffdf8; color: var(--ink); font: inherit; text-transform: none; letter-spacing: normal; }
+.manual-sale-fallback button, .submitted-evidence-action button { border: 0; border-radius: .55rem; padding: .72rem .9rem; background: #a77d2d; color: #fffdf8; cursor: pointer; font: inherit; font-size: .74rem; font-weight: 700; }
+.manual-sale-fallback button { justify-self: start; }
+.submitted-evidence-action button:disabled { opacity: .55; cursor: wait; }
+.ebay-evidence-images { display: grid; gap: .55rem; }
+.ebay-evidence-images > strong { color: var(--ink); font-size: .75rem; }
+.ebay-evidence-images > div { display: flex; gap: .55rem; overflow-x: auto; padding-bottom: .35rem; }
+.ebay-evidence-images button { position: relative; flex: 0 0 7rem; min-height: 8.5rem; overflow: hidden; border: 2px solid transparent; border-radius: .55rem; padding: 0; background: #eee8dc; cursor: pointer; }
+.ebay-evidence-images button.selected { border-color: #176a54; }
+.ebay-evidence-images img { width: 100%; height: 7rem; object-fit: contain; display: block; }
+.ebay-evidence-images span { display: block; padding: .35rem; color: var(--ink); font-size: .58rem; font-weight: 700; }
 .approved-listing-form { gap: 1.5rem; }
 .approved-listing-reviewer { display: grid; grid-template-columns: minmax(0,1fr) minmax(14rem,.55fr); gap: 1rem; align-items: end; padding: 1rem; border: 1px solid #d9c99e; border-radius: .75rem; background: #f5ecd7; }
 .approved-listing-reviewer > div { display: grid; gap: .3rem; }

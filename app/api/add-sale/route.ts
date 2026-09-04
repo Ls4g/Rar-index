@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
-import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
+import { ebayMarketplaceFromUrl, extractEbayLegacyItemId } from "@/lib/ebayEvidence";
+import { getSubmittedEbaySaleEvidence } from "@/lib/listingOutcomeProviders";
 import { detectGrading, detectsBestOffer } from "@/lib/submittedSale";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
@@ -54,7 +55,29 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const query = text(url.searchParams.get("q"));
   const editionId = text(url.searchParams.get("editionId"));
+  const listingUrl = text(url.searchParams.get("listingUrl"));
   const admin = getSupabaseAdmin();
+
+  if (listingUrl) {
+    if (!validUrl(listingUrl)) return Response.json({ error: "Paste a valid eBay item link." }, { status: 400 });
+    const itemId = extractEbayLegacyItemId(listingUrl);
+    if (!itemId) return Response.json({ error: "RAR could not read an eBay item ID from that link." }, { status: 400 });
+    try {
+      const evidence = await getSubmittedEbaySaleEvidence(itemId, ebayMarketplaceFromUrl(listingUrl));
+      if (evidence.state === "active") {
+        return Response.json({ error: "eBay says this listing is still active, so it cannot be added as a completed sale.", evidence }, { status: 409 });
+      }
+      if (evidence.state === "completed_unsold") {
+        return Response.json({ error: "eBay says this listing ended without a sale.", evidence }, { status: 422 });
+      }
+      if (evidence.state !== "completed_sold") {
+        return Response.json({ error: evidence.detail || "eBay could not confirm this as a completed sale. Use manual entry only if you can see the evidence yourself.", evidence }, { status: 422 });
+      }
+      return Response.json({ evidence });
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "eBay could not load this listing." }, { status: 502 });
+    }
+  }
 
   if (editionId) {
     const [edition, sourceResult] = await Promise.all([

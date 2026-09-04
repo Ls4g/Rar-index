@@ -42,6 +42,21 @@ export type OutcomeProviderResult = {
   attempts?: ProviderAttempt[];
 };
 
+export type SubmittedEbaySaleEvidence = {
+  itemId: string;
+  state: OutcomeSignal["listingState"];
+  title: string;
+  imageUrls: string[];
+  soldPrice: number | null;
+  soldCurrency: string | null;
+  soldAt: string | null;
+  shippingPrice: number | null;
+  quantitySold: number | null;
+  buyingFormat: string | null;
+  bestOffer: boolean;
+  detail: string;
+};
+
 export type ProviderAttempt = {
   provider: string;
   listingState: OutcomeSignal["listingState"];
@@ -137,6 +152,22 @@ function xmlAmount(xml: string, tag: string) {
   const currency = match[1].match(/currencyID=["']([^"']+)["']/i)?.[1] ?? null;
   const parsed = Number(match[2].trim());
   return { value: Number.isFinite(parsed) ? parsed : null, currency };
+}
+
+function xmlTexts(xml: string, tag: string) {
+  return [...xml.matchAll(new RegExp(`<(?:[A-Za-z0-9_]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_]+:)?${tag}>`, "gi"))]
+    .map((match) => decodeXmlText(match[1]?.trim() ?? ""))
+    .filter(Boolean);
+}
+
+function decodeXmlText(value: string) {
+  return value
+    .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
 }
 
 function escapeXml(value: string) {
@@ -310,9 +341,19 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
   const bidCount = bidCountText === null ? null : Number(bidCountText);
   const bestOfferEnabled = xmlText(xml, "BestOfferEnabled") === "true";
   const buyingFormat = [listingType, bestOfferEnabled ? "BEST_OFFER" : null].filter(Boolean).join(",") || null;
+  const title = decodeXmlText(xmlText(xml, "Title") ?? "");
+  const imageUrls = [...new Set([
+    ...xmlTexts(xml, "PictureURL"),
+    ...xmlTexts(xml, "GalleryURL"),
+  ])];
+  const shipping = xmlAmount(xml, "ShippingServiceCost");
+  const sharedRaw = {
+    ack, listingStatus, quantitySold, price, endTime, listingType, bidCount,
+    bestOfferEnabled, title, imageUrls, shipping,
+  };
 
   if (listingStatus === "active") {
-    return { signal: { ...base, listingState: "active", buyingFormat, bidCount, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that this listing is still active." }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime } };
+    return { signal: { ...base, listingState: "active", buyingFormat, bidCount, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that this listing is still active." }, httpStatus: response.status, rawResponse: sharedRaw };
   }
   if (["completed", "ended"].includes(listingStatus) && quantitySold !== null && quantitySold > 0) {
     return {
@@ -326,14 +367,48 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
           : "Trading GetItem reports that at least one item sold and returned the final public price.",
       },
       httpStatus: response.status,
-      rawResponse: { ack, listingStatus, quantitySold, price, endTime, listingType, bidCount, bestOfferEnabled },
+      rawResponse: sharedRaw,
     };
   }
   if (["completed", "ended"].includes(listingStatus) && quantitySold === 0) {
-    return { signal: { ...base, listingState: "completed_unsold", bidCount: Number.isFinite(bidCount) ? bidCount : null, buyingFormat, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that the listing ended with zero items sold." }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime, listingType, bidCount } };
+    return { signal: { ...base, listingState: "completed_unsold", bidCount: Number.isFinite(bidCount) ? bidCount : null, buyingFormat, scheduledEndAt: endTime, httpStatus: response.status, detail: "Trading GetItem reports that the listing ended with zero items sold." }, httpStatus: response.status, rawResponse: sharedRaw };
   }
 
   return { signal: { ...base, httpStatus: response.status, detail: `Trading GetItem returned listing status ${listingStatus || "unknown"} without a conclusive sold quantity.` }, httpStatus: response.status, rawResponse: { ack, listingStatus, quantitySold, endTime } };
+}
+
+/**
+ * One deliberate staff lookup for a pasted eBay URL. This is intentionally
+ * separate from Scout's bulk collection path: it saves a human from retyping
+ * public listing facts without spending one API request per background lead.
+ */
+export async function getSubmittedEbaySaleEvidence(
+  itemId: string,
+  marketplace: string | null,
+): Promise<SubmittedEbaySaleEvidence> {
+  const result = await tradingOutcomeProvider(itemId, marketplace);
+  const raw = (result.rawResponse ?? {}) as {
+    title?: string;
+    imageUrls?: string[];
+    quantitySold?: number | null;
+    shipping?: { value?: number | null; currency?: string | null };
+  };
+  const bestOffer = (result.signal.buyingFormat ?? "").toUpperCase().includes("BEST_OFFER");
+  return {
+    itemId,
+    state: result.signal.listingState,
+    title: raw.title?.trim() ?? "",
+    imageUrls: Array.isArray(raw.imageUrls) ? raw.imageUrls.filter(Boolean) : [],
+    // eBay's public CurrentPrice is not necessarily the accepted Best Offer.
+    soldPrice: bestOffer ? null : result.signal.soldPrice,
+    soldCurrency: result.signal.soldCurrency,
+    soldAt: result.signal.soldAt,
+    shippingPrice: typeof raw.shipping?.value === "number" ? raw.shipping.value : null,
+    quantitySold: typeof raw.quantitySold === "number" && Number.isFinite(raw.quantitySold) ? raw.quantitySold : null,
+    buyingFormat: result.signal.buyingFormat,
+    bestOffer,
+    detail: result.signal.detail,
+  };
 }
 
 // ------------------------------------------------- marketplace insights ----

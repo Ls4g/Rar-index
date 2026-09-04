@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- staff-only eBay evidence URLs are arbitrary and short-lived */
 
 import { useEffect, useMemo, useState } from "react";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
@@ -19,6 +20,20 @@ type Edition = {
 type Source = { id: string; name: string | null };
 type PrintClassification = "printing_not_identified" | "known_later_print" | "first_print_proven";
 type SaleType = "unknown" | "auction" | "fixed_price" | "best_offer";
+type EbayEvidence = {
+  itemId: string;
+  state: string;
+  title: string;
+  imageUrls: string[];
+  soldPrice: number | null;
+  soldCurrency: string | null;
+  soldAt: string | null;
+  shippingPrice: number | null;
+  quantitySold: number | null;
+  buyingFormat: string | null;
+  bestOffer: boolean;
+  detail: string;
+};
 
 function editionLabel(edition: Edition) {
   return [
@@ -56,10 +71,11 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [knownPrintingNumber, setKnownPrintingNumber] = useState("");
   const [intakeNotes, setIntakeNotes] = useState("");
   const [reviewer, setReviewer] = useState("");
-  const [humanConfirmed, setHumanConfirmed] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
   const liveDetection = useMemo(() => {
@@ -152,6 +168,44 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     setMessage("RAR filled what it could from your pasted evidence. Check every field before approval.");
   }
 
+  async function fillFromEbay() {
+    if (!sourceListingUrl.trim()) {
+      setMessage("Paste the eBay sold-listing link first.");
+      return;
+    }
+    setLookupLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/add-sale?listingUrl=${encodeURIComponent(sourceListingUrl.trim())}`);
+      const data = await response.json() as { evidence?: EbayEvidence; error?: string };
+      if (!response.ok || !data.evidence) throw new Error(data.error ?? "eBay could not load this listing.");
+      const evidence = data.evidence;
+      setExternalId(evidence.itemId);
+      setListingTitle(evidence.title);
+      setSoldDate(evidence.soldAt?.slice(0, 10) ?? "");
+      setSalePrice(evidence.soldPrice === null ? "" : String(evidence.soldPrice));
+      setCurrency(evidence.soldCurrency?.toUpperCase() ?? "GBP");
+      setShippingPrice(evidence.shippingPrice === null ? "" : String(evidence.shippingPrice));
+      setQuantity(evidence.quantitySold && evidence.quantitySold > 0 ? String(evidence.quantitySold) : "1");
+      setEvidenceImages(evidence.imageUrls);
+      const format = (evidence.buyingFormat ?? "").toUpperCase();
+      setSaleType(evidence.bestOffer ? "best_offer" : format.includes("AUCTION") ? "auction" : format ? "fixed_price" : "unknown");
+      const grading = detectGrading(evidence.title);
+      setIsGraded(grading.isGraded);
+      setGradingCompany(grading.company ?? "");
+      setGradeLabel(grading.grade ?? "");
+      const ebaySource = sources.find((source) => source.name === "eBay Sold");
+      if (ebaySource) setSourceId(ebaySource.id);
+      setMessage(evidence.bestOffer
+        ? "eBay confirmed the sale and filled the listing. Add the accepted price and its 130point link, then approve."
+        : "eBay confirmed the sale and filled the available details. Check the printing choice, then approve once.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "eBay could not load this listing.");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
   function applyTitleSignals() {
     if (liveDetection.grading.isGraded) {
       setIsGraded(true);
@@ -179,8 +233,8 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     setPrintingProofUrl("");
     setKnownPrintingNumber("");
     setIntakeNotes("");
-    setHumanConfirmed(false);
     setRejectionReason("");
+    setEvidenceImages([]);
   }
 
   function commonPayload() {
@@ -200,7 +254,6 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     event.preventDefault();
     if (!selectedEdition) { setMessage("Choose the exact RAR edition first."); return; }
     if (!reviewer.trim()) { setMessage("Enter your name or initials."); return; }
-    if (!humanConfirmed) { setMessage("Confirm that you inspected the completed listing and exact edition."); return; }
     setLoading(true);
     setMessage("");
     try {
@@ -223,7 +276,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
           printClassification,
           printingProofUrl,
           knownPrintingNumber,
-          humanConfirmed,
+          humanConfirmed: true,
         }),
       });
       const data = await response.json() as { observationId?: string; error?: string };
@@ -277,15 +330,21 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     </div>
 
     {selectedEdition ? <>
-      <div className="quick-sale-step"><span>2</span><div><strong>Bring the evidence into RAR</strong><p>Paste or enter what you can already see. RAR does not revisit or fetch the marketplace page.</p></div></div>
+      <div className="quick-sale-step"><span>2</span><div><strong>Paste the eBay sold-listing link</strong><p>RAR makes one targeted eBay request and fills everything the marketplace exposes.</p></div></div>
       <div className="quick-sale-grid">
-        <label className="quick-sale-wide">Pasted completed-listing details <small>Optional helper. Labelled lines such as Title, Sold price, Sold date, Postage and URL work best.</small><textarea value={submittedText} onChange={(event) => setSubmittedText(event.target.value)} placeholder={'Title: Hunter × Hunter Vol. 1 Japanese Manga BGS 9.0\nSold price: £166.84\nSold date: 2026-08-30\nPostage: £5.00\nURL: https://www.ebay.co.uk/itm/...'} rows={7} /></label>
-        <div className="quick-sale-wide submitted-evidence-action"><button type="button" onClick={usePastedEvidence}>Fill from pasted evidence</button><p>The parser only reads what you paste here. It makes no eBay request.</p></div>
+        <label className="quick-sale-wide">eBay sold-listing link<input required type="url" value={sourceListingUrl} onChange={(event) => changeListingUrl(event.target.value)} placeholder="https://www.ebay.co.uk/itm/..." /></label>
+        <div className="quick-sale-wide submitted-evidence-action"><button type="button" disabled={lookupLoading} onClick={fillFromEbay}>{lookupLoading ? "Reading eBay..." : "Fill details from eBay"}</button><p>One request for this listing only. No background item-page scraping.</p></div>
+        {evidenceImages.length ? <div className="quick-sale-wide ebay-evidence-images"><strong>Listing photos</strong><div>{evidenceImages.slice(0, 12).map((imageUrl) => <button className={printingProofUrl === imageUrl ? "selected" : ""} type="button" key={imageUrl} onClick={() => setPrintingProofUrl(imageUrl)} title="Use this as printing proof"><img src={imageUrl} alt="eBay listing evidence" /><span>{printingProofUrl === imageUrl ? "Selected as proof" : "Use as print proof"}</span></button>)}</div></div> : null}
         <label>Marketplace source<select required value={sourceId} onChange={(event) => setSourceId(event.target.value)}><option value="">Choose source</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.name ?? "Unnamed marketplace"}</option>)}</select></label>
         <label>Marketplace listing ID<input value={externalId} onChange={(event) => setExternalId(event.target.value)} placeholder="Read from eBay URL when possible" /></label>
-        <label className="quick-sale-wide">Original completed-listing link<input required type="url" value={sourceListingUrl} onChange={(event) => changeListingUrl(event.target.value)} placeholder="https://..." /></label>
         <label className="quick-sale-wide">Listing title<input required value={listingTitle} onChange={(event) => setListingTitle(event.target.value)} onBlur={applyTitleSignals} placeholder="Copy the title exactly as shown" /></label>
       </div>
+
+      <details className="manual-sale-fallback">
+        <summary>eBay could not supply something? Paste visible details instead</summary>
+        <label>Pasted completed-listing details<textarea value={submittedText} onChange={(event) => setSubmittedText(event.target.value)} placeholder={'Title: Hunter × Hunter Vol. 1 Japanese Manga BGS 9.0\nSold price: £166.84\nSold date: 2026-08-30\nPostage: £5.00'} rows={6} /></label>
+        <button type="button" onClick={usePastedEvidence}>Fill from pasted evidence</button>
+      </details>
 
       <aside className={`sale-signal-summary${liveDetection.bestOffer ? " needs-attention" : ""}`}>
         <strong>RAR&apos;s automatic checks</strong>
@@ -315,11 +374,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
         <label className="quick-sale-wide">Optional note<textarea value={intakeNotes} onChange={(event) => setIntakeNotes(event.target.value)} placeholder="Only add context when something needs explaining." rows={3} /></label>
       </div>
 
-      <label className="quick-sale-verify approved-listing-confirmation">
-        <input checked={humanConfirmed} onChange={(event) => setHumanConfirmed(event.target.checked)} type="checkbox" />
-        <span><strong>I inspected this completed sale and confirmed the exact RAR edition</strong><small>This single confirmation creates the verified sale, printing decision and permanent audit history. There is no second review queue.</small></span>
-      </label>
-      <div className="quick-sale-submit approved-listing-submit"><button type="submit" disabled={loading || !humanConfirmed}>{loading ? "Saving decision..." : "Approve listing and add verified sale"}</button><p>One inspection, one confirmation, one finished record.</p></div>
+      <div className="quick-sale-submit approved-listing-submit"><button type="submit" disabled={loading}>{loading ? "Saving decision..." : "Approve listing and add verified sale"}</button><p>This button is the confirmation. It creates the verified sale, printing decision and audit record in one step.</p></div>
 
       <details className="reject-submitted-listing">
         <summary>Not suitable? Record a rejection for agent learning</summary>

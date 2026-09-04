@@ -46,7 +46,12 @@ assert.match(migration, /Item price excludes delivery/);
 
 const route = fs.readFileSync(new URL("../app/api/add-sale/route.ts", import.meta.url), "utf8");
 assert.doesNotMatch(route, /getEbayListingEvidence/);
+assert.match(route, /getSubmittedEbaySaleEvidence/);
 assert.match(route, /admin\.rpc\("approve_submitted_sale"/);
 assert.match(route, /humanConfirmed/);
 
-console.log("Approved sale intake: 22 checks passed.");
+const providers = fs.readFileSync(new URL("../lib/listingOutcomeProviders.ts", import.meta.url), "utf8");
+assert.match(providers, /export async function getSubmittedEbaySaleEvidence/);
+assert.match(providers, /soldPrice: bestOffer \? null/);
+
+console.log("Approved sale intake: 25 checks passed.");
