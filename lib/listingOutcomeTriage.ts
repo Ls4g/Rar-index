@@ -10,6 +10,7 @@ export type TriageableOutcome = {
   matchScore: number | null;
   matchConflicts: string[];
   lastSeenAt: string;
+  outcomeReason?: string | null;
 };
 
 export type OutcomeQueue =
@@ -72,15 +73,18 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
     && row.soldPrice !== null
     && Boolean(row.soldCurrency && row.soldAt);
   const matchScore = row.matchScore ?? 0;
+  const staffObservedSold = /green sold styling|supports a sale outcome/i.test(row.outcomeReason ?? "");
 
   const worthChecking = hasVerifiedOutcome
+    || staffObservedSold
     || (!isGraded && !isLot && !hasEditionConflict && (
       (isBestOffer && matchScore >= 50)
       || (isHighValue && matchScore >= 65)
     ));
 
-  let reason = "Ended without enough evidence. Parked until stronger information appears.";
+  let reason = "Status not confirmed. Parked until stronger information appears.";
   if (hasVerifiedOutcome) reason = "Completed-sale details are present. Confirm the exact edition before publishing.";
+  else if (staffObservedSold) reason = "Staff saw eBay's sold state. Add the exact paid price and date before publishing.";
   else if (isGraded) reason = "Graded copy detected. Keep it out of the raw-manga evidence workflow.";
   else if (isLot) reason = "Lot or multi-volume listing detected. It cannot price one exact edition.";
   else if (hasEditionConflict) reason = "Edition-matching conflicts need resolving before this can become evidence.";
@@ -90,6 +94,7 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
 
   let priority = matchScore * 10;
   if (hasVerifiedOutcome) priority += 10_000;
+  if (staffObservedSold) priority += 7_500;
   if (isBestOffer) priority += 2_500;
   if (isHighValue) priority += 1_000;
   if (isStale) priority -= 1_000;

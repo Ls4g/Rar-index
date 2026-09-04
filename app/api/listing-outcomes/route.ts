@@ -4,6 +4,7 @@ import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
 import { validateManualBestOfferEvidence } from "@/lib/listingOutcome";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
+import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -23,6 +24,7 @@ type DecisionBody = {
   soldPrice?: number;
   soldCurrency?: string;
   soldAt?: string;
+  pageSignal?: StaffPageSignal;
 };
 
 // One request should not sit on the connection while it walks a whole queue.
@@ -203,7 +205,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: failures.length === 0, saved: saved.length, savedIds: saved, failed: failures.length, failures });
   }
 
-  if (!body.outcomeId || (!body.decision && body.action !== "record-best-offer-price")) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
+  if (!body.outcomeId || (!body.decision && !["record-best-offer-price", "record-page-signal"].includes(body.action ?? ""))) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
   if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
   // Notes stay optional throughout RAR: the decision and the reviewer are the
   // accountable parts, and demanding prose on an obvious call only produces
@@ -212,7 +214,7 @@ export async function POST(request: Request) {
 
   const { data: outcome } = await admin
     .from("listing_outcomes")
-    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, resulting_observation_id, reviewed_by, check_attempts, outcome_provider, outcome_reason")
+    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, resulting_observation_id, reviewed_by, check_attempts, outcome_provider, outcome_reason, last_seen_at")
     .eq("id", body.outcomeId)
     .maybeSingle();
   if (!outcome) return Response.json({ error: "That listing outcome no longer exists." }, { status: 404 });
@@ -225,6 +227,53 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+
+  if (body.action === "record-page-signal") {
+    if (!body.pageSignal || !["green_sold", "red_ended", "still_live", "unclear"].includes(body.pageSignal)) {
+      return Response.json({ error: "Choose what the original eBay page visibly shows." }, { status: 400 });
+    }
+    if (["sold_candidate", "unsold", "review_complete"].includes(outcome.status)) {
+      return Response.json({ error: "This outcome is already resolved or ready for sale review." }, { status: 409 });
+    }
+
+    const pageEvidence = classifyStaffPageSignal(body.pageSignal);
+    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
+    const detail = `${pageEvidence.detail} Observed by ${reviewer}.`;
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
+      outcome_id: outcome.id,
+      provider: "eBay page — staff observed",
+      attempt_number: nextAttempt,
+      http_status: null,
+      listing_state: pageEvidence.listingState,
+      resulting_status: pageEvidence.resultingStatus,
+      detail,
+      raw_response: {
+        page_signal: body.pageSignal,
+        colour_and_adjacent_wording_confirmed: body.pageSignal === "green_sold" || body.pageSignal === "red_ended",
+        reviewed_by: reviewer,
+      },
+      checked_at: now,
+    });
+    if (auditError) return Response.json({ error: "The page observation could not be audited. Nothing was changed." }, { status: 500 });
+
+    const resolvedUnsold = body.pageSignal === "red_ended";
+    const { error: updateError } = await admin.from("listing_outcomes").update({
+      status: pageEvidence.resultingStatus,
+      outcome_reason: detail,
+      outcome_provider: "eBay page — staff observed",
+      check_attempts: nextAttempt,
+      last_checked_at: now,
+      last_seen_at: body.pageSignal === "still_live" ? now : outcome.last_seen_at,
+      next_check_at: null,
+      last_error: null,
+      reviewed_by: resolvedUnsold ? reviewer : null,
+      reviewed_at: resolvedUnsold ? now : null,
+      review_notes: resolvedUnsold ? detail : null,
+      updated_at: now,
+    }).eq("id", outcome.id);
+    if (updateError) return Response.json({ error: "The page observation could not be applied. Its audit record remains visible." }, { status: 500 });
+    return Response.json({ ok: true, status: pageEvidence.resultingStatus, outcomeConfidence: body.pageSignal === "green_sold" ? 85 : body.pageSignal === "red_ended" || body.pageSignal === "still_live" ? 95 : 30 });
+  }
 
   if (body.action === "record-best-offer-price") {
     if (!["ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {

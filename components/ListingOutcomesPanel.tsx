@@ -12,6 +12,8 @@ import {
   type OutcomeQueue,
 } from "@/lib/listingOutcomeTriage";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
+import { assessOutcomeConfidence } from "@/lib/listingOutcomeConfidence";
+import type { StaffPageSignal } from "@/lib/listingPageEvidence";
 
 export type OutcomeRow = {
   id: string;
@@ -78,10 +80,15 @@ function viewFor(row: OutcomeRow): OutcomeView {
   return "attention";
 }
 
-function plainStatus(row: OutcomeRow) {
+function plainStatus(row: OutcomeRow, now = new Date()) {
   switch (row.status) {
     case "sold_candidate": return { label: "Possible sale", help: "Completed-sale details are present. Confirm that the source is this exact RAR edition." };
-    case "ended_pending_check": return { label: "Listing ended", help: "The listing ended, but RAR cannot yet prove that it sold." };
+    case "ended_pending_check": {
+      const suppliedEndPassed = Boolean(row.scheduledEndAt && Date.parse(row.scheduledEndAt) <= now.getTime());
+      return suppliedEndPassed
+        ? { label: "End time passed", help: "eBay supplied an end time that has passed. Check the page to learn whether it sold." }
+        : { label: "Needs status check", help: "Scout has not seen this listing recently. It may still be live; RAR has not classified it as ended." };
+    }
     case "ambiguous": return { label: "Outcome unclear", help: "RAR found incomplete or conflicting evidence." };
     case "inaccessible": return { label: "Could not be checked", help: "eBay no longer provides enough information to determine the outcome." };
     case "active": return { label: "Still live", help: "This listing remains under observation and creates no sale evidence." };
@@ -235,7 +242,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The pipeline could not run.");
       const checks = result.checks ?? {};
-      setMessage(`Watching ${result.captured?.captured ?? 0} new · ${result.promoted ?? 0} newly ended · ${checks.checked ?? 0} checked · ${checks.soldCandidates ?? 0} sold candidates · ${checks.unsold ?? 0} unsold · ${checks.ambiguous ?? 0} ambiguous · ${checks.inaccessible ?? 0} inaccessible.${checks.errors?.length ? ` First error: ${checks.errors[0]}` : ""}`);
+      setMessage(`Watching ${result.captured?.captured ?? 0} new · ${result.promoted ?? 0} queued for status checks · ${checks.checked ?? 0} checked · ${checks.soldCandidates ?? 0} sold candidates · ${checks.unsold ?? 0} unsold · ${checks.ambiguous ?? 0} ambiguous · ${checks.inaccessible ?? 0} inaccessible.${checks.errors?.length ? ` First error: ${checks.errors[0]}` : ""}`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The pipeline could not run.");
@@ -313,6 +320,33 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
     }
   }
 
+  async function recordPageSignal(row: OutcomeRow, pageSignal: StaffPageSignal) {
+    if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
+    setSaving(`${row.id}:page-signal`);
+    setMessage("");
+    try {
+      const response = await fetch("/api/listing-outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "record-page-signal", outcomeId: row.id, reviewer, pageSignal }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The eBay page signal could not be saved.");
+      setMessage(pageSignal === "green_sold"
+        ? "Green sold evidence saved. Exact price and date are still needed before this can become a sale."
+        : pageSignal === "red_ended"
+          ? "Ended without sale recorded. No price evidence was created."
+          : pageSignal === "still_live"
+            ? "Still live and returned to the watch queue."
+            : "Unclear page recorded and safely parked.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The eBay page signal could not be saved.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <section className="listing-outcomes">
       <div className="section-intro">
@@ -354,7 +388,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
             <label>Find a listing<input onChange={(event) => { setQuery(event.target.value); resetList(); }} placeholder="Title, edition or item number" type="search" value={query} /></label>
             <label>Order<select onChange={(event) => setSort(event.target.value as SortMode)} value={sort}><option value="priority">Best opportunity first</option><option value="match">Strongest match first</option><option value="newest">Newest first</option></select></label>
           </div>
-          {queue === "parked" ? <p className="outcome-parked-note">These ended without enough evidence, or were machine-detected as graded, lots or possible edition conflicts. They remain searchable and auditable, but no longer dominate your working inbox.</p> : null}
+          {queue === "parked" ? <p className="outcome-parked-note">These lack enough outcome evidence, or were machine-detected as graded, lots or possible edition conflicts. They remain searchable and auditable, but no longer dominate your working inbox.</p> : null}
         </div>
       ) : null}
 
@@ -380,8 +414,9 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       {visibleRows.length ? (
         <div className="outcome-list">
           {displayedRows.map((row) => {
-            const status = plainStatus(row);
+            const status = plainStatus(row, triageNow);
             const triage = classifyListingOutcome(row, triageNow);
+            const outcomeConfidence = assessOutcomeConfidence(row, triageNow);
             const isExpanded = expanded.has(row.id);
             const isDismissing = dismissOpen.has(row.id);
             const rowDecisions = decisionsFor(row);
@@ -397,7 +432,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
                     <img alt="" className="outcome-thumb" loading="lazy" src={row.imageUrl} />
                   ) : <span className="outcome-thumb is-empty" aria-hidden="true">R</span>}
                   <div className="outcome-card-copy">
-                    <div className="outcome-card-labels"><span className={`coverage-pill status-${row.status}`}>{status.label}</span>{triage.isHighValue ? <span className="outcome-signal">High value</span> : null}{isBestOffer ? <span className="outcome-signal">Best Offer</span> : null}</div>
+                    <div className="outcome-card-labels"><span className={`coverage-pill status-${row.status}`}>{status.label}</span><span className="outcome-confidence-pill">Outcome {outcomeConfidence.score}/100</span>{triage.isHighValue ? <span className="outcome-signal">High value</span> : null}{isBestOffer ? <span className="outcome-signal">Best Offer</span> : null}</div>
                     <h3>{row.listingTitle}</h3>
                     <p className="outcome-edition">{row.editionLabel}</p>
                     <p className="outcome-why"><strong>{money(row.soldPrice ?? row.askingPrice, row.soldCurrency ?? row.currency)}</strong><span>Match {row.matchScore ?? "—"}</span><span>{triage.reason}</span></p>
@@ -427,8 +462,22 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
                   <div className="outcome-expanded-review">
                     <div className="outcome-human-prompt"><strong>Why it needs you</strong><p>{status.help}</p></div>
                     <div className="outcome-source-links"><a href={row.sourceListingUrl} rel="noreferrer" target="_blank">Open original eBay listing ↗</a><a href={`/edition/${row.editionId}`}>Open RAR edition</a>{row.profileId ? <a href={`/collection-profiles/${row.profileId}`}>Search profile</a> : null}{row.observationId ? <a href={`/review?observation=${row.observationId}`}>Resulting sale</a> : null}</div>
-                    <dl className="outcome-facts"><div><dt>Reported sale</dt><dd>{money(row.soldPrice, row.soldCurrency)}</dd></div><div><dt>Sold / ended</dt><dd>{when(row.soldAt ?? row.scheduledEndAt)}</dd></div><div><dt>Asking price when seen</dt><dd>{money(row.askingPrice, row.currency)}</dd></div><div><dt>Match</dt><dd>{row.matchScore ?? "—"}{row.matchConfidence ? ` · ${row.matchConfidence}` : ""}</dd></div></dl>
+                    <dl className="outcome-facts"><div><dt>Reported sale</dt><dd>{money(row.soldPrice, row.soldCurrency)}</dd></div><div><dt>Sold / scheduled end</dt><dd>{when(row.soldAt ?? row.scheduledEndAt)}</dd></div><div><dt>Asking price when seen</dt><dd>{money(row.askingPrice, row.currency)}</dd></div><div><dt>Edition match</dt><dd>{row.matchScore ?? "—"}{row.matchConfidence ? ` · ${row.matchConfidence}` : ""}</dd></div><div><dt>Sale outcome</dt><dd>{outcomeConfidence.score}/100 · {outcomeConfidence.label}</dd></div></dl>
+                    <div className="outcome-confidence-explainer"><strong>{outcomeConfidence.meaning}</strong><span>{outcomeConfidence.signals.join(" · ")}</span></div>
                     {row.outcomeReason ? <p className="outcome-evidence"><b>Evidence:</b> {row.outcomeReason}</p> : null}
+
+                    {!row.reviewedBy && row.status !== "sold_candidate" ? (
+                      <div className="outcome-page-signal">
+                        <div><strong>What does the eBay page show?</strong><p>Open the original listing, then record the colour and the words together. Colour alone is not used.</p></div>
+                        <div className="outcome-page-signal-actions">
+                          <button className="is-sold" disabled={Boolean(saving)} onClick={() => void recordPageSignal(row, "green_sold")} type="button">Green + “Sold”</button>
+                          <button className="is-ended" disabled={Boolean(saving)} onClick={() => void recordPageSignal(row, "red_ended")} type="button">Red + “Ended”</button>
+                          <button className="is-live" disabled={Boolean(saving)} onClick={() => void recordPageSignal(row, "still_live")} type="button">Still live</button>
+                          <button disabled={Boolean(saving)} onClick={() => void recordPageSignal(row, "unclear")} type="button">Unclear</button>
+                        </div>
+                        {saving === `${row.id}:page-signal` ? <span className="outcome-page-signal-saving">Saving observation…</span> : null}
+                      </div>
+                    ) : null}
 
                     {isBestOffer ? (
                       <div className="best-offer-corroboration">

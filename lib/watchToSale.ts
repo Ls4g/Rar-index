@@ -121,24 +121,47 @@ export async function captureWatchedListings(admin: SupabaseClient, limit = 500)
 // end time. Left alone those would sit as "active" for ever and never be
 // checked, which would quietly make the pipeline do nothing.
 //
-// So a listing RAR has not seen in a scan for this long is treated as having
-// ended and goes for a check. That is a scheduling decision, not a conclusion:
-// the check still has to produce an explicit signal, and "no longer listed"
-// still resolves to inaccessible rather than sold.
+// So a listing RAR has not seen in a scan for this long is queued for a status
+// check. It is NOT described as ended: a fixed-price listing can remain live
+// even when it falls out of one Scout result page.
 export const UNSEEN_DAYS_BEFORE_CHECK = 7;
 
-// Move listings into the check queue once they can no longer be live. Split
-// from the checking itself so a listing is never checked before it has ended.
+// Move listings into the status-check queue. A passed eBay end time is useful
+// evidence that the listing ended; merely going unseen is only a scheduling
+// signal. They share the legacy ended_pending_check DB state for compatibility,
+// but carry different, truthful reasons for staff and confidence scoring.
 export async function promoteEndedListings(admin: SupabaseClient) {
   const now = new Date().toISOString();
   const unseenBefore = new Date(Date.now() - UNSEEN_DAYS_BEFORE_CHECK * 86_400_000).toISOString();
-  const { data } = await admin
+  const { data: explicitlyEnded } = await admin
     .from("listing_outcomes")
-    .update({ status: "ended_pending_check", next_check_at: nextOutcomeCheckAt(0), updated_at: now })
+    .update({
+      status: "ended_pending_check",
+      next_check_at: nextOutcomeCheckAt(0),
+      outcome_reason: "eBay supplied an end time that has passed. The sale outcome still needs checking.",
+      outcome_provider: "RAR scheduler",
+      updated_at: now,
+    })
     .eq("status", "active")
-    .or(`scheduled_end_at.lt.${now},and(scheduled_end_at.is.null,last_seen_at.lt.${unseenBefore})`)
+    .not("scheduled_end_at", "is", null)
+    .lt("scheduled_end_at", now)
     .select("id");
-  return data?.length ?? 0;
+
+  const { data: unseen } = await admin
+    .from("listing_outcomes")
+    .update({
+      status: "ended_pending_check",
+      next_check_at: nextOutcomeCheckAt(0),
+      outcome_reason: "RAR has not seen this listing in a recent Scout scan. Its live status needs checking; this does not prove it ended.",
+      outcome_provider: "RAR scheduler",
+      updated_at: now,
+    })
+    .eq("status", "active")
+    .is("scheduled_end_at", null)
+    .lt("last_seen_at", unseenBefore)
+    .select("id");
+
+  return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
 export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promise<OutcomeCheckResult> {
@@ -147,7 +170,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
 
   const { data } = await admin
     .from("listing_outcomes")
-    .select("id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts")
+    .select("id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts, outcome_provider")
     .in("status", ["ended_pending_check", "ambiguous"])
     .or(`next_check_at.is.null,next_check_at.lte.${nowIso}`)
     .order("next_check_at", { ascending: true, nullsFirst: true })
@@ -155,9 +178,11 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
 
   const rows = (data ?? []) as Array<{
     id: string; external_id: string; marketplace: string; listing_title: string;
-    status: OutcomeStatus; scheduled_end_at: string | null; next_check_at: string | null; check_attempts: number;
+    status: OutcomeStatus; scheduled_end_at: string | null; next_check_at: string | null; check_attempts: number; outcome_provider: string | null;
   }>;
-  const due = rows.filter((row) => isDueForCheck(row));
+  // A staff observation is stronger than another automatic retry. Preserve it
+  // until staff either supplies the missing sale details or dismisses it.
+  const due = rows.filter((row) => row.outcome_provider !== "eBay page — staff observed" && isDueForCheck(row));
   result.due = due.length;
 
   for (const row of due) {
