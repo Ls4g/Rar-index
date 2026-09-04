@@ -105,7 +105,7 @@ function money(value: number | null, currency: string | null) {
 
 function when(value: string | null) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(new Date(value));
 }
 
 export default function ListingOutcomesPanel({ rows, capabilities, counts, renderedAt }: {
