@@ -107,6 +107,41 @@ export async function POST(request: Request) {
   try { payload = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "Send valid submitted sale evidence." }, { status: 400 }); }
 
   const action = text(payload.action) || "approve";
+
+  if (action === "lookup_batch") {
+    const submittedUrls = Array.isArray(payload.listingUrls)
+      ? payload.listingUrls.map(text).filter(Boolean)
+      : [];
+    const uniqueListings = [...new Map(submittedUrls.map((listingUrl) => {
+      const itemId = validUrl(listingUrl) ? extractEbayLegacyItemId(listingUrl) : null;
+      return [itemId || listingUrl, { listingUrl, itemId }];
+    })).values()];
+
+    if (!uniqueListings.length) return Response.json({ error: "Paste at least one valid eBay item link." }, { status: 400 });
+    if (uniqueListings.length > 25) return Response.json({ error: "Prepare no more than 25 unique eBay links at once." }, { status: 400 });
+
+    const results: Array<Record<string, unknown>> = [];
+    for (let index = 0; index < uniqueListings.length; index += 3) {
+      const chunk = uniqueListings.slice(index, index + 3);
+      const chunkResults = await Promise.all(chunk.map(async ({ listingUrl, itemId }) => {
+        if (!validUrl(listingUrl) || !itemId) {
+          return { listingUrl, error: "RAR could not read an eBay item ID from this link." };
+        }
+        try {
+          const evidence = await getSubmittedEbaySaleEvidence(itemId, ebayMarketplaceFromUrl(listingUrl));
+          if (evidence.state === "active") return { listingUrl, itemId, evidence, error: "eBay still reports this listing as active." };
+          if (evidence.state === "completed_unsold") return { listingUrl, itemId, evidence, error: "eBay reports that this listing ended without a sale." };
+          if (evidence.state !== "completed_sold") return { listingUrl, itemId, evidence, error: evidence.detail || "eBay could not confirm this completed sale." };
+          return { listingUrl, itemId, evidence };
+        } catch (error) {
+          return { listingUrl, itemId, error: error instanceof Error ? error.message : "eBay could not load this listing." };
+        }
+      }));
+      results.push(...chunkResults);
+    }
+    return Response.json({ results });
+  }
+
   const editionId = text(payload.editionId);
   const sourceId = text(payload.sourceId);
   const sourceListingUrl = text(payload.sourceListingUrl);

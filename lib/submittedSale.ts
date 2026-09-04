@@ -41,6 +41,11 @@ export function detectsBestOffer(value: string) {
   return BEST_OFFER.test(value);
 }
 
+export function parseSubmittedSaleLinks(value: string) {
+  const links = value.match(/https?:\/\/[^\s<>]+/gi) ?? [];
+  return [...new Set(links.map((link) => link.replace(/[),.;]+$/, "")))];
+}
+
 function labelledValue(text: string, labels: string[]) {
   for (const label of labels) {
     const match = text.match(new RegExp(`^\\s*${label}\\s*[:\\-]\\s*(.+?)\\s*$`, "im"));

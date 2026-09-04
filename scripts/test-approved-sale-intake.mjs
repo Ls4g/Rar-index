@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "../lib/submittedSale.ts";
+import { detectGrading, detectsBestOffer, parseSubmittedSaleLinks, parseSubmittedSaleText } from "../lib/submittedSale.ts";
 
 const bgs = detectGrading("Hunter x Hunter Vol. 1 Japanese Manga BGS 9.0");
 assert.deepEqual(bgs, { isGraded: true, company: "BGS", grade: "9.0" });
@@ -35,6 +35,15 @@ assert.equal(parsed.saleType, "best_offer");
 assert.deepEqual(parsed.grading, { isGraded: true, company: "BGS", grade: "9.0" });
 assert.equal(parsed.sourceListingUrl, "https://www.ebay.co.uk/itm/123456789012");
 
+assert.deepEqual(parseSubmittedSaleLinks(`
+https://www.ebay.co.uk/itm/123456789012
+Duplicate: https://www.ebay.co.uk/itm/123456789012.
+https://www.ebay.com/itm/987654321098?foo=bar
+`), [
+  "https://www.ebay.co.uk/itm/123456789012",
+  "https://www.ebay.com/itm/987654321098?foo=bar",
+]);
+
 const migration = fs.readFileSync(new URL("../supabase/migrations/20260904_approved_sale_intake.sql", import.meta.url), "utf8");
 assert.match(migration, /create or replace function public\.approve_submitted_sale/);
 assert.match(migration, /insert into public\.price_observations/);
@@ -49,9 +58,19 @@ assert.doesNotMatch(route, /getEbayListingEvidence/);
 assert.match(route, /getSubmittedEbaySaleEvidence/);
 assert.match(route, /admin\.rpc\("approve_submitted_sale"/);
 assert.match(route, /humanConfirmed/);
+assert.match(route, /action === "lookup_batch"/);
+assert.match(route, /uniqueListings\.length > 25/);
+assert.match(route, /index \+= 3/);
+
+const bulkForm = fs.readFileSync(new URL("../components/BulkApprovedSalesForm.tsx", import.meta.url), "utf8");
+assert.match(bulkForm, /Approve and publish/);
+assert.match(bulkForm, /priceCorroborationUrl/);
+assert.match(bulkForm, /printingProofUrl/);
+assert.match(bulkForm, /humanConfirmed: true/);
+assert.match(bulkForm, /rows\.filter\(rowIsReady\)/);
 
 const providers = fs.readFileSync(new URL("../lib/listingOutcomeProviders.ts", import.meta.url), "utf8");
 assert.match(providers, /export async function getSubmittedEbaySaleEvidence/);
 assert.match(providers, /soldPrice: bestOffer \? null/);
 
-console.log("Approved sale intake: 25 checks passed.");
+console.log("Approved sale intake and bulk fast lane: 35 checks passed.");

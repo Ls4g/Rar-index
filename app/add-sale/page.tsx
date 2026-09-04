@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BulkApprovedSalesForm from "@/components/BulkApprovedSalesForm";
 import QuickSaleForm from "@/components/QuickSaleForm";
 import StaffNav from "@/components/StaffNav";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -58,7 +59,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
 
   return <main className="review-page catalogue-page">
     <header className="site-header"><Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link><Link className="header-note" href="/review">Review queue →</Link><Link className="header-note" href="/price-import">CSV batch import →</Link><StaffNav current="/add-sale" /></header>
-    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Staff-approved evidence</p><h1>Approve a sold listing</h1><p>Choose the edition, paste the eBay link, and let RAR fill the listing details. Correct only what eBay cannot supply, then approve once.</p></div></section>
+    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Staff-approved evidence</p><h1>Add verified sales in bulk</h1><p>Choose the edition once, paste the eBay links, and let RAR fill each listing. Correct only what eBay cannot supply, then publish every ready sale together.</p></div></section>
     <section className="catalogue-content">
       <div className="section-intro"><p className="eyebrow">One decision, not two queues</p><h2>Check it once. Add it properly.</h2><p className="section-copy">Use this for a sale you personally inspected. Your confirmation writes the verified sale, printing decision and audit history together—there is no second edition-match review.</p></div>
       {nextSearches.length ? <section className="sold-search-priorities" aria-labelledby="sold-search-heading">
@@ -68,7 +69,11 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
           <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}`}>Select edition</Link></div>
         </article>)}</div>
       </section> : null}
-      <QuickSaleForm initialEditionId={initialEditionId} />
+      <BulkApprovedSalesForm initialEditionId={initialEditionId} />
+      <details className="single-approved-sale">
+        <summary>Add one sale instead</summary>
+        <QuickSaleForm initialEditionId={initialEditionId} />
+      </details>
       <section className="catalogue-rules" aria-label="Approved listing safeguards"><div><span>1</span><strong>eBay fills the facts</strong><p>One staff-triggered lookup supplies the title, price, date, format and available listing photos.</p></div><div><span>2</span><strong>Markets stay separate</strong><p>Printing, raw copies and every grading company and grade remain distinct.</p></div><div><span>3</span><strong>Your decision teaches</strong><p>RAR retains its detection and your corrections as controlled-learning evidence.</p></div></section>
     </section>
   </main>;
