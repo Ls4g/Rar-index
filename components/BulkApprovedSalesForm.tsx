@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -124,14 +124,33 @@ export default function BulkApprovedSalesForm({
   const readyCount = useMemo(() => rows.filter(rowIsReady).length, [rows]);
   const savedCount = rows.filter((row) => row.status === "saved").length;
 
+  useEffect(() => {
+    if (!initialEditionId) return;
+    const nextEdition = editions.find((edition) => edition.id === initialEditionId) ?? null;
+    if (!nextEdition || selectedEdition?.id === nextEdition.id) return;
+    setSelectedEdition(nextEdition);
+    setQuery("");
+    setPastedLinks("");
+    setRows([]);
+    setMessage("");
+  }, [editions, initialEditionId, selectedEdition?.id]);
+
   function updateRow(key: string, values: Partial<BatchRow>) {
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...values, status: row.status === "saved" ? "saved" : "draft", resultMessage: "" } : row));
   }
 
   function changeEdition() {
     setSelectedEdition(null);
+    setPastedLinks("");
     setRows([]);
     setQuery("");
+    setMessage("");
+  }
+
+  function clearEnteredSales() {
+    setPastedLinks("");
+    setRows([]);
+    setMessage("Form cleared. Sales already published to RAR were not changed.");
   }
 
   async function prepareBatch() {
@@ -210,10 +229,13 @@ export default function BulkApprovedSalesForm({
     setMessage(`${added} sale${added === 1 ? "" : "s"} published${failed ? `; ${failed} need attention` : ""}. Every successful row is already verified—there is no second queue.`);
   }
 
-  return <section className="bulk-approved-sales" aria-labelledby="bulk-approved-sales-heading">
+  return <section className="bulk-approved-sales" id="bulk-approved-sales" aria-labelledby="bulk-approved-sales-heading">
     <div className="bulk-sale-heading">
       <div><p className="eyebrow">Fast lane</p><h2 id="bulk-approved-sales-heading">Bulk approved sales</h2><p>Choose one exact edition, paste up to 25 sold links, then approve every ready sale in one action.</p></div>
-      {rows.length ? <strong>{savedCount}/{rows.length} published</strong> : null}
+      <div className="bulk-sale-heading-actions">
+        {rows.length ? <strong>{savedCount}/{rows.length} published</strong> : null}
+        {rows.length || pastedLinks.trim() ? <><button type="button" onClick={clearEnteredSales}>Start a fresh batch</button><small>Clears this form only. Published sales stay saved.</small></> : null}
+      </div>
     </div>
 
     <section className="approved-listing-reviewer">

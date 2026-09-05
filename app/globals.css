@@ -3606,6 +3606,10 @@ html[data-theme="day"] .shelf {
 .bulk-sale-heading h2 { margin: .15rem 0 .4rem; font-size: clamp(1.75rem, 3vw, 2.5rem); }
 .bulk-sale-heading p { max-width: 720px; margin: 0; color: var(--staff-muted, #756b5e); }
 .bulk-sale-heading > strong { flex: 0 0 auto; padding: .5rem .7rem; border-radius: 999px; background: #edf7f3; color: #176a54; font-size: .75rem; }
+.bulk-sale-heading-actions { display: grid; justify-items: end; gap: .35rem; flex: 0 0 auto; }
+.bulk-sale-heading-actions > strong { padding: .5rem .7rem; border-radius: 999px; background: #edf7f3; color: #176a54; font-size: .75rem; }
+.bulk-sale-heading-actions button { border: 1px solid #9d3b2e; border-radius: .55rem; padding: .65rem .8rem; background: #fff7f3; color: #842f24; cursor: pointer; font: inherit; font-size: .72rem; font-weight: 850; }
+.bulk-sale-heading-actions small { max-width: 220px; color: var(--staff-muted, #756b5e); font-size: .66rem; line-height: 1.35; text-align: right; }
 .bulk-sale-edition, .bulk-sale-links { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .8rem; align-items: start; }
 .bulk-sale-edition > span, .bulk-sale-links > span {
   display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
@@ -3663,6 +3667,8 @@ html[data-theme="day"] .shelf {
   .bulk-approved-sales { margin-inline: -.35rem; padding: 1rem; }
   .bulk-sale-heading, .bulk-sale-toolbar, .bulk-sale-publish { align-items: stretch; flex-direction: column; }
   .bulk-sale-heading > strong { align-self: start; }
+  .bulk-sale-heading-actions { justify-items: stretch; width: 100%; }
+  .bulk-sale-heading-actions small { max-width: none; text-align: left; }
   .bulk-sale-edition, .bulk-sale-links { grid-template-columns: 2rem minmax(0, 1fr); }
   .bulk-sale-links > button { grid-column: 2; width: 100%; }
   .bulk-sale-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

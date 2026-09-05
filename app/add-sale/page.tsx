@@ -75,7 +75,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
         <div><p className="eyebrow">Search where the next sale matters</p><h2 id="sold-search-heading">Next completed-listing searches</h2><p>RAR prioritises editions one sale away from a chart or strong coverage. Editions with five comparable raw sales are left out.</p></div>
         <div className="sold-search-priority-list">{nextSearches.map((candidate) => <article key={candidate.profileId}>
           <div><strong>{candidate.title}{candidate.volumeNumber ? ` · Vol. ${candidate.volumeNumber}` : ""}</strong><span>{[candidate.language, `${candidate.comparableRawSales} comparable raw sale${candidate.comparableRawSales === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span><small>{soldSearchReason(candidate.comparableRawSales)}</small></div>
-          <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}`}>Select edition</Link></div>
+          <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}#bulk-approved-sales`}>Select edition</Link></div>
         </article>)}</div>
       </section> : null}
       <BulkApprovedSalesForm initialEditionId={initialEditionId} editions={verifiedEditions ?? []} sources={activeSources ?? []} />

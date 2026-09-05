@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- staff-only eBay evidence URLs are arbitrary and short-lived */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
 import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
@@ -79,7 +79,6 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
-  const initialEditionLoaded = useRef(false);
 
   const visibleSuggestions = query.trim().length >= 2 && !selectedEdition ? suggestions : [];
   const liveDetection = useMemo(() => {
@@ -88,8 +87,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   }, [listingTitle, submittedText]);
 
   useEffect(() => {
-    if (!initialEditionId || initialEditionLoaded.current) return;
-    initialEditionLoaded.current = true;
+    if (!initialEditionId) return;
     const controller = new AbortController();
     fetch(`/api/add-sale?editionId=${encodeURIComponent(initialEditionId)}`, { signal: controller.signal })
       .then(async (response) => {
