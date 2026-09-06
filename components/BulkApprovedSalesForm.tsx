@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -123,17 +123,6 @@ export default function BulkApprovedSalesForm({
   const pastedLinkCount = useMemo(() => parseSubmittedSaleLinks(pastedLinks).length, [pastedLinks]);
   const readyCount = useMemo(() => rows.filter(rowIsReady).length, [rows]);
   const savedCount = rows.filter((row) => row.status === "saved").length;
-
-  useEffect(() => {
-    if (!initialEditionId) return;
-    const nextEdition = editions.find((edition) => edition.id === initialEditionId) ?? null;
-    if (!nextEdition || selectedEdition?.id === nextEdition.id) return;
-    setSelectedEdition(nextEdition);
-    setQuery("");
-    setPastedLinks("");
-    setRows([]);
-    setMessage("");
-  }, [editions, initialEditionId, selectedEdition?.id]);
 
   function updateRow(key: string, values: Partial<BatchRow>) {
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...values, status: row.status === "saved" ? "saved" : "draft", resultMessage: "" } : row));

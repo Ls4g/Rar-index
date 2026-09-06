@@ -23,6 +23,12 @@ export type OutcomeCheckResult = {
   errors: string[];
 };
 
+// A daily batch of 40 could not keep pace with the live queue: the job was
+// healthy, but hundreds of due rows accumulated. This remains deliberately
+// bounded so one run cannot fan out without limit or surprise the eBay quota.
+export const DEFAULT_OUTCOME_CHECK_LIMIT = 160;
+export const OUTCOME_CHECK_CONCURRENCY = 6;
+
 type LeadRow = {
   id: string;
   profile_id: string;
@@ -164,7 +170,7 @@ export async function promoteEndedListings(admin: SupabaseClient) {
   return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
-export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promise<OutcomeCheckResult> {
+export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT): Promise<OutcomeCheckResult> {
   const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [] };
   const nowIso = new Date().toISOString();
 
@@ -185,7 +191,9 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
   const due = rows.filter((row) => row.outcome_provider !== "eBay page — staff observed" && isDueForCheck(row));
   result.due = due.length;
 
-  for (const row of due) {
+  for (let index = 0; index < due.length; index += OUTCOME_CHECK_CONCURRENCY) {
+    const chunk = due.slice(index, index + OUTCOME_CHECK_CONCURRENCY);
+    await Promise.all(chunk.map(async (row) => {
     const attempt = row.check_attempts + 1;
     let providerResult;
     try {
@@ -203,7 +211,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
         last_checked_at: nowIso, last_error: message,
         next_check_at: nextOutcomeCheckAt(Math.max(0, attempt - 1)), updated_at: nowIso,
       }).eq("id", row.id);
-      continue;
+      return;
     }
 
     const classification = classifyListingOutcome(providerResult.signal);
@@ -242,7 +250,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
       next_check_at: final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
       updated_at: nowIso,
     }).eq("id", row.id).in("status", ["ended_pending_check", "ambiguous", "active"]);
-    if (updateError) { result.errors.push(`${row.external_id}: ${updateError.message}`); continue; }
+    if (updateError) { result.errors.push(`${row.external_id}: ${updateError.message}`); return; }
 
     result.checked += 1;
     if (exhausted) result.exhausted += 1;
@@ -251,6 +259,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = 40): Promi
     else if (final.status === "inaccessible") result.inaccessible += 1;
     else if (final.status === "ambiguous") result.ambiguous += 1;
     else if (final.status === "active") result.stillActive += 1;
+    }));
   }
 
   return result;

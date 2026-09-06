@@ -82,12 +82,43 @@ function languageName(value: string | undefined) {
   return value || null;
 }
 
-function normaliseDate(value: string | undefined) {
-  if (!value) return null;
-  const fullDate = value.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (fullDate) return `${fullDate[1]}-${fullDate[2]}-${fullDate[3]}`;
-  const year = value.match(/(?:^|\D)(\d{4})(?:\D|$)/)?.[1];
-  return year ? `${year}-01-01` : null;
+const MONTH_NUMBER: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+  aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10,
+  october: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+
+function exactDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// The catalogue schema currently has a date, not a date plus a precision
+// field. Returning January 1 for a source that only says "2005" invents a
+// day and month and makes the public edition page state it as fact. Keep
+// partial dates null until RAR has an exact date from a source.
+export function normaliseCatalogueDate(value: string | undefined) {
+  const clean = value?.trim();
+  if (!clean) return null;
+
+  const iso = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return exactDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const monthFirst = clean.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})$/i);
+  if (monthFirst) {
+    const month = MONTH_NUMBER[monthFirst[1].toLowerCase()];
+    return month ? exactDate(Number(monthFirst[3]), month, Number(monthFirst[2])) : null;
+  }
+
+  const dayFirst = clean.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)[,]?\s+(\d{4})$/i);
+  if (dayFirst) {
+    const month = MONTH_NUMBER[dayFirst[2].toLowerCase()];
+    return month ? exactDate(Number(dayFirst[3]), month, Number(dayFirst[1])) : null;
+  }
+
+  return null;
 }
 
 function htmlMatch(html: string, pattern: RegExp) {
@@ -97,9 +128,7 @@ function htmlMatch(html: string, pattern: RegExp) {
 function openBdDate(value: string | undefined) {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
-  if (digits.length >= 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
-  if (digits.length >= 6) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-01`;
-  if (digits.length >= 4) return `${digits.slice(0, 4)}-01-01`;
+  if (digits.length === 8) return exactDate(Number(digits.slice(0, 4)), Number(digits.slice(4, 6)), Number(digits.slice(6, 8)));
   return null;
 }
 
@@ -229,7 +258,7 @@ export async function searchNdlCatalogue(query: string): Promise<CatalogueSource
       candidate_publisher: xmlValues(record, "dc:publisher")[0] || null,
       candidate_language: languageName(xmlValues(record, "dc:language")[0]),
       candidate_isbn_13: candidateIsbn,
-      candidate_release_date: normaliseDate(xmlValues(record, "dc:date")[0]),
+      candidate_release_date: normaliseCatalogueDate(xmlValues(record, "dc:date")[0]),
       candidate_format: xmlValues(record, "dcndl:genre")[0] || null,
     }];
   });
@@ -279,7 +308,7 @@ export async function searchOpenLibraryCatalogue(query: string): Promise<Catalog
         candidate_publisher: publishers[0] || null,
         candidate_language: languageName(languages[0]),
         candidate_isbn_13: isbn13FromValues(isbns),
-        candidate_release_date: normaliseDate(publishDate),
+        candidate_release_date: normaliseCatalogueDate(publishDate),
         candidate_cover_image_url: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null,
       }];
     });

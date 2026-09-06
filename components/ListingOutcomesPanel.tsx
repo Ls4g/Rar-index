@@ -351,7 +351,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
     <section className="listing-outcomes">
       <div className="section-intro">
         <p className="eyebrow">Watch to sale</p>
-        <h2>Review only what matters</h2>
+        <h1>Review only what matters</h1>
         <p className="section-copy">RAR prioritises outcomes where your judgement can create trustworthy evidence. Everything uncertain remains available without crowding the main inbox.</p>
       </div>
 

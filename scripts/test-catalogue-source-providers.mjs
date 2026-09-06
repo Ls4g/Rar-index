@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
-import { searchOpenBdCatalogue } from "../lib/catalogueSources.ts";
+import { normaliseCatalogueDate, searchOpenBdCatalogue } from "../lib/catalogueSources.ts";
 import { createGoogleBooksBatchGate, googleBooksRequestUrl } from "../lib/coverProviderPolicy.ts";
 
 const originalFetch = globalThis.fetch;
+
+assert.equal(normaliseCatalogueDate("2005"), null);
+assert.equal(normaliseCatalogueDate("December 6, 2005"), "2005-12-06");
+assert.equal(normaliseCatalogueDate("August 4th, 2015"), "2015-08-04");
+assert.equal(normaliseCatalogueDate("04 Dec 2012"), "2012-12-04");
+assert.equal(normaliseCatalogueDate("2025-05-06"), "2025-05-06");
+assert.equal(normaliseCatalogueDate("2025-02-30"), null);
+assert.equal(normaliseCatalogueDate("05/06/2025"), null);
 let requestedUrl = "";
 try {
   globalThis.fetch = async (url) => {
@@ -29,6 +37,12 @@ try {
   assert.equal(candidates[0].candidate_language, "Japanese");
   assert.equal(candidates[0].candidate_release_date, "1997-12-29");
   assert.equal(candidates[0].candidate_cover_image_url, "https://example.test/cover.jpg");
+
+  globalThis.fetch = async () => new Response(JSON.stringify([{
+    summary: { isbn: "9784088725093", title: "ONE PIECE 1", pubdate: "1997" },
+  }]), { status: 200, headers: { "Content-Type": "application/json" } });
+  const yearOnly = await searchOpenBdCatalogue("9784088725093");
+  assert.equal(yearOnly[0].candidate_release_date, null);
 
   globalThis.fetch = async () => new Response(JSON.stringify([{ summary: { isbn: "9784080000000", title: "Wrong book" } }]), { status: 200 });
   assert.deepEqual(await searchOpenBdCatalogue("9784088725093"), []);

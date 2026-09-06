@@ -78,7 +78,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
           <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}#bulk-approved-sales`}>Select edition</Link></div>
         </article>)}</div>
       </section> : null}
-      <BulkApprovedSalesForm initialEditionId={initialEditionId} editions={verifiedEditions ?? []} sources={activeSources ?? []} />
+      <BulkApprovedSalesForm key={initialEditionId || "manual-selection"} initialEditionId={initialEditionId} editions={verifiedEditions ?? []} sources={activeSources ?? []} />
       <details className="single-approved-sale">
         <summary>Add one sale instead</summary>
         <QuickSaleForm initialEditionId={initialEditionId} />

@@ -14,6 +14,7 @@ import {
   validateManualBestOfferEvidence,
 } from "../lib/listingOutcome.ts";
 import { resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
+import { DEFAULT_OUTCOME_CHECK_LIMIT, OUTCOME_CHECK_CONCURRENCY } from "../lib/watchToSale.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -95,6 +96,8 @@ const exhausted = exhaustedOutcome("eBay Browse", MAX_OUTCOME_ATTEMPTS);
 check("retry exhaustion records unknown, not unsold", exhausted.status === "ambiguous" && exhausted.resolved === true);
 
 console.log("\n--- scheduling ---");
+check("daily outcome capacity can clear more than the previous 40-row ceiling", DEFAULT_OUTCOME_CHECK_LIMIT === 160);
+check("outcome provider requests use bounded concurrency", OUTCOME_CHECK_CONCURRENCY === 6);
 const future = new Date(Date.now() + 3_600_000).toISOString();
 check("a listing that has not ended is never checked", !isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: future }));
 check("an ended listing with no scheduled check is due", isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: yesterday }));

@@ -13,6 +13,7 @@ import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPage
 // through the decision path, and only ever on an explicit staff action.
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 type DecisionBody = {
   action?: string;
