@@ -97,7 +97,7 @@ export default async function Home() {
         </div>
 
         {spotlight ? (
-          <article className="home-spotlight" style={{ "--spotlight-accent": spotlightAccent, "--spotlight-cover": `url(${JSON.stringify(spotlight.cover_image_url)})` } as CSSProperties}>
+          <article className="home-spotlight" style={{ "--spotlight-accent": spotlightAccent } as CSSProperties}>
             <div className="home-spotlight-sketch" aria-hidden="true" />
             <div className="home-spotlight-cover-wrap">
               <span className="home-book-depth" aria-hidden="true" />

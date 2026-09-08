@@ -4251,8 +4251,11 @@ html[data-theme="day"] .edition-page {
 }
 .home-page .home-spotlight::after { display: none; }
 .home-page .home-spotlight-sketch {
-  inset: -8% -2% -6% 43%; background-size: cover; background-position: 56% center;
-  filter: grayscale(1) contrast(1.4); opacity: .19; mask-image: linear-gradient(90deg, transparent 0%, #000 27%, #000 82%, transparent 100%);
+  inset: -9% -3% -7% 40%;
+  background-image: url("/rar-dragon-ball-hero-sketch-clean.png");
+  background-repeat: no-repeat; background-size: auto 116%; background-position: 92% 52%;
+  filter: grayscale(1) contrast(1.08); opacity: .19;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 23%, #000 84%, transparent 100%);
 }
 .home-page .home-spotlight-cover-wrap { grid-area: cover; align-self: center; z-index: 2; transform: rotate(2deg); }
 .home-page .home-spotlight-cover { width: min(88%, 390px); margin: auto; border-radius: 0; box-shadow: 14px 24px 42px rgba(0,0,0,.25); }
@@ -4358,7 +4361,7 @@ html[data-theme="day"] .edition-page {
   .home-page .home-hero h1 { max-width: 10ch; font-size: clamp(3.65rem, 17vw, 5.2rem); }
   .home-page .home-spotlight { grid-template-columns: 36% 64%; min-height: 430px; padding: 1.8rem .8rem 1rem; }
   .home-page .home-spotlight-cover { width: min(94%, 250px); }
-  .home-page .home-spotlight-sketch { inset: -5% -20% -4% 35%; }
+  .home-page .home-spotlight-sketch { inset: -4% -30% -5% 30%; background-position: 58% center; opacity: .12; }
   .home-page .home-spotlight-copy h2 { font-size: 1.65rem; }
   .home-page .home-spotlight-copy a { padding: .7rem .55rem; font-size: .8rem; }
   .home-page .home-discovery-rail { padding-inline: 1rem; overflow-x: auto; }
