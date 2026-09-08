@@ -4,7 +4,6 @@ import PublicationPrintTabs, { type PublicationSale } from "@/components/Publica
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import EditionCover from "@/components/EditionCover";
-import ThemeToggle from "@/components/ThemeToggle";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -121,12 +120,6 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
-function signalLabel(verifiedSales: number, verifiedSources: number) {
-  if (verifiedSales >= 6 && verifiedSources >= 3) return "Established evidence";
-  if (verifiedSales >= 3 && verifiedSources >= 2) return "Developing evidence";
-  return "Early evidence";
-}
-
 // The source writes "DRAGON　BALL" with a full-width space, so a title can
 // differ from its own English name by whitespace alone and get printed twice.
 function tidySpacing(value: string | null | undefined) {
@@ -224,14 +217,14 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const siblingVolumesResult = edition.series && !isMagazine
     ? await supabase
       .from("manga_editions")
-      .select("id,volume_number,language")
+      .select("id,title,series,volume_number,language,cover_image_url,cover_verification_status")
       .eq("series", edition.series)
       .eq("language", edition.language)
       .eq("is_verified", true)
       .eq("record_kind", "publication")
       .not("volume_number", "is", null)
       .limit(400)
-    : { data: [] as Array<{ id: string; volume_number: string | null; language: string | null }> };
+    : { data: [] as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_image_url: string | null; cover_verification_status: string | null }> };
 
   const relatedEditionsResult = edition.series && edition.volume_number && !isMagazine
     ? await supabase
@@ -318,7 +311,6 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .limit(1000)
     : { data: [] };
   const fxRates = (fxRatesResult.data ?? []) as FxRate[];
-  const verifiedSourceIds = new Set(verifiedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
   const observedSourceIds = new Set(observedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
   const latestVerifiedSale = [...verifiedSales].sort((a, b) => (b.sold_date ?? "").localeCompare(a.sold_date ?? ""))[0];
   const sourceIds = [
@@ -341,10 +333,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     const match = String(value ?? "").match(/\d+(\.\d+)?/);
     return match ? Number(match[0]) : null;
   };
-  const siblingVolumes = ((siblingVolumesResult.data ?? []) as Array<{ id: string; volume_number: string | null }>)
+  const siblingVolumes = ((siblingVolumesResult.data ?? []) as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_image_url: string | null; cover_verification_status: string | null }>)
     .flatMap((row) => {
       const number = volumeOf(row.volume_number);
-      return number === null ? [] : [{ id: row.id, number, label: row.volume_number as string }];
+      return number === null ? [] : [{ ...row, number, label: row.volume_number as string }];
     })
     .sort((left, right) => left.number - right.number);
   const distinctVolumeCount = new Set(siblingVolumes.map((entry) => entry.number)).size;
@@ -466,6 +458,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     ["ISBN-10", edition.isbn_10],
     ["Edition", edition.edition_statement],
   ]).filter(([, value]) => value) as Array<[string, string]>;
+  const overviewLabels = new Set(isMagazine
+    ? ["Magazine", "Issue", "Language", "Publisher", "Release date"]
+    : ["Publisher", "Format", "Release date", "ISBN-13"]);
+  const overviewDetails = details.filter(([label]) => overviewLabels.has(label));
 
   return (
     <main className="public-page edition-page">
@@ -474,13 +470,14 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <span className="brand-mark">R</span>
           <span>RAR</span>
           <em>Index</em>
+          <small>For manga collectors</small>
         </Link>
         <nav className="header-links" aria-label="Main navigation">
           <Link className="header-note" href="/browse">Discover</Link>
           <Link className="header-note" href="/collection">Collections</Link>
           <Link className="header-note" href="/identify">First-print check</Link>
-          <ThemeToggle />
-          <Link className="header-shelf-link" href="/portfolio">My shelf</Link>
+          <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
+          <Link className="header-shelf-link" href="/portfolio">Your collection <span>→</span></Link>
         </nav>
       </header>
 
@@ -502,6 +499,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <Link href="/" className="back-link">← Back to the index</Link>
             {originalTitle || edition.imprint ? <p className="edition-imprint">{originalTitle || edition.imprint}</p> : null}
             <h1>{displayTitle}</h1>
+            {edition.author ? <p className="edition-author">{edition.author}</p> : null}
             <p className="edition-subtitle">
               {(isMagazine
                 ? [issueLabel, edition.language]
@@ -510,7 +508,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 .join(" · ")}
             </p>
             <p className="edition-byline">
-              {[edition.author, publisherDisplayName(edition.publisher), edition.release_date ? formatDate(edition.release_date) : null]
+              {[publisherDisplayName(edition.publisher), edition.format, edition.release_date ? formatDate(edition.release_date) : null]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -522,7 +520,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               </div>
             ) : null}
             <div className="edition-hero-actions">
-              <Link className="home-btn" href={`/portfolio?edition=${edition.id}`}>Add to my shelf</Link>
+              <Link className="home-btn" href={`/portfolio?edition=${edition.id}`}>Add to collection <span>→</span></Link>
               <Link className="home-btn is-quiet" href={`/browse?q=${encodeURIComponent(edition.series ?? displayTitle ?? "")}`}>Explore the series</Link>
             </div>
             {previousVolume || nextVolume ? (
@@ -550,13 +548,18 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       <MarketCurrencyProvider>
       <section className="edition-content">
         <div className="edition-layout">
+          <section className="edition-copy-panel">
+            <h2>Your copy</h2>
+            <p>Add this edition to track ownership, reading status, and the shelf it belongs on.</p>
+            <Link className="home-btn" href={`/portfolio?edition=${edition.id}`}>Add to collection <span>→</span></Link>
+          </section>
           {/* Identity is the product, so it is open and first rather than
               folded behind a disclosure. Grouped by space with two rules,
               not fenced by a hairline under every row. */}
           <section className="edition-facts-section">
-            <h2>{isMagazine ? "This issue" : "This book"}</h2>
+            <h2>{isMagazine ? "Issue details" : "Edition details"}</h2>
             <dl className="edition-facts">
-              {details.map(([label, value]) => (
+              {overviewDetails.map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
                   <dd className={label.startsWith("ISBN") ? "is-identifier" : undefined}>{value}</dd>
@@ -598,8 +601,9 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           </details>
 
           <aside className="valuation-panel">
-            <p className="eyebrow">How much we know</p>
-            <strong className="confidence-label">{signalLabel(verifiedSales.length, verifiedSourceIds.size)}</strong>
+            <p className="eyebrow">Market snapshot</p>
+            <strong className="confidence-label">{verifiedSales.length ? `${verifiedSales.length} verified sale${verifiedSales.length === 1 ? "" : "s"}` : "No verified sales yet"}</strong>
+            <p className="edition-market-summary">RAR only shows completed sales matched to this exact edition.</p>
             <div className="confidence-grid">
               <div className="confidence-signal">
                 <span>Verified sales</span>
@@ -637,6 +641,20 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio — free account →</Link>
           </aside>
         </div>
+
+        {!isMagazine && siblingVolumes.some((volume) => volume.cover_image_url && volume.id !== edition.id) ? (
+          <section className="edition-series-rail" aria-labelledby="more-series-heading">
+            <div className="edition-series-heading"><h2 id="more-series-heading">More from {edition.series}</h2><Link href={`/browse?q=${encodeURIComponent(edition.series ?? "")}`}>Explore the series <span>→</span></Link></div>
+            <div className="edition-series-covers">
+              {siblingVolumes.filter((volume) => volume.id !== edition.id && volume.cover_image_url).slice(0, 7).map((volume) => (
+                <Link href={`/edition/${volume.id}`} key={volume.id}>
+                  <EditionCover title={volume.title} series={volume.series} volumeNumber={volume.volume_number} language={volume.language} imageUrl={volume.cover_image_url} imageStatus={volume.cover_verification_status} className="edition-series-cover" />
+                  <span>Vol. {volume.label}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="price-history-section">
           <div className="section-intro">

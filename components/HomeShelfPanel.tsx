@@ -137,12 +137,10 @@ export default function HomeShelfPanel() {
     return (
       <section className="home-shelf home-shelf-invite" aria-labelledby="home-shelf-heading">
         <div className="home-shelf-invite-copy">
-          <p className="eyebrow">Your shelf</p>
-          <h2 id="home-shelf-heading">Nothing here yet — it&apos;s yours to fill</h2>
+          <p className="eyebrow">Your collection, your way</p>
+          <h2 id="home-shelf-heading">See the whole shelf.<mark>Spot every gap.</mark></h2>
           <p>
-            Add the manga you own and RAR records the exact edition: publisher, ISBN, printing, language.
-            You get a run you can see the holes in, a private valuation from completed sales, and a shelf
-            you can publish under your own handle.
+            Add manga as you collect, organise complete runs, and keep a reading list that actually feels manageable.
           </p>
           <div className="home-actions">
             <Link className="home-btn" href="/portfolio">Start your shelf</Link>
@@ -153,10 +151,9 @@ export default function HomeShelfPanel() {
           </p>
         </div>
         <ul className="home-shelf-promises">
-          <li><strong>The exact edition</strong><span>Not just the title — the printing you actually own.</span></li>
-          <li><strong>The gaps in your runs</strong><span>Counted against what RAR has catalogued, never guessed.</span></li>
-          <li><strong>What copies really sell for</strong><span>Completed sales with a working link back to the listing.</span></li>
-          <li><strong>Yours until you share it</strong><span>Purchase prices and notes never leave your account.</span></li>
+          <li><strong>1 · Track</strong><span>Keep every volume organised in one place.</span></li>
+          <li><strong>2 · Curate</strong><span>Make shelves for favourites, genres, and reading plans.</span></li>
+          <li><strong>3 · Share</strong><span>Publish a collection profile when you&apos;re ready.</span></li>
         </ul>
       </section>
     );

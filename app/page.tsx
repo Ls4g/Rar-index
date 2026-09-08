@@ -1,8 +1,8 @@
-import MangaSearch, { type Manga } from "@/components/MangaSearch";
-import CoverWall, { type WallCover } from "@/components/CoverWall";
+/* eslint-disable @next/next/no-img-element -- verified publisher covers use multiple remote hosts */
+import type { Manga } from "@/components/MangaSearch";
+import type { WallCover } from "@/components/CoverWall";
 import HomeShelfPanel from "@/components/HomeShelfPanel";
 import SaleSparkline, { type SalePoint } from "@/components/SaleSparkline";
-import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
 import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
-import { HomeMarketCurrencyControl, HomePrice } from "@/components/HomeMarketDisplay";
+import { HomePrice } from "@/components/HomeMarketDisplay";
 import { comparisonGroup, type FxRate } from "@/lib/fx";
 import type { CSSProperties } from "react";
 
@@ -354,14 +354,14 @@ export default async function Home() {
           <span className="brand-mark">R</span>
           <span>RAR</span>
           <em>Index</em>
+          <small>For manga collectors</small>
         </a>
         <nav className="header-links" aria-label="Main navigation">
           <Link className="header-note" href="/browse">Discover</Link>
           <Link className="header-note" href="/collection">Collections</Link>
           <Link className="header-note" href="/identify">First-print check</Link>
-          <HomeMarketCurrencyControl />
-          <ThemeToggle />
-          <Link className="header-shelf-link" href="/portfolio">My shelf</Link>
+          <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
+          <Link className="header-shelf-link" href="/portfolio">Start your collection <span>→</span></Link>
         </nav>
       </header>
 
@@ -371,13 +371,16 @@ export default async function Home() {
           <p className="eyebrow">Your shelf, your story</p>
           <h1>Track your manga. <mark>Show off your collection.</mark></h1>
           <p className="home-lede">
-            Build a home for every volume. Organise your library, follow your progress, and share the collection that is uniquely yours.
+            Build a home for every volume. Organise your library, create shelves, and share what you love.
           </p>
           <div className="home-actions">
             <Link className="home-btn" href="/portfolio">Start your collection</Link>
-            <Link className="home-btn is-quiet" href="/browse">Explore manga</Link>
+            <Link className="home-btn is-quiet" href="/collection">Explore collections</Link>
           </div>
-          <div className="home-hero-search"><MangaSearch /></div>
+          <div className="home-collector-note" aria-label="A home for manga fans, by manga fans">
+            <div>{wallCovers.slice(0, 5).map((cover) => <img alt="" src={cover.url} key={cover.url} />)}</div>
+            <span>A home for manga fans, by manga fans.</span>
+          </div>
         </div>
         {spotlightEdition ? (
           <article className="home-spotlight" style={{ "--spotlight-accent": spotlightAccent, "--spotlight-cover": `url(${JSON.stringify(spotlightEdition.cover_image_url)})` } as CSSProperties}>
@@ -387,9 +390,9 @@ export default async function Home() {
             </div>
             <div className="home-spotlight-copy">
               <p className="eyebrow">Edition of the Week</p>
-              <h2>{spotlightEdition.series || spotlightEdition.title}</h2>
+              <h2>{spotlightEdition.title || spotlightEdition.series}</h2>
               <p>{[spotlightEdition.volume_number ? `Volume ${spotlightEdition.volume_number}` : null, publisherDisplayName(spotlightEdition.publisher), spotlightEdition.format, spotlightEdition.release_date ? formatSaleDate(spotlightEdition.release_date) : null].filter(Boolean).join(" · ")}</p>
-              <Link href={`/edition/${spotlightEdition.id}`}>View this edition <span>→</span></Link>
+              <Link href={`/portfolio?edition=${spotlightEdition.id}`}>Add to collection <span>→</span></Link>
             </div>
           </article>
         ) : null}
@@ -397,10 +400,14 @@ export default async function Home() {
 
       <section className="home-discovery-rail" aria-labelledby="discover-shelf-heading">
         <div className="home-discovery-heading">
-          <div><p className="eyebrow">Find your next read</p><h2 id="discover-shelf-heading">Your collection starts with one volume</h2></div>
-          <p>{count ?? 0} verified publications to discover, organise, and make your own.</p>
+          <div><p className="eyebrow">Discover more manga</p><h2 id="discover-shelf-heading">Find the next <mark>volume you&apos;ll love.</mark></h2></div>
+          <Link href="/browse">Browse all <span>→</span></Link>
         </div>
-        <CoverWall covers={wallCovers} />
+        <div className="home-cover-shelf" aria-label="Manga from the RAR catalogue">
+          {wallCovers.slice(0, 8).map((cover, index) => (
+            <img alt={cover.label} src={cover.url} key={cover.url} style={{ animationDelay: `${index * -0.55}s` }} />
+          ))}
+        </div>
       </section>
 
       {/* ------------------------------------------------------------ shelf */}
