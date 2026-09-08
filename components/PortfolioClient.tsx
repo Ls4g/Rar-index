@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { type FxRate } from "@/lib/fx";
@@ -10,8 +9,8 @@ import {
   resolvePublicationFamily,
   type ValuationSale,
 } from "@/lib/portfolioValuation";
-import ThemeToggle from "@/components/ThemeToggle";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
+import PublicHeader from "@/components/PublicHeader";
 import PortfolioAuth from "@/components/portfolio/PortfolioAuth";
 import PortfolioTabs, { type PortfolioTabKey } from "@/components/portfolio/PortfolioTabs";
 import OverviewTab from "@/components/portfolio/OverviewTab";
@@ -357,14 +356,14 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   async function signOut() { await supabase.auth.signOut(); resetForm(); }
 
   return <main className="portfolio-page public-page">
-    <header className="site-header">
-      <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-      <div className="header-links">
-        {userEmail && userId ? <CollectorUsernameControl userId={userId} /> : null}
-        {userEmail ? <button className="portfolio-signout" onClick={() => void signOut()}>Sign out</button> : <span className="header-note">Private collecting, evidence first</span>}
-        <ThemeToggle />
+    <PublicHeader />
+
+    {userEmail ? (
+      <div className="portfolio-account-bar">
+        {userId ? <CollectorUsernameControl userId={userId} /> : null}
+        <button className="portfolio-signout" onClick={() => void signOut()}>Sign out</button>
       </div>
-    </header>
+    ) : null}
 
     {!userEmail ? (
       <PortfolioAuth authMessage={authMessage} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import ThemeToggle from "@/components/ThemeToggle";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
+import PublicHeader from "@/components/PublicHeader";
 import SeriesShelf from "@/components/SeriesShelf";
 import { supabase } from "@/lib/supabase";
 import { buildSeriesProgress, type CatalogueVolume } from "@/lib/seriesCompletion";
@@ -115,15 +114,7 @@ export default async function PreviewPage() {
   return (
     <MarketCurrencyProvider initialCurrency="EUR">
       <main className="public-page preview-page">
-        <header className="site-header">
-          <Link className="brand" href="/" aria-label="RAR Index home">
-            <span className="brand-mark">R</span><span>RAR</span><em>Index</em>
-          </Link>
-          <nav className="header-links">
-            <Link className="header-note" href="/">Home</Link>
-            <ThemeToggle />
-          </nav>
-        </header>
+        <PublicHeader />
 
         <section className="preview-intro">
           <p className="eyebrow">Internal</p>

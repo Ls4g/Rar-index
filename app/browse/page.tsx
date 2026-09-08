@@ -1,7 +1,6 @@
-import Link from "next/link";
 import BrowseEditions, { type BrowseEdition } from "@/components/BrowseEditions";
+import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -39,15 +38,7 @@ export default async function BrowsePage() {
 
   return (
     <main className="public-page">
-      <header className="site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/identify">First-print check</Link>
-          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
-          <Link className="header-note" href="/staff-login">Staff access</Link>
-          <ThemeToggle />
-        </nav>
-      </header>
+      <PublicHeader />
       <section className="browse-hero">
         <div>
           <p className="eyebrow">The catalogue</p>

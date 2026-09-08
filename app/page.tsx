@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import HomeShelfPanel, { type ShelfShowcaseVolume } from "@/components/HomeShelfPanel";
+import PublicHeader from "@/components/PublicHeader";
 import type { Manga } from "@/components/MangaSearch";
 import { publisherDisplayName } from "@/lib/editionDisplay";
 import { supabase } from "@/lib/supabase";
@@ -69,17 +70,7 @@ export default async function Home() {
 
   return (
     <main className="public-page home-page">
-      <header className="site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home"><span>RAR</span><em>Index</em><small>For manga collectors</small></Link>
-        <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Discover</Link>
-          <Link className="header-note" href="/collection">Collections</Link>
-          <Link className="header-note" href="/community-reports">Community</Link>
-          <Link className="header-note" href="#about">About</Link>
-          <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
-          <Link className="header-shelf-link" href="/portfolio">Your collection <span>→</span></Link>
-        </nav>
-      </header>
+      <PublicHeader />
 
       <section className="home-hero" id="top">
         <div className="home-hero-copy">

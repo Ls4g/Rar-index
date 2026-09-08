@@ -5,6 +5,7 @@ import EditionHeroActions from "@/components/EditionHeroActions";
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import EditionCover from "@/components/EditionCover";
+import PublicHeader from "@/components/PublicHeader";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -465,22 +466,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
 
   return (
     <main className="public-page edition-page">
-      <header className="site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home">
-          <span className="brand-mark">R</span>
-          <span>RAR</span>
-          <em>Index</em>
-          <small>For manga collectors</small>
-        </Link>
-        <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Discover</Link>
-          <Link className="header-note" href="/collection">Collections</Link>
-          <Link className="header-note" href="/community-reports">Community</Link>
-          <Link className="header-note" href="/#about">About</Link>
-          <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
-          <Link className="header-shelf-link" href="/portfolio">Your collection <span>→</span></Link>
-        </nav>
-      </header>
+      <PublicHeader />
 
       {/* The book is the page. The cover sits large and undecorated, and its
           own artwork — blurred — is the banner, so every edition looks

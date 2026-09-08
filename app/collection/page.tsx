@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import ThemeToggle from "@/components/ThemeToggle";
 import EditionCover from "@/components/EditionCover";
+import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
 import { buildSeriesProgress, type CatalogueVolume } from "@/lib/seriesCompletion";
 
@@ -63,15 +63,7 @@ export default async function CollectionPage() {
 
   return (
     <main className="public-page collection-page">
-      <header className="site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Browse manga</Link>
-          <Link className="header-note" href="/identify">First-print check</Link>
-          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
-          <ThemeToggle />
-        </nav>
-      </header>
+      <PublicHeader />
 
       <section className="tool-hero collection-hero">
         <p className="eyebrow">Free collection tracking</p>

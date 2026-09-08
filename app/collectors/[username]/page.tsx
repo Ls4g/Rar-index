@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import EditionCover from "@/components/EditionCover";
-import ThemeToggle from "@/components/ThemeToggle";
+import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
 import { normalizeUsername } from "@/lib/username";
@@ -62,14 +62,7 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
 
   return (
     <main className="public-page collector-shelf-page">
-      <header className="site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Browse manga</Link>
-          <Link className="header-note" href="/portfolio">Start your own shelf -&gt;</Link>
-          <ThemeToggle />
-        </nav>
-      </header>
+      <PublicHeader />
 
       {!shelf ? (
         <section className="tool-hero">

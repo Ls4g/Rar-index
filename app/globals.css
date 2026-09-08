@@ -4526,3 +4526,44 @@ html .edition-page .price-history-multi {
   .edition-page .edition-hero-actions { grid-template-columns: 1fr; }
   .edition-page .price-history-section { padding-left: 1rem; padding-right: 1rem; }
 }
+
+/* One public navigation system. Internal tools keep StaffNav; collector-facing
+   routes all use this editorial header and never expose staff entry points. */
+.public-site-header {
+  max-width: none; min-height: 68px; padding: 0 3.3vw; border-bottom: 1px solid #dadddf; background: #fff;
+}
+.public-site-header .brand {
+  gap: .35rem; color: #09090b; font-family: var(--editorial-serif); font-size: 1.75rem; font-weight: 700; letter-spacing: -.045em;
+}
+.public-site-header .brand > span { color: #c70f1c; }
+.public-site-header .brand em { color: #0b0b0d; font-family: var(--editorial-serif); font-size: 1.75rem; font-weight: 700; }
+.public-site-header .brand small {
+  margin-left: .9rem; padding-left: 1rem; border-left: 1px solid #aeb2b9; color: #333a47;
+  font-family: var(--font-sans); font-size: .58rem; font-weight: 700; letter-spacing: .24em; text-transform: uppercase;
+}
+.public-site-header .public-header-nav { align-self: stretch; gap: 2rem; }
+.public-site-header .header-note { color: #111319; font-family: var(--font-sans); font-size: .82rem; font-weight: 550; }
+.public-site-header .header-search-link { color: #0b0b0d; font-family: var(--editorial-serif); font-size: 2rem; line-height: 1; transform: rotate(-18deg); }
+.public-site-header .public-header-collection {
+  align-self: stretch; display: flex; align-items: center; gap: 2rem; margin-right: -3.3vw; padding: 0 3.2rem;
+  border-radius: 0; background: #d80d1c; color: #fff; font-family: var(--font-sans); font-size: .68rem; letter-spacing: .15em; text-transform: uppercase;
+}
+.portfolio-account-bar {
+  display: flex; align-items: center; justify-content: flex-end; gap: 1rem; min-height: 48px; padding: .55rem 3.3vw;
+  border-bottom: 1px solid var(--line); background: var(--surface-card);
+}
+
+@media (max-width: 760px) {
+  .public-site-header { position: relative; display: flex; min-height: 60px; padding: 0 152px 0 1rem; }
+  .public-site-header .brand, .public-site-header .brand em { font-size: 1.35rem; }
+  .public-site-header .brand small { display: none; }
+  .public-site-header .public-header-nav {
+    position: absolute; inset: 0 0 0 auto; display: block; width: 136px; min-width: 0; overflow: hidden;
+  }
+  .public-site-header .public-header-nav > :not(.public-header-collection) { display: none; }
+  .public-site-header .public-header-collection {
+    width: 136px; height: 100%; max-width: 136px; margin: 0; padding: 0 .55rem; justify-content: center; gap: .35rem;
+    overflow: hidden; font-size: .5rem; letter-spacing: .025em; text-align: center; white-space: nowrap;
+  }
+  .portfolio-account-bar { justify-content: space-between; padding: .55rem 1rem; }
+}

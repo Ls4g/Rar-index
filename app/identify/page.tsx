@@ -1,14 +1,10 @@
-import Link from "next/link";
 import Image from "next/image";
 import IdentificationTool from "@/components/IdentificationTool";
-import ThemeToggle from "@/components/ThemeToggle";
+import PublicHeader from "@/components/PublicHeader";
 
 export default function IdentifyPage() {
   return <main className="public-page">
-    <header className="site-header">
-      <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-      <nav className="header-links" aria-label="Main navigation"><Link className="header-note" href="/browse">Browse manga</Link><Link className="header-note" href="/portfolio">Portfolio -&gt;</Link><ThemeToggle /></nav>
-    </header>
+    <PublicHeader />
     <section className="tool-hero">
       <p className="eyebrow">First-print check</p>
       <h1>Is your copy a first print?</h1>
