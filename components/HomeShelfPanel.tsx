@@ -20,8 +20,6 @@ import EditionCover from "@/components/EditionCover";
 // invitation until the session resolves, which means the signed-out state is
 // also the pre-hydration state -- correct either way.
 
-const SERIES_SHOWN = 4;
-
 type HoldingRow = {
   edition_id: string;
   edition: {
@@ -190,82 +188,45 @@ export default function HomeShelfPanel({ showcase = [] }: { showcase?: ShelfShow
   }
 
   const volumes = shelf.ownedEditionIds.length;
-  const runs = shelf.series.slice(0, SERIES_SHOWN);
+  const activeRun = shelf.series[0] ?? null;
 
   return (
-    <section className="home-shelf" aria-labelledby="home-shelf-heading">
-      <div className="home-shelf-head">
-        <div>
-          <p className="eyebrow">Your shelf</p>
-          <h2 id="home-shelf-heading">
-            {volumes} volume{volumes === 1 ? "" : "s"} · {shelf.series.length} series
-          </h2>
-          <p>
-            Counted from the editions you have added. Runs below are measured against the volumes RAR has
-            catalogued for each series — not the full published run, which RAR does not always know.
-          </p>
-        </div>
-        <div className="home-shelf-head-actions">
-          <Link className="home-btn" href="/portfolio">Manage your shelf</Link>
-          {shelf.handle && shelf.shelfIsPublic ? (
-            <Link className="home-btn is-quiet" href={`/collectors/${shelf.handle}`}>View public shelf</Link>
-          ) : null}
-        </div>
+    <section className="home-shelf home-shelf-invite" aria-labelledby="home-shelf-heading">
+      <div className="home-shelf-invite-copy">
+        <p className="eyebrow">Your collection, your way</p>
+        <h2 id="home-shelf-heading">See the whole shelf.<mark>Spot every gap.</mark></h2>
+        <p>{volumes ? `${volumes} volume${volumes === 1 ? "" : "s"} across ${shelf.series.length} series — organised from the exact editions you added.` : "Your shelf is ready. Add your first volume and start building a run."}</p>
+        <ul className="home-shelf-promises">
+          <li><b>1</b><strong>Track</strong><span>Keep every volume in one place.</span></li>
+          <li><b>2</b><strong>Curate</strong><span>See progress and the gaps RAR can identify.</span></li>
+          <li><b>3</b><strong>Share</strong><span>{shelf.shelfIsPublic ? "Your public shelf is ready to share." : "Publish only when you choose to."}</span></li>
+        </ul>
       </div>
 
-      {volumes === 0 ? (
-        <p className="home-shelf-empty">
-          You&apos;re signed in, but nothing is on the shelf yet. <Link href="/portfolio">Add your first manga →</Link>
-        </p>
-      ) : (
-        <div className="home-runs">
-          {runs.map((entry) => {
-            const missing = entry.volumes.filter((volume) => !volume.owned);
-            return (
-              <article className="home-run" key={entry.key}>
-                <div className="home-run-head">
-                  <h3>{entry.series}</h3>
-                  <span className="home-run-count">
-                    {entry.owned} of {entry.tracked} catalogued volume{entry.tracked === 1 ? "" : "s"} owned
-                  </span>
-                </div>
-                {/* One spine per catalogued volume. An owned spine carries the
-                    accent; a gap is a hollow slot, which is the thing that
-                    nags -- and the thing that gets filled, which is what puts
-                    evidence into RAR. */}
-                <ol className="home-spines" aria-label={`${entry.series} volumes RAR has catalogued`}>
-                  {entry.volumes.map((volume) => (
-                    <li className={volume.owned ? "is-owned" : "is-gap"} key={volume.editionId}>
-                      <Link
-                        href={`/edition/${volume.editionId}`}
-                        title={`${volume.title ?? entry.series} — ${volume.owned ? "on your shelf" : "not on your shelf"}`}
-                      >
-                        <span>{volume.label}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-                {missing.length ? (
-                  <p className="home-run-gap">
-                    Missing <b>{missing.slice(0, 6).map((volume) => `Vol. ${volume.label}`).join(", ")}</b>
-                    {missing.length > 6 ? ` and ${missing.length - 6} more` : ""}
-                  </p>
-                ) : (
-                  // Never "complete". RAR holding every volume it knows about
-                  // is a statement about RAR's catalogue, not about the series.
-                  <p className="home-run-gap is-complete">No gaps in what RAR has catalogued so far</p>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {shelf.series.length > SERIES_SHOWN ? (
-        <p className="home-shelf-note">
-          Showing {SERIES_SHOWN} of your {shelf.series.length} series. <Link href="/portfolio">See them all →</Link>
-        </p>
-      ) : null}
+      <article className="home-shelf-demo is-real" aria-label="Your collection shelf">
+        <header>
+          <div><small>Your shelf</small><h3>{activeRun?.series ?? "Start a shelf"}</h3></div>
+          <div className="home-shelf-demo-actions">
+            {shelf.handle && shelf.shelfIsPublic ? <Link href={`/collectors/${shelf.handle}`}>Share shelf</Link> : null}
+            <Link href="/portfolio">Manage shelf</Link>
+          </div>
+        </header>
+        {activeRun ? (
+          <ol>
+            {activeRun.volumes.slice(0, 8).map((volume) => (
+              <li className={volume.owned ? "" : "is-missing"} key={volume.editionId}>
+                {volume.owned ? (
+                  <Link href={`/edition/${volume.editionId}`}>
+                    <EditionCover className="home-shelf-demo-cover" imageStatus={volume.coverStatus} imageUrl={volume.coverImageUrl} language={volume.language} series={volume.series} title={volume.title} volumeNumber={volume.volumeNumber} />
+                  </Link>
+                ) : <Link href={`/edition/${volume.editionId}`} className="home-shelf-gap"><span>{volume.label}</span></Link>}
+                <p className={volume.owned ? "is-owned" : "is-missing"}><i aria-hidden="true">{volume.owned ? "✓" : "−"}</i>{volume.owned ? "Owned" : "Missing"}</p>
+              </li>
+            ))}
+          </ol>
+        ) : <div className="home-shelf-demo-empty"><p>No manga here yet.</p><Link href="/browse">Find your first volume →</Link></div>}
+        <small className="home-shelf-demo-note">{activeRun ? `${activeRun.owned} of ${activeRun.tracked} volumes RAR currently catalogues in this run.` : "Private by default."}</small>
+      </article>
     </section>
   );
 }

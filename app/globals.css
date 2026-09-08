@@ -4426,6 +4426,62 @@ html[data-theme="day"] .edition-page {
 .edition-page .price-history-section { margin: 0; padding: 2.8rem 3.3vw 3.5rem; border: 0; border-radius: 0; background: #fff; box-shadow: none; }
 .edition-page .price-history-section .section-intro h2 { margin: 0; font-size: clamp(2.35rem, 3.4vw, 3.45rem); line-height: .95; }
 
+/* The mockups show physical books, not flat cover tiles. */
+.home-floating-book {
+  --book-lift: calc((var(--book-index) % 3) * 7px);
+  position: relative; display: block; width: 100%; align-self: center;
+  transform: perspective(900px) translateY(var(--book-lift)) rotateY(-5deg) rotateZ(-.6deg);
+  transform-origin: right center; transition: transform .28s ease, filter .28s ease;
+  filter: drop-shadow(9px 15px 10px rgba(15, 20, 28, .17));
+}
+.home-floating-book:nth-child(even) { transform: perspective(900px) translateY(calc(var(--book-lift) - 10px)) rotateY(-4deg) rotateZ(.8deg); }
+.home-floating-book:hover { z-index: 3; transform: perspective(900px) translateY(-13px) rotateY(0) rotateZ(0) scale(1.035); filter: drop-shadow(13px 20px 14px rgba(15,20,28,.2)); }
+.home-floating-book > span {
+  position: absolute; z-index: -1; top: 5px; right: -8px; bottom: 2px; width: 9px;
+  background: linear-gradient(90deg, #7f848c, #f3f3f0 45%, #a7abb0); transform: skewY(42deg); transform-origin: left top;
+}
+.home-floating-book .edition-cover { width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 1px 3px 3px 1px; background: #fff; }
+.home-floating-book .edition-cover img { width: 100%; height: 100%; max-height: none; object-fit: cover; animation: none; }
+
+.home-page .home-spotlight-cover-wrap { position: relative; perspective: 1100px; }
+.home-page .home-spotlight-cover-wrap .home-book-depth {
+  position: absolute; z-index: -1; top: 10px; right: 4%; bottom: 4px; width: 16px;
+  background: linear-gradient(90deg, #767b82, #f4f1e9 45%, #8c9197); transform: skewY(42deg);
+}
+.home-page .home-spotlight-cover { transform: rotateY(-3deg); transform-origin: right center; }
+.edition-page .edition-stage-book { perspective: 1200px; }
+.edition-page .edition-stage-book::after {
+  content: ""; position: absolute; z-index: -1; top: 12px; right: -13px; bottom: 8px; width: 15px;
+  background: linear-gradient(90deg, #686c73, #f4f1e9 44%, #8e9399); transform: skewY(40deg); box-shadow: 6px 13px 15px rgba(0,0,0,.13);
+}
+.edition-page .edition-stage .edition-hero-cover { transform: rotateY(-2.5deg); transform-origin: right center; }
+
+.home-shelf-demo li > a:not(.home-shelf-gap) { display: block; transform: perspective(700px) rotateY(-3deg); transform-origin: right center; filter: drop-shadow(4px 8px 5px rgba(16,20,28,.12)); }
+.home-shelf-demo-cover { box-shadow: none; }
+.home-shelf-demo-actions { display: flex; gap: .5rem; }
+.home-shelf-demo-actions a { padding: .65rem .85rem; border: 1px solid #15171b; border-radius: .2rem; color: #15171b; font-size: .7rem; }
+.home-shelf-demo-empty { display: grid; place-items: center; min-height: 185px; border: 1px dashed #c9cdd3; color: #687181; }
+.home-shelf-demo-empty p { margin: 0; font-family: var(--editorial-serif); font-size: 1.4rem; }
+.home-shelf-demo-empty a { color: #d80d1c; font-size: .78rem; }
+
+/* Preserve RAR's established interactive line graph; only its palette and
+   surrounding surface change to the editorial mockup colours. */
+html .edition-page .price-history-multi {
+  --series-0: #d80d1c;
+  --series-1: #2f63a3;
+  --series-2: #2f8f68;
+  --series-3: #d26a2e;
+  --series-4: #7657a5;
+  --series-5: #aa2430;
+}
+.edition-page .price-history-multi, .edition-page .price-history-card { max-width: 980px; }
+.edition-page .price-history-multi .price-chart-wrap, .edition-page .price-history-card .ghost-chart {
+  border-color: #d8dde4; background: #f8fafc; box-shadow: 0 18px 42px rgba(25,34,48,.055);
+}
+.edition-page .price-chart.is-multi .chart-gradient-start { stop-opacity: .16; }
+.edition-page .chart-range-selector button.is-active { background: #d80d1c; }
+.edition-page .chart-legend-toggle { background: #fff; }
+
 @media (max-width: 1120px) {
   .home-page .home-shelf-invite { grid-template-columns: 1fr; }
   .edition-page .edition-stage-inner { grid-template-columns: minmax(360px, 42%) minmax(0, 58%); }
