@@ -4240,29 +4240,32 @@ html[data-theme="day"] .edition-page {
 .home-collector-note span { padding-left: 1rem; border-left: 1px solid #bcc0c7; }
 
 .home-page .home-spotlight {
-  grid-template-columns: minmax(190px, .58fr) minmax(300px, 1fr); grid-template-areas: "copy cover";
+  grid-template-columns: minmax(190px, 25%) minmax(0, 75%); grid-template-areas: "copy cover";
   align-self: stretch; min-height: 650px; padding: 2.8rem 2.2rem 1.4rem 1rem; border: 0; border-radius: 0;
   background: #fff; box-shadow: none;
 }
 .home-page .home-spotlight::before {
-  content: ""; position: absolute; z-index: -1; right: 4%; bottom: 5%; width: 38%; height: 48%;
-  border-radius: 2rem 8rem 2rem 7rem; background: linear-gradient(145deg, #e20c20 0 82%, #ffe82d 82%);
-  transform: rotate(-9deg); opacity: .92;
+  content: ""; position: absolute; z-index: -2; left: 10%; bottom: 15%; width: 34%; height: 22%;
+  border-radius: 2rem 7rem 1.8rem 2.6rem; background: #ffe12b;
+  transform: rotate(-9deg); opacity: .96;
 }
-.home-page .home-spotlight::after { display: none; }
+.home-page .home-spotlight::after {
+  content: ""; display: block; position: absolute; z-index: -1; inset: auto auto 17% 9.5%; width: 34%; height: 22%;
+  border-radius: 2rem 7rem 1.8rem 2.6rem; background: #e20c20; filter: none; opacity: 1; transform: rotate(-7deg);
+}
 .home-page .home-spotlight-sketch {
-  inset: -9% -3% -7% 40%;
+  inset: -16% -2% -7% 49%; z-index: -3;
   background-image: url("/rar-dragon-ball-hero-sketch-clean.png");
-  background-repeat: no-repeat; background-size: auto 116%; background-position: 92% 52%;
-  filter: grayscale(1) contrast(1.08); opacity: .19;
-  mask-image: linear-gradient(90deg, transparent 0%, #000 23%, #000 84%, transparent 100%);
+  background-repeat: no-repeat; background-size: auto 128%; background-position: 100% 45%;
+  filter: grayscale(1) contrast(1.1); opacity: .31;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 24%, #000 100%);
 }
-.home-page .home-spotlight-cover-wrap { grid-area: cover; align-self: center; z-index: 2; transform: rotate(2deg); }
-.home-page .home-spotlight-cover { width: min(88%, 390px); margin: auto; border-radius: 0; box-shadow: 14px 24px 42px rgba(0,0,0,.25); }
-.home-page .home-spotlight-copy { grid-area: copy; align-self: center; z-index: 3; padding: 0; }
+.home-page .home-spotlight-cover-wrap { grid-area: cover; align-self: center; justify-self: start; width: min(100%, 378px); margin-left: -1rem; z-index: 2; transform: translateY(-40px) rotate(2deg); }
+.home-page .home-spotlight-cover { width: 100%; margin: 0; border-radius: 0; box-shadow: 14px 24px 42px rgba(0,0,0,.25); }
+.home-page .home-spotlight-copy { grid-area: copy; align-self: center; z-index: 3; padding: 0; transform: translateY(-70px); }
 .home-page .home-spotlight-copy .eyebrow { color: #d80d1c; line-height: 1.5; }
 .home-page .home-spotlight-copy .eyebrow::after { content: ""; display: block; width: 1.8rem; height: 3px; margin-top: .7rem; background: #e10e1e; }
-.home-page .home-spotlight-copy h2 { color: #0b0b0d; font-size: clamp(2rem, 2.8vw, 3rem); line-height: .95; }
+.home-page .home-spotlight-copy h2 { color: #0b0b0d; font-size: clamp(2rem, 2.4vw, 2.55rem); line-height: .95; }
 .home-page .home-spotlight-copy > p:not(.eyebrow) { color: #5f6879; font-size: .86rem; }
 .home-page .home-spotlight-copy a { min-height: 3.2rem; justify-content: center; padding: .8rem 1.2rem; border-radius: .2rem; background: #d80d1c; color: #fff; font-family: var(--editorial-serif); font-size: .95rem; }
 .home-page .home-spotlight-copy a span { width: auto; height: auto; background: transparent; font-size: 1.35rem; }
@@ -4360,8 +4363,12 @@ html[data-theme="day"] .edition-page {
   .home-page .home-hero-copy { min-height: 570px; padding: 3.5rem 1rem; }
   .home-page .home-hero h1 { max-width: 10ch; font-size: clamp(3.65rem, 17vw, 5.2rem); }
   .home-page .home-spotlight { grid-template-columns: 36% 64%; min-height: 430px; padding: 1.8rem .8rem 1rem; }
+  .home-page .home-spotlight::before { left: 46%; bottom: 7%; width: 54%; height: 38%; }
+  .home-page .home-spotlight::after { left: 44%; bottom: 9%; width: 54%; height: 38%; }
+  .home-page .home-spotlight-cover-wrap { width: 100%; margin-left: 0; transform: rotate(2deg); }
+  .home-page .home-spotlight-copy { transform: none; }
   .home-page .home-spotlight-cover { width: min(94%, 250px); }
-  .home-page .home-spotlight-sketch { inset: -4% -30% -5% 30%; background-position: 58% center; opacity: .12; }
+  .home-page .home-spotlight-sketch { inset: -8% -36% -6% 47%; background-position: 100% 44%; opacity: .18; }
   .home-page .home-spotlight-copy h2 { font-size: 1.65rem; }
   .home-page .home-spotlight-copy a { padding: .7rem .55rem; font-size: .8rem; }
   .home-page .home-discovery-rail { padding-inline: 1rem; overflow-x: auto; }
@@ -4448,7 +4455,7 @@ html[data-theme="day"] .edition-page {
 
 .home-page .home-spotlight-cover-wrap { position: relative; perspective: 1100px; }
 .home-page .home-spotlight-cover-wrap .home-book-depth {
-  position: absolute; z-index: -1; top: 10px; right: 4%; bottom: 4px; width: 16px;
+  position: absolute; z-index: -1; top: 10px; right: -11px; bottom: 4px; width: 16px;
   background: linear-gradient(90deg, #767b82, #f4f1e9 45%, #8c9197); transform: skewY(42deg);
 }
 .home-page .home-spotlight-cover { transform: rotateY(-3deg); transform-origin: right center; }
