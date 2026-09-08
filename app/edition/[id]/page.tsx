@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import PublicationPrintTabs, { type PublicationSale } from "@/components/PublicationPrintTabs";
+import EditionHeroActions from "@/components/EditionHeroActions";
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import EditionCover from "@/components/EditionCover";
@@ -417,7 +418,6 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     ? [edition.issue_year, edition.issue_number_label ? `Issue ${edition.issue_number_label}` : null].filter(Boolean).join(" · ")
     : null;
   const displayTitle = isMagazine ? edition.series || edition.title : edition.title;
-  const originalTitle = isMagazine && edition.series && edition.title !== edition.series ? edition.title : null;
   const magazineSubjects = recognisedSeries.length ? recognisedSeries : firstAppearances;
   const magazineSubjectLabel = magazineSubjects.join(" · ");
   const readerTagline = isMagazine && magazineSubjects.length
@@ -475,7 +475,8 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <nav className="header-links" aria-label="Main navigation">
           <Link className="header-note" href="/browse">Discover</Link>
           <Link className="header-note" href="/collection">Collections</Link>
-          <Link className="header-note" href="/identify">First-print check</Link>
+          <Link className="header-note" href="/community-reports">Community</Link>
+          <Link className="header-note" href="/#about">About</Link>
           <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
           <Link className="header-shelf-link" href="/portfolio">Your collection <span>→</span></Link>
         </nav>
@@ -496,8 +497,12 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <EditionCover listingPhotoUrl={edition.listing_photo_url} title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           </div>
           <div className="edition-stage-copy">
-            <Link href="/" className="back-link">← Back to the index</Link>
-            {originalTitle || edition.imprint ? <p className="edition-imprint">{originalTitle || edition.imprint}</p> : null}
+            <nav className="edition-breadcrumb" aria-label="Breadcrumb">
+              <Link href="/browse">Discover</Link><span>/</span>
+              {edition.series ? <><Link href={`/browse?q=${encodeURIComponent(edition.series)}`}>{edition.series}</Link><span>/</span></> : null}
+              <span>{isMagazine ? issueLabel : edition.volume_number ? `Volume ${edition.volume_number}` : "Edition"}</span>
+            </nav>
+            <p className="edition-kicker">{isMagazine ? `${edition.series ?? "Magazine"} · ${issueLabel}` : `${edition.series ?? displayTitle} · ${edition.volume_number ? `Volume ${edition.volume_number}` : "Edition"}`}</p>
             <h1>{displayTitle}</h1>
             {edition.author ? <p className="edition-author">{edition.author}</p> : null}
             <p className="edition-subtitle">
@@ -519,10 +524,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 {editionIntro ? <p className="edition-reader-edition">{editionIntro}</p> : null}
               </div>
             ) : null}
-            <div className="edition-hero-actions">
-              <Link className="home-btn" href={`/portfolio?edition=${edition.id}`}>Add to collection <span>→</span></Link>
-              <Link className="home-btn is-quiet" href={`/browse?q=${encodeURIComponent(edition.series ?? displayTitle ?? "")}`}>Explore the series</Link>
-            </div>
+            <EditionHeroActions editionId={String(edition.id)} title={displayTitle} />
             {previousVolume || nextVolume ? (
               <nav aria-label="Volume navigation" className="volume-nav">
                 {previousVolume
@@ -656,10 +658,11 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           </section>
         ) : null}
 
-        <section className="price-history-section">
+        <section className="price-history-section" id="market-data">
           <div className="section-intro">
-            <p className="eyebrow">What copies actually sell for</p>
-            <h2>{isMagazine ? "Verified sales for this issue" : "Sold prices, by printing"}</h2>
+            <p className="eyebrow">Exact-edition evidence</p>
+            <h2>Market data</h2>
+            <p>Completed sales appear here only when they are matched to this exact {isMagazine ? "issue" : "edition"}.</p>
           </div>
           <PublicationPrintTabs firstPrintSales={firstPrintSales} otherSales={otherSales} rates={fxRates} sourceNames={sourceNamesObject} initialTab={initialTab} editionId={edition.id} series={edition.series} mode={isMagazine ? "exact_issue" : "publication_prints"} />
         </section>

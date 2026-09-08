@@ -144,6 +144,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
             <MarketValuePanel sales={verified} rates={rates} />
           </div>
           <PriceHistoryChart mode="exact_issue" rates={rates} sales={verified} />
+          <h2 className="market-receipts-heading">Verified sales and original receipts</h2>
           <SaleGroupList sales={exactIssueSales} sourceNames={sourceNames} showPrintClassification={false} />
         </div>
       </div>
@@ -170,6 +171,8 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
   return (
     <div className="publication-print-tabs">
       <PriceHistoryChart rates={rates} sales={allVerified} />
+
+      <h2 className="market-receipts-heading">Verified sales and original receipts</h2>
 
       <div className="print-tab-bar" role="tablist" aria-label="Print groups">
         <button type="button" role="tab" aria-selected={tab === "first"} className={tab === "first" ? "is-active" : ""} onClick={() => setTab("first")}>

@@ -4,16 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { buildSeriesProgress, type CatalogueVolume, type SeriesProgressEntry } from "@/lib/seriesCompletion";
+import EditionCover from "@/components/EditionCover";
 
 // The collection, on the homepage, for whoever is actually looking at it.
 //
 // Every figure on this panel comes from the signed-in collector's own rows in
 // portfolio_holdings, read through the same anon client and the same RLS that
 // /portfolio uses -- there is no second source of truth and no second login.
-// A visitor who is not signed in sees no collection figures at all, because
-// RAR does not have their collection yet and inventing a plausible-looking one
-// to fill the space would be the same class of fabrication as inventing a
-// price.
+// A visitor who is not signed in sees a clearly labelled product preview made
+// from real catalogue covers. Its example statuses are never counted as that
+// visitor's holdings and never touch collection or market data.
 //
 // The homepage is a server component and Supabase sessions live in the
 // browser, so this has to be a client island. It renders nothing but the
@@ -42,7 +42,17 @@ type ShelfState = {
   shelfIsPublic: boolean;
 };
 
-export default function HomeShelfPanel() {
+export type ShelfShowcaseVolume = {
+  id: string;
+  title: string | null;
+  series: string | null;
+  volumeNumber: string;
+  language: string | null;
+  coverImageUrl: string | null;
+  coverStatus: string | null;
+};
+
+export default function HomeShelfPanel({ showcase = [] }: { showcase?: ShelfShowcaseVolume[] }) {
   const [signedIn, setSignedIn] = useState(false);
   const [shelf, setShelf] = useState<ShelfState | null>(null);
 
@@ -131,9 +141,12 @@ export default function HomeShelfPanel() {
     );
   }
 
-  // Signed out. No counts, no sample shelf, no silhouette of a collection that
-  // isn't theirs.
+  // Signed-out visitors see a clearly labelled product preview built from
+  // real catalogue covers. It demonstrates the shelf interaction without
+  // presenting the example statuses as the visitor's own holdings.
   if (!shelf) {
+    const showcaseByVolume = new Map(showcase.map((volume) => [volume.volumeNumber, volume]));
+    const previewSlots = ["1", "2", "3", "4", "5", "6", "7", "8"];
     return (
       <section className="home-shelf home-shelf-invite" aria-labelledby="home-shelf-heading">
         <div className="home-shelf-invite-copy">
@@ -142,19 +155,36 @@ export default function HomeShelfPanel() {
           <p>
             Add manga as you collect, organise complete runs, and keep a reading list that actually feels manageable.
           </p>
-          <div className="home-actions">
-            <Link className="home-btn" href="/portfolio">Start your shelf</Link>
-            <Link className="home-btn is-quiet" href="/browse">Browse manga</Link>
-          </div>
-          <p className="home-shelf-note">
-            Free, and private by default. Nothing about your collection is published until you switch it on.
-          </p>
+          <ul className="home-shelf-promises">
+            <li><b>1</b><strong>Track</strong><span>Keep every volume in one place.</span></li>
+            <li><b>2</b><strong>Curate</strong><span>Make shelves for favourites, genres, and reading plans.</span></li>
+            <li><b>3</b><strong>Share</strong><span>Publish a collection profile when you&apos;re ready.</span></li>
+          </ul>
         </div>
-        <ul className="home-shelf-promises">
-          <li><strong>1 · Track</strong><span>Keep every volume organised in one place.</span></li>
-          <li><strong>2 · Curate</strong><span>Make shelves for favourites, genres, and reading plans.</span></li>
-          <li><strong>3 · Share</strong><span>Publish a collection profile when you&apos;re ready.</span></li>
-        </ul>
+        <article className="home-shelf-demo" aria-label="Example Dragon Ball collection shelf">
+          <header>
+            <div><small>Shelf preview</small><h3>Dragon Ball</h3></div>
+            <Link href="/portfolio">Manage shelf</Link>
+          </header>
+          <ol>
+            {previewSlots.map((slot) => {
+              const volume = showcaseByVolume.get(slot);
+              const missing = slot === "4" || slot === "7";
+              const read = slot === "3" || slot === "8";
+              return (
+                <li className={missing ? "is-missing" : ""} key={slot}>
+                  {missing ? <Link href="/browse" className="home-shelf-gap"><span>{slot}</span></Link> : volume ? (
+                    <Link href={`/edition/${volume.id}`}>
+                      <EditionCover className="home-shelf-demo-cover" imageStatus={volume.coverStatus} imageUrl={volume.coverImageUrl} language={volume.language} series={volume.series} title={volume.title} volumeNumber={volume.volumeNumber} />
+                    </Link>
+                  ) : <Link href="/browse" className="home-shelf-gap"><span>{slot}</span></Link>}
+                  <p className={missing ? "is-missing" : read ? "is-read" : "is-owned"}><i aria-hidden="true">{missing ? "−" : read ? "▮▮" : "✓"}</i>{missing ? "Missing" : read ? "Read" : "Owned"}</p>
+                </li>
+              );
+            })}
+          </ol>
+          <small className="home-shelf-demo-note">Example statuses · your shelf stays private until you choose to share it.</small>
+        </article>
       </section>
     );
   }

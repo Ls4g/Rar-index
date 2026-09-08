@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- verified publisher covers use multiple remote hosts */
 import type { Manga } from "@/components/MangaSearch";
 import type { WallCover } from "@/components/CoverWall";
-import HomeShelfPanel from "@/components/HomeShelfPanel";
+import HomeShelfPanel, { type ShelfShowcaseVolume } from "@/components/HomeShelfPanel";
 import SaleSparkline, { type SalePoint } from "@/components/SaleSparkline";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -122,6 +122,15 @@ export default async function Home() {
     ?? catalogue.find((edition) => edition.isbn_13 === "9781569319208" && edition.language === "English")
     ?? null;
   const spotlightAccent = spotlightSelection?.accent_color ?? "#e31b23";
+
+  const dragonBallShowcase: ShelfShowcaseVolume[] = catalogue
+    .filter((edition) => edition.series === "Dragon Ball" && edition.language === "English" && edition.volume_number && Number(edition.volume_number) >= 1 && Number(edition.volume_number) <= 8)
+    .sort((left, right) => Number(left.volume_number) - Number(right.volume_number))
+    .filter((edition, index, rows) => rows.findIndex((candidate) => candidate.volume_number === edition.volume_number) === index)
+    .map((edition) => ({
+      id: String(edition.id), title: edition.title, series: edition.series, volumeNumber: String(edition.volume_number),
+      language: edition.language, coverImageUrl: edition.cover_image_url, coverStatus: edition.cover_verification_status,
+    }));
 
   const readinessById = new Map((readinessRows ?? []).map((row) => [row.publication_id, row]));
   const saleCounts = new Map<string, number>();
@@ -359,9 +368,10 @@ export default async function Home() {
         <nav className="header-links" aria-label="Main navigation">
           <Link className="header-note" href="/browse">Discover</Link>
           <Link className="header-note" href="/collection">Collections</Link>
-          <Link className="header-note" href="/identify">First-print check</Link>
+          <Link className="header-note" href="/community-reports">Community</Link>
+          <Link className="header-note" href="#about">About</Link>
           <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
-          <Link className="header-shelf-link" href="/portfolio">Start your collection <span>→</span></Link>
+          <Link className="header-shelf-link" href="/portfolio">Your collection <span>→</span></Link>
         </nav>
       </header>
 
@@ -413,26 +423,19 @@ export default async function Home() {
       {/* ------------------------------------------------------------ shelf */}
       {/* Real holdings for whoever is signed in, and an invitation for
           everyone else. Never a sample collection dressed as theirs. */}
-      <HomeShelfPanel />
+      <HomeShelfPanel showcase={dragonBallShowcase} />
 
-      {/* ------------------------------------------------------------ share */}
-      <section className="index-section home-share-section" aria-labelledby="home-share-heading">
-        <div className="home-share">
-          <div className="home-share-copy">
-            <p className="eyebrow">Make it yours</p>
-            <h2 id="home-share-heading">A shelf worth sharing</h2>
-            <p className="section-copy">
-              Claim a handle and turn your collection into a page made from the manga you love. Share your covers and exact editions while purchase prices, dates, quantities, and notes stay private.
-            </p>
-            <div className="home-actions">
-              <Link className="home-btn" href="/portfolio">Create your shelf</Link>
-            </div>
-          </div>
-          <ul className="home-share-facts">
-            <li><strong>Public by choice</strong><span>Your covers, series, and exact editions in one clean profile.</span></li>
-            <li><strong>Private by default</strong><span>Your prices, dates, quantities, and personal notes remain yours.</span></li>
-          </ul>
+      <section className="home-context-band" id="about" aria-labelledby="home-context-heading">
+        <div className="home-context-title">
+          <p className="eyebrow">RAR knows the difference</p>
+          <h2 id="home-context-heading">More context, when you want it.</h2>
         </div>
+        <ul>
+          <li><i aria-hidden="true">▤</i><div><strong>Exact editions</strong><span>Publisher, format, printing, and ISBN.</span></div></li>
+          <li><i aria-hidden="true">⌕</i><div><strong>Completed sales</strong><span>Only evidence matched to the correct edition.</span></div></li>
+          <li><i aria-hidden="true">↗</i><div><strong>Source linked</strong><span>Every verified result keeps its original receipt.</span></div></li>
+        </ul>
+        <Link className="home-btn" href="/portfolio">Start your collection <span>→</span></Link>
       </section>
 
       {/* ------------------------------------------------------------ worth */}

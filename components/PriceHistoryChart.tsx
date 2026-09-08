@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { convertSale, formatPrice, type ConvertedSale, type FxRate } from "@/lib/fx";
+import { convertSale, DISPLAY_CURRENCIES, formatPrice, type ConvertedSale, type FxRate } from "@/lib/fx";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 import ChartRangeSelector from "@/components/ChartRangeSelector";
 import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
@@ -163,9 +163,10 @@ function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarke
 }
 
 export default function PriceHistoryChart({ sales, rates, mode = "publication_prints" }: PriceHistoryChartProps) {
-  const { currency } = useMarketCurrency();
+  const { currency, setCurrency } = useMarketCurrency();
   const gradientId = useId();
   const [range, setRange] = useState<ChartRangeKey>("MAX");
+  const [copyType, setCopyType] = useState<"raw" | "graded">("raw");
   // Which lines the reader has explicitly switched off. Stored as the
   // exception rather than as the visible set, so a line that appears later
   // (a new printing, the first graded sale) shows up instead of silently
@@ -173,13 +174,16 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
-  const full = useMemo(() => prepareSeries(sales, currency, rates), [sales, currency, rates]);
+  const eligibleSales = useMemo(() => sales.filter((sale) => copyType === "graded"
+    ? Boolean(sale.grading_company || sale.grade_label)
+    : !sale.grading_company && !sale.grade_label), [sales, copyType]);
+  const full = useMemo(() => prepareSeries(eligibleSales, currency, rates), [eligibleSales, currency, rates]);
   const ranged = useMemo(() => {
     const cutoff = chartRangeCutoff(range);
     if (cutoff === null) return full;
-    const withinRange = sales.filter((sale) => sale.sold_date && new Date(`${sale.sold_date}T00:00:00`).getTime() >= cutoff);
+    const withinRange = eligibleSales.filter((sale) => sale.sold_date && new Date(`${sale.sold_date}T00:00:00`).getTime() >= cutoff);
     return prepareSeries(withinRange, currency, rates);
-  }, [sales, currency, rates, range, full]);
+  }, [eligibleSales, currency, rates, range, full]);
 
   // Narrowing the window can drop every group below the minimum. RAR never
   // draws from fewer than three, so rather than showing a weaker chart the
@@ -311,13 +315,19 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
   if (!full.series.some((series) => series.chartable)) {
     return (
-      <div className="price-history-card price-history-empty">
+      <div className="price-history-card price-history-empty market-data-chart">
+        <div className="market-filter-bar">
+          <div className="market-copy-tabs" role="tablist" aria-label="Copy condition">
+            <button aria-selected={copyType === "raw"} className={copyType === "raw" ? "is-active" : ""} onClick={() => setCopyType("raw")} role="tab" type="button">Raw copies</button>
+            <button aria-selected={copyType === "graded"} className={copyType === "graded" ? "is-active" : ""} onClick={() => setCopyType("graded")} role="tab" type="button">Graded copies</button>
+          </div>
+          <label className="market-currency-select">Currency<select onChange={(event) => setCurrency(event.target.value as typeof currency)} value={currency}>{DISPLAY_CURRENCIES.map((code) => <option key={code}>{code}</option>)}</select></label>
+        </div>
         <div className="price-history-heading">
           <div>
-            <p className="eyebrow">RAR market history</p>
-            <h2>Price history</h2>
+            <h2>Completed sale history</h2>
           </div>
-          <span className="chart-status">Evidence building</span>
+          <ChartRangeSelector label="Price history time range" onChange={setRange} value={range} />
         </div>
         <GhostChart best={full.best} missingRates={full.missingRates} />
         <ThingsToKnow />
@@ -344,13 +354,28 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
       };
     })()
     : null;
+  const metricSales = visibleSeries.flatMap((series) => series.convertedSales);
+  const metricValues = metricSales.map((sale) => sale.converted_price).sort((left, right) => left - right);
+  const metricMedian = metricValues.length
+    ? metricValues.length % 2
+      ? metricValues[Math.floor(metricValues.length / 2)]
+      : (metricValues[metricValues.length / 2 - 1] + metricValues[metricValues.length / 2]) / 2
+    : null;
 
   return (
-    <div className="price-history-multi">
+    <div className="price-history-multi market-data-chart">
+      <div className="market-filter-bar">
+        <div className="market-copy-tabs" role="tablist" aria-label="Copy condition">
+          <button aria-selected={copyType === "raw"} className={copyType === "raw" ? "is-active" : ""} onClick={() => setCopyType("raw")} role="tab" type="button">Raw copies</button>
+          <button aria-selected={copyType === "graded"} className={copyType === "graded" ? "is-active" : ""} onClick={() => setCopyType("graded")} role="tab" type="button">Graded copies</button>
+        </div>
+        <label className="market-currency-select">Currency<select onChange={(event) => setCurrency(event.target.value as typeof currency)} value={currency}>{DISPLAY_CURRENCIES.map((code) => <option key={code}>{code}</option>)}</select></label>
+      </div>
+      <div className="market-chart-layout">
+      <div className="market-chart-main">
       <div className="price-history-heading">
         <div>
-          <p className="eyebrow">RAR market history</p>
-          <h2>Price history</h2>
+          <h2>Completed sale history</h2>
         </div>
         <ChartRangeSelector label="Price history time range" onChange={setRange} value={range} />
       </div>
@@ -445,16 +470,24 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                 </g>
               ))}
               {plot.xTicks.map((tick, index) => (
-                <text
-                  className="chart-axis-label"
-                  key={tick.date.getTime()}
-                  textAnchor={index === 0 ? "start" : index === plot.xTicks.length - 1 ? "end" : "middle"}
-                  x={tick.x}
-                  y={HEIGHT - 12}
-                >
-                  {tick.label}
-                </text>
+                <g key={tick.date.getTime()}>
+                  <line className="chart-gridline chart-gridline-vertical" x1={tick.x} x2={tick.x} y1={PADDING_TOP} y2={plot.baselineY} />
+                  <text
+                    className="chart-axis-label"
+                    textAnchor={index === 0 ? "start" : index === plot.xTicks.length - 1 ? "end" : "middle"}
+                    x={tick.x}
+                    y={HEIGHT - 12}
+                  >
+                    {tick.label}
+                  </text>
+                </g>
               ))}
+              {metricMedian !== null ? (
+                <g className="chart-median">
+                  <line className="chart-median-line" x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={plot.yFor(metricMedian)} y2={plot.yFor(metricMedian)} />
+                  <text className="chart-median-label" x={PADDING_LEFT + 8} y={plot.yFor(metricMedian) - 8}>Median {formatPrice(metricMedian, currency)}</text>
+                </g>
+              ) : null}
               <line className="chart-active-guide" x1={activePoint.x} x2={activePoint.x} y1={PADDING_TOP} y2={plot.baselineY} />
 
               {/* A single line keeps its area fill; several would layer
@@ -526,6 +559,14 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
         currency stay visible in the sale record below.
       </p>
       <ThingsToKnow />
+      </div>
+      <aside className="market-metrics" aria-label="Sale summary">
+        <div><strong>{metricSales.length}</strong><span>verified sale{metricSales.length === 1 ? "" : "s"}</span></div>
+        <div><strong>{metricMedian === null ? "—" : formatPrice(metricMedian, currency)}</strong><span>median</span></div>
+        <div><strong>{metricValues.length ? `${formatPrice(metricValues[0], currency)}–${formatPrice(metricValues.at(-1) as number, currency)}` : "—"}</strong><span>observed range</span></div>
+        <p><i aria-hidden="true" />Small sample — check each receipt and condition note.</p>
+      </aside>
+      </div>
     </div>
   );
 }
