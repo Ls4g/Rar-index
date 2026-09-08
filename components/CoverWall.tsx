@@ -43,7 +43,7 @@ export default function CoverWall({ covers }: { covers: WallCover[] }) {
             key={columnIndex}
             // Different speeds per column; the pairing with alternating
             // direction is what keeps rows from re-forming as it loops.
-            style={{ animationDuration: `${38 + (columnIndex % 3) * 13}s` }}
+            style={{ animationDuration: `${58 + (columnIndex % 3) * 17}s` }}
           >
             {/* Rendered twice and translated by exactly half its own height,
                 so the loop closes seamlessly with nothing measured at runtime. */}

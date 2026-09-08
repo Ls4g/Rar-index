@@ -468,7 +468,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   ]).filter(([, value]) => value) as Array<[string, string]>;
 
   return (
-    <main className="public-page">
+    <main className="public-page edition-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home">
           <span className="brand-mark">R</span>
@@ -476,11 +476,11 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           <em>Index</em>
         </Link>
         <nav className="header-links" aria-label="Main navigation">
+          <Link className="header-note" href="/browse">Discover</Link>
+          <Link className="header-note" href="/collection">Collections</Link>
           <Link className="header-note" href="/identify">First-print check</Link>
-          <Link className="header-note" href="/browse">Browse catalogue</Link>
-          <Link className="header-note" href="/portfolio">Portfolio -&gt;</Link>
-          <Link className="header-note" href="/staff-login">Staff access</Link>
           <ThemeToggle />
+          <Link className="header-shelf-link" href="/portfolio">My shelf</Link>
         </nav>
       </header>
 
@@ -521,6 +521,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 {editionIntro ? <p className="edition-reader-edition">{editionIntro}</p> : null}
               </div>
             ) : null}
+            <div className="edition-hero-actions">
+              <Link className="home-btn" href={`/portfolio?edition=${edition.id}`}>Add to my shelf</Link>
+              <Link className="home-btn is-quiet" href={`/browse?q=${encodeURIComponent(edition.series ?? displayTitle ?? "")}`}>Explore the series</Link>
+            </div>
             {previousVolume || nextVolume ? (
               <nav aria-label="Volume navigation" className="volume-nav">
                 {previousVolume

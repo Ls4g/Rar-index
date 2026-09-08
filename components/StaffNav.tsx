@@ -34,6 +34,7 @@ const MORE_GROUPS: NavGroup[] = [
   {
     label: "Monitor RAR",
     links: [
+      { href: "/homepage-spotlight", label: "Homepage spotlight" },
       { href: "/coverage-dashboard", label: "Catalogue coverage" },
       { href: "/data-readiness", label: "Data readiness" },
     ],

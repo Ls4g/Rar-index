@@ -40,6 +40,7 @@ export const config = {
     "/cover-review/:path*",
     "/agents/:path*",
     "/agent-learning/:path*",
+    "/homepage-spotlight/:path*",
     "/api/review/:path*",
     "/api/listing-outcomes/:path*",
     "/api/print-classification/:path*",
@@ -57,5 +58,6 @@ export const config = {
     "/api/cover-review/:path*",
     "/api/agents/:path*",
     "/api/agent-reliability/:path*",
+    "/api/homepage-spotlight/:path*",
   ],
 };

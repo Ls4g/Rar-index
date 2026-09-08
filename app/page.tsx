@@ -12,6 +12,7 @@ import { formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/li
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import { HomeMarketCurrencyControl, HomePrice } from "@/components/HomeMarketDisplay";
 import { comparisonGroup, type FxRate } from "@/lib/fx";
+import type { CSSProperties } from "react";
 
 // The homepage is ordered around the collection, not the price.
 //
@@ -73,7 +74,8 @@ type LiveLead = {
 };
 
 export default async function Home() {
-  const [{ count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: readinessRows }] = await Promise.all([
+  const admin = getSupabaseAdmin();
+  const [{ count }, { count: evidenceCount }, { count: firstPrintCount }, { data: allCatalogue }, { data: readinessRows }, { data: spotlightSelectionData }] = await Promise.all([
     supabase
       .from("manga_editions")
       .select("id", { count: "exact", head: true })
@@ -92,7 +94,7 @@ export default async function Home() {
       .eq("has_first_print_evidence", true),
     supabase
       .from("manga_editions")
-      .select("id, title, series, volume_number, author, publisher, language, isbn_13, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status, issue_year, issue_number_label, cumulative_issue_no, madb_id")
+      .select("id, title, series, volume_number, author, publisher, language, country, isbn_13, format, release_date, edition_statement, printing_number, variant_name, collectible_type, cover_image_url, cover_verification_status, issue_year, issue_number_label, cumulative_issue_no, madb_id")
       .eq("is_verified", true)
       .eq("record_kind", "publication")
       .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
@@ -102,7 +104,24 @@ export default async function Home() {
     supabase
       .from("publication_print_readiness")
       .select("publication_id,first_print_proven_sale_count,total_verified_sale_count,has_first_print_evidence"),
+    admin
+      .from("homepage_feature_selections")
+      .select("edition_id,accent_color")
+      .eq("slot", "edition_of_week")
+      .order("selected_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
+
+  const spotlightSelection = spotlightSelectionData as { edition_id: string; accent_color: string } | null;
+  const catalogue = (allCatalogue ?? []) as Manga[];
+  // Dragon Ball Vol. 1 is the staff-approved launch choice. This fallback
+  // only covers the deployment window before the additive migration lands;
+  // after that, the latest staff selection is always authoritative.
+  const spotlightEdition = catalogue.find((edition) => String(edition.id) === spotlightSelection?.edition_id)
+    ?? catalogue.find((edition) => edition.isbn_13 === "9781569319208" && edition.language === "English")
+    ?? null;
+  const spotlightAccent = spotlightSelection?.accent_color ?? "#e31b23";
 
   const readinessById = new Map((readinessRows ?? []).map((row) => [row.publication_id, row]));
   const saleCounts = new Map<string, number>();
@@ -113,7 +132,7 @@ export default async function Home() {
   // Best-documented first: a verified cover alongside a verified sale is what
   // actually makes a record useful to a collector browsing right now, so it
   // outranks a higher sale count with no confirmed cover art.
-  const pricedRanked = ((allCatalogue ?? []) as Manga[])
+  const pricedRanked = catalogue
     .filter((edition) => (saleCounts.get(String(edition.id)) ?? 0) > 0)
     .sort((a, b) => {
       const coverRank = Number(b.cover_verification_status === "verified") - Number(a.cover_verification_status === "verified");
@@ -142,7 +161,7 @@ export default async function Home() {
   // different lens on data RAR already verified: a publication with at least
   // one sale proven a first print via direct copyright-page evidence, never
   // merely inferred from a release date or from an edition's own name.
-  const firstPrintWatch = ((allCatalogue ?? []) as Manga[])
+  const firstPrintWatch = catalogue
     .filter((edition) => readinessById.get(String(edition.id))?.has_first_print_evidence)
     .sort((a, b) => {
       const coverRank = Number(b.cover_verification_status === "verified") - Number(a.cover_verification_status === "verified");
@@ -151,7 +170,7 @@ export default async function Home() {
     })
     .slice(0, 4);
 
-  const verifiedCoverCandidates = ((allCatalogue ?? []) as Manga[])
+  const verifiedCoverCandidates = catalogue
     .filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url)
     .sort((a, b) => (saleCounts.get(String(b.id)) ?? 0) - (saleCounts.get(String(a.id)) ?? 0));
 
@@ -238,7 +257,6 @@ export default async function Home() {
 
   // A recent-sales activity feed and live buying opportunities, both drawn
   // across the whole catalogue rather than one edition at a time.
-  const admin = getSupabaseAdmin();
   const [{ data: recentSalesData }, { data: liveProfileData }] = await Promise.all([
     supabase
       .from("price_observations")
@@ -338,46 +356,77 @@ export default async function Home() {
           <em>Index</em>
         </a>
         <nav className="header-links" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Browse manga</Link>
+          <Link className="header-note" href="/browse">Discover</Link>
+          <Link className="header-note" href="/collection">Collections</Link>
           <Link className="header-note" href="/identify">First-print check</Link>
-          <Link className="header-note" href="/portfolio">My shelf</Link>
-          <Link className="header-note" href="/staff-login">Staff access</Link>
           <HomeMarketCurrencyControl />
           <ThemeToggle />
+          <Link className="header-shelf-link" href="/portfolio">My shelf</Link>
         </nav>
       </header>
 
       {/* ------------------------------------------------------------- hero */}
-      {/* The shelf is the hero: the thing the visitor came to build, not a
-          valuation question. The wall beside it is RAR's own verified cover
-          art, so it argues the catalogue has depth without claiming any of it
-          belongs to the person looking. */}
       <section className="home-hero" id="top">
         <div className="home-hero-copy">
-          <p className="eyebrow">Manga collection tracker</p>
-          <h1>Track your manga, <mark>show off your collection</mark></h1>
+          <p className="eyebrow">Your shelf, your story</p>
+          <h1>Track your manga. <mark>Show off your collection.</mark></h1>
           <p className="home-lede">
-            Add what you own, see what you are missing, and put the whole thing on a page worth sending to
-            someone. RAR knows the exact edition — publisher, ISBN, printing — not just the title.
+            Build a home for every volume. Organise your library, follow your progress, and share the collection that is uniquely yours.
           </p>
-          <MangaSearch />
           <div className="home-actions">
-            <Link className="home-btn" href="/portfolio">Start your shelf</Link>
-            <Link className="home-btn is-quiet" href="/browse?evidence=verified-sales">Browse sold prices</Link>
+            <Link className="home-btn" href="/portfolio">Start your collection</Link>
+            <Link className="home-btn is-quiet" href="/browse">Explore manga</Link>
           </div>
-          <p className="home-edge">
-            {count ?? 0} publications catalogued · {evidenceCount ?? 0} with completed sales · every price linked to its receipt
-          </p>
+          <div className="home-hero-search"><MangaSearch /></div>
         </div>
-        <div className="home-hero-wall" aria-hidden="true">
-          <CoverWall covers={wallCovers} />
+        {spotlightEdition ? (
+          <article className="home-spotlight" style={{ "--spotlight-accent": spotlightAccent, "--spotlight-cover": `url(${JSON.stringify(spotlightEdition.cover_image_url)})` } as CSSProperties}>
+            <div className="home-spotlight-sketch" aria-hidden="true" />
+            <div className="home-spotlight-cover-wrap">
+              <EditionCover className="home-spotlight-cover" imageStatus={spotlightEdition.cover_verification_status} imageUrl={spotlightEdition.cover_image_url} language={spotlightEdition.language} priority series={spotlightEdition.series} title={spotlightEdition.title} volumeNumber={spotlightEdition.volume_number} />
+            </div>
+            <div className="home-spotlight-copy">
+              <p className="eyebrow">Edition of the Week</p>
+              <h2>{spotlightEdition.series || spotlightEdition.title}</h2>
+              <p>{[spotlightEdition.volume_number ? `Volume ${spotlightEdition.volume_number}` : null, publisherDisplayName(spotlightEdition.publisher), spotlightEdition.format, spotlightEdition.release_date ? formatSaleDate(spotlightEdition.release_date) : null].filter(Boolean).join(" · ")}</p>
+              <Link href={`/edition/${spotlightEdition.id}`}>View this edition <span>→</span></Link>
+            </div>
+          </article>
+        ) : null}
+      </section>
+
+      <section className="home-discovery-rail" aria-labelledby="discover-shelf-heading">
+        <div className="home-discovery-heading">
+          <div><p className="eyebrow">Find your next read</p><h2 id="discover-shelf-heading">Your collection starts with one volume</h2></div>
+          <p>{count ?? 0} verified publications to discover, organise, and make your own.</p>
         </div>
+        <CoverWall covers={wallCovers} />
       </section>
 
       {/* ------------------------------------------------------------ shelf */}
       {/* Real holdings for whoever is signed in, and an invitation for
           everyone else. Never a sample collection dressed as theirs. */}
       <HomeShelfPanel />
+
+      {/* ------------------------------------------------------------ share */}
+      <section className="index-section home-share-section" aria-labelledby="home-share-heading">
+        <div className="home-share">
+          <div className="home-share-copy">
+            <p className="eyebrow">Make it yours</p>
+            <h2 id="home-share-heading">A shelf worth sharing</h2>
+            <p className="section-copy">
+              Claim a handle and turn your collection into a page made from the manga you love. Share your covers and exact editions while purchase prices, dates, quantities, and notes stay private.
+            </p>
+            <div className="home-actions">
+              <Link className="home-btn" href="/portfolio">Create your shelf</Link>
+            </div>
+          </div>
+          <ul className="home-share-facts">
+            <li><strong>Public by choice</strong><span>Your covers, series, and exact editions in one clean profile.</span></li>
+            <li><strong>Private by default</strong><span>Your prices, dates, quantities, and personal notes remain yours.</span></li>
+          </ul>
+        </div>
+      </section>
 
       {/* ------------------------------------------------------------ worth */}
       {/* Second, deliberately. The edge that makes RAR hard to copy, offered
@@ -459,29 +508,6 @@ export default async function Home() {
         ) : (
           <div className="status-message">RAR is reviewing its first sale sources. Catalogue entries never receive a price until the source and edition match are confirmed.</div>
         )}
-      </section>
-
-      {/* ------------------------------------------------------------ share */}
-      <section className="index-section home-share-section" aria-labelledby="home-share-heading">
-        <div className="home-share">
-          <div className="home-share-copy">
-            <p className="eyebrow">Show it off</p>
-            <h2 id="home-share-heading">A shelf worth sending</h2>
-            <p className="section-copy">
-              Claim a handle and your shelf gets its own page at <code>/collectors/yourhandle</code>. It carries your
-              covers and which exact editions you own — never what you paid, when you bought it, or any note you wrote.
-              Shelves stay private until you publish one, and an unpublished handle returns nothing rather than
-              confirming it exists.
-            </p>
-            <div className="home-actions">
-              <Link className="home-btn" href="/portfolio">Start your shelf</Link>
-            </div>
-          </div>
-          <ul className="home-share-facts">
-            <li><strong>Public</strong><span>Covers, series and the exact editions on your shelf.</span></li>
-            <li><strong>Private</strong><span>Purchase prices, dates, quantities and your notes.</span></li>
-          </ul>
-        </div>
       </section>
 
       {firstPrintWatch.length ? (

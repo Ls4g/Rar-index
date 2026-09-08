@@ -15,6 +15,7 @@ export type Manga = {
   publisher: string | null;
   language: string | null;
   country: string | null;
+  release_date?: string | null;
   isbn_13: string | null;
   format?: string | null;
   edition_statement: string | null;
