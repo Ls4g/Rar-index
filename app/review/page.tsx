@@ -98,7 +98,7 @@ type CoverCandidateRow = {
   candidate_title: string | null;
   match_score: number;
   match_reasons: string[] | null;
-  edition: { title: string | null; series: string | null; volume_number: string | null; language: string | null } | null;
+  edition: { title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_verification_status: string | null } | null;
 };
 
 type OutcomeRow = {
@@ -148,7 +148,7 @@ export default async function HumanDecisionsPage() {
     admin.from("print_classification_queue").select("observation_id,title,series,volume_number,language,listing_title,source_listing_url").limit(40),
     admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,target_id,evidence,proposed_payload").eq("status", "proposed").order("created_at", { ascending: false }).limit(100),
     admin.from("catalogue_review_queue").select("id,candidate_kind,candidate_title,candidate_series,candidate_volume_number,candidate_author,candidate_publisher,candidate_language,candidate_isbn_13,candidate_release_date,source_name,source_record_url,raw_payload").order("imported_at", { ascending: false }).limit(30),
-    admin.from("cover_candidates").select("id,edition_id,source_name,cover_image_url,source_record_url,candidate_title,match_score,match_reasons,edition:manga_editions(title,series,volume_number,language)").eq("status", "pending").order("match_score", { ascending: false }).limit(30),
+    admin.from("cover_candidates").select("id,edition_id,source_name,cover_image_url,source_record_url,candidate_title,match_score,match_reasons,edition:manga_editions(title,series,volume_number,language,cover_verification_status)").eq("status", "pending").order("match_score", { ascending: false }).limit(30),
     admin.from("listing_outcomes").select("id,status,listing_title,source_listing_url,sold_price,sold_currency,sold_at,asking_price,currency,match_assessment,edition:manga_editions(title,series,volume_number,language)").in("status", ["sold_candidate", "ended_pending_check", "ambiguous", "inaccessible"]).is("reviewed_by", null).order("sold_at", { ascending: false, nullsFirst: false }).limit(60),
     admin.from("community_sale_reports").select("id,report_type,source_listing_url,listing_title,reported_price,currency,reporter_notes,edition:manga_editions(title,series,volume_number,language)").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
     admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,original_source_url,requester_notes").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
@@ -227,17 +227,22 @@ export default async function HumanDecisionsPage() {
     canExecute: isExecutableAgentAction(action.action_type),
   }));
 
-  const covers = ((coverResult.data ?? []) as unknown as CoverCandidateRow[]).map((row) => ({
-    id: row.id,
-    editionId: row.edition_id,
-    editionLabel: editionLabel({ title: row.edition?.title, series: row.edition?.series, volume: row.edition?.volume_number, language: row.edition?.language }),
-    imageUrl: row.cover_image_url,
-    sourceUrl: row.source_record_url,
-    sourceName: row.source_name,
-    candidateTitle: row.candidate_title,
-    score: row.match_score,
-    reasons: row.match_reasons ?? [],
-  }));
+  const covers = ((coverResult.data ?? []) as unknown as CoverCandidateRow[])
+    // A candidate can outlive its queue entry when another workflow verifies
+    // the edition first. It is no longer an actionable human decision: the
+    // database correctly refuses to replace an already-verified cover.
+    .filter((row) => row.edition?.cover_verification_status !== "verified")
+    .map((row) => ({
+      id: row.id,
+      editionId: row.edition_id,
+      editionLabel: editionLabel({ title: row.edition?.title, series: row.edition?.series, volume: row.edition?.volume_number, language: row.edition?.language }),
+      imageUrl: row.cover_image_url,
+      sourceUrl: row.source_record_url,
+      sourceName: row.source_name,
+      candidateTitle: row.candidate_title,
+      score: row.match_score,
+      reasons: row.match_reasons ?? [],
+    }));
 
   const outcomes = ((outcomeResult.data ?? []) as unknown as OutcomeRow[])
     .filter((row) => !looksGraded(row.listing_title) && !(row.match_assessment?.conflicts?.length) && (row.status === "sold_candidate" || (row.match_assessment?.score ?? 0) >= 75))

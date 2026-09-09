@@ -3804,7 +3804,7 @@ html[data-theme="day"] .edition-page {
 .human-decision-toolbar label { display: grid; gap: .35rem; color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .human-decision-toolbar input { min-height: 2.7rem; border: 1px solid #d8c99c; border-radius: .5rem; padding: .6rem .7rem; background: #fff; color: var(--ink); font: inherit; letter-spacing: normal; text-transform: none; }
 .human-decision-toolbar p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
-.human-decision-banner { margin: 0; padding: .8rem 1rem; border-radius: .6rem; font-size: .8rem; font-weight: 700; }
+.human-decision-banner { position: sticky; top: .75rem; z-index: 5; margin: 0; padding: .8rem 1rem; border-radius: .6rem; box-shadow: 0 6px 24px rgba(31, 26, 18, .12); font-size: .8rem; font-weight: 700; }
 .human-decision-banner.is-ok { border: 1px solid rgba(44,126,99,.3); background: rgba(44,126,99,.08); color: #246b55; }
 .human-decision-banner.is-error { border: 1px solid rgba(154,60,49,.35); background: rgba(154,60,49,.08); color: #8e342b; }
 .human-decision-filters { display: flex; flex-wrap: wrap; gap: .45rem; padding: .35rem 0 .65rem; }
