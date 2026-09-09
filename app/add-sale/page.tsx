@@ -12,7 +12,7 @@ type SearchProfile = {
   id: string;
   edition_id: string;
   search_query: string;
-  edition: { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null } | null;
+  edition: { id: string; title: string | null; series: string | null; volume_number: string | number | null; language: string | null; collectible_type: string | null } | null;
   source: { name: string | null } | null;
 };
 type RawSale = { edition_id: string; print_classification: string | null; known_printing_number: number | null };
@@ -23,7 +23,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
   const admin = getSupabaseAdmin();
   const [{ data: profileData }, { data: verifiedEditions }, { data: activeSources }] = await Promise.all([
     admin.from("marketplace_search_profiles")
-      .select("id,edition_id,search_query,edition:manga_editions(id,title,series,volume_number,language),source:sources(name)")
+      .select("id,edition_id,search_query,edition:manga_editions(id,title,series,volume_number,language,collectible_type),source:sources(name)")
       .eq("is_active", true)
       .limit(1000),
     admin.from("manga_editions")
@@ -62,6 +62,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
     series: profile.edition?.series ?? null,
     volumeNumber: profile.edition?.volume_number ?? null,
     language: profile.edition?.language ?? null,
+    collectibleType: profile.edition?.collectible_type ?? "tankobon",
     comparableRawSales: Math.max(0, ...[...(groupCounts.get(profile.edition_id)?.values() ?? [])]),
   }));
   const nextSearches = prioritiseSoldSearches(candidates, 10);
@@ -72,9 +73,9 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
     <section className="catalogue-content">
       <div className="section-intro"><p className="eyebrow">One decision, not two queues</p><h2>Check it once. Add it properly.</h2><p className="section-copy">Use this for a sale you personally inspected. Your confirmation writes the verified sale, printing decision and audit history together—there is no second edition-match review.</p></div>
       {nextSearches.length ? <section className="sold-search-priorities" aria-labelledby="sold-search-heading">
-        <div><p className="eyebrow">Search where the next sale matters</p><h2 id="sold-search-heading">Next completed-listing searches</h2><p>RAR prioritises editions one sale away from a chart or strong coverage. Editions with five comparable raw sales are left out.</p></div>
+        <div><p className="eyebrow">Search where the next sale matters</p><h2 id="sold-search-heading">Next completed-listing searches</h2><p>Manga with no comparable raw sales come first, followed by manga nearest a chart milestone. Magazines and specialist formats follow. Editions with five comparable raw sales are left out.</p></div>
         <div className="sold-search-priority-list">{nextSearches.map((candidate) => <article key={candidate.profileId}>
-          <div><strong>{candidate.title}{candidate.volumeNumber ? ` · Vol. ${candidate.volumeNumber}` : ""}</strong><span>{[candidate.language, `${candidate.comparableRawSales} comparable raw sale${candidate.comparableRawSales === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span><small>{soldSearchReason(candidate.comparableRawSales)}</small></div>
+          <div><strong>{candidate.title}{candidate.volumeNumber ? ` · Vol. ${candidate.volumeNumber}` : ""}</strong><span>{[candidate.collectibleType === "zasshi" ? "Magazine issue" : candidate.collectibleType === "tankobon" || !candidate.collectibleType ? "Manga" : candidate.collectibleType.replaceAll("_", " "), candidate.language, `${candidate.comparableRawSales} comparable raw sale${candidate.comparableRawSales === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span><small>{soldSearchReason(candidate.comparableRawSales, candidate.collectibleType)}</small></div>
           <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}#bulk-approved-sales`}>Select edition</Link></div>
         </article>)}</div>
       </section> : null}
