@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
-import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
+import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, learningLabelName, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
+import type { RelatedScoutDecision } from "@/lib/scoutLearningEvidence";
 import { SCOUT_HIGH_CONFIDENCE_MIN_SCORE, SCOUT_REVIEW_NOW_MIN_SCORE, isScoutNeedsEvidenceScore } from "@/lib/scoutTriagePolicy";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
@@ -40,6 +41,7 @@ export type ScoutLead = {
   isGraded: boolean;
   duplicateCount: number;
   duplicateProfiles: Array<{ profileId: string; editionId: string; editionLabel: string }>;
+  relatedDecisions?: RelatedScoutDecision[];
 };
 
 type StatusFilter = "all" | "new" | "watching" | "dismissed";
@@ -457,6 +459,14 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                       {lead.reasons.length ? <span className="scout-reasons">{lead.reasons.join(" · ")}</span> : null}
                       {lead.conflicts.length ? <span className="scout-conflicts">{lead.conflicts.join(" · ")}</span> : null}
                     </div>
+                    {lead.relatedDecisions?.length ? <details className="scout-decision-memory">
+                      <summary>Similar past decisions ({lead.relatedDecisions.length})</summary>
+                      <p>Context from staff reviews. Check this listing on its own evidence.</p>
+                      {lead.relatedDecisions.map(item => <div key={item.decisionId}>
+                        <strong>{item.decision === "watching" ? "Watched" : "Dismissed"}{item.reason ? ` · ${learningLabelName(item.reason)}` : ""}</strong>
+                        <p>{item.title}</p>{item.note ? <small>{item.note}</small> : null}
+                      </div>)}
+                    </details> : null}
                     {lead.duplicateCount > 0 ? (
                       <p className="scout-lead-duplicate">Also matches {lead.duplicateCount} other profile{lead.duplicateCount === 1 ? "" : "s"}: {lead.duplicateProfiles.map((other) => other.editionLabel).join("; ")}. Acting here decides all of them.</p>
                     ) : null}

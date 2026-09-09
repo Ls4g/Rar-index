@@ -5,6 +5,7 @@ import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
 import { assessPrintingEvidenceSuggestion } from "./printingEvidenceSuggestions.ts";
 import { readHumanScoutDecisions } from "./scoutFeedback.ts";
 import type { AgentKey } from "./agentPlanning.ts";
+import { loadActiveScoutRules, type ScoutRule } from "./scoutRules.ts";
 
 export const RELIABILITY_EVALUATORS = [
   "market_scout_match",
@@ -16,7 +17,7 @@ export const RELIABILITY_EVALUATORS = [
 
 export type ReliabilityEvaluatorKey = (typeof RELIABILITY_EVALUATORS)[number];
 
-const EVALUATOR_VERSION = 1;
+const EVALUATOR_VERSION = 2;
 const AUTOMATED_REVIEWER = /(?:agent|scout|curator|auditor|operator|system|auto.?triage)/i;
 
 type Json = Record<string, unknown>;
@@ -314,7 +315,7 @@ export async function syncReliabilityBenchmarks(admin: SupabaseClient) {
   return { discovered: candidates.length, added: inserts.length, unchanged: candidates.length - inserts.length };
 }
 
-export function evaluateReliabilityCase(item: BenchmarkCase): ReliabilityCaseResult {
+export function evaluateReliabilityCase(item: BenchmarkCase, rules: ScoutRule[] = []): ReliabilityCaseResult {
   const snapshot = asObject(item.input_snapshot);
   let predicted = "reject";
   let score: number | null = null;
@@ -324,11 +325,11 @@ export function evaluateReliabilityCase(item: BenchmarkCase): ReliabilityCaseRes
   if (item.evaluator_key === "market_scout_match") {
     const edition = asObject(snapshot.edition) as ScoutEdition;
     const title = typeof snapshot.listingTitle === "string" ? snapshot.listingTitle : "";
-    const assessment = assessScoutListing(edition, title);
+    const assessment = assessScoutListing(edition, title, rules);
     const autoDismiss = decideScoutAutoDismiss(edition, title);
-    predicted = autoDismiss.shouldDismiss || assessment.score < 50 ? "dismiss" : "useful";
+    predicted = autoDismiss.shouldDismiss || assessment.confidence === "conflict" || assessment.score < 50 ? "dismiss" : "useful";
     score = assessment.score;
-    critical = item.expected_outcome === "useful" && autoDismiss.shouldDismiss;
+    critical = item.expected_outcome === "useful" && (autoDismiss.shouldDismiss || (item.reason_label === "exact_match" && predicted === "dismiss"));
     diagnostics = { confidence: assessment.confidence, conflicts: assessment.conflicts, autoDismiss: autoDismiss.shouldDismiss };
   } else if (item.evaluator_key === "catalogue_curator_guard") {
     const queue = asObject(snapshot.queue);
@@ -436,7 +437,8 @@ export async function runReliabilitySuite(
     .select("id,agent_key,evaluator_key,subject_key,input_snapshot,expected_outcome,reason_label,reviewed_by,decided_at,created_at")
     .eq("evaluator_key", evaluatorKey).order("decided_at", { ascending: false }).range(from, to));
   const cases = latestBySubject(rows);
-  const results = cases.map(evaluateReliabilityCase);
+  const activeRules = evaluatorKey === "market_scout_match" ? await loadActiveScoutRules(admin) : [];
+  const results = cases.map(item => evaluateReliabilityCase(item, activeRules));
   const metrics = calculateMetrics(cases, results);
   const positiveCount = Number(metrics.true_positive) + Number(metrics.false_negative);
   const negativeCount = Number(metrics.true_negative) + Number(metrics.false_positive);
@@ -519,7 +521,8 @@ export async function runChangedReliabilitySuites(admin: SupabaseClient, initiat
       admin.from("agent_evaluation_runs").select("created_at,evaluator_version").eq("evaluator_key", evaluatorKey).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const changed = Boolean(latestCase && (!latestRun || Date.parse(latestCase.created_at) > Date.parse(latestRun.created_at) || latestRun.evaluator_version !== EVALUATOR_VERSION));
-    if (changed || triggerSource === "manual") runs.push(await runReliabilitySuite(admin, evaluatorKey, initiatedBy, triggerSource));
+    // Active rule changes need a scheduled replay even without new decisions.
+    if (changed || evaluatorKey === "market_scout_match" || triggerSource === "manual") runs.push(await runReliabilitySuite(admin, evaluatorKey, initiatedBy, triggerSource));
   }
   return { sync, runs };
 }

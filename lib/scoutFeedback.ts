@@ -4,6 +4,7 @@ import { learningLabelName, type ScoutLearningLabel } from "./scoutDecisionLabel
 import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
 import { loadActiveScoutRules, type ScoutRule } from "./scoutRules.ts";
 import type { EditionMatchAssessment } from "./editionMatch.ts";
+import { splitLearningDecisions } from "./scoutLearningEvidence.ts";
 
 const AUTOMATED_REVIEWERS = new Set([
   "RAR Market Scout",
@@ -20,6 +21,9 @@ export type HumanScoutDecision = {
   listingTitle: string;
   edition: ScoutEdition;
   learningLabel?: ScoutLearningLabel | null;
+  listingKey?: string;
+  notes?: string | null;
+  firstSeenAt?: string;
 };
 
 export type ScoutFeedbackExample = {
@@ -34,6 +38,7 @@ export type ScoutFeedbackExample = {
   learningLabel: ScoutLearningLabel | null;
   learningReason: string | null;
   appliedRules: string[];
+  note: string | null;
 };
 
 export type ScoutFeedbackAnalysis = {
@@ -57,11 +62,13 @@ type DecisionRow = {
   decision: string;
   reviewed_by: string;
   created_at: string;
+  decision_notes: string | null;
   lead: {
     id: string;
     source_id: string;
     external_id: string;
     listing_title: string;
+    first_seen_at: string;
     profile: { edition: ScoutEdition | null } | null;
   } | null;
 };
@@ -99,6 +106,7 @@ function exampleFor(decision: HumanScoutDecision, rules: ScoutRule[] = []): Scou
     learningLabel: decision.learningLabel ?? null,
     learningReason: learningLabelName(decision.learningLabel),
     appliedRules: appliedRules.map((rule) => `${rule.ruleKey}:v${rule.version}`),
+    note: decision.notes?.slice(0, 500) || null,
   };
 }
 
@@ -313,7 +321,7 @@ export async function readHumanScoutDecisions(admin: SupabaseClient): Promise<Hu
   for (let from = 0; from < 10_000; from += pageSize) {
     const { data, error } = await admin
       .from("scout_lead_decisions")
-      .select("id,lead_id,decision,reviewed_by,created_at,lead:scout_listing_leads!inner(id,source_id,external_id,listing_title,profile:marketplace_search_profiles!inner(edition:manga_editions!inner(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no)))")
+      .select("id,lead_id,decision,decision_notes,reviewed_by,created_at,lead:scout_listing_leads!inner(id,source_id,external_id,listing_title,first_seen_at,profile:marketplace_search_profiles!inner(edition:manga_editions!inner(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no)))")
       .order("created_at", { ascending: false })
       .range(from, from + pageSize - 1);
     if (error) throw new Error(`Market Scout could not read staff feedback: ${error.message}`);
@@ -357,12 +365,16 @@ export async function readHumanScoutDecisions(admin: SupabaseClient): Promise<Hu
     listingTitle: row.lead?.listing_title ?? "",
     edition: row.lead?.profile?.edition as ScoutEdition,
     learningLabel: labelByDecision.get(row.id) ?? null,
+    listingKey: `${row.lead?.source_id}:${row.lead?.external_id}`,
+    notes: row.decision_notes,
+    firstSeenAt: row.lead?.first_seen_at,
   }));
 }
 
 export async function analyseLiveScoutFeedback(admin: SupabaseClient) {
   const [decisions, rules] = await Promise.all([readHumanScoutDecisions(admin), loadActiveScoutRules(admin)]);
-  return analyseScoutFeedback(decisions, rules);
+  // Keep reserved examples out of rule-development proposals.
+  return analyseScoutFeedback(splitLearningDecisions(decisions).development, rules);
 }
 
 export async function readUnlabelledScoutDecisionQueue(admin: SupabaseClient, limit = 60) {

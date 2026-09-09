@@ -209,6 +209,8 @@ export async function POST(request: Request) {
     if (command === "activate_scout_rule") {
       const ruleVersionId = clean(payload.ruleVersionId);
       if (!ruleVersionId) return Response.json({ error: "Choose a passing rule." }, { status: 400 });
+      const tested = await reevaluateScoutRule(admin, ruleVersionId, reviewer);
+      if (tested?.status !== "shadow_passed") return Response.json({ error: "This rule needs more independent evidence or failed its latest comparison. The test results have been updated on Agent reliability." }, { status: 409 });
       const { error } = await admin.rpc("activate_scout_rule_version", { p_rule_version_id: ruleVersionId, p_approved_by: reviewer });
       if (error) throw new Error(error.message);
       return Response.json({ ok: true });

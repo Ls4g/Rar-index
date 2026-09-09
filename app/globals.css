@@ -288,6 +288,15 @@ dl { display: grid; gap: .7rem; margin: 0; }
 dd { margin: .13rem 0 0; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 table { font-variant-numeric: tabular-nums; }
 .status-message { padding: 2rem; border: 1px solid var(--line); color: var(--muted); }
+.scout-decision-memory { margin-top: .75rem; font-size: .85rem; overflow-wrap: anywhere; }
+.scout-decision-memory summary { cursor: pointer; font-weight: 600; }
+.scout-decision-memory > div { margin-top: .7rem; padding-left: .75rem; border-left: 2px solid var(--line); }
+.scout-decision-memory p { margin: .4rem 0; }
+.scout-confidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
+.scout-confidence-grid article { padding: 1rem; border: 1px solid var(--line); border-radius: .6rem; overflow-wrap: anywhere; }
+.scout-confidence-grid h3 { margin: 0 0 .75rem; font-size: 1.1rem; }
+.scout-confidence-report h2 { font-size: clamp(1.8rem, 4vw, 3rem); }
+.scout-confidence-report p { line-height: 1.5; }
 .edition-hero { background: var(--ink); color: var(--paper); }
 .edition-hero-inner, .edition-content { max-width: 1080px; margin: auto; padding-left: 2rem; padding-right: 2rem; }
 .edition-hero-inner { padding-top: 4.2rem; padding-bottom: 4.4rem; }

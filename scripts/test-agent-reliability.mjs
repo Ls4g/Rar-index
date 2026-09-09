@@ -21,6 +21,11 @@ const edition = { title: "Naruto, Vol. 1", series: "Naruto", volume_number: "1",
 const usefulScout = evaluateReliabilityCase(benchmark("market_scout_match", "useful", { listingTitle: "Naruto Vol 1 Manga English", edition }));
 assert.equal(usefulScout.predictedOutcome, "useful");
 assert.equal(usefulScout.criticalFailure, false);
+const confirmedMatch = { ...benchmark("market_scout_match", "useful", { listingTitle: "Naruto Vol 1 Manga English", edition }), reason_label: "exact_match" };
+const harmfulRule = { id: "test-rule", rule_key: "test", version: 1, status: "active", rule_type: "first_print_proof", config: { score_adjustment: -40, score_cap: 49 } };
+const activeRuleRegression = evaluateReliabilityCase(confirmedMatch, [harmfulRule]);
+assert.equal(activeRuleRegression.predictedOutcome, "dismiss");
+assert.equal(activeRuleRegression.criticalFailure, true);
 
 const wrongVolume = evaluateReliabilityCase(benchmark("market_scout_match", "dismiss", { listingTitle: "Naruto Vol 8 Manga English", edition }));
 assert.equal(wrongVolume.predictedOutcome, "dismiss");

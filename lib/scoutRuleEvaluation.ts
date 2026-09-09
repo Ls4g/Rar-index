@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assessScoutListing } from "./scoutIngest.ts";
 import { readHumanScoutDecisions, type HumanScoutDecision } from "./scoutFeedback.ts";
-import { applyScoutRules, defaultRuleConfig, type ScoutRule, type ScoutRuleType } from "./scoutRules.ts";
+import { defaultRuleConfig, loadActiveScoutRules, type ScoutRule, type ScoutRuleType } from "./scoutRules.ts";
+import { LEARNING_PROTOCOL, learningGroups, prospectiveHoldout } from "./scoutLearningEvidence.ts";
+import { SCOUT_REVIEW_NOW_MIN_SCORE } from "./scoutTriagePolicy.ts";
 
 const ACTION_RULE_TYPES: Record<string, { key: string; type: ScoutRuleType }> = {
   shadow_test_first_print_proof_gate: { key: "first-print-proof", type: "first_print_proof" },
@@ -43,7 +45,7 @@ function balancedAccuracy(rows: Array<{ expectedPositive: boolean; predictedPosi
   return (sensitivity + specificity) / 2;
 }
 
-export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRule) {
+function evaluateCohort(decisions: HumanScoutDecision[], rule: ScoutRule, activeRules: ScoutRule[]) {
   const labels = labelSet(rule.rule_type);
   const relevant = decisions.filter((item) => {
     if (item.learningLabel !== labels.positive && item.learningLabel !== labels.negative) return false;
@@ -55,15 +57,21 @@ export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRu
   const candidateRows: Array<{ expectedPositive: boolean; predictedPositive: boolean }> = [];
   let negativesLowered = 0;
   let exactMatchRegressions = 0;
+  let priorityRegressions = 0;
 
   for (const item of relevant) {
-    const baseline = assessScoutListing(item.edition, item.listingTitle);
-    const candidate = applyScoutRules(baseline, item.edition, item.listingTitle, [rule]);
+    const baseline = assessScoutListing(item.edition, item.listingTitle, activeRules);
+    const candidate = assessScoutListing(item.edition, item.listingTitle,
+      [...activeRules.filter(active => active.rule_key !== rule.rule_key), { ...rule, status: "candidate" }]);
     const expectedPositive = item.learningLabel === labels.positive;
-    baselineRows.push({ expectedPositive, predictedPositive: baseline.score >= 50 });
-    candidateRows.push({ expectedPositive, predictedPositive: candidate.score >= 50 });
+    const baselinePositive = baseline.confidence !== "conflict" && baseline.score >= 50;
+    const candidatePositive = candidate.confidence !== "conflict" && candidate.score >= 50;
+    baselineRows.push({ expectedPositive, predictedPositive: baselinePositive });
+    candidateRows.push({ expectedPositive, predictedPositive: candidatePositive });
     if (!expectedPositive && candidate.score < baseline.score) negativesLowered += 1;
-    if (expectedPositive && baseline.score >= 50 && candidate.score < 50) exactMatchRegressions += 1;
+    if (expectedPositive && baselinePositive && !candidatePositive) exactMatchRegressions += 1;
+    if (expectedPositive && baselinePositive && baseline.score >= SCOUT_REVIEW_NOW_MIN_SCORE
+      && (!candidatePositive || candidate.score < SCOUT_REVIEW_NOW_MIN_SCORE)) priorityRegressions += 1;
     if (candidate.score !== baseline.score || examples.length < 12) {
       examples.push({
         leadId: item.leadId,
@@ -83,10 +91,12 @@ export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRu
   const gates = {
     sample_size: { passed: relevant.length >= 10, actual: relevant.length, required: 10 },
     negative_examples: { passed: negatives.length >= 5, actual: negatives.length, required: 5 },
+    positive_examples: { passed: relevant.length - negatives.length >= 5, actual: relevant.length - negatives.length, required: 5 },
     edition_coverage: { passed: distinctEditions >= 3, actual: distinctEditions, required: 3 },
     target_coverage: { passed: loweredRate >= 0.8, actual: loweredRate, required: 0.8 },
     balanced_accuracy_improvement: { passed: candidateBalanced - baselineBalanced >= 0.1, actual: candidateBalanced - baselineBalanced, required: 0.1 },
     exact_match_regressions: { passed: exactMatchRegressions === 0, actual: exactMatchRegressions, required: 0 },
+    priority_match_regressions: { passed: priorityRegressions === 0, actual: priorityRegressions, required: 0 },
   };
   const passed = Object.values(gates).every((gate) => gate.passed);
 
@@ -96,6 +106,31 @@ export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRu
     candidateMetrics: { accuracy: accuracy(candidateRows), balanced_accuracy: candidateBalanced, review_positive: candidateRows.filter((row) => row.predictedPositive).length, negatives_lowered: negativesLowered },
     gates,
     examples: examples.slice(0, 20),
+  };
+}
+
+export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRule & { created_at?: string }, activeRules: ScoutRule[] = []) {
+  const unique = (rows: HumanScoutDecision[]) => learningGroups(rows).flatMap(group => {
+    const labels = new Set(group.rows.map(item => item.learningLabel).filter(Boolean));
+    if (labels.size > 1) return [];
+    return [[...group.rows].sort((a, b) => b.decidedAt.localeCompare(a.decidedAt))[0]];
+  });
+  const regression = evaluateCohort(unique(decisions), rule, activeRules);
+  const holdout = evaluateCohort(unique(prospectiveHoldout(decisions, rule.created_at)), rule, activeRules);
+  const gates = { ...regression.gates,
+    unseen_sample_size: holdout.gates.sample_size,
+    unseen_positive_examples: holdout.gates.positive_examples,
+    unseen_negative_examples: holdout.gates.negative_examples,
+    unseen_edition_coverage: holdout.gates.edition_coverage,
+    unseen_accuracy_improvement: holdout.gates.balanced_accuracy_improvement,
+    unseen_exact_match_regressions: holdout.gates.exact_match_regressions,
+  };
+  return { ...regression, gates, passed: Object.values(gates).every(gate => gate.passed),
+    baselineMetrics: { ...regression.baselineMetrics, protocol: LEARNING_PROTOCOL,
+      active_rules: activeRules.map(active => ({ key: active.rule_key, version: active.version })),
+      holdout: holdout.baselineMetrics },
+    candidateMetrics: { ...regression.candidateMetrics, holdout: holdout.candidateMetrics,
+      holdout_after: rule.created_at ?? null, protocol: LEARNING_PROTOCOL },
   };
 }
 
@@ -143,11 +178,11 @@ export async function createAndEvaluateScoutRule(
     status: "candidate",
     source_action_id: action.id,
     created_by: reviewer,
-  }).select("id,rule_key,version,rule_type,config,status").single();
+  }).select("id,rule_key,version,rule_type,config,status,created_at").single();
   if (insertError || !inserted) throw new Error(`Scout could not create the candidate rule: ${insertError?.message ?? "unknown error"}`);
 
-  const decisions = await readHumanScoutDecisions(admin);
-  const evaluation = evaluateScoutRule(decisions, inserted as ScoutRule);
+  const [decisions, activeRules] = await Promise.all([readHumanScoutDecisions(admin), loadActiveScoutRules(admin)]);
+  const evaluation = evaluateScoutRule(decisions, inserted as ScoutRule & { created_at: string }, activeRules);
   const { error: evaluationError } = await admin.from("scout_rule_evaluations").insert({
     rule_version_id: inserted.id,
     baseline_metrics: evaluation.baselineMetrics,
@@ -173,13 +208,13 @@ export async function createAndEvaluateScoutRule(
 export async function reevaluateScoutRule(admin: SupabaseClient, ruleVersionId: string, reviewer: string) {
   const { data: rule, error: ruleError } = await admin
     .from("scout_rule_versions")
-    .select("id,rule_key,version,rule_type,config,status")
+    .select("id,rule_key,version,rule_type,config,status,created_at")
     .eq("id", ruleVersionId)
     .in("status", ["candidate", "shadow_passed"])
     .maybeSingle();
   if (ruleError || !rule) throw new Error(ruleError?.message ?? "Only a candidate rule can be evaluated again.");
-  const decisions = await readHumanScoutDecisions(admin);
-  const evaluation = evaluateScoutRule(decisions, rule as ScoutRule);
+  const [decisions, activeRules] = await Promise.all([readHumanScoutDecisions(admin), loadActiveScoutRules(admin)]);
+  const evaluation = evaluateScoutRule(decisions, rule as ScoutRule & { created_at: string }, activeRules);
   const { error: evaluationError } = await admin.from("scout_rule_evaluations").insert({
     rule_version_id: rule.id,
     baseline_metrics: evaluation.baselineMetrics,

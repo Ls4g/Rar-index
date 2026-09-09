@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./test-scout-learning-evidence.mjs";
 import { assessScoutListing } from "../lib/scoutIngest.ts";
 import { evaluateScoutRule } from "../lib/scoutRuleEvaluation.ts";
 import { applyScoutRules, defaultRuleConfig } from "../lib/scoutRules.ts";
@@ -72,7 +73,9 @@ const passingDecisions = [
   ...series.map((name, index) => decision(index + 5, name, "watching", "exact_match", `${name} Vol 1 Manga First Print`)),
 ];
 const passing = evaluateScoutRule(passingDecisions, firstPrintRule);
-assert.equal(passing.passed, true);
+// Old in-sample successes are regression evidence, not an independent pass.
+assert.equal(passing.passed, false);
+assert.equal(passing.gates.unseen_sample_size.passed, false);
 assert.equal(passing.gates.exact_match_regressions.passed, true);
 assert.equal(passing.gates.edition_coverage.passed, true);
 

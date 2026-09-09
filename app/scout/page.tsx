@@ -11,6 +11,8 @@ import { isPrioritySeries } from "@/lib/prioritySeries";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
 import { surplusScoutLeadIds } from "@/lib/scoutCoverage";
 import { looksGraded } from "@/lib/editionMatch";
+import { readHumanScoutDecisions } from "@/lib/scoutFeedback";
+import { createScoutMemory } from "@/lib/scoutLearningEvidence";
 
 function formatLastChecked(value: string | null) {
   if (!value) return "Never scanned";
@@ -85,7 +87,11 @@ export default async function ScoutPage() {
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const editionByProfile = new Map(profiles.map((profile) => [profile.id, profile.edition]));
-  const activeRules = await loadActiveScoutRules(admin);
+  const [activeRules, memoryResult] = await Promise.all([
+    loadActiveScoutRules(admin),
+    readHumanScoutDecisions(admin).then(decisions => ({ find: createScoutMemory(decisions), ready: true }))
+      .catch(() => ({ find: createScoutMemory([]), ready: false })),
+  ]);
 
   const leadRows = profileIds.length ? await fetchAllLeads(admin, profileIds) : [];
   const { count: autoDismissedCount } = profileIds.length
@@ -155,6 +161,8 @@ export default async function ScoutPage() {
       isGraded: looksGraded(primary.listing_title),
       duplicateCount: otherProfiles.length,
       duplicateProfiles: otherProfiles,
+      relatedDecisions: primary.review_status === "new"
+        ? memoryResult.find(edition, primary.listing_title, group.map(lead => lead.id), `${primary.source_id}:${primary.external_id}`) : [],
     });
   }
 
@@ -184,6 +192,7 @@ export default async function ScoutPage() {
         <div className="queue-total"><strong>{prioritisedLeads.filter((lead) => lead.reviewStatus !== "dismissed" && !lead.isSurplusBackup).length}</strong><span>priority listings across {profiles.length} profiles · {surplusLeadIds.size} backups separated</span></div>
       </section>
       <section className="catalogue-content">
+        {!memoryResult.ready ? <p role="status">Past decision examples are temporarily unavailable. You can still review listings.</p> : null}
         <ScoutTriageInbox leads={prioritisedLeads} />
 
         <details className="profile-editor scout-profile-scan">
