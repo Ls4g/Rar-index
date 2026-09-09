@@ -5,6 +5,7 @@ import EditionCover from "@/components/EditionCover";
 import { formatPrice, type DisplayCurrency } from "@/lib/fx";
 import type { SummaryMetric } from "@/components/portfolio/PortfolioSummary";
 import type { HoldingMarketValue } from "@/lib/portfolioValuation";
+import { ordinal } from "@/lib/editionDisplay";
 
 export type HoldingEdition = {
   id: string;
@@ -53,6 +54,12 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, value, c
   const gain = value?.gain ?? null;
   const gainPercent = value?.gainPercent ?? null;
   const gainTone = gain === null ? "" : gain > 0 ? "is-positive" : gain < 0 ? "is-negative" : "";
+  const metric = metrics[0] ?? null;
+  const comparisonLabel = metric?.print_classification === "first_print_proven"
+    ? "Proven first print"
+    : metric?.print_classification === "known_later_print"
+      ? metric.known_printing_number ? `${ordinal(metric.known_printing_number)} printing` : "Known later printing"
+      : "Printing not identified";
 
   return (
     <article className="holding-card">
@@ -74,8 +81,8 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, value, c
         </div>
 
         <div className="holding-card-status">
-          {metrics.length ? (
-            <span className="print-classification-badge is-first-print-proven">Proven first print · {metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0)} verified sale{metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0) === 1 ? "" : "s"}</span>
+          {metric ? (
+            <span className={`print-classification-badge is-${metric.print_classification.replaceAll("_", "-")}`}>{comparisonLabel} · {metric.verified_sale_count} comparable verified sale{metric.verified_sale_count === 1 ? "" : "s"}</span>
           ) : otherSaleCount > 0 ? (
             <span className="print-classification-badge is-printing-not-identified">Printing not identified · {otherSaleCount} sale{otherSaleCount === 1 ? "" : "s"} on file</span>
           ) : (

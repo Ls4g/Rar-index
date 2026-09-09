@@ -79,7 +79,7 @@ function SaleRow({ sale, sourceNames, showPrintClassification = true }: { sale: 
   );
 }
 
-// Splits one classification group into "Verified — counted" / "Under
+// Splits one classification group into "Verified — included" / "Under
 // review — not counted" the same way the page has always separated sales,
 // just repeated per print group instead of once for the whole edition.
 function SaleGroupList({ sales, sourceNames, showPrintClassification = true }: { sales: PublicationSale[]; sourceNames: Record<string, string>; showPrintClassification?: boolean }) {
@@ -90,7 +90,7 @@ function SaleGroupList({ sales, sourceNames, showPrintClassification = true }: {
     <>
       {verified.length ? (
         <div className="observed-sales-group">
-          <p className="observed-sales-group-label">Verified — counted in the value above ({verified.length})</p>
+          <p className="observed-sales-group-label">Verified — included in this comparison group ({verified.length})</p>
           <div className="observed-sales-list">{verified.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} showPrintClassification={showPrintClassification} key={sale.id} />)}</div>
         </div>
       ) : null}
@@ -156,8 +156,8 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
   // Known-later-print sales only ever compare against sales sharing the
   // SAME known printing number -- a 3rd printing and a 5th printing are
-  // never charted or valued together, and printing-not-identified sales
-  // are never charted or valued at all (see SaleGroupList below).
+  // never charted or valued together. Printing-not-identified sales remain
+  // their own weaker-evidence group and are never pooled with a known print.
   const knownLaterGroups = groupKnownLaterPrintSales(knownLater);
 
   // One chart for the whole publication, above the tabs. Every verified sale
@@ -215,7 +215,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
           <div className="print-tab-subgroup">
             <h3>Printing not identified ({unidentified.length})</h3>
-            <p className="section-copy">RAR cannot confirm which printing these copies are from. They are never charted or averaged into a value.</p>
+            <p className="section-copy">RAR cannot confirm which printing these copies are from. They remain a separate “printing not identified” comparison group and are never combined with proven first-print or known-later-print evidence. A chart line appears only when this group has at least {MIN_COMPARABLE_SALES} comparable verified sales.</p>
             <SaleGroupList sales={unidentified} sourceNames={sourceNames} />
           </div>
         </div>

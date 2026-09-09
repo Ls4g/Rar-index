@@ -51,7 +51,7 @@ function payloadsEqual(a: SnapshotPayload, existing: Record<string, unknown>) {
 async function computeSnapshotPayload(admin: SupabaseClient, userId: string, displayCurrency: DisplayCurrency): Promise<SnapshotPayload> {
   const { data: holdingsData, error: holdingsError } = await admin
     .from("portfolio_holdings")
-    .select("id,edition_id,quantity,purchase_price,purchase_currency,purchase_date,edition:manga_editions(id,printing_of_edition_id)")
+    .select("id,edition_id,quantity,purchase_price,purchase_currency,purchase_date,edition:manga_editions(id,printing_of_edition_id,printing_number)")
     .eq("user_id", userId);
   if (holdingsError) throw new Error(`Could not load holdings: ${holdingsError.message}`);
 
@@ -75,7 +75,7 @@ async function computeSnapshotPayload(admin: SupabaseClient, userId: string, dis
   const { data: salesData } = familyIds.length
     ? await admin
       .from("price_observations")
-      .select("edition_id,sale_price,currency,sold_date,print_classification")
+      .select("edition_id,sale_price,currency,sold_date,print_classification,known_printing_number,grading_company,grade_label")
       .in("edition_id", familyIds)
       .eq("sale_status", "confirmed")
       .eq("match_status", "verified_match")

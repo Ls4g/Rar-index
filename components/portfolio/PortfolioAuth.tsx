@@ -14,6 +14,12 @@ type PortfolioAuthProps = {
   authMessage: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   initialEditionId: string;
+  busy: boolean;
+  recoveryMode: boolean;
+  newPassword: string;
+  setNewPassword: (value: string) => void;
+  onRequestRecovery: () => void;
+  onUpdatePassword: (event: FormEvent<HTMLFormElement>) => void;
 };
 
 // Feature preview only — never a numeric mockup. A fabricated "£1,240" or a
@@ -27,7 +33,27 @@ const PREVIEW_TILES = [
   { icon: "◐", title: "Only you see it", copy: "Your books and what you paid for them stay private." },
 ];
 
-export default function PortfolioAuth({ mode, setMode, email, setEmail, password, setPassword, authMessage, onSubmit, initialEditionId }: PortfolioAuthProps) {
+export default function PortfolioAuth({
+  mode, setMode, email, setEmail, password, setPassword, authMessage, onSubmit, initialEditionId,
+  busy, recoveryMode, newPassword, setNewPassword, onRequestRecovery, onUpdatePassword,
+}: PortfolioAuthProps) {
+  if (recoveryMode) {
+    return (
+      <section className="portfolio-auth">
+        <div className="portfolio-auth-intro">
+          <p className="eyebrow">Account recovery</p>
+          <h1>Choose a new password</h1>
+          <p className="portfolio-auth-lede">This form only changes the password for the account linked by the recovery email. Your private holdings are not changed.</p>
+        </div>
+        <form className="portfolio-auth-form" onSubmit={onUpdatePassword}>
+          <label>New password<input autoComplete="new-password" minLength={6} onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} /></label>
+          <button disabled={busy} type="submit">{busy ? "Updating…" : "Update password"}</button>
+          {authMessage ? <p aria-live="polite" role="status">{authMessage}</p> : null}
+        </form>
+      </section>
+    );
+  }
+
   return (
     <section className="portfolio-auth">
       <div className="portfolio-auth-intro">
@@ -55,8 +81,11 @@ export default function PortfolioAuth({ mode, setMode, email, setEmail, password
         <p className="eyebrow">{mode === "sign-in" ? "Welcome back" : "Start your private portfolio"}</p>
         <label>Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
         <label>Password<input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} /></label>
-        <button type="submit">{mode === "sign-in" ? "Sign in" : "Create free account"}</button>
-        {authMessage ? <p role="status">{authMessage}</p> : null}
+        <button disabled={busy} type="submit">{busy ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create free account"}</button>
+        {mode === "sign-in" ? (
+          <button className="portfolio-text-button" disabled={busy} onClick={onRequestRecovery} type="button">Forgot password?</button>
+        ) : null}
+        {authMessage ? <p aria-live="polite" role="status">{authMessage}</p> : null}
         <p className="portfolio-auth-note">{mode === "sign-up" ? "Create a free account to keep your holdings private and available across devices." : "No holding data is ever shown before you sign in."}</p>
       </form>
     </section>

@@ -12,8 +12,10 @@ export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  const authorised = request.headers.get("authorization") === `Bearer ${secret}`
-    || new URL(request.url).searchParams.get("secret") === secret;
+  // Secrets in query strings leak into browser history, proxy logs and
+  // analytics. Vercel Cron sends CRON_SECRET as a Bearer token, matching the
+  // other scheduled routes in this app, so this endpoint is header-only.
+  const authorised = request.headers.get("authorization") === `Bearer ${secret}`;
   if (!secret || !authorised) return Response.json({ error: "Unauthorised." }, { status: 401 });
 
   const admin = getSupabaseAdmin();

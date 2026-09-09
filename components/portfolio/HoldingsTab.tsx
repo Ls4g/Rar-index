@@ -45,11 +45,13 @@ export default function HoldingsTab({ holdings, metricsByEdition, otherSaleCount
         const haystack = [holding.edition?.title, holding.edition?.series, holding.edition?.isbn_13].filter(Boolean).join(" ").toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
-      const hasProven = (metricsByEdition.get(holding.edition_id) ?? []).length > 0;
+      const holdingMetrics = metricsByEdition.get(holding.edition_id) ?? [];
+      const hasProven = holdingMetrics.some((metric) => metric.print_classification === "first_print_proven");
+      const hasOther = holdingMetrics.some((metric) => metric.print_classification !== "first_print_proven");
       const otherCount = otherSaleCounts.get(holding.edition_id) ?? 0;
       if (filter === "proven") return hasProven;
-      if (filter === "other") return !hasProven && otherCount > 0;
-      if (filter === "none") return !hasProven && otherCount === 0;
+      if (filter === "other") return hasOther || (!hasProven && otherCount > 0);
+      if (filter === "none") return !hasProven && !hasOther && otherCount === 0;
       return true;
     });
   }, [holdings, query, filter, metricsByEdition, otherSaleCounts]);

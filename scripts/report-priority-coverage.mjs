@@ -8,9 +8,16 @@ import {
   coverageStrength,
 } from "../lib/coveragePriority.ts";
 
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\r?\n/)) {
-  const match = line.match(/^([^#][^=]*)=(.*)$/);
-  if (match) process.env[match[1].trim()] ??= match[2].trim().replace(/^['"]|['"]$/g, "");
+const envFile = new URL("../.env.local", import.meta.url);
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^([^#][^=]*)=(.*)$/);
+    if (match) process.env[match[1].trim()] ??= match[2].trim().replace(/^['"]|['"]$/g, "");
+  }
+}
+
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("Load RAR's Supabase environment or add a local .env.local before running this read-only report.");
 }
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {

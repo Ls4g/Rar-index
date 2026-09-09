@@ -33,6 +33,9 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [authMessage, setAuthMessage] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PortfolioTabKey>("overview");
@@ -136,7 +139,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     const { data: salesData } = familyIds.length
       ? await supabase
         .from("price_observations")
-        .select("edition_id,sale_price,currency,sold_date,print_classification")
+        .select("edition_id,sale_price,currency,sold_date,print_classification,known_printing_number,grading_company,grade_label")
         .in("edition_id", familyIds)
         .eq("sale_status", "confirmed")
         .eq("match_status", "verified_match")
@@ -189,7 +192,15 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
 
   useEffect(() => {
     queueMicrotask(() => { void loadPortfolio(); });
-    const { data: listener } = supabase.auth.onAuthStateChange(() => { void loadPortfolio(); });
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setAuthMessage("");
+      }
+      // Supabase advises deferring additional client calls until its auth
+      // callback has returned. This also keeps the callback itself synchronous.
+      window.setTimeout(() => { void loadPortfolio(); }, 0);
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -286,16 +297,53 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthMessage("");
-    if (mode === "sign-up") {
-      const destination = `${window.location.origin}/portfolio${initialEditionId ? `?edition=${encodeURIComponent(initialEditionId)}` : ""}`;
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: destination } });
+    setAuthBusy(true);
+    try {
+      if (mode === "sign-up") {
+        const destination = `${window.location.origin}/portfolio${initialEditionId ? `?edition=${encodeURIComponent(initialEditionId)}` : ""}`;
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: destination } });
+        if (error) setAuthMessage(error.message);
+        else if (data.session) setAuthMessage("Your account is ready.");
+        else setAuthMessage("Check your email to confirm your account, then sign in.");
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setAuthMessage(error.message);
-      else if (data.session) setAuthMessage("Your account is ready.");
-      else setAuthMessage("Check your email to confirm your account, then sign in.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function requestPasswordRecovery() {
+    setAuthMessage("");
+    if (!email.trim()) {
+      setAuthMessage("Enter your email address first.");
       return;
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setAuthBusy(true);
+    const redirectTo = `${window.location.origin}/portfolio?recovery=1`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    setAuthMessage(error ? error.message : "If that email has an account, a password reset link is on its way.");
+    setAuthBusy(false);
+  }
+
+  async function updateRecoveredPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthMessage("");
+    if (newPassword.length < 6) {
+      setAuthMessage("Use at least 6 characters.");
+      return;
+    }
+    setAuthBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) setAuthMessage(error.message);
+    else {
+      setAuthMessage("Password updated. You are signed in.");
+      setNewPassword("");
+      setRecoveryMode(false);
+      window.history.replaceState(null, "", "/portfolio");
+    }
+    setAuthBusy(false);
   }
 
   // Fires a snapshot in the background after a holding changes -- no button,
@@ -365,8 +413,8 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
       </div>
     ) : null}
 
-    {!userEmail ? (
-      <PortfolioAuth authMessage={authMessage} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />
+    {recoveryMode || !userEmail ? (
+      <PortfolioAuth authMessage={authMessage} busy={authBusy} email={email} initialEditionId={initialEditionId} mode={mode} newPassword={newPassword} onRequestRecovery={() => void requestPasswordRecovery()} onSubmit={submitAuth} onUpdatePassword={updateRecoveredPassword} password={password} recoveryMode={recoveryMode} setEmail={setEmail} setMode={setMode} setNewPassword={setNewPassword} setPassword={setPassword} />
     ) : (
       <MarketCurrencyProvider>
         {/* A visual privacy screen, not a security boundary: it blurs every
