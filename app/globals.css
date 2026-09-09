@@ -4543,6 +4543,7 @@ html .edition-page .price-history-multi {
 }
 .public-site-header .public-header-nav { align-self: stretch; gap: 2rem; }
 .public-site-header .header-note { color: #111319; font-family: var(--font-sans); font-size: .82rem; font-weight: 550; }
+.public-site-header .public-header-staff { color: #69717e; font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .public-site-header .header-search-link { color: #0b0b0d; font-family: var(--editorial-serif); font-size: 2rem; line-height: 1; transform: rotate(-18deg); }
 .public-site-header .public-header-collection {
   align-self: stretch; display: flex; align-items: center; gap: 2rem; margin-right: -3.3vw; padding: 0 3.2rem;
@@ -4552,6 +4553,7 @@ html .edition-page .price-history-multi {
   display: flex; align-items: center; justify-content: flex-end; gap: 1rem; min-height: 48px; padding: .55rem 3.3vw;
   border-bottom: 1px solid var(--line); background: var(--surface-card);
 }
+.public-mobile-utility { display: none; }
 
 @media (max-width: 760px) {
   .public-site-header { position: relative; display: flex; min-height: 60px; padding: 0 152px 0 1rem; }
@@ -4565,5 +4567,14 @@ html .edition-page .price-history-multi {
     width: 136px; height: 100%; max-width: 136px; margin: 0; padding: 0 .55rem; justify-content: center; gap: .35rem;
     overflow: hidden; font-size: .5rem; letter-spacing: .025em; text-align: center; white-space: nowrap;
   }
+  .public-mobile-utility {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-height: 38px;
+    border-bottom: 1px solid #dadddf; background: #fff;
+  }
+  .public-mobile-utility a {
+    display: grid; place-items: center; min-width: 0; padding: .55rem .35rem; border-right: 1px solid #e1e3e6;
+    color: #3f4652; font-size: .55rem; font-weight: 750; letter-spacing: .055em; text-align: center; text-transform: uppercase; white-space: nowrap;
+  }
+  .public-mobile-utility a:last-child { border-right: 0; color: #a50c17; }
   .portfolio-account-bar { justify-content: space-between; padding: .55rem 1rem; }
 }
