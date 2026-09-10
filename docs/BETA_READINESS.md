@@ -1,6 +1,6 @@
 # RAR beta readiness
 
-Last updated: 9 September 2026
+Last updated: 10 September 2026
 
 Delivery branch: `codex/beta-readiness`
 
@@ -8,7 +8,7 @@ Baseline deployed commit: `77f2b48f70af2569281737a909b0dcc36a45cf44`
 
 ## Decision
 
-**Not yet ready to invite a beta cohort.** The public discovery-to-auth handoff works on mobile, the evidence UI is transparent, and the portfolio comparison-group defect is fixed with regression coverage. However, production currently has three open critical reliability incidents (sale guard, catalogue curator guard, and Scout matching), and authenticated collector CRUD/privacy, staff decision saves, backup availability, and a contact destination still require verification before invitations are sent. Real completed-sale acquisition remains a human evidence dependency and must not be replaced with active listings or automated approval.
+**Not yet ready to invite a beta cohort.** The public discovery-to-auth handoff and authenticated collector CRUD/privacy journey now work on mobile, the evidence UI is transparent, and the portfolio comparison-group defect is fixed with regression coverage and an authenticated render check. However, production currently has three open critical reliability incidents (sale guard, catalogue curator guard, and Scout matching), and staff decision saves, backup availability, recovery-email delivery, and a contact destination still require verification before invitations are sent. Real completed-sale acquisition remains a human evidence dependency and must not be replaced with active listings or automated approval.
 
 Status meanings: **verified** was exercised or measured; **fixed** was changed and still requires the stated release checks; **blocked** needs access, evidence, or an owner decision; **unverified** was inspected but not exercised end to end.
 
@@ -20,11 +20,11 @@ Status meanings: **verified** was exercised or measured; **fixed** was changed a
 | Search → exact edition → add handoff | verified | Live ISBN search for `9781974710027` returned one English Jujutsu Kaisen result; the edition page showed ISBN/publisher and five verified sales; Add to collection reached `/portfolio?edition=…` and retained “you’re adding a specific manga” while signed out. |
 | Evidence/live-listing distinction | verified | Edition page labels active listings as asking prices that do not affect value/chart and keeps original completed-sale links. |
 | Printing-not-identified explanation | fixed | Live copy contradicted its visible chart. Local rendered verification now says these sales form a separate weaker-evidence group, require the chart minimum, and never combine with known print groups. Awaiting deployment retest. |
-| Signup, login, logout, recovery | fixed | The signed-out login UI and recovery entry point were rendered locally; password recovery handling and busy states are implemented and source-tested. A real reset/login/logout cycle still needs an isolated beta account. |
-| Holding add/edit/delete, quantity, optional cost, snapshots | unverified | Requires an isolated authenticated collector account and both desktop/mobile retest. |
-| Portfolio totals, history, unpriced holdings | fixed | Valuation now groups by exact publication, printing class/number, raw vs graded/company/grade, and source currency; only comparable raw groups with 3+ sales qualify. Regression tests cover mixed printing, graded/raw, insufficient evidence, unknown printing, and alternative currencies. Authenticated rendered verification remains outstanding. |
-| Username and opt-in public shelf | unverified | Schema view exposes only username and edition ID; public page fetches edition metadata separately. Must test publish/open signed out/make private with an isolated account. |
-| Server-enforced privacy | unverified | RLS/view definitions are privacy-minimised in source. Must run cross-account/anonymous checks against isolated accounts before beta. |
+| Signup, login, logout, recovery | fixed | A confirmed synthetic account logged in, logged out, and restored its portfolio after login. The branch recovery UI rendered and reached Supabase, but the project returned `email rate limit exceeded`; link delivery and final reset remain unverified. No password was changed. |
+| Holding add/edit/delete, quantity, optional cost, snapshots | verified | The synthetic account added an exact ISBN-selected holding, edited quantity/cost/notes, persisted totals, recorded a snapshot, and removed only that exact test row. Desktop and 390px authenticated layouts passed without horizontal overflow. Direct date-field editing remains unverified because browser automation did not produce a React state change for the native date input. |
+| Portfolio totals, history, unpriced holdings | fixed | Valuation now groups by exact publication, printing class/number, raw vs graded/company/grade, and source currency; only comparable raw groups with 3+ sales qualify. Regression tests cover mixed printing, graded/raw, insufficient evidence, unknown printing, and alternative currencies. The authenticated branch render correctly labelled the test holding `Printing not identified · 5 comparable verified sales`; the deployed baseline reproduced the incorrect `Proven first print` label. Awaiting deployment retest. |
+| Username and opt-in public shelf | verified | A synthetic handle was published briefly: the anonymous view exposed only `username`, `username_key`, and `edition_id`, and the live public page showed the edition. After opt-out the view returned zero rows and the route showed no public shelf. The test shelf is private again. |
+| Server-enforced privacy | verified | Anonymous direct access to `portfolio_holdings` returned zero rows. The published route exposed no account email, purchase price, purchase date, notes, or quantity; only the explicit shelf view supplied edition identity. |
 | Bug report/contact | blocked | Edition-specific community reporting exists, but there is no general support/contact destination. Owner must choose an accurate monitored destination; do not invent an address. |
 
 ## Scout learning and reliability
@@ -38,6 +38,14 @@ Status meanings: **verified** was exercised or measured; **fixed** was changed a
 | Confidence report | verified | Enough evidence: English raw 50–74 (257 samples, 90% observed match), English raw 75–89 (93, 99%), English conflict (36, 11%), Japanese raw 50–74 (76, 93%). Sparse bands are explicitly marked insufficient. No learned rules are active. |
 | Actual retraining claim | verified | Current system is deterministic proposals, reusable context, holdout evaluation, and rule replay—not model retraining. Product copy must keep that distinction. |
 | Staff watch/dismiss buttons and reliability controls | blocked | Read-only production records show the scheduled jobs completed, but all five latest reliability suites failed and three critical incidents are open. A fresh authenticated staff session is required to inspect inputs and exercise saves/mobile controls. Never bypass staff auth. |
+
+### Reliability alert diagnosis
+
+- `evidence_sale_guard`: all four failures are human-excluded observations whose completed-sale fields remain populated. The evaluator checks completeness but omits `match_status`, so it predicts `eligible`; every public and portfolio query inspected still requires both `sale_status=confirmed` and `match_status=verified_match`. This is an evaluator defect, not evidence that excluded sales entered a value.
+- `market_scout_match`: five human-labelled exact matches satisfy the current auto-dismiss path through publisher (3) or same-franchise series (2) text conflicts. This is a real unsafe-dismissal risk because ingestion can archive untouched leads on those title-only signals. Two further exact-match misses are ranking/recall failures but do not meet the auto-dismiss rule. Separately, 198 dismissed leads still score as useful, dominated by unavailable (73) and graded-not-raw (76) labels, showing that the suite currently mixes match quality with availability and grading outcomes.
+- `catalogue_curator_guard`: 29 human-rejected candidates pass its five-field completeness check, while six human-approved candidates without ISBNs fail it. The production curator only stages candidates and the approval API still requires a human decision plus stronger metadata/discovery guards, so there is no observed auto-publication path. The evaluator is too shallow to represent the actual review boundary.
+- `evidence_print_guard`: no critical false classifications, but 16 human-classified rows are missed (15 first-print, one later-print), leaving positive recall at 50%.
+- `cover_provenance_guard`: all 68 cases pass, but the suite fails because it has zero negative examples; its balanced-accuracy gate cannot be satisfied until genuine human-rejected cover decisions exist.
 
 ## Catalogue launch selection
 
@@ -85,7 +93,7 @@ Status meanings: **verified** was exercised or measured; **fixed** was changed a
 Engineering may merge/deploy this hardening branch only after reviewing the three production critical incidents. The branch passes workflow tests, lint (two pre-existing image warnings only), TypeScript, and a full production build. Before inviting collectors, the owner must provide:
 
 1. a fresh staff login session for Scout/reliability buttons, bulk intake, and staff mobile verification;
-2. an isolated collector test account (or explicit approval to create one) for auth, holdings, recovery, and signed-out shelf privacy tests;
+2. resolution of Supabase recovery-email rate limiting, followed by one isolated recovery-link delivery test (the synthetic collector account remains available, empty, and private);
 3. the Supabase backup/retention screen details and permission for a non-production restore drill;
 4. a real monitored contact destination for general beta bug reports;
 5. genuine completed-sale evidence for any requested coverage increase.
