@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type NavLink = { href: string; label: string };
 type NavGroup = { label: string; links: NavLink[] };
@@ -76,6 +77,7 @@ export default function StaffNav({ current }: { current: string }) {
           ))}
         </div>
       </details>
+      <ThemeToggle />
     </nav>
   );
 }

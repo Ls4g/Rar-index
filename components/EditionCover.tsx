@@ -21,10 +21,9 @@ function fallbackLabel(title: string | null, series?: string | null) {
   return value.split(/\s+/).filter(Boolean).slice(0, 3).map((word) => word[0]).join("").toUpperCase();
 }
 
-// A small, deliberately restrained set of accent colours (never the reserved
-// status colours: teal/amber/blue/grey) so different series get a bit of
-// visual character on their placeholder card without implying a status.
-const SERIES_ACCENTS = ["#a7332a", "#c9692c", "#77883a"];
+// A restrained manga-editorial palette gives missing-cover cards some series
+// character without bringing the old antique/gold visual language back.
+const SERIES_ACCENTS = ["#ef2334", "#5b5ce2", "#cf2d75"];
 
 function seriesAccent(value: string | null | undefined) {
   const key = (value ?? "").trim();

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function PublicHeader() {
   return (
@@ -7,6 +8,7 @@ export default function PublicHeader() {
         <Link className="brand" href="/" aria-label="RAR Index home">
           <span>RAR</span><em>Index</em><small>For manga collectors</small>
         </Link>
+        <div className="public-mobile-theme"><ThemeToggle /></div>
         <nav className="header-links public-header-nav" aria-label="Main navigation">
           <Link className="header-note" href="/browse">Discover</Link>
           <Link className="header-note" href="/collection">Collections</Link>
@@ -14,6 +16,7 @@ export default function PublicHeader() {
           <Link className="header-note" href="/#about">About</Link>
           <Link className="header-note public-header-staff" href="/staff-login">Staff access</Link>
           <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
+          <ThemeToggle />
           <Link className="header-shelf-link public-header-collection" href="/portfolio">Your collection <span>→</span></Link>
         </nav>
       </header>

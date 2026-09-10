@@ -1,0 +1,414 @@
+/*
+ * RAR editorial system
+ *
+ * This file is intentionally imported after the legacy stylesheet. It gives
+ * every collector and staff route the same visual language as the approved
+ * landing page while the older route-specific rules are progressively retired.
+ */
+
+:root,
+html[data-theme="day"] {
+  color-scheme: light;
+  --rar-canvas: #fbfbfa;
+  --rar-surface: #ffffff;
+  --rar-surface-soft: #f3f4f6;
+  --rar-surface-strong: #e9ebee;
+  --rar-ink: #0b0b0d;
+  --rar-muted: #5f6879;
+  --rar-line: #dadddf;
+  --rar-red: #d80d1c;
+  --rar-red-dark: #a90a16;
+  --rar-red-soft: #fff0f1;
+  --rar-shadow: 0 16px 42px rgba(16, 20, 28, .075);
+  --rar-header: rgba(255, 255, 255, .96);
+}
+
+html[data-theme="night"] {
+  color-scheme: dark;
+  --rar-canvas: #101217;
+  --rar-surface: #191c23;
+  --rar-surface-soft: #20242c;
+  --rar-surface-strong: #2a2f39;
+  --rar-ink: #f5f4f0;
+  --rar-muted: #a8afbb;
+  --rar-line: #343a45;
+  --rar-red: #ef2334;
+  --rar-red-dark: #c51424;
+  --rar-red-soft: #32191f;
+  --rar-shadow: 0 18px 48px rgba(0, 0, 0, .32);
+  --rar-header: rgba(20, 23, 29, .96);
+}
+
+body {
+  background: var(--rar-canvas);
+  color: var(--rar-ink);
+  transition: background-color .18s ease, color .18s ease;
+}
+
+.public-page,
+.review-page {
+  --editorial-serif: Georgia, "Times New Roman", "Yu Mincho", serif;
+  --paper: var(--rar-canvas);
+  --ink: var(--rar-ink);
+  --stone: var(--rar-surface-soft);
+  --muted: var(--rar-muted);
+  --line: var(--rar-line);
+  --gold: var(--rar-red);
+  --gold-light: var(--rar-red);
+  --red: var(--rar-red);
+  --red-dark: var(--rar-red-dark);
+  --action: var(--rar-red);
+  --action-dark: var(--rar-red-dark);
+  --action-soft: var(--rar-red-soft);
+  --canvas-bg: var(--rar-canvas);
+  --canvas-heading: var(--rar-ink);
+  --canvas-muted-strong: var(--rar-muted);
+  --surface-card: var(--rar-surface);
+  --surface-card-hover: var(--rar-surface-soft);
+  --surface-card-active: var(--rar-red-soft);
+  --surface-chip: var(--rar-surface-soft);
+  --surface-chip-active: var(--rar-red-soft);
+  --surface-input: var(--rar-surface);
+  --surface-tooltip: var(--rar-surface);
+  --surface-hairline-fill: color-mix(in srgb, var(--rar-ink) 4%, transparent);
+  --input-placeholder: color-mix(in srgb, var(--rar-muted) 68%, transparent);
+  --card-shadow: var(--rar-shadow);
+  --card-shadow-hover: var(--rar-shadow);
+  --accent-positive-text: #2b9974;
+  --accent-warning-text: #d26a2e;
+  --accent-info-text: #4b7fc2;
+  --accent-info-text-strong: #326bb5;
+  --accent-label-text: var(--rar-red);
+  min-height: 100vh;
+  background: var(--rar-canvas);
+  color: var(--rar-ink);
+}
+
+.public-page :is(h1, h2, h3),
+.review-page :is(h1, h2, h3) {
+  color: var(--rar-ink);
+  font-family: var(--editorial-serif);
+}
+
+.public-page .eyebrow,
+.review-page .eyebrow {
+  color: var(--rar-red);
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: .22em;
+}
+
+.public-page .eyebrow::after,
+.review-page .review-hero .eyebrow::after,
+.review-page .section-intro > .eyebrow::after {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: 3px;
+  margin-top: .72rem;
+  background: var(--rar-red);
+  border-radius: 999px;
+}
+
+/* Shared theme control */
+.theme-toggle {
+  border-color: var(--rar-line);
+  background: var(--rar-surface-soft);
+}
+.theme-toggle button { color: var(--rar-muted); }
+.theme-toggle button:hover { color: var(--rar-ink); }
+.theme-toggle button.is-active,
+.theme-toggle button.is-active:hover { background: var(--rar-red); color: #fff; }
+
+/* The same masthead appears on every collector-facing route. */
+.public-site-header {
+  position: relative;
+  z-index: 30;
+  border-color: var(--rar-line);
+  background: var(--rar-header);
+  backdrop-filter: blur(16px);
+}
+main.public-page > header.site-header.public-site-header { background: var(--rar-header); }
+.public-site-header .brand,
+.public-site-header .brand em,
+.public-site-header .header-note,
+.public-site-header .header-search-link { color: var(--rar-ink); }
+.public-site-header .brand > span,
+.public-site-header .public-header-staff { color: var(--rar-red); }
+.public-site-header .brand small { border-color: var(--rar-line); color: var(--rar-muted); }
+.public-site-header .public-header-collection { background: var(--rar-red); color: #fff; }
+.public-site-header .public-header-collection:hover { background: var(--rar-red-dark); }
+.public-mobile-theme { display: none; }
+.public-mobile-utility { border-color: var(--rar-line); background: var(--rar-surface); }
+.public-mobile-utility a { border-color: var(--rar-line); color: var(--rar-muted); }
+.public-mobile-utility a:last-child { color: var(--rar-red); }
+.portfolio-account-bar { border-color: var(--rar-line); background: var(--rar-surface); }
+
+/* Landing and edition pages keep their approved composition in both modes. */
+.home-page,
+.edition-page,
+html[data-theme="day"] :is(.home-page, .edition-page),
+html[data-theme="night"] :is(.home-page, .edition-page) {
+  background: var(--rar-canvas);
+  color: var(--rar-ink);
+}
+.home-page .public-site-header,
+.edition-page .public-site-header {
+  border-color: var(--rar-line);
+  background: var(--rar-header);
+}
+.home-page :is(.home-hero, .home-discovery-rail, .home-shelf-invite),
+.edition-page :is(.edition-stage, .edition-stage-inner, .edition-copy-panel, .edition-facts-section, .valuation-panel, .edition-series-rail, .price-history-section) {
+  border-color: var(--rar-line);
+  background-color: var(--rar-canvas);
+  color: var(--rar-ink);
+}
+.home-page :is(.home-hero h1, .home-discovery-heading h2, .home-shelf-invite h2, .home-shelf-promises strong),
+.edition-page :is(.edition-hero h1, .edition-copy-panel h2, .edition-facts-section h2, .edition-series-heading h2, .valuation-panel .confidence-label, .price-history-section .section-intro h2) { color: var(--rar-ink); }
+.home-page :is(.home-lede, .home-shelf-invite-copy > p, .home-shelf-promises span),
+.edition-page :is(.edition-author, .edition-subtitle, .edition-copy-panel p, .edition-facts dt, .edition-facts dd, .edition-market-summary) { color: var(--rar-muted); }
+.home-page .home-btn.is-quiet,
+.edition-page .home-btn.is-quiet {
+  border-color: var(--rar-line);
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+}
+.home-page .home-btn.is-quiet:hover,
+.edition-page .home-btn.is-quiet:hover { border-color: var(--rar-muted); background: var(--rar-surface-soft); color: var(--rar-ink); }
+.home-page .home-collector-note { color: var(--rar-muted); }
+.home-page .home-collector-note img { border-color: var(--rar-surface); }
+.home-page .home-collector-note span { border-color: var(--rar-line); }
+.home-page .home-spotlight { border-color: var(--rar-line); background: var(--rar-surface); }
+.home-page .home-spotlight-copy h2 { color: var(--rar-ink); }
+.home-page .home-spotlight-copy > p:not(.eyebrow) { color: var(--rar-muted); }
+.home-page .home-discovery-rail,
+.home-page .home-shelf-invite,
+.edition-page .valuation-panel,
+.edition-page .price-history-section { background: var(--rar-surface); }
+.home-page .home-discovery-heading .eyebrow { color: var(--rar-red); }
+.home-page .home-discovery-heading h2 { color: var(--rar-ink); }
+.home-page .home-shelf-promises { border-color: var(--rar-line); background: var(--rar-line); }
+.home-page .home-shelf-promises li { border-color: var(--rar-line); background: var(--rar-canvas); }
+.home-page .home-context-band { border-color: var(--rar-line); background: var(--rar-surface); color: var(--rar-ink); }
+.home-page .home-context-band li { border-color: var(--rar-line); }
+.home-page .home-context-band li i { background: var(--rar-surface-soft); color: var(--rar-ink); }
+.home-page .home-context-band li span { color: var(--rar-muted); }
+.home-page footer { border-color: var(--rar-line); background: var(--rar-surface-strong); color: var(--rar-ink); }
+.edition-page .edition-stage-veil { background: linear-gradient(90deg, transparent 0 32%, color-mix(in srgb, var(--rar-canvas) 88%, transparent) 59%, var(--rar-canvas) 100%); }
+.edition-page .price-history-multi .price-chart-wrap,
+.edition-page .price-history-card .ghost-chart { border-color: var(--rar-line); background: var(--rar-surface-soft); }
+.edition-page .chart-legend-toggle { background: var(--rar-surface); color: var(--rar-ink); }
+.edition-page .edition-hero-actions .home-btn.is-quiet {
+  border-color: var(--rar-line) !important;
+  background: var(--rar-surface) !important;
+  color: var(--rar-ink) !important;
+}
+.edition-page .publication-no-sales {
+  border-color: var(--rar-line);
+  background: var(--rar-surface) !important;
+  color: var(--rar-ink);
+  box-shadow: none;
+}
+.edition-page .publication-no-sales > strong,
+.edition-page .publication-no-sales-actions a { color: var(--rar-ink); }
+.edition-page .publication-no-sales > :is(p, small) { color: var(--rar-muted); }
+.edition-page .valuation-panel-live-teaser,
+.edition-page .valuation-panel-live-teaser strong { color: var(--rar-muted) !important; }
+.edition-page .valuation-panel-live-teaser a { color: #fff; }
+
+/* Cover placeholders are contemporary catalogue objects, not antique stock. */
+.public-page .edition-cover,
+.review-page .edition-cover,
+.public-page .edition-cover-fallback,
+.review-page .edition-cover-fallback,
+.edition-page .edition-hero-cover .edition-cover-fallback {
+  background: linear-gradient(145deg, #151820, #2b303b);
+}
+.public-page .edition-cover-fallback.status-candidate,
+.review-page .edition-cover-fallback.status-candidate { background: linear-gradient(145deg, #171d2c, #313f64); }
+.public-page .edition-cover-fallback.status-candidate .edition-cover-fallback-status strong,
+.review-page .edition-cover-fallback.status-candidate .edition-cover-fallback-status strong { color: #b9c9ff; }
+.public-page .edition-cover-fallback.status-rejected,
+.review-page .edition-cover-fallback.status-rejected { background: linear-gradient(145deg, #20151a, #5d2630); }
+
+/* Public catalogue, collection, account and request surfaces. */
+.public-page :is(.browse-hero, .tool-hero, .portfolio-hero, .collector-shelf-hero) {
+  margin: 0;
+  padding: clamp(3.5rem, 7vw, 6.5rem) 3.3vw;
+  border: 0;
+  border-bottom: 1px solid var(--rar-line);
+  border-radius: 0;
+  background: var(--rar-canvas);
+  color: var(--rar-ink);
+}
+.public-page :is(.browse-hero, .tool-hero, .portfolio-hero, .collector-shelf-hero) p:not(.eyebrow) { color: var(--rar-muted); }
+.public-page :is(.browse-hero, .tool-hero, .portfolio-hero, .collector-shelf-hero) :is(h1, h2, h3),
+.public-page .browse-hero h1,
+.public-page .tool-hero h1,
+.public-page .portfolio-hero h1 { color: var(--rar-ink); }
+.public-page .browse-hero > div > p:last-child,
+.public-page .tool-hero > p:not(.eyebrow),
+.public-page .portfolio-hero p:not(.eyebrow) { color: var(--rar-muted); }
+.public-page .queue-total { border-color: var(--rar-line); }
+.public-page .queue-total strong { color: var(--rar-red); font-family: var(--editorial-serif); }
+.public-page .queue-total span { color: var(--rar-muted); }
+.public-page .collection-hero-actions a {
+  border-color: var(--rar-line);
+  border-radius: .2rem;
+  color: var(--rar-ink);
+}
+.public-page .collection-hero-actions a:hover { background: var(--rar-surface-soft); }
+.public-page .collection-hero-actions a.is-primary { border-color: var(--rar-red); background: var(--rar-red); color: #fff; }
+.public-page .collection-hero-actions a.is-primary:hover { border-color: var(--rar-red-dark); background: var(--rar-red-dark); }
+.public-page :is(.browse-content, .collection-content, .collector-shelf-content) { background: var(--rar-canvas); }
+.public-page :is(.browse-controls, .browse-series-group, .browse-collection-banner, .collection-steps article, .collection-scope, .collector-context-card, .collector-handle, .collector-shelf-card, .identify-tool, .identify-step, .identify-example, .community-handoff, .edition-request-form, .portfolio-auth, .portfolio-summary, .holding-card, .portfolio-activity-column, .most-valuable-list) {
+  border-color: var(--rar-line);
+  border-radius: .2rem;
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+  box-shadow: none;
+}
+.public-page :is(.browse-search-field, input, textarea, select) {
+  border-color: var(--rar-line);
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+}
+.public-page :is(.browse-chip-row button, .chart-range-selector button, .collector-shelf-nav button) {
+  border-color: var(--rar-line);
+  background: var(--rar-surface-soft);
+  color: var(--rar-muted);
+}
+.public-page :is(.browse-chip-row button.is-active, .chart-range-selector button.is-active) { background: var(--rar-red); color: #fff; }
+.public-page :is(.browse-series-header, .collector-shelf-card-meta, .collector-context-tags, .portfolio-benefits, .holding-card-meta) { color: var(--rar-muted); }
+.public-page .portfolio-auth-options button.selected {
+  border-color: var(--rar-red);
+  background: var(--rar-red-soft);
+  color: var(--rar-red);
+}
+.public-page .portfolio-preview-icon { background: var(--rar-red-soft); color: var(--rar-red); }
+.public-page .browse-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  border-color: var(--rar-line);
+  background: var(--rar-line);
+}
+.public-page .browse-card { border-color: var(--rar-line); background: var(--rar-surface); }
+.public-page .browse-card:hover { background: var(--rar-surface-soft); }
+.public-page .browse-card > strong { color: var(--rar-ink); }
+.public-page .browse-card p { color: var(--rar-red); }
+
+/* Staff workspace: editorial masthead and content, dense where the work is. */
+.review-page .site-header {
+  position: relative;
+  z-index: 40;
+  max-width: none;
+  min-height: 68px;
+  margin: 0;
+  padding: .75rem 3.3vw;
+  border-color: var(--rar-line);
+  background: var(--rar-header);
+  backdrop-filter: blur(16px);
+}
+.review-page .site-header .brand {
+  gap: .35rem;
+  color: var(--rar-ink);
+  font-family: var(--editorial-serif);
+  font-size: 1.6rem;
+  letter-spacing: -.045em;
+}
+.review-page .site-header .brand-mark { display: none; }
+.review-page .site-header .brand > span { color: var(--rar-red); }
+.review-page .site-header .brand em { color: var(--rar-ink); font-family: var(--editorial-serif); font-size: 1.6rem; }
+.review-page .review-hero {
+  align-items: end;
+  padding: clamp(3.5rem, 7vw, 6rem) max(3.3vw, calc((100vw - 1180px) / 2));
+  border-bottom: 1px solid var(--rar-line);
+  background: var(--rar-canvas);
+  color: var(--rar-ink);
+}
+.review-page .review-hero h1 { margin-top: .55rem; color: var(--rar-ink); font-size: clamp(3.4rem, 7vw, 6.4rem); line-height: .88; letter-spacing: -.055em; }
+.review-page .review-hero p:not(.eyebrow) { color: var(--rar-muted); }
+.review-page .queue-total { border-color: var(--rar-line); }
+.review-page .queue-total strong { color: var(--rar-red); font-family: var(--editorial-serif); }
+.review-page .queue-total span { color: var(--rar-muted); }
+
+.review-page :is(.review-card, .review-empty, .human-decision-card, .human-decision-toolbar, .catalogue-card, .catalogue-bulk-panel, .cover-bulk-panel, .cover-candidate-card, .cover-candidate-finder, .approved-listing-reviewer, .bulk-approved-sales, .single-approved-sale, .sold-search-priorities, .agent-card-grid > article, .agent-feedback-panel, .agent-history-panel, .agent-workbench, .agent-autopilot-metrics, .agent-reliability-panel, .outcome-card, .outcome-workspace-summary, .coverage-target-sprint, .coverage-filters, .collection-priority-grid a, .staff-login-card) {
+  border-color: var(--rar-line);
+  border-radius: .2rem;
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+  box-shadow: none;
+}
+.review-page :is(.catalogue-content, .review-list-section, .tool-content, .agent-control-content) { background: var(--rar-canvas); color: var(--rar-ink); }
+.review-page .staff-login-card { border-top-color: var(--rar-red); }
+.review-page .staff-login-card > p:not(.eyebrow) { color: var(--rar-muted); }
+.review-page :is(.review-match, .review-note, .catalogue-bulk-facts, .cover-candidate-image, .print-queue-row, .print-queue-form, .outcome-expanded-review, .agent-rule-workbench, .agent-integration-light) {
+  border-color: var(--rar-line);
+  background: var(--rar-surface-soft);
+  color: var(--rar-ink);
+}
+.review-page :is(input, textarea, select) {
+  border-color: var(--rar-line);
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+}
+.review-page :is(input, textarea)::placeholder { color: color-mix(in srgb, var(--rar-muted) 70%, transparent); }
+.review-page :is(table, .readiness-table-wrap, .catalogue-bulk-table) { border-color: var(--rar-line); background: var(--rar-surface); color: var(--rar-ink); }
+.review-page :is(th, td) { border-color: var(--rar-line); }
+.review-page th { background: var(--rar-surface-soft); color: var(--rar-muted); }
+.review-page :is(.review-card-topline, .review-condition, .review-note p, .section-copy, .catalogue-details dt, .catalogue-details dd) { color: var(--rar-muted); }
+.review-page :is(.review-source-link, .staff-action-link, .cover-candidate-copy > a) { color: var(--rar-red); }
+.review-page :is(.review-submit-row button, .catalogue-form-actions button, .agent-control-button, .approved-listing-submit button, .bulk-sale-publish button) { background: var(--rar-red); color: #fff; }
+.review-page :is(.review-submit-row button, .catalogue-form-actions button, .agent-control-button, .approved-listing-submit button, .bulk-sale-publish button):hover:not(:disabled) { background: var(--rar-red-dark); }
+
+.staff-primary-links,
+.staff-nav-menu summary { border-color: var(--rar-line); background: var(--rar-surface); }
+.staff-primary-links a,
+.staff-nav-menu summary { color: var(--rar-muted); }
+.staff-primary-links a:hover,
+.staff-nav-menu summary:hover { color: var(--rar-ink); }
+.staff-primary-links a.is-current { background: var(--rar-red); color: #fff; }
+.staff-nav-panel { border-color: var(--rar-line); background: var(--rar-surface); box-shadow: var(--rar-shadow); }
+.staff-nav-group-label { color: var(--rar-red); }
+.staff-nav-panel a { color: var(--rar-ink); }
+.staff-nav-panel a:hover { background: var(--rar-surface-soft); }
+.staff-nav-panel a.is-current { background: var(--rar-red-soft); color: var(--rar-red); }
+
+@media (max-width: 1180px) {
+  .public-site-header .brand small { display: none; }
+  .public-site-header .public-header-nav { gap: 1rem; }
+  .public-site-header .public-header-collection { padding-inline: 1.6rem; }
+}
+
+@media (max-width: 850px) {
+  .review-page .site-header { padding: .8rem 1rem; }
+  .staff-workspace-nav { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; padding-right: 0; }
+  .staff-workspace-nav > .theme-toggle { position: static; }
+  .review-page .review-hero { padding-inline: 1rem; }
+}
+
+@media (max-width: 760px) {
+  .public-site-header { padding-right: 152px; }
+  .public-mobile-theme {
+    position: absolute;
+    top: 50%;
+    right: 145px;
+    z-index: 2;
+    display: block;
+    transform: translateY(-50%);
+  }
+  .public-site-header .public-mobile-theme .theme-toggle { display: inline-flex; gap: 1px; padding: 1px; }
+  .public-mobile-theme .theme-toggle button { padding: .28rem .35rem; font-size: .48rem; letter-spacing: .03em; }
+  .public-site-header .public-header-nav > .theme-toggle { display: none; }
+  .public-page :is(.browse-hero, .tool-hero, .portfolio-hero, .collector-shelf-hero) { padding: 3.5rem 1rem; }
+  .edition-page .edition-stage-veil { background: linear-gradient(180deg, transparent 0 38%, color-mix(in srgb, var(--rar-canvas) 90%, transparent) 55%, var(--rar-canvas) 100%); }
+}
+
+@media (max-width: 390px) {
+  .public-site-header { padding-right: 128px; }
+  .public-site-header .brand,
+  .public-site-header .brand em { font-size: 1.18rem; }
+  .public-site-header .public-header-nav,
+  .public-site-header .public-header-collection { width: 116px; max-width: 116px; }
+  .public-mobile-theme { right: 122px; }
+  .public-mobile-theme .theme-toggle button { padding-inline: .28rem; }
+}

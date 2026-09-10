@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
 import "./globals.css";
+import "./editorial-system.css";
 
 // One family across the whole site, replacing Space Grotesk over Inter.
 // Archivo holds up at 12px in a dense table and still anchors a 4rem price,
