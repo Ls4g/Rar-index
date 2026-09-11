@@ -517,9 +517,31 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
           continue;
         }
         const detectedVolume = integerVolume(target.volumeNumber) ?? volumeFromCatalogueTitle(candidate.candidate_title);
+        // Columns are listed one by one rather than spreading the candidate.
+        //
+        // The spread is what broke staging: source_name was added to
+        // CatalogueSourceCandidate alongside the openBD source to say WHICH
+        // source answered, it is not a column on catalogue_import_queue, and
+        // it went into the insert anyway. Every staging insert then failed
+        // with "Could not find the 'source_name' column", the error was
+        // swallowed as a failed target, and the run still reported success
+        // having staged nothing. All three sources set the field, so nothing
+        // reached catalogue review at all from the moment it was introduced.
+        //
+        // Writing the columns out means a new field on the candidate type is
+        // inert here instead of silently breaking every insert again.
         rows.push({
-          ...candidate,
           source_id: sourceId,
+          external_id: candidate.external_id,
+          source_record_url: candidate.source_record_url,
+          candidate_kind: candidate.candidate_kind,
+          candidate_title: candidate.candidate_title,
+          candidate_author: candidate.candidate_author,
+          candidate_publisher: candidate.candidate_publisher,
+          candidate_isbn_13: candidate.candidate_isbn_13,
+          candidate_release_date: candidate.candidate_release_date,
+          candidate_format: candidate.candidate_format ?? null,
+          candidate_cover_image_url: candidate.candidate_cover_image_url ?? null,
           candidate_series: target.series,
           candidate_volume_number: detectedVolume === null ? null : String(detectedVolume),
           // Never manufacture a language from the search target. Eligibility
