@@ -12,6 +12,19 @@ const ACTION_RULE_TYPES: Record<string, { key: string; type: ScoutRuleType }> = 
 };
 
 const DEFAULT_LOT_PHRASES = ["bundle", "collection", "complete set", "manga set", "volume set", "volumes", "vols", "lot"];
+const EDITION_VARIANT_PHRASES = [
+  "deluxe edition",
+  "omnibus",
+  "anniversary edition",
+  "collector's edition",
+  "collectors edition",
+  "hardcover",
+  "hardback",
+  "library edition",
+  "full color edition",
+  "3 in 1",
+  "2 in 1",
+];
 
 type EvaluationExample = {
   leadId: string;
@@ -134,25 +147,44 @@ export function evaluateScoutRule(decisions: HumanScoutDecision[], rule: ScoutRu
   };
 }
 
-export function ruleCandidateForAction(actionType: string, phrases: string[] = []) {
+function suggestedEditionPhrases(evidence: Record<string, unknown> | null | undefined) {
+  const examples = Array.isArray(evidence?.examples) ? evidence.examples : [];
+  const titles = examples.flatMap((example) => {
+    if (!example || typeof example !== "object") return [];
+    const listingTitle = (example as { listingTitle?: unknown }).listingTitle;
+    return typeof listingTitle === "string" ? [listingTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ")] : [];
+  });
+  return EDITION_VARIANT_PHRASES.filter((phrase) => {
+    const needle = ` ${phrase.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+    return titles.some((title) => ` ${title} `.includes(needle));
+  });
+}
+
+export function ruleCandidateForAction(
+  actionType: string,
+  phrases: string[] = [],
+  evidence: Record<string, unknown> | null = null,
+) {
   const definition = ACTION_RULE_TYPES[actionType];
   if (!definition) return null;
   const configuredPhrases = definition.type === "multi_volume_phrase"
     ? [...DEFAULT_LOT_PHRASES, ...phrases]
-    : phrases;
+    : definition.type === "edition_conflict_phrase"
+      ? [...suggestedEditionPhrases(evidence), ...phrases]
+      : phrases;
   if (definition.type === "edition_conflict_phrase" && !configuredPhrases.length) {
-    throw new Error("Enter at least one exact conflict phrase before testing this rule.");
+    throw new Error("RAR could not derive a safe edition phrase from these examples. Add an optional exact phrase and try again.");
   }
   return { ...definition, config: defaultRuleConfig(definition.type, configuredPhrases) };
 }
 
 export async function createAndEvaluateScoutRule(
   admin: SupabaseClient,
-  action: { id: string; action_type: string },
+  action: { id: string; action_type: string; evidence?: Record<string, unknown> | null },
   reviewer: string,
   phrases: string[] = [],
 ) {
-  const definition = ruleCandidateForAction(action.action_type, phrases);
+  const definition = ruleCandidateForAction(action.action_type, phrases, action.evidence ?? null);
   if (!definition) throw new Error("This recommendation does not define a Scout scoring rule.");
 
   const { data: existing } = await admin

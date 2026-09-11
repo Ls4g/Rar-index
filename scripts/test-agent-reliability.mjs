@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { evaluateReliabilityCase } from "../lib/agentReliability.ts";
 import { isExecutableAgentAction, preflightAgentAction } from "../lib/agentActionExecution.ts";
+import { ruleCandidateForAction } from "../lib/scoutRuleEvaluation.ts";
 
 function benchmark(evaluator_key, expected_outcome, input_snapshot) {
   return {
@@ -52,6 +53,11 @@ const scanPreflight = preflightAgentAction({
 assert.equal(scanPreflight.ok, true);
 assert.equal(isExecutableAgentAction("shadow_test_edition_conflicts"), true);
 assert.equal(isExecutableAgentAction("review_scout_feedback_conflicts"), false);
+const derivedEditionRule = ruleCandidateForAction("shadow_test_edition_conflicts", [], { examples: [
+  { listingTitle: "Berserk Deluxe Edition Volume 7" },
+  { listingTitle: "Initial D Omnibus Vol 1" },
+] });
+assert.deepEqual(derivedEditionRule?.config.phrases, ["deluxe edition", "omnibus"]);
 
 const unsafePreflight = preflightAgentAction({
   id: "action-2", action_type: "scan_stale_profiles", status: "approved", target_type: "price_observations", target_id: null,
