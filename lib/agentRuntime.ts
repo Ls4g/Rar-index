@@ -9,6 +9,7 @@ import { refreshDiscoveryBacklog, readBacklogSummary } from "@/lib/catalogueDisc
 import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 import { ensurePriorityMarketplaceProfiles, type PriorityProfileResult } from "@/lib/priorityCoverage";
+import { approvalStillCoversProposal, indexOpenAgentActions, type OpenAgentAction } from "@/lib/agentProposalLifecycle";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -148,15 +149,16 @@ async function reconcileAgentProposals(
 ) {
   const { data: current, error } = await admin
     .from("agent_actions")
-    .select("id,dedupe_key")
+    .select("id,dedupe_key,status,title")
     .eq("agent_key", agentKey)
-    .eq("status", "proposed")
-    .neq("action_type", "suggest_print_classification");
+    .in("status", ["proposed", "approved"])
+    .neq("action_type", "suggest_print_classification")
+    .order("reviewed_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(`Could not reconcile agent proposals: ${error.message}`);
 
-  const byDedupe = new Map((current ?? []).map((action) => [action.dedupe_key as string, action.id as string]));
+  const { proposedByDedupe, approvedByDedupe } = indexOpenAgentActions((current ?? []) as OpenAgentAction[]);
   const activeKeys = new Set(proposals.map((proposal) => proposal.dedupeKey));
-  const staleIds = (current ?? []).filter((action) => !activeKeys.has(action.dedupe_key as string)).map((action) => action.id as string);
+  const staleIds = [...proposedByDedupe.values()].filter((action) => !activeKeys.has(action.dedupe_key)).map((action) => action.id);
   let cancelled = 0;
   if (staleIds.length) {
     const { data: stale, error: staleError } = await admin.from("agent_actions").update({
@@ -171,8 +173,9 @@ async function reconcileAgentProposals(
 
   let created = 0;
   let refreshed = 0;
+  let coveredByApproval = 0;
   for (const item of proposals) {
-    const existingId = byDedupe.get(item.dedupeKey);
+    const existing = proposedByDedupe.get(item.dedupeKey);
     const values = {
       run_id: runId,
       action_type: item.actionType,
@@ -185,10 +188,14 @@ async function reconcileAgentProposals(
       evidence: item.evidence,
       proposed_payload: item.proposedPayload ?? {},
     };
-    if (existingId) {
-      const { error: refreshError } = await admin.from("agent_actions").update(values).eq("id", existingId).eq("status", "proposed");
+    if (existing) {
+      const { error: refreshError } = await admin.from("agent_actions").update(values).eq("id", existing.id).eq("status", "proposed");
       if (refreshError) throw new Error(`Could not refresh agent proposal: ${refreshError.message}`);
       refreshed += 1;
+      continue;
+    }
+    if (approvalStillCoversProposal(approvedByDedupe.get(item.dedupeKey), item.title)) {
+      coveredByApproval += 1;
       continue;
     }
     const { error: insertError } = await admin.from("agent_actions").insert({
@@ -199,7 +206,7 @@ async function reconcileAgentProposals(
     if (!insertError) created += 1;
     else if (insertError.code !== "23505") throw new Error(`Could not record agent proposal: ${insertError.message}`);
   }
-  return { created, refreshed, cancelled };
+  return { created, refreshed, cancelled, coveredByApproval };
 }
 
 export async function runAgentObservation(
@@ -435,6 +442,7 @@ export async function runAgentObservation(
       proposals_created: proposalResult.created,
       proposals_refreshed: proposalResult.refreshed,
       stale_proposals_closed: proposalResult.cancelled,
+      proposals_covered_by_prior_approval: proposalResult.coveredByApproval,
     };
     const { data: finished, error } = await admin.from("agent_runs").update({
       status: "succeeded",

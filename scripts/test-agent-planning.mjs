@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { planAgentActions } from "../lib/agentPlanning.ts";
+import { approvalStillCoversProposal, indexOpenAgentActions } from "../lib/agentProposalLifecycle.ts";
 
 const catalogue = planAgentActions("catalogue_curator", {
   catalogue_queue_pending: 4,
@@ -49,4 +50,14 @@ const clear = planAgentActions("evidence_auditor", {
 });
 assert.equal(clear.proposals.length, 0);
 
-console.log("Agent planning tests passed (5 scenarios).");
+const previousActions = [
+  { id: "proposed", dedupe_key: "scout:triage-new-leads", status: "proposed", title: "Review 74 current leads" },
+  { id: "approved", dedupe_key: "catalogue:source-missing-covers", status: "approved", title: "Source 18 missing verified covers" },
+];
+const indexed = indexOpenAgentActions(previousActions);
+assert.equal(indexed.proposedByDedupe.get("scout:triage-new-leads")?.id, "proposed");
+assert.equal(indexed.approvedByDedupe.get("catalogue:source-missing-covers")?.id, "approved");
+assert.equal(approvalStillCoversProposal(indexed.approvedByDedupe.get("catalogue:source-missing-covers"), "Source 18 missing verified covers"), true);
+assert.equal(approvalStillCoversProposal(indexed.approvedByDedupe.get("catalogue:source-missing-covers"), "Source 13 missing verified covers"), false);
+
+console.log("Agent planning tests passed (7 scenarios).");
