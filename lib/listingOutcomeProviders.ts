@@ -186,6 +186,22 @@ function marketplaceHeader(marketplace: string | null) {
   return marketplace?.trim() || process.env.EBAY_MARKETPLACE_ID || "EBAY_GB";
 }
 
+/**
+ * eBay uses two ids for the same listing. Browse search returns the RESTful
+ * form, "v1|175537033747|0", while get_item_by_legacy_id and the Trading API
+ * both want the bare numeric legacy id in the middle of it.
+ *
+ * Anything already numeric is returned untouched, so this is safe to apply to
+ * rows captured before the id format was ever stored consistently.
+ */
+export function legacyItemId(value: string) {
+  const trimmed = (value ?? "").trim();
+  const restful = trimmed.match(/^v\d+\|(\d+)\|/);
+  if (restful) return restful[1];
+  const digits = trimmed.match(/\d{6,}/);
+  return digits ? digits[0] : trimmed;
+}
+
 // ---------------------------------------------------------------- browse ----
 // Available today. Can never confirm a sale, by construction.
 export async function browseOutcomeProvider(itemId: string, marketplace: string | null): Promise<OutcomeProviderResult> {
@@ -210,8 +226,19 @@ export async function browseOutcomeProvider(itemId: string, marketplace: string 
     };
   }
 
+  // Scout stores eBay's RESTful item id ("v1|175537033747|0"), which is what
+  // the Browse search response carries. get_item_by_legacy_id wants the bare
+  // numeric legacy id and 404s on anything else -- so every outcome check ever
+  // run returned 404, every watched listing was recorded "no longer
+  // retrievable", and RAR concluded that listings which were still live had
+  // ended. 397 of 397 checks failed identically, which is the tell: a real
+  // mix of live and ended listings can never produce a 100% not-found rate.
+  //
+  // The two ids address the same item, so the numeric part is extracted here
+  // rather than changing what Scout stores. A bare numeric id is passed
+  // through untouched, so rows captured either way still work.
   const url = new URL("https://api.ebay.com/buy/browse/v1/item/get_item_by_legacy_id");
-  url.searchParams.set("legacy_item_id", itemId);
+  url.searchParams.set("legacy_item_id", legacyItemId(itemId));
   let response: Response;
   try {
     response = await fetch(url, {
@@ -295,7 +322,7 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
   const credentialsXml = authNAuthToken
     ? `<RequesterCredentials><eBayAuthToken>${escapeXml(authNAuthToken)}</eBayAuthToken></RequesterCredentials>`
     : "";
-  const requestXml = `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">${credentialsXml}<DetailLevel>ReturnAll</DetailLevel><ItemID>${itemId.replace(/[^0-9]/g, "")}</ItemID></GetItemRequest>`;
+  const requestXml = `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">${credentialsXml}<DetailLevel>ReturnAll</DetailLevel><ItemID>${legacyItemId(itemId)}</ItemID></GetItemRequest>`;
   let response: Response;
   try {
     response = await fetch("https://api.ebay.com/ws/api.dll", {
@@ -467,10 +494,15 @@ export async function marketplaceInsightsOutcomeProvider(
   // Only a record for THIS listing counts. A search that returns fifty similar
   // sold items says nothing about the one being watched.
   const sales = (payload as { itemSales?: Array<Record<string, unknown>> } | null)?.itemSales ?? [];
+  // Compared on the numeric legacy id at both ends. Insights reports
+  // legacyItemId as a bare number while RAR stores the RESTful form, so a
+  // direct string comparison never matched even when the sale was right
+  // there in the response.
+  const wantedLegacyId = legacyItemId(itemId);
   const match = sales.find((sale) => {
-    const legacy = String(sale.legacyItemId ?? "");
-    const itemIdValue = String(sale.itemId ?? "");
-    return legacy === itemId || itemIdValue.includes(itemId);
+    const legacy = legacyItemId(String(sale.legacyItemId ?? ""));
+    const itemIdValue = legacyItemId(String(sale.itemId ?? ""));
+    return legacy === wantedLegacyId || itemIdValue === wantedLegacyId;
   });
   if (!match) {
     return {
