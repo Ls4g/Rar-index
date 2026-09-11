@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { evaluateReliabilityCase } from "../lib/agentReliability.ts";
-import { preflightAgentAction } from "../lib/agentActionExecution.ts";
+import { isExecutableAgentAction, preflightAgentAction } from "../lib/agentActionExecution.ts";
 
 function benchmark(evaluator_key, expected_outcome, input_snapshot) {
   return {
@@ -50,6 +50,8 @@ const scanPreflight = preflightAgentAction({
   evidence: { stale_search_profiles: 10 }, proposed_payload: {},
 });
 assert.equal(scanPreflight.ok, true);
+assert.equal(isExecutableAgentAction("shadow_test_edition_conflicts"), true);
+assert.equal(isExecutableAgentAction("review_scout_feedback_conflicts"), false);
 
 const unsafePreflight = preflightAgentAction({
   id: "action-2", action_type: "scan_stale_profiles", status: "approved", target_type: "price_observations", target_id: null,

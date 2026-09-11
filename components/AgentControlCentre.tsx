@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { isExecutableAgentAction } from "@/lib/agentActionExecution";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Control = {
@@ -185,6 +186,7 @@ export default function AgentControlCentre({
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
+  const [resolvedActionIds, setResolvedActionIds] = useState<Set<string>>(() => new Set());
   const [ebayHealth, setEbayHealth] = useState(initialEbayHealth);
 
   async function testEbayConnection() {
@@ -226,7 +228,10 @@ export default function AgentControlCentre({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The command failed.");
-      setMessage("Agents updated.");
+      if (body.command === "review_action" && typeof body.actionId === "string") {
+        setResolvedActionIds((current) => new Set(current).add(body.actionId as string));
+      }
+      setMessage(typeof result.message === "string" ? result.message : "Agents updated.");
       router.refresh();
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "The command failed.");
@@ -237,7 +242,7 @@ export default function AgentControlCentre({
 
   const lastRun = new Map<string, Run>();
   for (const run of runs) if (!lastRun.has(run.agent_key)) lastRun.set(run.agent_key, run);
-  const proposed = actions.filter((action) => action.status === "proposed");
+  const proposed = actions.filter((action) => action.status === "proposed" && !resolvedActionIds.has(action.id));
   const plannedFeedback = actions.filter((action) => action.status === "approved" && isFeedbackAction(action));
   const executed = actions.filter((action) => action.status === "executed").slice(0, 10);
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
@@ -346,7 +351,9 @@ export default function AgentControlCentre({
           const workQueue = ACTION_LINKS[action.action_type];
           const examples = feedbackExamples(action);
           const needsPhrases = ["shadow_test_multi_volume_detection", "shadow_test_edition_conflicts"].includes(action.action_type);
-          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{needsPhrases ? <label className="agent-rule-phrases"><span>Exact phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder={action.action_type === "shadow_test_multi_volume_detection" ? "bundle, complete set, volumes" : "deluxe edition, omnibus"} value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
+          const canExecute = isExecutableAgentAction(action.action_type);
+          const isRunning = busy === `approve-${action.id}`;
+          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{needsPhrases ? <label className="agent-rule-phrases"><span>Exact phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder={action.action_type === "shadow_test_multi_volume_detection" ? "bundle, complete set, volumes" : "deluxe edition, omnibus"} value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: canExecute, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isRunning ? canExecute ? "Running…" : "Saving…" : canExecute ? "Approve and run" : isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
       </section>
 

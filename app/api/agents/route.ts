@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       }
 
       try {
-        if (decision === "approved" && action.action_type.startsWith("shadow_test_")) {
+        if (decision === "approved" && execute && executionKind === "shadow_test_rule") {
           const phrases = Array.isArray(payload.rulePhrases)
             ? payload.rulePhrases.map(clean).filter(Boolean)
             : clean(payload.rulePhrases).split(",").map((item) => item.trim()).filter(Boolean);
