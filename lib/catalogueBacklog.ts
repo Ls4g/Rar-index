@@ -46,7 +46,22 @@ export const MIN_DISTINCT_SERIES = 5;
 // A collector asking for something outranks anything RAR chose for itself.
 // Beyond that the lanes take turns, so a quiet lane is never starved by a
 // loud one.
-const LANE_ROTATION: DiscoveryLane[] = ["series_gap", "established", "rising", "new_release"];
+//
+// "rising" is deliberately absent. Scored against the decisions staff
+// actually made, it was the only lane accepted less than half the time:
+//
+//   priority gaps 75%   series gaps 71%   established 54%   rising 17%
+//
+// It is what surfaced "This Alluring Dark Elf Has the Heart of a Middle-Aged
+// Man!" and "Kindergarten Wars" -- correct matches for titles nobody wanted
+// catalogued, which is why the overall rejection rate climbed month on month
+// as the lane grew. Trending on AniList is not the same question as worth
+// cataloguing as a collectible, and RAR has no signal yet for the second one.
+//
+// Nothing is deleted: rising targets already discovered stay in the table
+// with their lane intact, so turning this back on is one entry in this array
+// once there is a way to tell a collectible debut from a passing trend.
+const LANE_ROTATION: DiscoveryLane[] = ["series_gap", "established", "new_release"];
 
 export function normaliseSeriesKey(value: string | null | undefined) {
   return String(value ?? "")
@@ -144,7 +159,10 @@ export function planRun(
   let laneIndex = 0;
   let exhaustedLanes = 0;
 
-  while (chosen.length < limit && exhaustedLanes < LANES.length) {
+  // Counted against the rotation rather than LANES, which are no longer the
+  // same length now that a lane is switched off. Using LANES here would spin
+  // through the rotation an extra time before accepting there is nothing left.
+  while (chosen.length < limit && exhaustedLanes < LANE_ROTATION.length) {
     const lane = LANE_ROTATION[laneIndex % LANE_ROTATION.length];
     laneIndex += 1;
     const queue = byLane.get(lane)!;

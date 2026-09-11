@@ -137,5 +137,38 @@ const fastRun = planRun([normalHighScore, ...staffBatch]);
 check("fast-track targets fill the run first", fastRun.every((item) => item.discovery_source === "staff_fast_track"), JSON.stringify(fastRun.map((item) => item.discovery_source)));
 check("fast-track run still respects the overall cap", fastRun.length === TARGETS_PER_RUN, `got ${fastRun.length}`);
 
+
+// --- the rising lane is switched off -------------------------------------
+// Scored against real staff decisions, rising was accepted 17% of the time
+// against 54-75% for every other lane. Its targets stay in the table with
+// their lane intact, but planRun must never choose one.
+{
+  const risingOnly = Array.from({ length: 6 }, (_, index) => ({
+    id: `r${index}`, discovery_source: "anilist", external_id: `r${index}`,
+    title_english: `Rising Title ${index}`, title_romaji: null, title_native: null,
+    series_key: `rising-${index}`, lane: "rising", language: "English",
+    score: 9999, series_status: "RELEASING", reported_volume_count: null,
+    next_missing_volume: 1, status: "researchable", source_url: null,
+    last_checked_at: null, next_check_at: null, failure_count: 0, last_result: null,
+  }));
+  check("a backlog of only rising targets plans nothing", planRun(risingOnly).length === 0);
+
+  const mixed = [...risingOnly, {
+    id: "g1", discovery_source: "anilist", external_id: "g1",
+    title_english: "Real Series", title_romaji: null, title_native: null,
+    series_key: "real-series", lane: "series_gap", language: "English",
+    score: 1, series_status: "FINISHED", reported_volume_count: 10,
+    next_missing_volume: 2, status: "researchable", source_url: null,
+    last_checked_at: null, next_check_at: null, failure_count: 0, last_result: null,
+  }];
+  const planned = planRun(mixed);
+  check("a real target is still chosen alongside them", planned.length === 1);
+  check("and rising is never what got chosen", planned.every((t) => t.lane !== "rising"));
+  // Highest score wins inside a lane, so a rising target scoring 9999 would
+  // be picked first if the lane were live. It is not.
+  check("even when rising scores far higher", planned[0].lane === "series_gap");
+}
+
+
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);

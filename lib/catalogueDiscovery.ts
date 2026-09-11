@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchEstablishedManga, fetchNewManga, fetchRisingManga, type AniListWork } from "./anilist.ts";
+// fetchRisingManga is intentionally not imported: the rising lane is switched
+// off (see the note beside result.rising below). lib/anilist.ts keeps the
+// function so re-enabling is a one-line change here.
+import { fetchEstablishedManga, fetchNewManga, type AniListWork } from "./anilist.ts";
 import {
   isDue, nextCheckAfterFailure, nextCheckAfterSuccess, nextVolumeToResearch,
   normaliseSeriesKey, planRun, MAX_FAILURES_BEFORE_BLOCK,
@@ -88,14 +91,17 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
     })));
   } catch (error) { result.errors.push(`established: ${error instanceof Error ? error.message : "failed"}`); }
 
-  try {
-    const works = await fetchRisingManga(40);
-    result.rising = await upsertTargets(admin, works.map((work) => ({
-      ...workToRow(work, "rising", work.trending),
-      status: "researchable",
-      next_missing_volume: 1,
-    })));
-  } catch (error) { result.errors.push(`rising: ${error instanceof Error ? error.message : "failed"}`); }
+  // The rising lane is switched off. It was accepted 17% of the time against
+  // 54-75% for every other lane -- trending on AniList turned out to be a
+  // poor proxy for "worth cataloguing as a collectible", and the lane's
+  // growth is what drove the rejection rate up month on month.
+  //
+  // Refreshing is skipped rather than the lane being deleted: existing rising
+  // targets keep their rows and their lane, and planRun already ignores them
+  // because "rising" is no longer in LANE_ROTATION. Re-enabling means
+  // restoring this block and the rotation entry, once RAR can tell a
+  // collectible debut from a passing trend.
+  result.rising = 0;
 
   try {
     const works = await fetchNewManga(thisYear - 1, 40);
