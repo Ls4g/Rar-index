@@ -3,6 +3,7 @@ import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
 import { searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
 import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
 import { describeRunFairness, isStaffFastTrack } from "./catalogueBacklog.ts";
+import { listingIsMultiVolumeLot } from "./liveListings.ts";
 
 const DISCOVERY_TARGET_LIMIT = 10;
 const CANDIDATES_PER_TARGET = 1;
@@ -165,7 +166,41 @@ function targetTitleNeedles(target: CatalogueDiscoveryTarget) {
     .filter((value, index, all) => value.length >= 2 && all.indexOf(value) === index);
 }
 
+// A bibliographic record can carry the right series and the right volume and
+// still not be a single volume of the manga. Two kinds turn up repeatedly in
+// what staff reject, and both are stated plainly in the record's own title:
+//
+//   - bundles: "Jujutsu Kaisen Vol. 1,2,3,4,5,6 Bundle Set (6 Book
+//     Collection)", "Dandadan, Vol. 1-9, Collection Set 9 Books". One ISBN
+//     covering nine volumes is not the catalogue record for volume one.
+//   - companion products: "Demon Slayer: Kimetsu No Yaiba, Vol 1, Coloring
+//     Book". Right series, right volume wording, not the manga.
+//
+// Scout has ruled lots out on listing titles from the beginning; the
+// catalogue matcher simply never asked. Reusing listingIsMultiVolumeLot keeps
+// one definition of "this is a set" rather than a second that drifts from it.
+//
+// Deliberately narrow: only a title that says what it is gets rejected. An
+// omnibus that calls itself "One Piece, Vol. 14" still reaches a human,
+// because nothing in the record distinguishes it and guessing would cost
+// real editions.
+const COMPANION_PRODUCT = /\b(colou?ring book|art ?book|sticker book|activity book|calendar|guide ?book|fan ?book|data ?book)\b/i;
+
+export function candidateIsNotASingleVolume(title: string | null | undefined, volumeNumber: string | null) {
+  const value = (title ?? "").trim();
+  if (!value) return false;
+  if (COMPANION_PRODUCT.test(value)) return true;
+  // Falls back to "1" so a bundle is still caught when the target carries no
+  // volume of its own -- the lot wording is the signal either way.
+  return listingIsMultiVolumeLot(value, volumeNumber ?? "1");
+}
+
 export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandidate, target: CatalogueDiscoveryTarget) {
+  // Checked before the ISBN shortcut below. A box-set ISBN can genuinely be
+  // the one a request carried, and matching on it would stage the whole set
+  // as though it were the single volume.
+  if (candidateIsNotASingleVolume(candidate.candidate_title, target.volumeNumber)) return false;
+
   const targetIsbn = cleanIsbn(target.isbn13);
   const candidateIsbn = cleanIsbn(candidate.candidate_isbn_13);
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
