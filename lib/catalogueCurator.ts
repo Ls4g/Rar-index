@@ -208,11 +208,30 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   if (!cataloguePublisherMatches(candidate.candidate_publisher, target.publisher)) return false;
 
   const candidateStem = catalogueSeriesStem(candidate.candidate_title);
+  const targetVolumeForStem = integerVolume(target.volumeNumber);
   // A series name merely appearing inside another title is not a match:
   // "Akira Failing in Love" is not Akira and "Vagabond Books" is not
-  // Vagabond. Volume wording is already removed by titleStem, so exact title
-  // identity is the conservative and repeatable boundary here.
-  if (!targetTitleNeedles(target).some((needle) => candidateStem === needle)) return false;
+  // Vagabond. Exact title identity is the conservative, repeatable boundary.
+  //
+  // The one extra shape allowed is a bare trailing volume number. titleStem
+  // strips "Vol. 1" but leaves the digit in "Sailor Moon 1", so the stem came
+  // out "sailormoon1" and never equalled "sailormoon" -- and "Series N" is
+  // the normal form in bibliographic records, so "Sailor Moon 1", "ONE PIECE
+  // 1" and "Naruto 1" were all silently unmatchable while "Sailor Moon, Vol.
+  // 1" matched. That is most of what "no exact candidate" has been hiding.
+  //
+  // The trailing digits must BE the volume being looked for, compared
+  // numerically so "01" equals 1. That keeps the guard intact: the remainder
+  // of "Akira Failing in Love" is "failinginlove", not a number, and a title
+  // whose name genuinely ends in digits ("Cyborg 009") still has to match a
+  // needle that ends in the same digits.
+  const stemMatchesTarget = targetTitleNeedles(target).some((needle) => {
+    if (candidateStem === needle) return true;
+    if (targetVolumeForStem === null || !candidateStem.startsWith(needle)) return false;
+    const remainder = candidateStem.slice(needle.length);
+    return /^\d{1,3}$/.test(remainder) && Number(remainder) === targetVolumeForStem;
+  });
+  if (!stemMatchesTarget) return false;
   if (target.language === "English" && /\bin japanese\b/i.test(candidate.candidate_title)) return false;
 
   const targetVolume = integerVolume(target.volumeNumber);

@@ -77,6 +77,15 @@ const DISMISSAL_REASONS: Array<{ key: DismissalReason; label: string }> = [
 function viewFor(row: OutcomeRow): OutcomeView {
   if (row.reviewedBy || ["unsold", "review_complete"].includes(row.status)) return "finished";
   if (row.status === "active") return "watching";
+  // Queued for an automatic check that has not run yet. RAR has not looked at
+  // this listing since it was queued, so it has nothing to tell a human and
+  // no question to ask -- putting it in the review tab produced hundreds of
+  // "should RAR keep watching?" prompts for listings that were still live and
+  // had simply not been checked.
+  //
+  // Only once a check has actually run does an unresolved outcome become a
+  // human decision.
+  if (row.status === "ended_pending_check" && row.checkAttempts === 0) return "watching";
   return "attention";
 }
 

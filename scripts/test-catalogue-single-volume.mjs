@@ -63,5 +63,35 @@ check("a matching ISBN cannot rescue a box set", candidateMatchesDiscoveryTarget
   candidate_publisher: "Viz", candidate_language: "English", candidate_volume_number: "1",
 }, isbnTarget), false);
 
+console.log("\n--- 'Series N' is a normal bibliographic title ---");
+// titleStem strips "Vol. 1" but left the digit glued on in "Sailor Moon 1",
+// so the stem came out "sailormoon1" and never equalled "sailormoon".
+// Records use this bare form constantly -- it is the standard shape for
+// Japanese records and common in English ones -- so a large share of every
+// search silently found nothing while the "Vol. 1" form matched fine.
+function seriesTarget(series, volume) {
+  return {
+    key: "t", source: "open_library", query: series,
+    title: series + " Vol. " + volume, series, volumeNumber: String(volume),
+    language: "English", publisher: null, isbn13: null, requestId: null, reason: "lane_established",
+  };
+}
+function record(title) {
+  return {
+    candidate_title: title, candidate_isbn_13: "9781935429746",
+    candidate_publisher: "Kodansha", candidate_language: "English", candidate_volume_number: null,
+  };
+}
+check("Sailor Moon 1 matches Sailor Moon v1", candidateMatchesDiscoveryTarget(record("Sailor Moon 1"), seriesTarget("Sailor Moon", 1)), true);
+check("ONE PIECE 1 matches ONE PIECE v1", candidateMatchesDiscoveryTarget(record("ONE PIECE 1"), seriesTarget("ONE PIECE", 1)), true);
+check("a zero-padded volume still matches", candidateMatchesDiscoveryTarget(record("Sailor Moon 01"), seriesTarget("Sailor Moon", 1)), true);
+check("the Vol. form still matches", candidateMatchesDiscoveryTarget(record("Sailor Moon, Vol. 1"), seriesTarget("Sailor Moon", 1)), true);
+
+console.log("\n--- and the guards this must not weaken ---");
+check("a different volume is still refused", candidateMatchesDiscoveryTarget(record("Sailor Moon 5"), seriesTarget("Sailor Moon", 1)), false);
+// The trailing text is not digits, so the series-substring guard still holds.
+check("Akira Failing in Love is still not Akira", candidateMatchesDiscoveryTarget(record("Akira Failing in Love"), seriesTarget("Akira", 1)), false);
+check("Vagabond Books is still not Vagabond", candidateMatchesDiscoveryTarget(record("Vagabond Books"), seriesTarget("Vagabond", 1)), false);
+
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);
