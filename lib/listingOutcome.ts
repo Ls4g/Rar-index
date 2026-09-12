@@ -96,6 +96,36 @@ export function validateManualBestOfferEvidence(input: ManualBestOfferEvidence):
   return null;
 }
 
+export type ObservedSaleEvidence = {
+  soldPrice: number;
+  soldCurrency: string;
+  soldAt: string;
+};
+
+/**
+ * A sale a member of staff read off the original listing page themselves.
+ *
+ * This exists because eBay's own answer is frequently missing or wrong: a
+ * listing can be plainly sold, with the price printed on the page, while the
+ * API reports nothing usable and RAR leaves it sitting as "outcome unclear"
+ * for ever. A person looking at the page is better evidence than that, not
+ * worse — but only when they record what the page actually shows, which is
+ * why price, currency and date are required together and the original eBay
+ * URL stays attached as the source.
+ *
+ * The Best Offer format gate is deliberately absent here: the whole point is
+ * that this works for the ordinary auction and fixed-price listings that path
+ * refuses. Nothing else about the bar changes — this creates a sold candidate,
+ * never a verified sale, and a human still has to verify it against the exact
+ * edition as a separate, explicit action.
+ */
+export function validateObservedSaleEvidence(input: ObservedSaleEvidence): string | null {
+  if (!Number.isFinite(input.soldPrice) || input.soldPrice <= 0) return "Enter the price shown on the listing page.";
+  if (!/^[A-Z]{3}$/.test(input.soldCurrency)) return "Choose the currency shown on the listing page.";
+  if (!isUsableDate(input.soldAt)) return "Enter a valid sale date that is not in the future.";
+  return null;
+}
+
 export function classifyListingOutcome(signal: OutcomeSignal): OutcomeClassification {
   const bids = signal.bidCount ?? 0;
 

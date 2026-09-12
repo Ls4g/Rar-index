@@ -21,7 +21,9 @@ type OutcomeRecord = {
   edition: { title: string | null; series: string | null; volume_number: string | null; language: string | null } | null;
 };
 
-export default async function ListingOutcomesPage() {
+export default async function ListingOutcomesPage({ searchParams }: { searchParams: Promise<{ outcome?: string | string[] }> }) {
+  const parameters = await searchParams;
+  const focusOutcomeId = Array.isArray(parameters.outcome) ? parameters.outcome[0] : parameters.outcome;
   const admin = getSupabaseAdmin();
 
   const outcomeSelect = "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
@@ -128,7 +130,7 @@ export default async function ListingOutcomesPage() {
         <StaffNav current="/listing-outcomes" />
       </header>
       <section className="catalogue-content">
-        <ListingOutcomesPanel capabilities={capabilities} counts={counts} renderedAt={new Date().toISOString()} rows={rows} />
+        <ListingOutcomesPanel capabilities={capabilities} counts={counts} focusOutcomeId={focusOutcomeId ?? null} renderedAt={new Date().toISOString()} rows={rows} />
       </section>
     </main>
   );

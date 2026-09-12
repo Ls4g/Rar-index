@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
-import { validateManualBestOfferEvidence } from "@/lib/listingOutcome";
+import { validateManualBestOfferEvidence, validateObservedSaleEvidence } from "@/lib/listingOutcome";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
 
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: failures.length === 0, saved: saved.length, savedIds: saved, failed: failures.length, failures });
   }
 
-  if (!body.outcomeId || (!body.decision && !["record-best-offer-price", "record-page-signal"].includes(body.action ?? ""))) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
+  if (!body.outcomeId || (!body.decision && !["record-best-offer-price", "record-observed-sale", "record-page-signal"].includes(body.action ?? ""))) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
   if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
   // Notes stay optional throughout RAR: the decision and the reviewer are the
   // accountable parts, and demanding prose on an obvious call only produces
@@ -274,6 +274,74 @@ export async function POST(request: Request) {
     }).eq("id", outcome.id);
     if (updateError) return Response.json({ error: "The page observation could not be applied. Its audit record remains visible." }, { status: 500 });
     return Response.json({ ok: true, status: pageEvidence.resultingStatus, outcomeConfidence: body.pageSignal === "green_sold" ? 85 : body.pageSignal === "red_ended" || body.pageSignal === "still_live" ? 95 : 30 });
+  }
+
+  // ------------------------------------------- staff-observed sale price ----
+  // The gap this closes: an ordinary auction or fixed-price listing that
+  // plainly sold, with the price printed on the page, but which eBay's API
+  // would not report. Before this, the only manual price form was the 130point
+  // Best Offer one, so those listings could only be kept watching or dismissed
+  // — a sale a human was looking at had nowhere to go.
+  if (body.action === "record-observed-sale") {
+    const alreadyPriced = Boolean(outcome.sold_price && outcome.sold_currency && outcome.sold_at);
+    if (outcome.status === "sold_candidate" && alreadyPriced) {
+      return Response.json({ error: "This candidate already has a price and date. Verify it against the edition instead." }, { status: 409 });
+    }
+    if (["unsold", "review_complete"].includes(outcome.status)) {
+      return Response.json({ error: "This outcome is already resolved. It was not changed." }, { status: 409 });
+    }
+
+    const soldPrice = Number(body.soldPrice);
+    const soldCurrency = (body.soldCurrency ?? "").trim().toUpperCase();
+    const soldAt = (body.soldAt ?? "").trim();
+    const validationError = validateObservedSaleEvidence({ soldPrice, soldCurrency, soldAt });
+    if (validationError) return Response.json({ error: validationError }, { status: 400 });
+
+    // The audit row says who looked and what RAR had thought, so a later reader
+    // can see this was a human overruling the pipeline rather than the
+    // pipeline having worked.
+    const detail = `Human ${reviewer} opened eBay item ${outcome.external_id} and recorded the completed sale shown on the page. RAR had this listing as "${outcome.status.replaceAll("_", " ")}".${notes ? ` Note: ${notes}` : ""}`;
+    const nextAttempt = (outcome.check_attempts ?? 0) + 1;
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
+      outcome_id: outcome.id,
+      provider: "eBay page — staff observed sale",
+      attempt_number: nextAttempt,
+      http_status: null,
+      listing_state: "completed_sold",
+      resulting_status: "sold_candidate",
+      detail,
+      raw_response: {
+        ebay_item_id: outcome.external_id,
+        source_listing_url: outcome.source_listing_url,
+        observed_price: soldPrice,
+        currency: soldCurrency,
+        sold_at: soldAt,
+        previous_status: outcome.status,
+        reviewed_by: reviewer,
+      },
+      checked_at: now,
+    });
+    if (auditError) return Response.json({ error: "The observation could not be audited. Nothing was changed." }, { status: 500 });
+
+    // Deliberately stops at sold_candidate. Recording what the page showed and
+    // deciding it is the exact RAR edition are two different judgements, and
+    // collapsing them into one button is how a wrong-edition sale reaches a
+    // chart.
+    const { error: updateError } = await admin.from("listing_outcomes").update({
+      status: "sold_candidate",
+      sold_price: soldPrice,
+      sold_currency: soldCurrency,
+      sold_at: soldAt,
+      outcome_reason: detail,
+      outcome_provider: "eBay page — staff observed sale",
+      check_attempts: nextAttempt,
+      last_checked_at: now,
+      next_check_at: null,
+      last_error: null,
+      updated_at: now,
+    }).eq("id", outcome.id);
+    if (updateError) return Response.json({ error: "The observed sale could not be saved. Its audit record remains visible." }, { status: 500 });
+    return Response.json({ ok: true, status: "sold_candidate" });
   }
 
   if (body.action === "record-best-offer-price") {

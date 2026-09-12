@@ -12,6 +12,7 @@ import {
   nextOutcomeCheckAt,
   MAX_OUTCOME_ATTEMPTS,
   validateManualBestOfferEvidence,
+  validateObservedSaleEvidence,
 } from "../lib/listingOutcome.ts";
 import { resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
 import { DEFAULT_OUTCOME_CHECK_LIMIT, OUTCOME_CHECK_CONCURRENCY } from "../lib/watchToSale.ts";
@@ -40,6 +41,27 @@ check("manual corroboration rejects a missing or zero accepted price",
   Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 0, soldCurrency: "USD", soldAt: yesterday })));
 check("manual corroboration rejects future dates",
   Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 72.5, soldCurrency: "USD", soldAt: new Date(Date.now() + 3 * 86_400_000).toISOString() })));
+
+console.log("\n--- a sale a human read off the listing page ---");
+// The gap this closes: an ordinary auction or fixed-price listing that plainly
+// sold, printed price and all, which eBay's API would not report. Before this
+// the only manual price form was the Best Offer one, so these could only be
+// kept watching or dismissed -- a real sale with nowhere to go.
+check("an ordinary fixed-price sale can be recorded by a human who looked",
+  validateObservedSaleEvidence({ soldPrice: 42, soldCurrency: "GBP", soldAt: yesterday }) === null);
+check("an auction sale can be recorded the same way",
+  validateObservedSaleEvidence({ soldPrice: 240, soldCurrency: "USD", soldAt: yesterday }) === null);
+// The price bar does not move just because a human typed it.
+check("a missing price is still refused",
+  Boolean(validateObservedSaleEvidence({ soldPrice: 0, soldCurrency: "GBP", soldAt: yesterday })));
+check("a negative price is still refused",
+  Boolean(validateObservedSaleEvidence({ soldPrice: -5, soldCurrency: "GBP", soldAt: yesterday })));
+check("a missing currency is still refused",
+  Boolean(validateObservedSaleEvidence({ soldPrice: 42, soldCurrency: "", soldAt: yesterday })));
+check("a future sale date is still refused",
+  Boolean(validateObservedSaleEvidence({ soldPrice: 42, soldCurrency: "GBP", soldAt: new Date(Date.now() + 3 * 86_400_000).toISOString() })));
+check("a missing date is still refused",
+  Boolean(validateObservedSaleEvidence({ soldPrice: 42, soldCurrency: "GBP", soldAt: "" })));
 
 console.log("\n--- sales that should be believed ---");
 const auction = classifyListingOutcome({ ...base, listingState: "completed_sold", soldPrice: 240, soldCurrency: "GBP", soldAt: yesterday, buyingFormat: "AUCTION", bidCount: 14 });

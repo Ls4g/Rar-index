@@ -117,28 +117,34 @@ function when(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(new Date(value));
 }
 
-export default function ListingOutcomesPanel({ rows, capabilities, counts, renderedAt }: {
+export default function ListingOutcomesPanel({ rows, capabilities, counts, renderedAt, focusOutcomeId = null }: {
   rows: OutcomeRow[];
   capabilities: OutcomeCapability[];
   counts: Record<string, number | string | null>;
   renderedAt: string;
+  // Set when arriving from the Decisions page, which sends a single listing
+  // here to have its sale price recorded. The row is opened for review and the
+  // view is switched to whichever tab actually contains it, since the default
+  // tab would otherwise hide the very listing the link was about.
+  focusOutcomeId?: string | null;
 }) {
+  const focusRow = focusOutcomeId ? rows.find((row) => row.id === focusOutcomeId) ?? null : null;
   const router = useRouter();
   const [reviewer, setReviewer] = useStaffReviewer();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [dismissReasons, setDismissReasons] = useState<Record<string, DismissalReason>>({});
   const [dismissOpen, setDismissOpen] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() => (focusRow ? new Set([focusRow.id]) : new Set()));
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
   const [testingEbay, setTestingEbay] = useState(false);
-  const [view, setView] = useState<OutcomeView>("attention");
-  const [queue, setQueue] = useState<OutcomeQueue>("worth_checking");
-  const [query, setQuery] = useState("");
+  const [view, setView] = useState<OutcomeView>(() => (focusRow ? viewFor(focusRow) : "attention"));
+  const [queue, setQueue] = useState<OutcomeQueue>(focusRow ? "all" : "worth_checking");
+  const [query, setQuery] = useState(focusRow ? focusRow.externalId : "");
   const [sort, setSort] = useState<SortMode>("priority");
   const [visibleLimit, setVisibleLimit] = useState(25);
-  const [bestOfferInputs, setBestOfferInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
+  const [saleInputs, setSaleInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkNote, setBulkNote] = useState("");
   const [bulkDismissReason, setBulkDismissReason] = useState<DismissalReason>("");
@@ -306,24 +312,41 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
     }
   }
 
-  async function recordBestOfferPrice(row: OutcomeRow) {
+  /**
+   * Record what a listing sold for, from a human who opened the page.
+   *
+   * Two routes, one form. A Best Offer hides the accepted price on eBay
+   * itself, so it goes through the 130point corroboration path and keeps that
+   * audit wording. Every other listing prints the price on the page, so the
+   * staff observation is the evidence and is recorded as exactly that.
+   */
+  async function recordSalePrice(row: OutcomeRow, isBestOffer: boolean) {
     if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
-    const input = bestOfferInputs[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false };
-    if (!input.confirmed) { setMessage("Confirm that the 130point result matches this exact eBay item number."); return; }
-    setSaving(`${row.id}:best-offer`);
+    const input = saleInputs[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false };
+    if (!input.confirmed) {
+      setMessage(isBestOffer
+        ? "Confirm that the 130point result matches this exact eBay item number."
+        : "Confirm that you opened this listing and the page shows this sale.");
+      return;
+    }
+    setSaving(`${row.id}:sale-price`);
     setMessage("");
     try {
       const response = await fetch("/api/listing-outcomes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "record-best-offer-price", outcomeId: row.id, reviewer, notes: notes[row.id] ?? "", soldPrice: Number(input.price), soldCurrency: input.currency, soldAt: input.soldAt }),
+        body: JSON.stringify({
+          action: isBestOffer ? "record-best-offer-price" : "record-observed-sale",
+          outcomeId: row.id, reviewer, notes: notes[row.id] ?? "",
+          soldPrice: Number(input.price), soldCurrency: input.currency, soldAt: input.soldAt,
+        }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "The Best Offer price could not be saved.");
-      setMessage("Accepted Best Offer price recorded as a sold candidate. Review the exact edition to publish it.");
+      if (!response.ok) throw new Error(result.error ?? "The sale price could not be saved.");
+      setMessage("Saved as a sold candidate. Check it is the exact edition, then verify it to publish it.");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The Best Offer price could not be saved.");
+      setMessage(error instanceof Error ? error.message : "The sale price could not be saved.");
     } finally {
       setSaving(null);
     }
@@ -432,6 +455,11 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
             const canKeepWatching = rowDecisions.some((decision) => decision.key === "keep_watching");
             const canConfirm = rowDecisions.some((decision) => decision.key === "confirm_sale");
             const isBestOffer = triage.isBestOffer;
+            // A price can be recorded for anything that has not already been
+            // resolved and does not already have one. Previously this was open
+            // to Best Offer listings alone, so an ordinary listing a human
+            // could see had sold had nowhere to go but "keep watching".
+            const canRecordSale = !row.reviewedBy && !canConfirm && !["unsold", "review_complete"].includes(row.status);
             return (
               <article className={`outcome-card status-${row.status}${selected.has(row.id) ? " is-selected" : ""}${isExpanded ? " is-expanded" : ""}`} key={row.id}>
                 <div className="outcome-card-head">
@@ -488,13 +516,15 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
                       </div>
                     ) : null}
 
-                    {isBestOffer ? (
+                    {canRecordSale ? (
                       <div className="best-offer-corroboration">
-                        <div><strong>Check the hidden Best Offer price</strong><p>Only do this when you choose to investigate this listing. Search 130point using the exact eBay item number; eBay remains the original source.</p></div>
-                        <div className="best-offer-tools"><code>{row.externalId}</code><button className="secondary-action" onClick={() => void navigator.clipboard.writeText(row.externalId).then(() => setMessage(`Copied eBay item ${row.externalId}.`))} type="button">Copy item number</button><a className="secondary-action" href="https://130point.com/sales/" rel="noreferrer" target="_blank">Open 130point ↗</a></div>
-                        <div className="best-offer-fields"><label>Accepted price<input inputMode="decimal" min="0.01" onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { currency: row.currency ?? "USD", soldAt: "", confirmed: false }), price: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={bestOfferInputs[row.id]?.price ?? ""} /></label><label>Currency<select onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", soldAt: "", confirmed: false }), currency: event.target.value } }))} value={bestOfferInputs[row.id]?.currency ?? row.currency ?? "USD"}><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option><option value="JPY">JPY</option><option value="CAD">CAD</option><option value="AUD">AUD</option></select></label><label>Sale date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", confirmed: false }), soldAt: event.target.value } }))} type="date" value={bestOfferInputs[row.id]?.soldAt ?? ""} /></label></div>
-                        <label className="best-offer-confirm"><input checked={bestOfferInputs[row.id]?.confirmed ?? false} onChange={(event) => setBestOfferInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "" }), confirmed: event.target.checked } }))} type="checkbox" /> I matched this exact eBay item number in 130point.</label>
-                        <button className="catalogue-bulk-approve" disabled={Boolean(saving)} onClick={() => void recordBestOfferPrice(row)} type="button">{saving === `${row.id}:best-offer` ? "Saving…" : "Save as sold candidate"}</button>
+                        {isBestOffer
+                          ? <div><strong>It sold — record the accepted price</strong><p>A Best Offer hides what was actually paid, so eBay cannot tell you. Search 130point using the exact item number below; eBay remains the original source.</p></div>
+                          : <div><strong>It sold — record the price</strong><p>Open the original listing and copy the price, currency and date exactly as the page shows them. This saves a sold candidate; you still confirm it is the exact edition afterwards.</p></div>}
+                        {isBestOffer ? <div className="best-offer-tools"><code>{row.externalId}</code><button className="secondary-action" onClick={() => void navigator.clipboard.writeText(row.externalId).then(() => setMessage(`Copied eBay item ${row.externalId}.`))} type="button">Copy item number</button><a className="secondary-action" href="https://130point.com/sales/" rel="noreferrer" target="_blank">Open 130point ↗</a></div> : null}
+                        <div className="best-offer-fields"><label>{isBestOffer ? "Accepted price" : "Sold for"}<input inputMode="decimal" min="0.01" onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { currency: row.currency ?? "USD", soldAt: "", confirmed: false }), price: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={saleInputs[row.id]?.price ?? ""} /></label><label>Currency<select onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", soldAt: "", confirmed: false }), currency: event.target.value } }))} value={saleInputs[row.id]?.currency ?? row.currency ?? "USD"}><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option><option value="JPY">JPY</option><option value="CAD">CAD</option><option value="AUD">AUD</option></select></label><label>Sale date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", confirmed: false }), soldAt: event.target.value } }))} type="date" value={saleInputs[row.id]?.soldAt ?? ""} /></label></div>
+                        <label className="best-offer-confirm"><input checked={saleInputs[row.id]?.confirmed ?? false} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "" }), confirmed: event.target.checked } }))} type="checkbox" /> {isBestOffer ? "I matched this exact eBay item number in 130point." : "I opened this listing myself and the page shows it sold at this price."}</label>
+                        <button className="catalogue-bulk-approve" disabled={Boolean(saving)} onClick={() => void recordSalePrice(row, isBestOffer)} type="button">{saving === `${row.id}:sale-price` ? "Saving…" : "Save as sold candidate"}</button>
                       </div>
                     ) : null}
 
