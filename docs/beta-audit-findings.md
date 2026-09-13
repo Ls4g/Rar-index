@@ -42,3 +42,58 @@ Authenticated production `/review` and `/listing-outcomes` were inspected with r
 Remaining coverage: full `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile workflow audits; per-item/bulk independence; historical snapshot implications; stale page counters; source-record correction; actual database failure/retry tests on an isolated database. Existing historical snapshots are not rewritten.
 
 Next three priorities: (1) transactional outcome closure plus human correction of the graded record; (2) durable agent execution and reconciliation of legacy approvals; (3) benchmark-driven Scout junk reduction and coverage/diversity allocation with high-recall gates.
+
+---
+
+# Second tranche — 13 September 2026
+
+Baseline `4ef7c9a`. Four commits pushed: `4f174b5`, `1f3fd15`, `2c3e4b4`, `b07a116`. Three migrations written and tested but **not applied** — see `beta-audit-resume.md` for the blocker and the held code. No production evidence was created or corrected.
+
+## Priorities from the previous tranche
+
+| Priority | Root cause | What shipped | Status |
+| --- | --- | --- | --- |
+| P0 — cross-table outcome/sale race | The sale and its audits were transactional; closing the outcome was a separate write. A crash or a concurrent decision in between left verified evidence on an outcome still in the queue, or one someone else had dismissed. | `confirm_outcome_sale` locks the outcome, checks eligibility, creates or reuses exactly one verified observation through the existing `approve_submitted_sale`, and closes the queue — one transaction. Idempotent on retry. Both eBay listing-id spellings resolved in one place. | Migration ready, **not applied** |
+| P0 — graded sale with empty grading fields | No workflow existed to correct grading on an already-verified sale. Add-sale sets it at creation; sale review decides the edition match. Neither can say "this one is in a slab". | `record_observation_grading` plus a Decisions-inbox card. Refuses without an explicit source confirmation; never reads a grade from a title; refuses to rewrite grading already settled. `hasUnresolvedGrading` now accepts a settled human answer, which unblocks the raw-copy-with-graded-title case that previously had no way out. | Migration ready, **not applied**. `ff81fb2f` still needs a human. |
+| P1 — 23 open approved actions | Two different bugs. Approving a machine-executable action without running it was a one-way door — the execute path only looked for `proposed`, so approval locked execution out for ever (6 actions). Human work had no completion step at all (17 actions). `status` was carrying both questions. | `execution_status` separates "has it run" from "did a human approve it". Durable leases with bounded claims; expired leases become **failed with a reason**, never succeeded. Failures keep their approval so staff do not approve the same work twice. Recovery on the existing 11:30 cron. | Migration ready, **not applied** |
+| P1 — Scout junk rejection | The scorer is at its text-matching ceiling; most remaining junk looks correct on every stored field. | Reproducible benchmark harness with a stable development/holdout split. Two conservative rules measured. | **Shadow mode — deliberately not activated** |
+
+## Scout measurement
+
+Baseline reproduced: 822 cases (was 811), recall 571/578 = 98.79%, junk rejection 46/244 = 18.85% — junk rejection identical to the stored figure.
+
+Where the remaining junk comes from, by the label staff gave it: graded_not_raw 48, unavailable 33, multi_volume_lot 9, edition_mismatch 8, printing_unproven 3. **A third of it is "unavailable"** — a good match on a listing that had simply gone. No title-based rule can predict that, and none should try.
+
+| Holdout (417 unseen cases) | Before | After |
+| --- | --- | --- |
+| Genuine recall | 98.36% (299/304) | 98.03% (298/304) |
+| Junk rejection | 17.70% (20/113) | 50.44% (57/113) |
+| Genuine opportunities lost | — | **1** |
+
+Not activated. A 33-point junk reduction is worth having, but not by silently discarding buying opportunities. `graded_slab` lost a BGS 7.0 Demon Slayer first print a human wanted; `multi_volume_lot` lost an Initial D omnibus. The holdout earned its keep: an earlier omnibus guard read only the edition's series and format and lost two opportunities, because RAR catalogues omnibus editions whose identity says so in the title or edition statement instead.
+
+The honest fix for `graded_slab` is not a better detector. A graded copy of a tracked edition is a real opportunity in a *different* market, so it belongs in its own queue, not the bin. That is separate work.
+
+## Legacy action reconciliation
+
+`scripts/reconcile-open-agent-actions.mjs` reports a verdict per action against real evidence and writes nothing — bulk-labelling 23 actions "executed" would destroy the only information anyone would later want. Current verdicts: **1** to run (machine-executable, never ran), **1** whose queue is already clear, **7** genuinely live (9,605 unreviewed Scout leads among them), **14** needing a person. Three duplicate `triage_scout_leads` approvals exist because each run mints a fresh dedupe key.
+
+## Verification and scope limits
+
+Four PGlite suites run the shipped migration SQL against real PostgreSQL 18.3 — 59 + 33 + 48 checks plus the Scout rule tests. This establishes genuine atomicity, rollback and idempotency, which a mock cannot: a mock will happily report a rollback the engine would never have performed.
+
+**Not established:** two simultaneous connections. PGlite is a single backend, so `for update` blocking a second session cannot be observed. Needs Docker or a real server; neither is available here.
+
+**Not performed:** live database mutation, staff-UI end-to-end testing, phone checks. Production was read only.
+
+## Remaining beta-readiness gaps
+
+1. Three migrations unapplied; the held code cannot ship until they are.
+2. `ff81fb2f` still needs a human to open the listing and say raw or graded.
+3. 23 legacy actions still open — the tooling now exists, the decisions do not.
+4. Graded leads need their own queue before `graded_slab` can be activated safely.
+5. Concurrency untested against a real multi-connection server.
+6. Still unaudited: `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile workflows.
+7. 4 of the last 140 agent runs failed and have not been investigated.
+
+Not beta-ready.
