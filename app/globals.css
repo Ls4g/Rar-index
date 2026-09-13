@@ -2910,7 +2910,10 @@ html[data-theme="day"] .public-page {
 .outcome-view-tabs button span, .outcome-quick-filters button span { display: inline-grid; min-width: 1.25rem; min-height: 1.25rem; place-items: center; margin-left: .28rem; border-radius: 999px; background: rgba(255,255,255,.14); font-size: .64rem; }
 
 .outcome-triage-tools { display: grid; gap: .75rem; padding: .9rem; border: 1px solid var(--line); border-radius: .72rem; background: color-mix(in srgb, var(--surface-card) 97%, #315f9e); }
-.outcome-search-sort { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(11rem, .35fr); gap: .65rem; }
+.outcome-search-sort { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; }
+.outcome-search-sort > label:first-child { flex: 1 1 14rem; }
+.outcome-search-sort > label:last-child { flex: 0 1 11rem; }
+.outcome-search-sort > button { min-height: 2.55rem; border: 1px solid var(--line); border-radius: .48rem; padding: .55rem .9rem; background: var(--surface-card); color: var(--canvas-heading); cursor: pointer; font: inherit; font-size: .74rem; font-weight: 800; }
 .outcome-search-sort input, .outcome-search-sort select, .outcome-dismiss-panel input, .outcome-dismiss-panel select, .outcome-confirm-sale input { width: 100%; min-height: 2.55rem; border: 1px solid var(--line); border-radius: .48rem; padding: .55rem .7rem; background: var(--surface-input, #fff); color: var(--canvas-heading); font: inherit; font-size: .78rem; }
 .outcome-parked-note { margin: 0; padding: .65rem .75rem; border-left: 3px solid #315f9e; color: var(--muted); font-size: .74rem; line-height: 1.55; }
 
@@ -3012,6 +3015,9 @@ html[data-theme="day"] .public-page {
 /* Grading correction on the Decisions inbox. Full-width fields and 44px
    controls, matching the outcome confirmation form -- these are filled in on a
    phone with the eBay listing open in the other tab. */
+.grading-source-confirm { display: grid; grid-template-columns: auto 1fr; gap: .55rem; align-items: start; margin: .35rem 0 .1rem; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: .45rem; background: color-mix(in srgb, var(--accent-warning-text, #8a6d3b) 6%, transparent); color: var(--ink); font-size: .76rem; line-height: 1.4; cursor: pointer; }
+.grading-source-confirm input { width: 1.35rem; height: 1.35rem; margin: 0; accent-color: #315f9e; }
+.grading-source-confirm small { display: block; margin-top: .15rem; color: var(--muted); font-size: .68rem; }
 .grading-correction-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; margin: .1rem 0 .2rem; }
 .grading-correction-fields label { display: grid; min-width: 0; gap: .22rem; color: var(--muted); font-size: .63rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .grading-correction-fields input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: .4rem; padding: .6rem; background: var(--surface-card); color: var(--canvas-heading); font: inherit; font-size: 1rem; letter-spacing: normal; text-transform: none; }
@@ -3029,7 +3035,23 @@ html[data-theme="day"] .public-page {
 .outcome-empty p { margin: 0; color: var(--muted); font-size: .78rem; }
 .outcome-load-more { justify-self: center; min-height: 2.65rem; border: 1px solid var(--line); border-radius: .5rem; padding: .6rem .9rem; background: var(--surface-card); color: var(--canvas-heading); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 800; }
 
+.outcome-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .45rem; }
+.outcome-pagination button { min-height: 2.55rem; border: 1px solid var(--line); border-radius: .48rem; padding: .55rem .8rem; background: var(--surface-card); color: var(--canvas-heading); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 800; }
+.outcome-pagination button:disabled { opacity: .45; cursor: default; }
+.outcome-pagination span { padding: 0 .35rem; color: var(--muted); font-size: .74rem; }
+.outcome-pagination span strong { color: var(--canvas-heading); }
+.outcome-pagination small { flex-basis: 100%; color: var(--muted); font-size: .68rem; text-align: center; }
+
 @media (max-width: 700px) {
+  /* Thumb-reachable paging: two per row, all the same height so the grid does
+     not look ragged, with the page indicator above them. */
+  .outcome-pagination { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; }
+  .outcome-pagination button { min-height: 2.9rem; }
+  .outcome-pagination span { grid-column: 1 / -1; order: -1; text-align: center; }
+  /* Stack search, submit and order rather than letting three items of
+     different heights wrap into a ragged row. */
+  .outcome-search-sort { flex-direction: column; align-items: stretch; }
+  .outcome-search-sort > label:first-child, .outcome-search-sort > label:last-child { flex: 1 1 auto; }
   .outcome-workspace-summary { grid-template-columns: 1fr 1fr; }
   .outcome-reviewer-panel, .outcome-search-sort, .outcome-dismiss-panel, .outcome-confirm-sale { grid-template-columns: 1fr; }
   .outcome-reviewer-panel > div { grid-row: auto; }
@@ -3496,7 +3518,11 @@ html[data-theme="day"] .public-page {
   .home-collector-note { align-items: flex-start; max-width: 100%; }
   .home-collector-note > div { flex: 0 0 auto; }
   .home-collector-note span { min-width: 0; line-height: 1.35; }
-  .home-page .home-discovery-rail { display: block; min-height: 0; padding: 2.3rem 1rem 1.6rem; overflow: hidden; }
+  /* The shelf is 8 cover links about 1050px wide. `overflow: hidden` here used
+     to clobber the `overflow-x: auto` set for the same breakpoint further up,
+     so on a 390px phone only two covers were reachable and the other five were
+     clipped with no way to scroll to them. Scroll the rail, not the page. */
+  .home-page .home-discovery-rail { display: block; min-height: 0; padding: 2.3rem 1rem 1.6rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
   .home-page .home-discovery-heading h2 { max-width: 9ch; margin-top: 1.5rem; font-size: 3.35rem; }
   .home-page .home-discovery-heading > a { top: 2.2rem; right: 1rem; }
   .home-page .home-cover-shelf { display: flex; gap: 1.25rem; min-width: max-content; padding-top: 2.3rem; overflow: visible; }
@@ -4534,7 +4560,11 @@ html .edition-page .price-history-multi {
   .home-collector-note { align-items: flex-start; max-width: 100%; }
   .home-collector-note > div { flex: 0 0 auto; }
   .home-collector-note span { min-width: 0; line-height: 1.35; }
-  .home-page .home-discovery-rail { display: block; min-height: 0; padding: 2.3rem 1rem 1.6rem; overflow: hidden; }
+  /* The shelf is 8 cover links about 1050px wide. `overflow: hidden` here used
+     to clobber the `overflow-x: auto` set for the same breakpoint further up,
+     so on a 390px phone only two covers were reachable and the other five were
+     clipped with no way to scroll to them. Scroll the rail, not the page. */
+  .home-page .home-discovery-rail { display: block; min-height: 0; padding: 2.3rem 1rem 1.6rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
   .home-page .home-discovery-heading h2 { max-width: 9ch; margin-top: 1.5rem; font-size: 3.35rem; }
   .home-page .home-discovery-heading > a { top: 2.2rem; right: 1rem; }
   .home-page .home-cover-shelf { display: flex; gap: 1.25rem; min-width: max-content; padding: 2.3rem 0 0; }

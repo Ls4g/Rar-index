@@ -7,10 +7,10 @@ import {
   classifyListingOutcome,
   dismissalDecision,
   dismissalNotes,
-  outcomeMatchesQueue,
   type DismissalReason,
   type OutcomeQueue,
 } from "@/lib/listingOutcomeTriage";
+import type { OutcomeSort, OutcomeView } from "@/lib/outcomeBrowsing";
 import OutcomeSaleConfirmationForm from "@/components/OutcomeSaleConfirmationForm";
 import { outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
@@ -53,9 +53,6 @@ export type OutcomeRow = {
 
 export type OutcomeCapability = { provider: string; available: boolean; canConfirmSales: boolean; detail: string };
 
-type OutcomeView = "attention" | "watching" | "finished";
-type SortMode = "priority" | "match" | "newest";
-
 const QUEUES: Array<{ key: OutcomeQueue; label: string }> = [
   { key: "worth_checking", label: "Worth checking" },
   { key: "best_offer", label: "Best Offer" },
@@ -75,21 +72,6 @@ const DISMISSAL_REASONS: Array<{ key: DismissalReason; label: string }> = [
   { key: "graded", label: "Graded listing" },
   { key: "lot", label: "Lot or multi-volume listing" },
 ];
-
-function viewFor(row: OutcomeRow): OutcomeView {
-  if (row.reviewedBy || ["unsold", "review_complete"].includes(row.status)) return "finished";
-  if (row.status === "active") return "watching";
-  // Queued for an automatic check that has not run yet. RAR has not looked at
-  // this listing since it was queued, so it has nothing to tell a human and
-  // no question to ask -- putting it in the review tab produced hundreds of
-  // "should RAR keep watching?" prompts for listings that were still live and
-  // had simply not been checked.
-  //
-  // Only once a check has actually run does an unresolved outcome become a
-  // human decision.
-  if (row.status === "ended_pending_check" && row.checkAttempts === 0) return "watching";
-  return "attention";
-}
 
 function plainStatus(row: OutcomeRow, now = new Date()) {
   switch (row.status) {
@@ -119,16 +101,45 @@ function when(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(new Date(value));
 }
 
-export default function ListingOutcomesPanel({ rows, capabilities, counts, renderedAt, focusOutcomeId = null }: {
+/**
+ * The reviewer's filters live in the URL, not in this component.
+ *
+ * Every outcome has to be reachable, and there are more of them than can be
+ * sent to a browser at once, so the server classifies and counts the whole
+ * table and sends one page of it. Filtering here instead would filter a single
+ * page and call it a total -- which is how 1506 listings became unreachable
+ * while the tab counts still looked plausible.
+ */
+export default function ListingOutcomesPanel({
+  rows, capabilities, counts, renderedAt,
+  view, queue, sort, search,
+  page, pageCount, pageSize, firstIndex, lastIndex, total,
+  viewCounts, queueCounts,
+  focusOutcomeId = null, focusMissing = false, focusRedirected = false,
+}: {
   rows: OutcomeRow[];
   capabilities: OutcomeCapability[];
   counts: Record<string, number | string | null>;
   renderedAt: string;
+  view: OutcomeView;
+  queue: OutcomeQueue;
+  sort: OutcomeSort;
+  search: string;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  firstIndex: number;
+  lastIndex: number;
+  total: number;
+  viewCounts: Record<OutcomeView, number>;
+  queueCounts: Record<OutcomeQueue, number>;
   // Set when arriving from the Decisions page, which sends a single listing
-  // here to have its sale price recorded. The row is opened for review and the
-  // view is switched to whichever tab actually contains it, since the default
-  // tab would otherwise hide the very listing the link was about.
+  // here to have its sale price recorded. The server serves the tab, queue and
+  // page that actually contain it, so the link cannot land on a page without
+  // the listing it was about.
   focusOutcomeId?: string | null;
+  focusMissing?: boolean;
+  focusRedirected?: boolean;
 }) {
   const focusRow = focusOutcomeId ? rows.find((row) => row.id === focusOutcomeId) ?? null : null;
   const router = useRouter();
@@ -141,11 +152,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
   const [testingEbay, setTestingEbay] = useState(false);
-  const [view, setView] = useState<OutcomeView>(() => (focusRow ? viewFor(focusRow) : "attention"));
-  const [queue, setQueue] = useState<OutcomeQueue>(focusRow ? "all" : "worth_checking");
-  const [query, setQuery] = useState(focusRow ? focusRow.externalId : "");
-  const [sort, setSort] = useState<SortMode>("priority");
-  const [visibleLimit, setVisibleLimit] = useState(25);
+  const [searchDraft, setSearchDraft] = useState(search);
   const [saleInputs, setSaleInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkNote, setBulkNote] = useState("");
@@ -154,33 +161,31 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
 
   const canConfirmSales = capabilities.some((capability) => capability.canConfirmSales);
   const triageNow = useMemo(() => new Date(renderedAt), [renderedAt]);
-  const attentionRows = useMemo(() => rows.filter((row) => viewFor(row) === "attention"), [rows]);
-  const viewCounts = useMemo(() => rows.reduce<Record<OutcomeView, number>>((totals, row) => {
-    totals[viewFor(row)] += 1;
-    return totals;
-  }, { attention: 0, watching: 0, finished: 0 }), [rows]);
-  const queueCounts = useMemo(() => Object.fromEntries(QUEUES.map(({ key }) => [
-    key,
-    attentionRows.filter((row) => outcomeMatchesQueue(row, key, triageNow)).length,
-  ])) as Record<OutcomeQueue, number>, [attentionRows, triageNow]);
 
-  const visibleRows = useMemo(() => {
-    const normalisedQuery = query.trim().toLocaleLowerCase();
-    const filtered = rows.filter((row) => {
-      if (viewFor(row) !== view) return false;
-      if (view === "attention" && !outcomeMatchesQueue(row, queue, triageNow)) return false;
-      return !normalisedQuery || `${row.listingTitle} ${row.editionLabel} ${row.externalId}`.toLocaleLowerCase().includes(normalisedQuery);
-    });
-    return filtered.sort((a, b) => {
-      if (sort === "match") return (b.matchScore ?? -1) - (a.matchScore ?? -1);
-      if (sort === "newest") return Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt);
-      return classifyListingOutcome(b, triageNow).priority - classifyListingOutcome(a, triageNow).priority;
-    });
-  }, [query, queue, rows, sort, triageNow, view]);
+  /**
+   * Move to a different slice of the queue. Changing what is being looked at
+   * drops the page number and the selection, because neither means anything
+   * against a different set of rows, and a stale "select all" could otherwise
+   * carry a decision onto listings the reviewer never saw.
+   */
+  function go(changes: Record<string, string | number | null>, keepPage = false) {
+    const next = new URLSearchParams();
+    const base: Record<string, string> = { view, queue, sort, q: search, page: String(page) };
+    for (const [key, value] of Object.entries(base)) if (value) next.set(key, value);
+    if (!keepPage) next.delete("page");
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === "") next.delete(key);
+      else next.set(key, String(value));
+    }
+    // The focused listing has been served; keeping it in the URL would drag
+    // every later click back to its tab and page.
+    next.delete("outcome");
+    setSelected(new Set());
+    router.push(`/listing-outcomes${next.size ? `?${next}` : ""}`);
+  }
 
-  const displayedRows = visibleRows.slice(0, visibleLimit);
   const selectable = view !== "finished";
-  const selectableRows = selectable ? displayedRows : [];
+  const selectableRows = selectable ? rows : [];
   const selectedRows = rows.filter((row) => selected.has(row.id));
   const sharedDecisions = sharedDecisionsFor(selectedRows);
   const canBulkWatch = sharedDecisions.some((decision) => decision.key === "keep_watching");
@@ -204,21 +209,6 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       for (const id of ids) { if (allSelected) next.delete(id); else next.add(id); }
       return next;
     });
-  }
-
-  function resetList() {
-    setVisibleLimit(25);
-    setSelected(new Set());
-  }
-
-  function changeView(next: OutcomeView) {
-    setView(next);
-    resetList();
-  }
-
-  function changeQueue(next: OutcomeQueue) {
-    setQueue(next);
-    resetList();
   }
 
   async function decideSelected(decision: string, decisionNotes = bulkNote) {
@@ -405,9 +395,12 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       </div>
       {message ? <p className="outcome-message" role="status">{message}</p> : null}
 
+      {focusMissing ? <p className="outcome-message" role="alert">That listing no longer exists, so it could not be opened. The queue below is unfiltered.</p> : null}
+      {focusRedirected && focusRow ? <p className="outcome-message" role="status">Opened <b>{focusRow.listingTitle}</b> on page {page} of the {view === "attention" ? "review" : view} queue.</p> : null}
+
       <div className="outcome-view-tabs" role="tablist" aria-label="Listing outcome views">
         {([["attention", "Needs review", viewCounts.attention], ["watching", "Still watching", viewCounts.watching], ["finished", "Finished", viewCounts.finished]] as Array<[OutcomeView, string, number]>).map(([key, label, count]) => (
-          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => changeView(key)} role="tab" type="button">{label} <span>{count}</span></button>
+          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => go({ view: key })} role="tab" type="button">{label} <span>{count}</span></button>
         ))}
       </div>
 
@@ -415,13 +408,16 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
         <div className="outcome-triage-tools">
           <div className="outcome-quick-filters" aria-label="Outcome quick filters">
             {QUEUES.map(({ key, label }) => (
-              <button className={queue === key ? "is-active" : ""} key={key} onClick={() => changeQueue(key)} type="button">{label} <span>{queueCounts[key]}</span></button>
+              <button className={queue === key ? "is-active" : ""} key={key} onClick={() => go({ queue: key })} type="button">{label} <span>{queueCounts[key]}</span></button>
             ))}
           </div>
-          <div className="outcome-search-sort">
-            <label>Find a listing<input onChange={(event) => { setQuery(event.target.value); resetList(); }} placeholder="Title, edition or item number" type="search" value={query} /></label>
-            <label>Order<select onChange={(event) => setSort(event.target.value as SortMode)} value={sort}><option value="priority">Best opportunity first</option><option value="match">Strongest match first</option><option value="newest">Newest first</option></select></label>
-          </div>
+          <form className="outcome-search-sort" onSubmit={(event) => { event.preventDefault(); go({ q: searchDraft.trim() || null }); }}>
+            <label>Find a listing<input onChange={(event) => setSearchDraft(event.target.value)} placeholder="Title, edition or item number" type="search" value={searchDraft} /></label>
+            <button type="submit">Search</button>
+            {search ? <button className="is-clear" onClick={() => { setSearchDraft(""); go({ q: null }); }} type="button">Clear</button> : null}
+            <label>Order<select onChange={(event) => go({ sort: event.target.value })} value={sort}><option value="priority">Best opportunity first</option><option value="match">Strongest match first</option><option value="newest">Newest first</option></select></label>
+          </form>
+          {search ? <p className="outcome-parked-note">Searching the whole review queue for <b>{search}</b> — {total} match{total === 1 ? "" : "es"}.</p> : null}
           {queue === "parked" ? <p className="outcome-parked-note">These lack enough outcome evidence, or were machine-detected as graded, lots or possible edition conflicts. They remain searchable and auditable, but no longer dominate your working inbox.</p> : null}
         </div>
       ) : null}
@@ -439,15 +435,15 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       </details>
 
       <div className="outcome-list-toolbar">
-        <p><strong>{visibleRows.length}</strong> listing{visibleRows.length === 1 ? "" : "s"} in this view</p>
-        {visibleRows.length && selectable ? (
-          <label className="outcome-select-all"><input checked={selectableRows.length > 0 && selectableRows.every((row) => selected.has(row.id))} onChange={toggleSelectAllVisible} type="checkbox" />Select all {selectableRows.length} shown{selected.size ? <span> · {selected.size} selected</span> : null}</label>
+        <p>{total ? <>Showing <strong>{firstIndex}–{lastIndex}</strong> of <strong>{total}</strong> listing{total === 1 ? "" : "s"}</> : <><strong>0</strong> listings in this view</>}</p>
+        {rows.length && selectable ? (
+          <label className="outcome-select-all"><input checked={selectableRows.length > 0 && selectableRows.every((row) => selected.has(row.id))} onChange={toggleSelectAllVisible} type="checkbox" />Select all {selectableRows.length} on this page{selected.size ? <span> · {selected.size} selected</span> : null}</label>
         ) : null}
       </div>
 
-      {visibleRows.length ? (
+      {rows.length ? (
         <div className="outcome-list">
-          {displayedRows.map((row) => {
+          {rows.map((row) => {
             const status = plainStatus(row, triageNow);
             const triage = classifyListingOutcome(row, triageNow);
             const outcomeConfidence = assessOutcomeConfidence(row, triageNow);
@@ -543,11 +539,21 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
               </article>
             );
           })}
-          {visibleRows.length > displayedRows.length ? <button className="outcome-load-more" onClick={() => setVisibleLimit((current) => current + 25)} type="button">Show 25 more ({visibleRows.length - displayedRows.length} remaining)</button> : null}
         </div>
       ) : (
-        <div className="outcome-empty"><strong>{view === "attention" && queue === "worth_checking" ? "Nothing worthwhile needs your decision" : view === "watching" ? "No listings are currently being watched" : view === "finished" ? "No finished decisions are loaded" : "No listings match this view"}</strong><p>{view === "attention" ? "Try another filter, or wait for stronger evidence from the next outcome check." : "Choose another tab or run an outcome check from System status."}</p></div>
+        <div className="outcome-empty"><strong>{search ? `Nothing in this queue matches "${search}"` : view === "attention" && queue === "worth_checking" ? "Nothing worthwhile needs your decision" : view === "watching" ? "No listings are currently being watched" : view === "finished" ? "No finished decisions yet" : "No listings match this view"}</strong><p>{search ? "Clear the search, or try another tab or queue." : view === "attention" ? "Try another filter, or wait for stronger evidence from the next outcome check." : "Choose another tab or run an outcome check from System status."}</p></div>
       )}
+
+      {pageCount > 1 ? (
+        <nav className="outcome-pagination" aria-label="Listing outcome pages">
+          <button disabled={page <= 1} onClick={() => go({ page: 1 }, true)} type="button" aria-label="First page">« First</button>
+          <button disabled={page <= 1} onClick={() => go({ page: page - 1 }, true)} type="button" aria-label="Previous page">‹ Previous</button>
+          <span aria-current="page">Page <strong>{page}</strong> of <strong>{pageCount}</strong></span>
+          <button disabled={page >= pageCount} onClick={() => go({ page: page + 1 }, true)} type="button" aria-label="Next page">Next ›</button>
+          <button disabled={page >= pageCount} onClick={() => go({ page: pageCount }, true)} type="button" aria-label="Last page">Last »</button>
+          <small>{pageSize} per page. Every listing in this queue is reachable from here.</small>
+        </nav>
+      ) : null}
 
       {selected.size > 0 ? (
         <div className="scout-bulk-bar outcome-bulk-bar">

@@ -112,6 +112,76 @@ Gate: full suite (36 scripts) exit 0, TypeScript clean, lint 0 errors with the t
 
 **Not fixed, deliberately:** 749 attention listings remain unreachable through the page's own filters. The by-id fetch repairs the *link*, not the browsing cap. Paginating that queue is its own piece of work.
 
+## Phase 1 — every outcome reachable, staff workflows verified (13 September 2026)
+
+Supersedes the "749 inaccessible attention listings" note below, which was both stale and an undercount.
+
+### Fresh counts, read 2026-09-13T21:26Z from project `fmzzersppzqevtwqvnbd`
+
+Denominator: **1812** `listing_outcomes` rows. By status: `ended_pending_check` 933, `active` 716, `unsold` 110, `review_complete` 32, `ambiguous` 17, `inaccessible` 4, `sold_candidate` **0** (was 8; all resolved).
+
+The page's SQL attention filter (four statuses, `reviewed_by IS NULL`) matches **948**. That is *not* the review queue: `outcomeView` sends an `ended_pending_check` row with `check_attempts = 0` to "watching", because RAR has not looked at it and has no question to ask. Classified honestly:
+
+| Tab | Rows | Pages of 25 |
+| --- | --- | --- |
+| Needs review | **545** | 22 |
+| Still watching | **1119** | 45 |
+| Finished | **148** | 6 |
+
+Review queue by queue: worth_checking 204, best_offer 204, high_value 96, graded 15, lot 10, conflict 1, parked 341.
+
+### What was actually broken
+
+The page capped three queries at 200/75/25 rows and derived its tab and queue counts from that sample. So **1506 of 1812 rows could not be opened at all** (748 review + 641 watching + 117 finished), and every count staff read was a floor presented as a total. Of the 545 review-queue listings, **421 sat outside the old 200-row window.**
+
+### What replaced it
+
+`lib/outcomeBrowsing.ts` classifies and counts the whole table server-side, then serves one page. Queue filters stay in TypeScript because they depend on title patterns and match scores that are not SQL-expressible — reimplementing them in SQL would have forked the rules. The page now:
+
+- reads every row through `.range()` paging, because PostgREST caps a response at 1000 and a single select silently returned a partial table;
+- loads full detail and check history for the served page only — page 1 costs 25 detail rows and 83 check rows, where the old page sent ~2.6MB if it had loaded everything and in practice sent ~678KB;
+- keeps `view`, `queue`, `sort`, `q` and `page` in the URL, so a filtered queue is linkable and pagination composes with filters instead of filtering one page and calling it a total;
+- sorts with an explicit tiebreak on id, so a page boundary between equal sort keys cannot repeat or skip a row;
+- still fetches a linked outcome by id, and now serves the tab, queue **and page** that contain it.
+
+### Evidence
+
+- `scripts/test-outcome-browsing.mjs` — 79 checks, no credentials, in `test:workflows`. Full traversal of every view/queue/sort over a 391-row synthetic set with deliberate sort-key ties; boundaries, clamping, empty sets, page size 1, focus outside the page, cross-tab focus, missing focus, search, queue-count partitioning, parameter validation.
+- `scripts/test-outcome-browsing-live.mjs` — 24 checks, live read-only. Range paging reads all 1812 rows; traversal of all ten view/queue combinations reaches every row exactly once; 25 sampled previously-unreachable listings are all now served; the last row in the order is reachable.
+- `scripts/verify-staff-pages-live.mjs` — 71 checks against a local dev server over HTTP. All seven staff pages gated anonymously and rendering with a session; `/` and `/collection` public and free of staff controls; page 1/2/last/beyond-end ranges; nonsense query parameters falling back; served HTML agreeing with the library about which listings are on which page; three real deep links opening their listing; a dead link explaining itself; empty search state.
+- `scripts/report-outcome-coverage.mjs` — the count report above, re-runnable.
+
+Session cookies for the HTTP checks are minted with the repository's own `createStaffSession` against credentials created for the check. No password was typed into a form and no production credential was used.
+
+### Browser evidence, desktop and mobile
+
+Real Chrome against local dev, production data, read-only. Desktop 1920px: 25 cards, "Showing 1–25 of 204 listings", "Page 1 of 9", First/Previous correctly disabled, tabs 545/1119/148. Mobile 390px via the iframe technique in AGENTS.md: media query matches, **zero** overflowing elements, no horizontal page scroll, pager renders as an even 2×2 grid of 160×46px targets, and clicking Next genuinely moved to "Showing 26–50 of 204 / Page 2 of 9".
+
+### Defects found and repaired
+
+1. **Public homepage, mobile — 5 of 8 cover links unreachable.** `.home-discovery-rail` carried `overflow: hidden` in a `max-width: 760px` block that came *after* another block setting `overflow-x: auto` for the same breakpoint, so the later rule won. The shelf is ~1050px of 8 `<a>` covers under "Find the next volume you'll love"; at 390px only 2 were fully visible and 5 were clipped with no way to scroll to them. Now `overflow-x: auto` with `overscroll-behavior-x: contain`; verified the last cover is reachable and the page still has no horizontal scroll. The rule was duplicated in the file and both copies were fixed.
+2. **Grading card asserted a human confirmation that was never asked for.** `/api/observation-grading` deliberately refuses a correction unless `sourceConfirmed === true` — "Confirm that you opened the original listing" — and the card satisfied that check by hardcoding `sourceConfirmed: true`. The gate was vacuous from the only UI that calls it, and the audit trail recorded that a person had opened the listing when nothing had ever asked them. There is now a required checkbox; both decision buttons stay disabled until it is ticked.
+3. Pager and search-row raggedness at 390px (uneven 41/46px buttons, a three-item row wrapping badly) — both now uniform.
+
+Inspected and accepted: `/agents` renders a 840px table inside a `overflow-x: auto` wrapper at 322px, which is the correct pattern. `article.home-spotlight` clips `.home-spotlight-sketch` and `.home-book-depth` at 390px — decorative only, no text, link or control is lost.
+
+### Grading card verified on an isolated fixture
+
+The card only appears when a verified sale's grading contradicts itself, and the single production conflict is now resolved — so it was unverifiable without either fabricating a conflict on real evidence, which is forbidden, or a fixture. `app/dev/grading-fixture/page.tsx` renders the **real** component with a fixture observation id that belongs to nothing, and 404s outside development.
+
+Exercised in Chrome against the real route and real RPC: both buttons disabled until the source confirmation is ticked; ticking enables them; the graded path with no company or grade returns "Enter both the grading company and the exact grade shown on the slab."; with BGS/8.5 supplied, saving reaches the API and the RPC and returns its own guard, "That sale no longer exists."; the raw path returns the same; the card survives the error with both buttons re-enabled, so a retry is possible; unticking re-disables both. `scripts/test-observation-grading.mjs` (PGlite, shipped migration SQL) covers the handler's append-only audit, half-grade completion and refusal of an unknown sale.
+
+**No production evidence was touched.** `ff81fb2f` still reads BGS 8.5, `grading_reviewed_at` 2026-09-13T17:39:08Z, re-read after the fixture work. No row exists for the fixture id.
+
+### Gate
+
+Full suite 80 scripts exit 0 (79 new pagination checks included), TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed with `/dev/grading-fixture` compiled as a dynamic route.
+
+### Remaining Phase 1 gaps
+
+- **Authenticated rendering on a real phone is still unverified.** The 390px evidence above is a real browser at a real viewport, but it is an iframe on a desktop machine, not a handset: no touch scrolling, no mobile Safari or Chrome-on-Android engine, no on-screen keyboard. Checklist for a person, on a phone: (1) `/listing-outcomes` — swipe the pager to page 2 and back, confirm "Showing 26–50 of 204"; (2) tap a queue chip and confirm the count in the chip matches the range that loads; (3) type in "Find a listing" and submit, confirm the keyboard does not cover the Search button; (4) on `/` swipe the cover shelf and confirm all 8 covers can be reached; (5) `/dev/grading-fixture` on local dev only — confirm the confirmation checkbox is tappable and the buttons stay dead until it is ticked.
+- Decision *writes* were never exercised against production from this session, by design. The confirm/dismiss/bulk paths are covered by the PGlite suites, not by a live mutation.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.

@@ -169,6 +169,7 @@ export default function HumanDecisionInbox({
   const [banner, setBanner] = useState<Banner | null>(null);
   const [filter, setFilter] = useState<"all" | DecisionKind>("all");
   const [gradingInputs, setGradingInputs] = useState<Record<string, { company: string; grade: string }>>({});
+  const [gradingSourceConfirmed, setGradingSourceConfirmed] = useState<Record<string, boolean>>({});
 
   const visibleSales = sales.filter((item) => !resolved.has(`sale:${item.observationId}`));
   const visiblePrinting = printing.filter((item) => !resolved.has(`printing:${item.actionId}`));
@@ -332,6 +333,16 @@ export default function HumanDecisionInbox({
     const key = `grading:${item.observationId}`;
     const company = (gradingInputs[item.observationId]?.company ?? "").trim();
     const grade = (gradingInputs[item.observationId]?.grade ?? "").trim();
+    // The API refuses a correction that is not confirmed against the original
+    // listing, and this card used to satisfy that check by asserting
+    // sourceConfirmed on the reviewer's behalf -- so the audit trail recorded
+    // that a person had opened the listing when nothing had ever asked them.
+    // The confirmation is now the reviewer's own.
+    const sourceConfirmed = gradingSourceConfirmed[item.observationId] === true;
+    if (!sourceConfirmed) {
+      setBanner({ tone: "error", text: "Open the original listing first, then confirm what you saw. RAR never takes a grade from a title." });
+      return;
+    }
     if (copyType === "graded" && (!company || !grade)) {
       setBanner({ tone: "error", text: "Enter both the grading company and the exact grade shown on the slab." });
       return;
@@ -341,7 +352,7 @@ export default function HumanDecisionInbox({
       copyType,
       gradingCompany: copyType === "graded" ? company : null,
       gradeLabel: copyType === "graded" ? grade : null,
-      sourceConfirmed: true,
+      sourceConfirmed,
       notes: decisionNotes[key] ?? "",
     });
   }
@@ -463,11 +474,19 @@ export default function HumanDecisionInbox({
             <label>Grading company<input onChange={(event) => setGradingInputs((current) => ({ ...current, [item.observationId]: { ...(current[item.observationId] ?? { grade: "" }), company: event.target.value } }))} placeholder="CGC, CBCS, BGS, PSA…" value={gradingInputs[item.observationId]?.company ?? item.gradingCompany ?? ""} /></label>
             <label>Exact grade<input onChange={(event) => setGradingInputs((current) => ({ ...current, [item.observationId]: { ...(current[item.observationId] ?? { company: "" }), grade: event.target.value } }))} placeholder="9.8" value={gradingInputs[item.observationId]?.grade ?? item.gradeLabel ?? ""} /></label>
           </div>
+          <label className="grading-source-confirm">
+            <input
+              checked={gradingSourceConfirmed[item.observationId] === true}
+              onChange={(event) => setGradingSourceConfirmed((current) => ({ ...current, [item.observationId]: event.target.checked }))}
+              type="checkbox"
+            />
+            <span>I opened the original listing and saw what the copy actually is. <small>Required — the grade is never taken from the title.</small></span>
+          </label>
           <DecisionNote reason={decisionReasons[`grading:${item.observationId}`] ?? ""} value={decisionNotes[`grading:${item.observationId}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`grading:${item.observationId}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`grading:${item.observationId}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Open original listing ↗</a>
-            <button disabled={busyKeys.has(`grading:${item.observationId}`)} onClick={() => void correctGrading(item, "graded")} type="button">{busyKeys.has(`grading:${item.observationId}`) ? "Saving…" : "It is graded — save this grade"}</button>
-            <button className="is-no" disabled={busyKeys.has(`grading:${item.observationId}`)} onClick={() => void correctGrading(item, "raw")} type="button">It is raw — no slab</button>
+            <button disabled={busyKeys.has(`grading:${item.observationId}`) || gradingSourceConfirmed[item.observationId] !== true} onClick={() => void correctGrading(item, "graded")} type="button">{busyKeys.has(`grading:${item.observationId}`) ? "Saving…" : "It is graded — save this grade"}</button>
+            <button className="is-no" disabled={busyKeys.has(`grading:${item.observationId}`) || gradingSourceConfirmed[item.observationId] !== true} onClick={() => void correctGrading(item, "raw")} type="button">It is raw — no slab</button>
           </div>
         </article>
       ))}

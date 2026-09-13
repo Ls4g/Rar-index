@@ -88,12 +88,18 @@ Four PGlite suites run the shipped migration SQL against real PostgreSQL 18.3 �
 
 ## Remaining beta-readiness gaps
 
-1. Three migrations unapplied; the held code cannot ship until they are.
-2. `ff81fb2f` still needs a human to open the listing and say raw or graded.
-3. 23 legacy actions still open — the tooling now exists, the decisions do not.
-4. Graded leads need their own queue before `graded_slab` can be activated safely.
-5. Concurrency untested against a real multi-connection server.
-6. Still unaudited: `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile workflows.
-7. 4 of the last 140 agent runs failed and have not been investigated.
+Status as of 13 September 2026, after Phase 1. See `beta-audit-resume.md` for the evidence behind each line.
 
-Not beta-ready.
+| # | Gap | Status |
+| --- | --- | --- |
+| 1 | Three migrations unapplied | **Closed.** Applied and verified live, plus `20260913_beta_rpc_permissions.sql`. |
+| 2 | `ff81fb2f` needs a human | **Closed.** BGS 8.5, confirmed by SP, 2026-09-13T17:39Z. |
+| 3 | 23 legacy actions still open | Open. Count not yet re-verified; Phase 2. |
+| 4 | Graded leads need their own queue before `graded_slab` activates | Open. A product decision, not an implementation gap; Phase 3. |
+| 5 | Concurrency untested against a real multi-connection server | Open. PGlite is a single backend; Phase 2. |
+| 6 | `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile unaudited | **Closed for rendering and navigation**, by 71 HTTP checks and a real browser at 1920px and 390px. Two mobile defects found and repaired. Authenticated rendering on a physical handset remains unverified — checklist in the resume doc. |
+| 7 | 4 of the last 140 agent runs failed, uninvestigated | Open. Window not yet re-counted; Phase 2. |
+| 8 | 1506 of 1812 listing outcomes unreachable, and every tab/queue count understated | **Closed.** Stable pagination; all ten view/queue combinations traverse every row exactly once, proved on synthetic and live data. |
+| 9 | The grading card had never been seen rendering | **Closed.** Verified on an isolated fixture with the real component, route and RPC. Found and fixed a vacuous source-confirmation gate. |
+
+Not beta-ready: gaps 3, 4, 5 and 7 remain, and no staff decision *write* has been exercised against production.
