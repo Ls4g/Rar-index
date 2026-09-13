@@ -1,6 +1,6 @@
-# Beta audit resume — interrupted by credit limit
+# Beta audit resume — repair tranche shipped
 
-Baseline: main at 86f8b29. Work is UNCOMMITTED and NOT PUSHED. Preserve unrelated `.claude/settings.local.json`.
+Baseline: main at 86f8b29. Repairs shipped in `326ad78`; mobile control follow-up in `bdbdd70`, both pushed. Historical checkpoint notes below describe the interruption; the resumed section supersedes their status. Preserve unrelated local settings.
 
 ## Implemented locally
 
@@ -52,4 +52,10 @@ Reproduce live baseline read-only: `node --env-file=.env.local scripts/audit-bet
 
 Both confirmation entry points now share the form: added changes in `app/review/page.tsx` and `components/HumanDecisionInbox.tsx`. Authenticated production review access is available. No sale decisions submitted.
 
-Final workflow suite (32 scripts), direct TypeScript, lint and production build passed. Two existing image warnings remain. See `docs/beta-audit-findings.md` for priorities, acceptance criteria and explicit outstanding scope. Next action: commit the listed task files (exclude `.claude/settings.local.json`), push immediately, verify deployment and desktop/mobile rendering. Live mutation and atomic cross-table closure remain unverified/outstanding.
+Final workflow suite (32 scripts), direct TypeScript, lint and production build passed. Two existing image warnings remain. Lint, TypeScript and production build also passed after the mobile-only follow-up. See `docs/beta-audit-findings.md` for priorities, acceptance criteria and explicit outstanding scope.
+
+Authenticated deployed `/review` and `/listing-outcomes` forms were exercised against real Jujutsu Kaisen candidates without submitting decisions. Raw selection enables confirmation; empty/graded-without-details stays disabled; selections were reset. Real viewport override confirmed 390px mobile rendering without horizontal overflow. This exposed undersized controls, repaired with 44px minimum heights and full-card form width. No actual phone or live mutation test was performed.
+
+Vercel reported success for both `326ad78` and `bdbdd70`. Final deployed control sizes and desktop/mobile rendering were checked; temporary viewport override was reset. All implementation changes are committed/pushed; this checkpoint update is documentation only.
+
+Next investigation: `Get-Content lib/outcomeSaleConfirmation.ts`, then inspect the `approve_submitted_sale` migration and add an outcome-aware transactional closure with an isolated database concurrency test. Preserve human source verification. Subsequently reconcile the 23 legacy approved actions through durable execution recovery. Full remaining page audit and Scout benchmark optimization are outstanding. No schema migration was applied in this tranche.
