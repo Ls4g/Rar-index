@@ -30,7 +30,7 @@ export default async function ListingOutcomesPage({ searchParams }: { searchPara
 
   // Fetch actionable outcomes separately so hundreds of active listings cannot
   // push a sold candidate or unresolved Best Offer beyond the page limit.
-  const [attentionResult, activeResult, recentResolvedResult] = await Promise.all([
+  const [attentionResult, activeResult, recentResolvedResult, focusResult] = await Promise.all([
     admin.from("listing_outcomes")
       .select(outcomeSelect)
       .in("status", ["sold_candidate", "ended_pending_check", "ambiguous", "inaccessible"])
@@ -47,13 +47,25 @@ export default async function ListingOutcomesPage({ searchParams }: { searchPara
       .in("status", ["unsold", "review_complete"])
       .order("updated_at", { ascending: false })
       .limit(25),
+    // A link from the Decisions page names one exact listing, but the queries
+    // above are capped, and the attention queue is far larger than its cap. The
+    // named listing therefore often fell outside every window, so the page
+    // loaded with the one row the link was about simply absent -- and the panel
+    // silently failed to open anything. Fetch it by id so that cannot happen.
+    focusOutcomeId
+      ? admin.from("listing_outcomes").select(outcomeSelect).eq("id", focusOutcomeId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
-  const records = [
+  const fetched = [
     ...(attentionResult.data ?? []),
     ...(activeResult.data ?? []),
     ...(recentResolvedResult.data ?? []),
   ] as unknown as OutcomeRecord[];
+  const focusRecord = (focusResult.data ?? null) as unknown as OutcomeRecord | null;
+  const records = focusRecord && !fetched.some((record) => record.id === focusRecord.id)
+    ? [focusRecord, ...fetched]
+    : fetched;
   const priority: Record<string, number> = { sold_candidate: 0, ended_pending_check: 1, ambiguous: 2, active: 3, inaccessible: 4, unsold: 5, review_complete: 6 };
   records.sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9));
 

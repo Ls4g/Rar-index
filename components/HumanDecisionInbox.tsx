@@ -44,6 +44,10 @@ type CatalogueDecision = {
   sourceName: string | null;
   sourceUrl: string;
   isEditionCandidate: boolean;
+  // Why this candidate cannot be approved straight from the inbox, or null when
+  // it can. Computed on the server with the same guards the catalogue API
+  // enforces, so the inbox never offers an approval the server would refuse.
+  approvalBlocker: string | null;
   reviewMetadata: Record<string, string | null>;
 };
 
@@ -412,10 +416,11 @@ export default function HumanDecisionInbox({
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Catalogue Curator asks</span><h2>Is this a real physical edition RAR should add?</h2></div>
           <div className="human-decision-facts"><p>{item.title}</p><b>{[item.series, item.volumeNumber ? `Vol. ${item.volumeNumber}` : null, item.language].filter(Boolean).join(" · ")}</b><small>{[item.publisher, item.isbn13 ? `ISBN ${item.isbn13}` : null, item.releaseDate].filter(Boolean).join(" · ")}</small></div>
+          {item.approvalBlocker ? <p className="catalogue-approval-conflict" role="status"><strong>Cannot be added from here:</strong> {item.approvalBlocker}</p> : null}
           <DecisionNote reason={decisionReasons[`catalogue:${item.id}`] ?? ""} value={decisionNotes[`catalogue:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
-            {item.isEditionCandidate ? <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button> : <Link href="/catalogue-review">Needs detailed review →</Link>}
+            {item.approvalBlocker ? <Link href={`/catalogue-review#candidate-${item.id}`}>Needs detailed review →</Link> : <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button>}
             <button className="is-no" disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, false)} type="button">No — reject</button>
           </div>
         </article>

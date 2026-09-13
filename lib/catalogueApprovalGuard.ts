@@ -3,6 +3,7 @@ import {
   cataloguePublisherMatches,
   type CatalogueDiscoveryTarget,
 } from "./catalogueCurator.ts";
+import { catalogueMetadataProblem, queuedReviewMetadata } from "./catalogueReviewMetadata.ts";
 import type { CatalogueSourceCandidate } from "./catalogueSources.ts";
 
 export type CatalogueApprovalQueueRow = {
@@ -127,4 +128,31 @@ export function catalogueApprovalProblem(
     return `Publisher conflict: this source says ${row.candidate_publisher ?? "publisher unknown"}, while RAR's verified ${target.language ?? "target"} records use ${[...new Set(expectedPublishers)].join(" or ")}.`;
   }
   return null;
+}
+
+/**
+ * Why a queued candidate cannot be approved in one click from the Decisions
+ * inbox, or null when it can be.
+ *
+ * The inbox offers a single "Yes — add edition" button with no fields, so it
+ * may only offer that button when approval can actually succeed. The catalogue
+ * API refuses approve_new without a language, without complete source-owned
+ * review metadata, or when the Curator guard finds a conflict; a candidate
+ * hitting any of those has to go to /catalogue-review, where the reviewer can
+ * supply the missing fact. Language is deliberately left blank by the Curator
+ * rather than guessed, so a blank one is a question for a human, not a defect.
+ */
+export function catalogueOneClickApprovalBlocker(
+  row: CatalogueApprovalQueueRow,
+  knownEditions: KnownCatalogueEdition[],
+) {
+  if (row.candidate_kind !== "edition_candidate") return "A series reference cannot create a physical edition on its own.";
+  if (!row.candidate_title?.trim()) return "The source record has no usable title.";
+  if (!row.candidate_language) return "The source did not state a language, so it has to be confirmed by hand.";
+  if (row.candidate_isbn_13 && !/^97[89]\d{10}$/.test(row.candidate_isbn_13.replace(/[^0-9Xx]/g, "").toUpperCase())) {
+    return "The ISBN on this source record is not a valid ISBN-13.";
+  }
+  const metadataProblem = catalogueMetadataProblem(queuedReviewMetadata(row.raw_payload));
+  if (metadataProblem) return metadataProblem;
+  return catalogueApprovalProblem(row, knownEditions);
 }

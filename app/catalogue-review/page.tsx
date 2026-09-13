@@ -176,7 +176,7 @@ export default async function CatalogueReviewPage() {
         {bulkRecords.some((record) => record.listingPhoto === null && record.sourceFacts.length) ? <CataloguePhotoButton /> : null}
         <CatalogueBulkPanel records={bulkRecords} />
         {records.length ? <div className="review-list">{records.map((record) => (
-          <article className="review-card catalogue-card" key={record.id}>
+          <article className="review-card catalogue-card" id={`candidate-${record.id}`} key={record.id}>
             <div className="review-card-topline"><span>{record.source_name ?? "Catalogue source"} · {record.candidate_kind === "edition_candidate" ? "Edition candidate" : "Series reference"}</span><time>Imported {formatDate(record.imported_at)}</time></div>
             <div className="review-card-main"><div><h3>{record.candidate_title}</h3><p className="review-condition">{[record.candidate_series, record.candidate_volume_number ? `Vol. ${record.candidate_volume_number}` : null, record.candidate_language].filter(Boolean).join(" · ") || "Details still needed"}</p></div><div className="review-source-links">{readableSourceUrl(record) ? <a className="review-source-link" href={readableSourceUrl(record) as string} target="_blank" rel="noreferrer">Look it up ↗</a> : null}<a className="review-source-link is-raw" href={record.source_record_url} target="_blank" rel="noreferrer">{readableSourceUrl(record) ? "Source data ↗" : "Open source record ↗"}</a></div></div>
             {!record.candidate_language ? <p className="catalogue-language-warning" role="status"><strong>Language needs staff confirmation.</strong> The source left this blank, so RAR has not guessed it. Choose Approve new edition and fill the language before publishing.</p> : null}
