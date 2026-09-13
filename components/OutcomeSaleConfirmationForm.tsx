@@ -13,7 +13,7 @@ export default function OutcomeSaleConfirmationForm({ listingTitle, buyingFormat
   const [priceCorroborationUrl, setPriceCorroborationUrl] = useState("");
   const bestOffer = outcomeIsBestOffer(buyingFormat, listingTitle);
   const needsCorroboration = bestOffer && outcomeProvider !== "130point manual corroboration";
-  return <form className="best-offer-corroboration" onSubmit={(event) => {
+  return <form className="best-offer-corroboration outcome-sale-confirmation" onSubmit={(event) => {
     event.preventDefault();
     onConfirm({ humanConfirmed: true, grading, gradingCompany, gradeLabel, priceCorroborationUrl });
   }}>

@@ -3009,6 +3009,11 @@ html[data-theme="day"] .public-page {
 .best-offer-fields label { display: grid; flex: 1 1 8.5rem; gap: .22rem; color: var(--muted); font-size: .63rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .best-offer-confirm { display: flex; gap: .45rem; align-items: flex-start; color: var(--canvas-heading); font-size: .7rem; line-height: 1.45; }
 .best-offer-confirm input { margin-top: .12rem; }
+.outcome-sale-confirmation { grid-column: 1 / -1; min-width: 0; }
+.outcome-sale-confirmation input, .outcome-sale-confirmation select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: .4rem; padding: .6rem; background: var(--surface-card); color: var(--canvas-heading); font: inherit; font-size: 1rem; letter-spacing: normal; }
+.outcome-sale-confirmation label { min-width: 0; }
+.outcome-sale-confirmation button { min-height: 44px; border: 1px solid #176a54; border-radius: .45rem; padding: .65rem .9rem; background: #176a54; color: #fff; cursor: pointer; font: inherit; }
+.outcome-sale-confirmation button:disabled { opacity: .5; cursor: not-allowed; }
 
 .outcome-bulk-bar select { min-height: 2.35rem; max-width: 13rem; border: 1px solid rgba(255,255,255,.2); border-radius: .4rem; padding: .48rem .6rem; background: #2c2925; color: #f4f0e8; font: inherit; font-size: .7rem; }
 .outcome-bulk-bar small { flex-basis: 100%; color: rgba(244,240,232,.66); font-size: .68rem; line-height: 1.4; }
