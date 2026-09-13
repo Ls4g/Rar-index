@@ -75,7 +75,16 @@ export const JUNK_RULES: JunkRule[] = [
         .map((value) => String(value ?? "")).join(" ").toLowerCase();
       if (/omnibus|\d\s*-?\s*in\s*-?\s*1|box\s*set|deluxe|collect/.test(target)) return null;
       if (listingIsMultiVolumeLot(title, volume)) return "The listing is a lot or set, not the single volume being tracked.";
-      if (/\bomnibus\b/i.test(title)) return "The listing is an omnibus, which collects several volumes.";
+      // The word "omnibus" alone is not evidence of a lot. Staff drew this
+      // line themselves on the benchmark: "Initial D Omnibus #1-#9" is junk,
+      // while "Initial D Omnibus 1 (Vol. 1)" and "Attack On Titan Manga
+      // Omnibus Volume 1" are genuine opportunities they kept. A single
+      // omnibus volume is one book a collector tracking that volume wants;
+      // dismissing every title containing the word threw those away.
+      //
+      // An omnibus listing is still dismissed when the title itself evidences
+      // more than one volume, which the range, N-in-1 and enumeration patterns
+      // below detect on their own.
       if (/\b\d+\s*-?\s*in\s*-?\s*1\b/i.test(title)) return "The listing is an N-in-1 collected edition, not a single volume.";
       // "#1-#9", which the shared range pattern misses because of the second #.
       if (/#\s*\d+\s*(?:-|–|to)\s*#\s*\d+/i.test(title)) return "The listing covers a range of issues, not one volume.";

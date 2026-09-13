@@ -249,6 +249,82 @@ Setup needed: `docker run -d --name rar-pg -e POSTGRES_PASSWORD=test -e POSTGRES
 
 Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
 
+## Phase 3 — Scout: one rule now safe, graded leads routed not dismissed (13 September 2026)
+
+### Baseline, reproduced before changing anything
+
+822 human decisions, split **405 development / 417 holdout** by a stable hash of the case id. Active learned rules: **0** — everything is in shadow.
+
+| | cases | genuine recall | junk rejection |
+| --- | --- | --- | --- |
+| whole benchmark | 822 | 571/578 = **98.79%** | 46/244 = **18.85%** |
+| development | 405 | 272/274 = 99.27% | 26/131 = 19.85% |
+| holdout | 417 | 299/304 = 98.36% | 20/113 = 17.70% |
+
+Matches the figures in the earlier tranche, so the benchmark and the split are stable.
+
+### The four junk categories, investigated separately
+
+Junk still reaching a human on the development half (105 cases):
+
+| Category | Cases | Share | Finding |
+| --- | --- | --- | --- |
+| `graded_not_raw` | 48 | 46% | A rule exists and is the single biggest win available, but it discards genuine opportunities. Routing, not dismissal — see below. |
+| `unavailable` | 33 | 31% | **No rule proposed.** The label is hindsight: a person clicked through and the listing was gone. At triage time it still looks live, so no title-based rule can find it without inventing a fact. This is a throughput gap — the availability re-check examines ~25 listings per run against 2240 new leads — not a scoring gap. |
+| `multi_volume_lot` | 9 | 9% | Rule refined and now safe. |
+| `edition_mismatch` | 8 | 8% | Left alone. These are deluxe, VIZBIG and omnibus listings matched to single-volume editions; deciding them needs the edition identity work, not a title pattern. |
+
+### `multi_volume_lot`: refined on development data, then measured once on holdout
+
+The rule dismissed every title containing "omnibus". Staff had drawn a finer line themselves: **"Initial D Omnibus #1-#9" was dismissed, but "Initial D Omnibus 1 (Vol. 1)" and "Attack On Titan Manga Omnibus Volume 1" were kept.** A single omnibus volume is one book a collector tracking that volume wants; a nine-volume run is not. The blanket pattern cost three genuine opportunities.
+
+The bare-omnibus dismissal is gone. An omnibus listing is still dismissed when the title itself evidences more than one volume — the range, N-in-1 and enumeration patterns already did that on their own.
+
+| | before | after |
+| --- | --- | --- |
+| development | +6 junk, **−2 genuine** | +6 junk, **−0 genuine** |
+| holdout | +8 junk, **−1 genuine** (`Initial D Omnibus 1`) | +8 junk, **−0 genuine** |
+
+Holdout recall is unchanged at **98.36%**, with junk rejection rising **17.70% → 49.56%** for the rule set as a whole and **zero** genuine opportunities newly lost.
+
+**Disclosure about blindness:** the rules were designed against development misses, but the baseline report prints the holdout's lost case by name, so `Initial D Omnibus 1` was visible before the change was written. The two development cases motivated the design and the holdout case is the same pattern, so this is corroboration rather than tuning — but the holdout was not perfectly blind and should not be treated as though it were. The holdout was evaluated once, after the change.
+
+### The harness was reporting readiness for the wrong thing
+
+The verdict was computed over the combined rule set on the holdout alone. That would have green-lit `graded_slab`, which is known to throw away genuine opportunities on the development half — the holdout simply happened not to contain one. Activation is per rule, so readiness is now reported per rule across **both** halves, and a clean holdout is treated as necessary but never sufficient.
+
+| Rule | development | holdout | Verdict |
+| --- | --- | --- | --- |
+| `graded_slab` | +48 junk, **−1 genuine** | +28 junk, −0 | **SHADOW ONLY** |
+| `multi_volume_lot` | +6 junk, −0 | +8 junk, −0 | **READY** |
+
+The one opportunity `graded_slab` destroys is `BGS 7.0 Demon Slayer Kimetsu no Yaiba Vol. 1 1st Print` — a graded first print a person deliberately kept.
+
+### Decisions taken by SP, 13 September 2026
+
+**Graded leads: route them, never dismiss them.** Asked and answered — a dedicated graded queue. On inspection **this already exists and works**, so nothing was rebuilt: `DEFAULT_FILTERS.listingKind` is `"raw"`, so the default working queue already excludes graded leads; a "Graded backlog" quick view holds them with `scoreBand: "all"`; `reviewNow` excludes them; and `scout_graded_leads` counts them for the planner. Verified in Chrome against local dev with production data: the chips read `Review now 111 · High-confidence 15 · Graded backlog 47 · Watching 567 · Dismissed 8074`; Review now showed a non-graded lead, and selecting Graded backlog showed `BGS 9.8 Kagurabachi Vol.1 #1 1st Printing` — present and fully reviewable. `graded_slab` therefore stays in shadow permanently unless the evidence changes; the separation is achieved by routing, which loses nothing.
+
+**`multi_volume_lot`: stays in shadow for now**, despite meeting the bar, because AGENTS.md makes activation a separate human decision and SP chose to hold it. It ships measured and inert.
+
+### Neither rule is wired into anything that runs
+
+`conservativeJunkDismissal` is imported only by the evaluation script and its own unit test. No module under `lib/`, `app/` or `components/` references it, so **nothing is being auto-dismissed today**. `test-scout-junk-rules.mjs` now walks those three trees and fails if any production module imports the rules — the guarantee that graded first prints cannot start disappearing through an accidental import.
+
+### Evidence
+
+`scripts/test-scout-junk-rules.mjs` — extended with six omnibus cases pinning the distinction in both directions, plus the shadow-mode import guard. `scripts/eval-scout-junk-reduction.mjs` — per-rule activation readiness across both halves. Both read-only; the eval writes nothing and activates nothing.
+
+### Remaining coverage gaps
+
+1. **`unavailable` is 31% of the junk staff see and no rule can fix it.** The availability re-check needs throughput: ~25 listings examined per run against 2240 new leads. Raising that is the single largest remaining reduction in what a person looks at.
+2. `edition_mismatch` needs edition identity work — deluxe and VIZBIG editions matched to single volumes.
+3. The benchmark is 822 decisions. The omnibus distinction rests on three cases; it should be re-measured as the benchmark grows.
+4. Junk rejection stays at the baseline 18.85% in production, because the ready rule is deliberately inert.
+
+### Gate
+
+Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.

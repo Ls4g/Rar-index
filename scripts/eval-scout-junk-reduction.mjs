@@ -162,7 +162,48 @@ const recallDrop = baseHold.recall - afterHold.recall;
 console.log(`\n${"=".repeat(62)}`);
 console.log(`  recall        ${(baseHold.recall * 100).toFixed(2)}%  ->  ${(afterHold.recall * 100).toFixed(2)}%   (${recallDrop <= 0 ? "no loss" : `-${(recallDrop * 100).toFixed(2)} points`})`);
 console.log(`  junk rejected ${(baseHold.junkRejection * 100).toFixed(2)}%  ->  ${(afterHold.junkRejection * 100).toFixed(2)}%`);
-console.log(`\n  VERDICT: ${afterHold.newlyLost.length === 0
-  ? "safe to activate -- no genuine opportunity lost on unseen cases."
-  : `KEEP IN SHADOW MODE -- ${afterHold.newlyLost.length} genuine opportunities lost on unseen cases.`}`);
+
+// Activation is per rule, so readiness has to be judged per rule -- and over
+// both halves, not the holdout alone.
+//
+// Reporting only the combined holdout figure hid a rule that is known to throw
+// away genuine opportunities: graded_slab loses a graded first print on the
+// development half, and the holdout simply happened not to contain one. A
+// combined "safe to activate" would have carried that rule in with the others.
+// A clean holdout is necessary, never sufficient: evidence of harm anywhere is
+// evidence of harm.
+console.log(`\n${"=".repeat(62)}\nACTIVATION READINESS -- per rule, both halves\n${"=".repeat(62)}`);
+const readiness = [];
+for (const rule of JUNK_RULES) {
+  const only = (edition, title) => {
+    const hit = rule.matches(edition, title);
+    return hit ? { shouldDismiss: true, rule: rule.key, reason: hit } : null;
+  };
+  const dev = measure(development, only);
+  const hold = measure(holdout, only);
+  const lost = dev.newlyLost.length + hold.newlyLost.length;
+  const ready = lost === 0;
+  readiness.push({ key: rule.key, ready, dev, hold });
+  console.log(`\n  ${rule.key}`);
+  console.log(`    development  +${dev.newlyRejected.length} junk, -${dev.newlyLost.length} genuine`);
+  console.log(`    holdout      +${hold.newlyRejected.length} junk, -${hold.newlyLost.length} genuine`);
+  console.log(`    ${ready ? "READY — no genuine opportunity lost on either half." : `SHADOW ONLY — ${lost} genuine opportunity(ies) lost.`}`);
+  for (const miss of [...dev.newlyLost, ...hold.newlyLost].slice(0, 4)) {
+    console.log(`      lost: "${String(miss.item.input_snapshot?.listingTitle ?? "").slice(0, 66)}"`);
+  }
+  if (!ready) {
+    console.log("      These are real buying opportunities a person kept. Route them to a");
+    console.log("      queue of their own rather than dismissing them.");
+  }
+}
+
+const blocked = readiness.filter((entry) => !entry.ready);
+console.log(`\n${"=".repeat(62)}`);
+if (!blocked.length) {
+  console.log("  VERDICT: every rule is ready. Activation is still a human decision.");
+} else {
+  console.log(`  VERDICT: ${readiness.length - blocked.length} of ${readiness.length} rule(s) ready.`);
+  console.log(`  KEEP IN SHADOW MODE: ${blocked.map((entry) => entry.key).join(", ")}.`);
+  console.log("  Activating the rule set as a whole would carry those in with the rest.");
+}
 console.log("\nNothing was written. Activation remains a separate human decision.\n");

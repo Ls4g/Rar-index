@@ -67,6 +67,49 @@ check("a graded slab a human wanted is still caught by the rule",
     "BGS 7.0 Demon Slayer Kimetsu no Yaiba Vol. 1 1st Print Manga 2016 Japanese")?.rule,
   "graded_slab");
 
+console.log("\n--- a single omnibus volume is an opportunity, a run of them is not ---");
+// Staff drew this line on the benchmark themselves. "Initial D Omnibus #1-#9"
+// was dismissed; "Initial D Omnibus 1 (Vol. 1)" and "Attack On Titan Manga
+// Omnibus Volume 1" were kept. Dismissing every title containing "omnibus"
+// cost three genuine opportunities, two on the development half and one on the
+// holdout.
+for (const title of [
+  "Initial D Omnibus 1 (Vol. 1) - Shuichi Shigeno - Book - English",
+  "Attack On Titan Manga Omnibus Volume 1 Hajime Isayama Kodansha Comics",
+  "Fullmetal Alchemist Omnibus Volume 2 English Manga",
+]) {
+  check(`kept: "${title.slice(0, 44)}…"`, conservativeJunkDismissal(v1English, title), null);
+}
+for (const title of [
+  "Initial D Omnibus #1-#9 Paperback by Shuichi Shigeno",
+  "One Piece Omnibus 3-in-1 (Vol. 10 11 12) by Eiichiro Oda English Manga",
+  "East Blue One Piece Manga Omnibus Ed Vol 1 2 3 VIZ Media Book",
+]) {
+  check(`dismissed: "${title.slice(0, 40)}…"`, Boolean(conservativeJunkDismissal(v1English, title)), true);
+}
+
+console.log("\n--- the rules are not wired into anything that runs ---");
+// Both rules are shadow-only, and graded leads are routed to their own Scout
+// view rather than dismissed. That is a decision, not an accident: if a
+// production module ever imports these rules, graded first prints start
+// disappearing silently. This check is what makes that impossible to do by
+// mistake.
+const { readdir, readFile } = await import("node:fs/promises");
+const roots = ["lib", "app", "components"];
+const importers = [];
+async function walk(dir) {
+  for (const entry of await readdir(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) { await walk(path); continue; }
+    if (!/\.(ts|tsx)$/.test(entry.name)) continue;
+    if (path === "lib/scoutJunkRules.ts") continue;
+    const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
+    if (/scoutJunkRules|conservativeJunkDismissal/.test(source)) importers.push(path);
+  }
+}
+for (const root of roots) await walk(root);
+check(`no production module imports the junk rules${importers.length ? ` (found: ${importers.join(", ")})` : ""}`, importers.length, 0);
+
 console.log("\n--- shape guarantees ---");
 check("every rule has a key", JUNK_RULES.every((rule) => Boolean(rule.key)), true);
 check("a dismissal always carries a reason a person can check",
