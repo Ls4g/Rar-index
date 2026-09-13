@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { planAgentActions } from "../lib/agentPlanning.ts";
-import { approvalStillCoversProposal, indexOpenAgentActions } from "../lib/agentProposalLifecycle.ts";
+import { approvalStillCoversProposal, indexOpenAgentActions, planningTitleShape } from "../lib/agentProposalLifecycle.ts";
 
 const catalogue = planAgentActions("catalogue_curator", {
   catalogue_queue_pending: 4,
@@ -57,7 +57,24 @@ const previousActions = [
 const indexed = indexOpenAgentActions(previousActions);
 assert.equal(indexed.proposedByDedupe.get("scout:triage-new-leads")?.id, "proposed");
 assert.equal(indexed.approvedByDedupe.get("catalogue:source-missing-covers")?.id, "approved");
-assert.equal(approvalStillCoversProposal(indexed.approvedByDedupe.get("catalogue:source-missing-covers"), "Source 18 missing verified covers"), true);
-assert.equal(approvalStillCoversProposal(indexed.approvedByDedupe.get("catalogue:source-missing-covers"), "Source 13 missing verified covers"), false);
+const coveredApproval = indexed.approvedByDedupe.get("catalogue:source-missing-covers");
+assert.equal(approvalStillCoversProposal(coveredApproval, "Source 18 missing verified covers"), true);
 
-console.log("Agent planning tests passed (7 scenarios).");
+// A standing approval covers the same standing job when only the workload
+// count has moved. Comparing titles exactly used to mean a recurring job never
+// matched its own approval, so every run added another action for a human to
+// approve and the previous approval stayed open: 26 open approvals covering 14
+// distinct jobs by 13 September 2026, four of them the same scout queue.
+assert.equal(approvalStillCoversProposal(coveredApproval, "Source 13 missing verified covers"), true);
+assert.equal(approvalStillCoversProposal(coveredApproval, "Source 1,720 missing verified covers"), true);
+assert.equal(approvalStillCoversProposal(coveredApproval, "Source 0 missing verified covers"), true);
+
+// Different work still needs its own decision.
+assert.equal(approvalStillCoversProposal(coveredApproval, "Review 13 catalogue candidates"), false);
+assert.equal(approvalStillCoversProposal(coveredApproval, "Source 13 missing verified covers for Japanese editions"), false);
+assert.equal(approvalStillCoversProposal(undefined, "Source 13 missing verified covers"), false);
+
+assert.equal(planningTitleShape("Review 110 current, plausible marketplace leads"), planningTitleShape("Review 86 current, plausible marketplace leads"));
+assert.notEqual(planningTitleShape("Review 110 leads"), planningTitleShape("Triage 110 leads"));
+
+console.log("Agent planning tests passed (7 scenarios, plus recurring-approval coverage).");

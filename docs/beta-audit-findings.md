@@ -94,12 +94,15 @@ Status as of 13 September 2026, after Phase 1. See `beta-audit-resume.md` for th
 | --- | --- | --- |
 | 1 | Three migrations unapplied | **Closed.** Applied and verified live, plus `20260913_beta_rpc_permissions.sql`. |
 | 2 | `ff81fb2f` needs a human | **Closed.** BGS 8.5, confirmed by SP, 2026-09-13T17:39Z. |
-| 3 | 23 legacy actions still open | Open. Count not yet re-verified; Phase 2. |
+| 3 | 23 legacy actions still open | **Recounted: 26, covering 15 distinct jobs.** The duplication cause is fixed and every action now has a disposition. 11 superseded, 1 to run, 2 closable, 2 live, 10 needing a person — all reported individually, none closed by automation. |
 | 4 | Graded leads need their own queue before `graded_slab` activates | Open. A product decision, not an implementation gap; Phase 3. |
-| 5 | Concurrency untested against a real multi-connection server | Open. PGlite is a single backend; Phase 2. |
+| 5 | Concurrency untested against a real multi-connection server | Open, and **blocked on infrastructure, not effort**. No PostgreSQL, Docker or psql on this machine and no database password available. Harness written and self-refusing against production; the five unproven scenarios and the exact setup are in the resume doc. |
 | 6 | `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile unaudited | **Closed for rendering and navigation**, by 71 HTTP checks and a real browser at 1920px and 390px. Two mobile defects found and repaired. Authenticated rendering on a physical handset remains unverified — checklist in the resume doc. |
-| 7 | 4 of the last 140 agent runs failed, uninvestigated | Open. Window not yet re-counted; Phase 2. |
+| 7 | 4 of the last 140 agent runs failed, uninvestigated | **Closed.** Window 2026-08-15 to 2026-09-13: 136 succeeded, 4 failed. All four are `market_scout` with one message — missing eBay credentials — on 20–21 August, since configured; 23 days of clean runs follow. Transient configuration, already resolved, nothing retried. |
 | 8 | 1506 of 1812 listing outcomes unreachable, and every tab/queue count understated | **Closed.** Stable pagination; all ten view/queue combinations traverse every row exactly once, proved on synthetic and live data. |
 | 9 | The grading card had never been seen rendering | **Closed.** Verified on an isolated fixture with the real component, route and RPC. Found and fixed a vacuous source-confirmation gate. |
 
-Not beta-ready: gaps 3, 4, 5 and 7 remain, and no staff decision *write* has been exercised against production.
+| 10 | A recurring job accumulated an unbounded number of open approvals | **Closed.** Title comparison embedded a changing workload count, so a standing approval never matched its own re-proposal. Now compared with numbers normalised. |
+| 11 | Reconciliation measured the wrong backlog | **Closed.** `triage_scout_leads` was judged against 9657 unreviewed leads instead of the ~110 the action was raised for — an 88× overstatement. |
+
+Not beta-ready: gap 4 is a product decision still to be made, gap 5 is blocked on infrastructure, and the remaining `triage_scout_leads` / cover / readiness work in gap 3 is real live work needing people. No staff decision *write* has been exercised against production.

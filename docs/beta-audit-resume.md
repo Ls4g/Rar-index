@@ -182,6 +182,73 @@ Full suite 80 scripts exit 0 (79 new pagination checks included), TypeScript cle
 - **Authenticated rendering on a real phone is still unverified.** The 390px evidence above is a real browser at a real viewport, but it is an iframe on a desktop machine, not a handset: no touch scrolling, no mobile Safari or Chrome-on-Android engine, no on-screen keyboard. Checklist for a person, on a phone: (1) `/listing-outcomes` — swipe the pager to page 2 and back, confirm "Showing 26–50 of 204"; (2) tap a queue chip and confirm the count in the chip matches the range that loads; (3) type in "Find a listing" and submit, confirm the keyboard does not cover the Search button; (4) on `/` swipe the cover shelf and confirm all 8 covers can be reached; (5) `/dev/grading-fixture` on local dev only — confirm the confirmation checkbox is tappable and the buttons stay dead until it is ticked.
 - Decision *writes* were never exercised against production from this session, by design. The confirm/dismiss/bulk paths are covered by the PGlite suites, not by a live mutation.
 
+## Phase 2 — approvals reconciled, failures diagnosed, concurrency still blocked (13 September 2026)
+
+Supersedes the "23 open approvals" and "4 of the last 140 agent runs" figures below.
+
+### Open approvals: 26, not 23 — and 15 distinct jobs
+
+Read 2026-09-13T21:59Z. `agent_actions` holds 104 rows: 76 `executed`, 26 `approved`, 2 `cancelled`. `execution_status` is `succeeded` on all 76 and `not_started` on the other 28, so nothing is stuck mid-execution and no lease is orphaned.
+
+**11 of the 26 are older instances of a job that has since been approved again.** The planner re-proposes each recurring job every run, a person approves it, and the previous approval was never superseded:
+
+| Job | Open approvals |
+| --- | --- |
+| `triage_scout_leads` | 4 (28 Aug, 11, 12, 13 Sep) |
+| `source_missing_covers` | 3 |
+| `review_catalogue_queue` | 3 |
+| `shadow_test_multi_volume_detection`, `resolve_readiness_bottleneck`, `review_scout_feedback_conflicts`, `review_scout_feedback_precision`, `shadow_test_first_print_proof_gate` | 2 each |
+
+**Root cause.** `approvalStillCoversProposal` compared the proposal's title to the open approval's title exactly. Planning titles embed the workload count — "Review 86 current, plausible marketplace leads", then 101, then 110 — so a recurring job never matched its own approval and every run created another action. Fixed by comparing the *shape* of the title with numbers normalised. The fix only decides whether to add another action: it writes nothing to an approved row, so no human decision is rewritten or closed by a run. Covered by six new assertions in `test-agent-planning.mjs`, including that genuinely different work still gets its own decision.
+
+**Dispositions** (`scripts/reconcile-open-agent-actions.mjs`, read-only, writes nothing):
+
+| Verdict | Count |
+| --- | --- |
+| Superseded by a newer approval of the same job | 11 |
+| Run it — machine-executable, no execution evidence | 1 |
+| Close as done — the queue it pointed at is empty | 2 |
+| Still outstanding — real live work | 2 |
+| Needs a person — human work with no measurable queue | 10 |
+
+The 11 superseded ones are listed individually with the id of the approval that replaced them. None were closed here: closing a decision a person made is that person's to do, and bulk-labelling 11 of them would destroy the information anyone would later want.
+
+**A second defect, repaired.** The outstanding-work probe for `triage_scout_leads` counted every lead with no `reviewed_at` — 9657 rows, including years of parked and dismissed leads — against an action that said "review 110 current, plausible marketplace leads". It reported a backlog **88× larger than the job**, which is why five actions previously read "STILL OUTSTANDING 9657". The probe now counts `review_status = 'new'` (2240), and each action also prints the figure the planner itself recorded in its evidence (`scout_review_now` = 110 for the newest). Live lead denominators for the record: 10910 leads total, 9657 with no `reviewed_at`, 2240 `new`.
+
+### Failed agent runs: 4 of 140, one cause, 23 days old
+
+Window examined explicitly: **140 runs, 2026-08-15T12:01Z to 2026-09-13T11:36Z** — 136 `succeeded`, 4 `failed`. All four are `market_scout`, all with the identical `error_message`:
+
+> eBay Scout is not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in Vercel first.
+
+Three on 2026-08-20 (manual, initiated by Codex) and one on 2026-08-21 (scheduled). **Root cause: missing eBay credentials at the time, since configured** — the 13 Sep planning evidence records `ebay_connection_ok: 1` and the same scheduled job has succeeded on every run in the 23 days since. This is a transient configuration failure that is already resolved, not a persistent defect, so there is no code to repair.
+
+**Nothing was retried.** Re-running a Scout cycle from 20 August would repeat external eBay work to no purpose; the schedule has long since covered that ground. The reconcile script now groups failures by message, reports the window and the age of the most recent one, and says plainly when none are recent.
+
+The open approval `1f2b47e0 investigate_agent_failures` ("Investigate 1 failed agent runs", approved 21 Aug) is about these. It can be closed — but that is a person's call, so it is reported, not closed.
+
+### Concurrency: still unproven, and genuinely blocked
+
+`scripts/test-concurrency-two-connections.mjs` is the harness. It applies the three shipped migrations to a scratch database, opens two connections, asserts they are **different backend pids**, and proves a held `for update` actually blocks a second session before running anything else.
+
+**It has never been executed.** This machine has no PostgreSQL server, no Docker, no `psql`, nothing listening on 5432, and `.env.local` carries no database password — checked, not assumed. The harness reports `BLOCKED` and exits 0 rather than pretending to pass, and refuses outright if `RAR_TEST_DATABASE_URL` points at Supabase, because the fixtures would write and race real sale evidence.
+
+Exactly what remains unproven:
+
+1. Two simultaneous `confirm_outcome_sale` calls on one outcome produce exactly one sale, and the loser is told why.
+2. A confirmation racing a dismissal leaves the outcome and the sale agreeing, whichever wins.
+3. A retry after a winner has committed reuses that sale rather than creating a second.
+4. A failure inside the transaction leaves no observation, no audit row and no closed outcome.
+5. Two workers claiming one agent action produce one owner, and lease recovery does not hand a live action to a second.
+
+Setup needed: `docker run -d --name rar-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=rar_concurrency -p 5433:5432 postgres:18`, then `pnpm add -D pg`, then `RAR_TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:5433/rar_concurrency`. The fixture builder for the five scenarios is deliberately not written: it cannot be developed against a server that does not exist, and untested test code that appears to pass would be worse than an honest gap.
+
+**Do not read the existing suites as covering this.** `test-outcome-sale-atomicity.mjs` (59 checks) and `test-agent-execution-leases.mjs` (48) run on PGlite, a single backend, and are about rollback, idempotency and refusal — not about what a second concurrent session does.
+
+### Gate
+
+Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.
