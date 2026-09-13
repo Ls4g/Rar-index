@@ -3,9 +3,16 @@ import HumanDecisionInbox from "@/components/HumanDecisionInbox";
 import StaffNav from "@/components/StaffNav";
 import { isExecutableAgentAction } from "@/lib/agentActionExecution";
 import { looksGraded } from "@/lib/editionMatch";
+import { hasUnresolvedGrading } from "@/lib/gradingEvidence";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
+
+// Only narrows what the database returns. Whether a sale's grading is really
+// contradictory is decided by hasUnresolvedGrading, which is the same function
+// the valuation and chart code uses -- so the inbox can never show a conflict
+// the calculations are not actually withholding, or miss one they are.
+const GRADING_TITLE_HINTS = ["cgc", "cbcs", "psa", "bgs", "graded", "slabbed"];
 
 const ACTION_DESTINATIONS: Record<string, string> = {
   review_catalogue_queue: "/catalogue-review",
@@ -140,13 +147,27 @@ type CatalogueRequestRow = {
   requester_notes: string;
 };
 
+type GradingConflictRow = {
+  id: string;
+  edition_id: string;
+  listing_title: string | null;
+  source_listing_url: string;
+  sold_date: string | null;
+  sale_price: number | null;
+  currency: string | null;
+  grading_company: string | null;
+  grade_label: string | null;
+  grading_reviewed_at: string | null;
+  edition: { title: string | null; series: string | null; volume_number: string | null; language: string | null } | null;
+};
+
 function editionLabel(row: { title?: string | null; series?: string | null; volume?: string | null; language?: string | null }) {
   return [row.title || row.series, row.volume ? `Vol. ${row.volume}` : null, row.language].filter(Boolean).join(" · ") || "Edition not labelled";
 }
 
 export default async function HumanDecisionsPage() {
   const admin = getSupabaseAdmin();
-  const [saleResult, printResult, actionResult, catalogueResult, coverResult, outcomeResult, communityResult, requestResult] = await Promise.all([
+  const [saleResult, printResult, actionResult, catalogueResult, coverResult, outcomeResult, communityResult, requestResult, gradingResult] = await Promise.all([
     admin.from("price_review_queue").select("observation_id,listing_title,source_listing_url,sold_date,sale_price,currency,match_notes,edition_title,edition_series,edition_volume_number,edition_language").eq("match_status", "needs_review").order("queued_at", { ascending: false }).limit(40),
     admin.from("print_classification_queue").select("observation_id,title,series,volume_number,language,listing_title,source_listing_url").limit(40),
     admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,target_id,evidence,proposed_payload").eq("status", "proposed").order("created_at", { ascending: false }).limit(100),
@@ -161,9 +182,21 @@ export default async function HumanDecisionsPage() {
       .or("status.neq.ended_pending_check,check_attempts.gt.0").order("sold_at", { ascending: false, nullsFirst: false }).limit(80),
     admin.from("community_sale_reports").select("id,report_type,source_listing_url,listing_title,reported_price,currency,reporter_notes,edition:manga_editions(title,series,volume_number,language)").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
     admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,original_source_url,requester_notes").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
+    // Verified sales whose grading contradicts itself: a title that mentions
+    // grading with both columns empty, or half a grade recorded. These are
+    // currently withheld from raw comparison groups, which keeps the charts
+    // honest but leaves the sale in limbo until a human opens the source.
+    // Narrowed here, then confirmed exactly by hasUnresolvedGrading below.
+    admin.from("price_observations")
+      .select("id,edition_id,listing_title,source_listing_url,sold_date,sale_price,currency,grading_company,grade_label,grading_reviewed_at,edition:manga_editions(title,series,volume_number,language)")
+      .eq("match_status", "verified_match").is("grading_reviewed_at", null)
+      .or([...GRADING_TITLE_HINTS.map((word) => `listing_title.ilike.*${word}*`),
+        "and(grading_company.not.is.null,grade_label.is.null)",
+        "and(grading_company.is.null,grade_label.not.is.null)"].join(","))
+      .order("sold_date", { ascending: false, nullsFirst: false }).limit(30),
   ]);
 
-  const errors = [saleResult.error, printResult.error, actionResult.error, catalogueResult.error, coverResult.error, outcomeResult.error, communityResult.error, requestResult.error].filter(Boolean);
+  const errors = [saleResult.error, printResult.error, actionResult.error, catalogueResult.error, coverResult.error, outcomeResult.error, communityResult.error, requestResult.error, gradingResult.error].filter(Boolean);
   const actions = (actionResult.data ?? []) as AgentAction[];
   const printByObservation = new Map(((printResult.data ?? []) as PrintRow[]).map((row) => [row.observation_id, row]));
   const printActions = actions.filter((action) => action.action_type === "suggest_print_classification" && action.target_id && printByObservation.has(action.target_id));
@@ -289,7 +322,21 @@ export default async function HumanDecisionsPage() {
     notes: row.requester_notes,
   }));
 
-  const actionableCount = sales.length + printing.length + catalogue.length + covers.length + outcomes.length + communityReports.length + catalogueRequests.length + agentProposals.filter((action) => action.confidence !== null && action.confidence >= 0.9).length;
+  const gradingConflicts = ((gradingResult.data ?? []) as unknown as GradingConflictRow[])
+    .filter((row) => hasUnresolvedGrading(row))
+    .map((row) => ({
+      observationId: row.id,
+      listingTitle: row.listing_title ?? "Untitled completed listing",
+      sourceUrl: row.source_listing_url,
+      soldDate: row.sold_date,
+      price: row.sale_price,
+      currency: row.currency,
+      gradingCompany: row.grading_company,
+      gradeLabel: row.grade_label,
+      editionLabel: editionLabel({ title: row.edition?.title, series: row.edition?.series, volume: row.edition?.volume_number, language: row.edition?.language }),
+    }));
+
+  const actionableCount = sales.length + printing.length + catalogue.length + covers.length + outcomes.length + communityReports.length + catalogueRequests.length + gradingConflicts.length + agentProposals.filter((action) => action.confidence !== null && action.confidence >= 0.9).length;
 
   return (
     <main className="review-page human-decisions-page">
@@ -306,7 +353,7 @@ export default async function HumanDecisionsPage() {
 
       {errors.length ? <section className="review-list-section"><div className="review-empty"><strong>Part of the decision inbox could not load.</strong><p>{errors[0]?.message}</p></div></section> : (
         <section className="review-list-section human-decisions-section">
-          <HumanDecisionInbox catalogue={catalogue} catalogueRequests={catalogueRequests} communityReports={communityReports} covers={covers} outcomes={outcomes} printing={printing} proposals={agentProposals} sales={sales} />
+          <HumanDecisionInbox catalogue={catalogue} catalogueRequests={catalogueRequests} communityReports={communityReports} covers={covers} gradingConflicts={gradingConflicts} outcomes={outcomes} printing={printing} proposals={agentProposals} sales={sales} />
         </section>
       )}
     </main>

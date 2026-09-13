@@ -89,13 +89,23 @@ export async function POST(request: Request) {
       const decision = clean(payload.decision);
       const execute = payload.execute === true;
       if (!actionId || !["approved", "rejected", "cancelled"].includes(decision)) return Response.json({ error: "Choose a proposal and valid decision." }, { status: 400 });
+      // An already-approved action is selectable when it is being RUN. A plain
+      // decision still requires a proposal, so a decision cannot be revised
+      // behind someone's back.
       const { data: action, error: actionError } = await admin.from("agent_actions")
-        .select("id,action_type,status,target_type,target_id,evidence,proposed_payload")
+        .select("id,action_type,status,target_type,target_id,evidence,proposed_payload,execution_status")
         .eq("id", actionId)
-        .eq("status", "proposed")
+        .in("status", execute ? ["proposed", "approved"] : ["proposed"])
         .maybeSingle();
       if (actionError) throw new Error(actionError.message);
-      if (!action) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
+      if (!action) {
+        return Response.json({ error: execute
+          ? "This action is no longer available to run. Refresh the list."
+          : "This proposal was already reviewed." }, { status: 409 });
+      }
+      if (execute && action.execution_status === "succeeded") {
+        return Response.json({ error: "This action has already run. It was not run again." }, { status: 409 });
+      }
 
       let rule = null;
       let execution = null;
@@ -115,18 +125,32 @@ export async function POST(request: Request) {
         return Response.json({ error: "The proposal is no longer safe to run. Review its failed preflight checks.", preflight }, { status: 409 });
       }
 
+      // Approval and execution are separate steps with separate owners.
+      // Approval is the human's, recorded once and never rewritten. The claim
+      // is the worker's: a bounded lease, so a request that crashes or times
+      // out leaves recoverable work rather than an action stuck "approved"
+      // with nothing running and no way to tell.
+      const leaseOwner = `review_action:${reviewer}`;
       if (execute) {
-        const { data: claimed, error: claimError } = await admin.from("agent_actions").update({
-          status: "approved",
-          reviewed_by: reviewer,
-          review_notes: clean(payload.notes) || "Approved after execution preflight passed.",
-          reviewed_at: new Date().toISOString(),
-        }).eq("id", actionId).eq("status", "proposed").select("id").maybeSingle();
-        if (claimError) throw new Error(claimError.message);
-        if (!claimed) return Response.json({ error: "This proposal was already reviewed or claimed by another request." }, { status: 409 });
+        if (action.status === "proposed") {
+          const { data: approved, error: approveError } = await admin.from("agent_actions").update({
+            status: "approved",
+            reviewed_by: reviewer,
+            review_notes: clean(payload.notes) || "Approved after execution preflight passed.",
+            reviewed_at: new Date().toISOString(),
+          }).eq("id", actionId).eq("status", "proposed").select("id").maybeSingle();
+          if (approveError) throw new Error(approveError.message);
+          if (!approved) return Response.json({ error: "This proposal was already reviewed by another request." }, { status: 409 });
+        }
+        const { error: claimError } = await admin.rpc("claim_agent_action", {
+          p_action_id: actionId, p_owner: leaseOwner, p_lease_seconds: 600,
+        });
+        if (claimError) {
+          return Response.json({ error: claimError.message || "This action could not be claimed for execution." }, { status: 409 });
+        }
         await admin.from("agent_action_events").insert({
           action_id: action.id,
-          previous_status: "proposed",
+          previous_status: action.status,
           next_status: "preflight_passed",
           actor: reviewer,
           notes: "Typed action contract passed before execution.",
@@ -148,16 +172,13 @@ export async function POST(request: Request) {
       } catch (executionError) {
         if (execute) {
           const failureMessage = executionError instanceof Error ? executionError.message : "Execution failed.";
-          await admin.from("agent_actions").update({
-            status: "proposed",
-          }).eq("id", actionId).eq("status", "approved");
-          await admin.from("agent_action_events").insert({
-            action_id: action.id,
-            previous_status: "approved",
-            next_status: "execution_failed",
-            actor: reviewer,
-            notes: "Execution failed and the proposal was safely returned to the inbox.",
-            details: { error: failureMessage },
+          // The approval stands. Undoing it would make staff approve the same
+          // work again for what is a transient failure, and would lose the
+          // reason. The action stays approved, its run is marked failed with
+          // that reason attached, and it can be retried from the same screen.
+          await admin.rpc("finish_agent_action", {
+            p_action_id: actionId, p_owner: leaseOwner, p_succeeded: false,
+            p_error: failureMessage, p_notes: "Execution failed. The approval stands and the action can be retried.",
           });
         }
         throw executionError;
@@ -171,16 +192,28 @@ export async function POST(request: Request) {
           ? "Approved and ran the proposed Scout shadow test. The candidate rule still requires separate activation."
           : "";
 
-      const expectedStatus = execute ? "approved" : "proposed";
-      const { data, error } = await admin.from("agent_actions").update({
-        status: finalStatus,
-        reviewed_by: reviewer,
-        review_notes: suppliedNotes || executionNotes || null,
-        reviewed_at: new Date().toISOString(),
-        ...(finalStatus === "executed" ? { executed_at: new Date().toISOString() } : {}),
-      }).eq("id", actionId).eq("status", expectedStatus).select("id").maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!data) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
+      if (execute) {
+        // Closing the lease is what advances the action to executed, so the
+        // only thing that can mark work done is the worker that held the claim.
+        const { error: finishError } = await admin.rpc("finish_agent_action", {
+          p_action_id: actionId, p_owner: leaseOwner, p_succeeded: true,
+          p_error: null, p_notes: suppliedNotes || executionNotes || null,
+        });
+        if (finishError) return Response.json({ error: finishError.message || "The run finished but could not be recorded. Check its history before retrying." }, { status: 409 });
+        if (suppliedNotes || executionNotes) {
+          await admin.from("agent_actions").update({ review_notes: suppliedNotes || executionNotes })
+            .eq("id", actionId).is("review_notes", null);
+        }
+      } else {
+        const { data, error } = await admin.from("agent_actions").update({
+          status: finalStatus,
+          reviewed_by: reviewer,
+          review_notes: suppliedNotes || null,
+          reviewed_at: new Date().toISOString(),
+        }).eq("id", actionId).eq("status", "proposed").select("id").maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!data) return Response.json({ error: "This proposal was already reviewed." }, { status: 409 });
+      }
       await recordAgentHumanFeedback(admin, {
         workflow: "agent_action",
         subjectKeys: [`agent_action:${actionId}`],

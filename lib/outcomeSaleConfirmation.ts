@@ -54,58 +54,78 @@ export function outcomeSaleFields(outcome: OutcomeSale, confirmation: OutcomeSal
   };
 }
 
-/** One human approval, one transactional evidence write. Closing the watch
- * queue is retryable independently; an existing observation is never reviewed
- * again or silently reassigned to another edition. */
+/** The legacy numeric listing id held on an outcome row.
+ *
+ * eBay's Browse API returns `v1|123456789012|0` while Trading, the legacy APIs
+ * and the listing URL itself all use the bare number. The uniqueness rule on a
+ * sale is (source, listing id), so the two spellings would otherwise count as
+ * two different listings and the same sale could be stored twice. */
+export function storedLegacyItemId(externalId: string) {
+  return externalId.match(/^v\d+\|(\d{6,})\|\d+$/)?.[1] ?? externalId.trim();
+}
+
+/**
+ * One human approval, one indivisible write.
+ *
+ * Everything -- locking the outcome, checking it is still eligible, creating
+ * or reusing the verified observation with its review, print-classification
+ * and intake audit rows, and closing the watch queue -- happens inside a
+ * single database transaction (`confirm_outcome_sale`). Previously the sale
+ * was transactional but the queue closure was a separate write, so a crash or
+ * a concurrent decision in between left verified evidence attached to an
+ * outcome that was still being offered to a human, or to one another person
+ * had meanwhile dismissed.
+ *
+ * The validation below stays here rather than moving into SQL because it is
+ * what produces the wording a member of staff reads. The database repeats the
+ * structural parts of it, so a future caller that skips this function cannot
+ * write evidence that these rules would have refused.
+ */
 export async function confirmOutcomeSale(
   admin: SupabaseClient, outcome: OutcomeSale, confirmation: OutcomeSaleConfirmation,
   reviewer: string, notes: string | null,
 ) {
   const fields = outcomeSaleFields(outcome, confirmation);
   const legacyId = extractEbayLegacyItemId(outcome.source_listing_url);
-  const storedLegacyId = outcome.external_id.match(/^v1\|(\d{9,})\|\d+$/)?.[1] ?? outcome.external_id;
+  const storedLegacyId = storedLegacyItemId(outcome.external_id);
   if (!legacyId || legacyId !== storedLegacyId) throw new Error("The original eBay link and stored listing ID do not agree. Resolve the source before verifying.");
-  const { data: existing, error: lookupError } = await admin.from("price_observations")
-    .select("id,edition_id,match_status,sale_status,is_verified")
-    .eq("source_id", outcome.source_id)
-    .or(`external_id.eq.${legacyId},external_id.like.v1|${legacyId}|%`).maybeSingle();
-  if (lookupError) throw new Error("RAR could not check for an existing sale. Retry; nothing was written.");
-  let observationId: string;
-  if (existing) {
-    if (existing.edition_id !== outcome.edition_id) throw new Error("This listing already belongs to another edition. Open sale review to resolve the match; nothing was changed.");
-    if (existing.match_status !== "verified_match" || existing.sale_status !== "confirmed" || !existing.is_verified) {
-      throw new Error("This listing already has an unverified or excluded observation. Finish it in sale review; its existing decision was not changed.");
+
+  const { data, error } = await admin.rpc("confirm_outcome_sale", {
+    p_outcome_id: outcome.id,
+    p_legacy_external_id: legacyId,
+    p_sale_type: fields.saleType,
+    p_grading_company: fields.company,
+    p_grade_label: fields.grade,
+    p_price_corroboration_url: fields.corroboration,
+    p_submitted_payload: {
+      original_snapshot: outcome.original_snapshot, outcome_id: outcome.id,
+      rar_outcome_evidence: { provider: outcome.outcome_provider, reason: outcome.outcome_reason },
+      human_confirmation: { ...confirmation, single_copy_item_price_excludes_delivery: true },
+    },
+    p_detector_output: { grading: fields.detection },
+    p_decision_notes: notes,
+    p_reviewed_by: reviewer,
+  });
+
+  if (error) {
+    // The database raises messages written for the person reading them, so
+    // they are passed through. Only the two cases whose Postgres wording is
+    // unhelpful get translated, and neither invents a reassurance: a rolled
+    // back transaction genuinely leaves nothing behind.
+    const message = error.message ?? "";
+    if (message.includes("already exists in RAR")) {
+      throw new Error("Another request saved this listing a moment ago. Retry to close the outcome; the sale will not be duplicated.");
     }
-    observationId = existing.id;
-  } else {
-    const { data, error } = await admin.rpc("approve_submitted_sale", {
-      p_edition_id: outcome.edition_id, p_source_id: outcome.source_id,
-      p_source_listing_url: outcome.source_listing_url, p_external_id: legacyId,
-      p_listing_title: outcome.listing_title, p_sold_date: outcome.sold_at?.slice(0, 10),
-      p_sale_price: outcome.sold_price, p_currency: outcome.sold_currency,
-      p_shipping_price: null, p_quantity: 1, p_sale_type: fields.saleType,
-      p_grading_company: fields.company, p_grade_label: fields.grade,
-      p_print_classification: "printing_not_identified", p_printing_proof_url: null,
-      p_known_printing_number: null, p_price_corroboration_url: fields.corroboration,
-      p_submitted_payload: { original_snapshot: outcome.original_snapshot, outcome_id: outcome.id,
-        rar_outcome_evidence: { provider: outcome.outcome_provider, reason: outcome.outcome_reason },
-        human_confirmation: { ...confirmation, single_copy_item_price_excludes_delivery: true } },
-      p_detector_output: { grading: fields.detection },
-      p_decision_notes: notes ?? `Confirmed from watched eBay listing ${outcome.external_id}.`,
-      p_reviewed_by: reviewer,
-    });
-    if (error || !data) throw new Error(error?.message.includes("already exists")
-      ? "Another request saved this listing. Retry to close the outcome without duplicating the sale."
-      : "The sale and its audit could not be saved. Retry; no partial sale was created by this approval.");
-    observationId = String(data);
+    if (/function .*confirm_outcome_sale.* does not exist|schema cache/i.test(message)) {
+      throw new Error("RAR's sale-confirmation database function is missing. Apply the outstanding migration before verifying sales; nothing was written.");
+    }
+    throw new Error(message || "The sale could not be saved. Nothing was verified; refresh and retry.");
   }
-  const now = new Date().toISOString();
-  const { data: closed, error: closeError } = await admin.from("listing_outcomes").update({
-    status: "review_complete", resulting_observation_id: observationId,
-    reviewed_by: reviewer, reviewed_at: now, review_notes: notes,
-    next_check_at: null, updated_at: now,
-  }).eq("id", outcome.id).eq("status", "sold_candidate").is("reviewed_by", null)
-    .is("resulting_observation_id", null).select("id").maybeSingle();
-  if (closeError || !closed) throw new Error("The verified sale is saved, but the watch queue could not close. Refresh and retry; the sale will not be created or verified again.");
-  return { ok: true, status: "review_complete", observationId, reused: Boolean(existing) };
+  if (!data) throw new Error("The sale could not be saved. Nothing was verified; refresh and retry.");
+
+  const result = data as { ok: boolean; status: string; observationId: string; reused: boolean; alreadyClosed: boolean };
+  return {
+    ok: result.ok, status: result.status, observationId: result.observationId,
+    reused: result.reused, alreadyClosed: result.alreadyClosed,
+  };
 }

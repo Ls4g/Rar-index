@@ -58,6 +58,7 @@ type ObservedSaleRow = {
   currency: string;
   grading_company: string | null;
   grade_label: string | null;
+  grading_reviewed_at: string | null;
   match_status: "verified_match" | "needs_review" | "excluded";
   print_classification: "first_print_proven" | "known_later_print" | "printing_not_identified";
   printing_proof_url: string | null;
@@ -248,7 +249,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .order("is_primary", { ascending: false }),
     supabase
       .from("price_observations")
-      .select("id, edition_id, source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, match_status, print_classification, printing_proof_url, known_printing_number")
+      .select("id, edition_id, source_id, source_listing_url, listing_title, sold_date, sale_price, currency, grading_company, grade_label, grading_reviewed_at, match_status, print_classification, printing_proof_url, known_printing_number")
       .in("edition_id", familyIds)
       .eq("sale_status", "confirmed")
       .neq("match_status", "excluded")

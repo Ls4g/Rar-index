@@ -3009,6 +3009,13 @@ html[data-theme="day"] .public-page {
 .best-offer-fields label { display: grid; flex: 1 1 8.5rem; gap: .22rem; color: var(--muted); font-size: .63rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .best-offer-confirm { display: flex; gap: .45rem; align-items: flex-start; color: var(--canvas-heading); font-size: .7rem; line-height: 1.45; }
 .best-offer-confirm input { margin-top: .12rem; }
+/* Grading correction on the Decisions inbox. Full-width fields and 44px
+   controls, matching the outcome confirmation form -- these are filled in on a
+   phone with the eBay listing open in the other tab. */
+.grading-correction-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; margin: .1rem 0 .2rem; }
+.grading-correction-fields label { display: grid; min-width: 0; gap: .22rem; color: var(--muted); font-size: .63rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.grading-correction-fields input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: .4rem; padding: .6rem; background: var(--surface-card); color: var(--canvas-heading); font: inherit; font-size: 1rem; letter-spacing: normal; text-transform: none; }
+
 .outcome-sale-confirmation { grid-column: 1 / -1; min-width: 0; }
 .outcome-sale-confirmation input, .outcome-sale-confirmation select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: .4rem; padding: .6rem; background: var(--surface-card); color: var(--canvas-heading); font: inherit; font-size: 1rem; letter-spacing: normal; }
 .outcome-sale-confirmation label { min-width: 0; }

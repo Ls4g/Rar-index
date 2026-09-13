@@ -136,7 +136,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     const { data: salesData } = familyIds.length
       ? await supabase
         .from("price_observations")
-        .select("edition_id,sale_price,currency,sold_date,print_classification,known_printing_number,listing_title,grading_company,grade_label")
+        .select("edition_id,sale_price,currency,sold_date,print_classification,known_printing_number,listing_title,grading_company,grade_label,grading_reviewed_at")
         .in("edition_id", familyIds)
         .eq("sale_status", "confirmed")
         .eq("match_status", "verified_match")

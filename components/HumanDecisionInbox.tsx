@@ -84,6 +84,18 @@ type ListingOutcomeDecision = {
   score: number | null;
 };
 
+type GradingConflictDecision = {
+  observationId: string;
+  listingTitle: string;
+  sourceUrl: string;
+  soldDate: string | null;
+  price: number | null;
+  currency: string | null;
+  gradingCompany: string | null;
+  gradeLabel: string | null;
+  editionLabel: string;
+};
+
 type CommunityDecision = {
   id: string;
   reportType: string;
@@ -103,7 +115,7 @@ type CatalogueRequestDecision = {
   notes: string;
 };
 
-type DecisionKind = "sale" | "printing" | "catalogue" | "cover" | "outcome" | "request" | "proposal";
+type DecisionKind = "sale" | "printing" | "catalogue" | "cover" | "outcome" | "grading" | "request" | "proposal";
 type Banner = { tone: "ok" | "error"; text: string };
 
 function DecisionNote({ value, reason, onChange, onReasonChange }: { value: string; reason: string; onChange: (value: string) => void; onReasonChange: (value: string) => void }) {
@@ -130,6 +142,7 @@ export default function HumanDecisionInbox({
   catalogue,
   covers,
   outcomes,
+  gradingConflicts,
   communityReports,
   catalogueRequests,
   proposals,
@@ -139,6 +152,7 @@ export default function HumanDecisionInbox({
   catalogue: CatalogueDecision[];
   covers: CoverDecision[];
   outcomes: ListingOutcomeDecision[];
+  gradingConflicts: GradingConflictDecision[];
   communityReports: CommunityDecision[];
   catalogueRequests: CatalogueRequestDecision[];
   proposals: AgentProposal[];
@@ -150,12 +164,14 @@ export default function HumanDecisionInbox({
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<Banner | null>(null);
   const [filter, setFilter] = useState<"all" | DecisionKind>("all");
+  const [gradingInputs, setGradingInputs] = useState<Record<string, { company: string; grade: string }>>({});
 
   const visibleSales = sales.filter((item) => !resolved.has(`sale:${item.observationId}`));
   const visiblePrinting = printing.filter((item) => !resolved.has(`printing:${item.actionId}`));
   const visibleCatalogue = catalogue.filter((item) => !resolved.has(`catalogue:${item.id}`));
   const visibleCovers = covers.filter((item) => !resolved.has(`cover:${item.id}`));
   const visibleOutcomes = outcomes.filter((item) => !resolved.has(`outcome:${item.id}`));
+  const visibleGradingConflicts = gradingConflicts.filter((item) => !resolved.has(`grading:${item.observationId}`));
   const visibleCommunityReports = communityReports.filter((item) => !resolved.has(`community:${item.id}`));
   const visibleCatalogueRequests = catalogueRequests.filter((item) => !resolved.has(`request:${item.id}`));
   const visibleProposals = proposals.filter((item) => !resolved.has(`proposal:${item.id}`));
@@ -165,12 +181,13 @@ export default function HumanDecisionInbox({
   const learningProposals = visibleProposals.filter((item) => item.confidence === null || item.confidence < 0.9);
 
   const counts = {
-    all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
+    all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleGradingConflicts.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
     sale: visibleSales.length,
     printing: visiblePrinting.length,
     catalogue: visibleCatalogue.length,
     cover: visibleCovers.length,
     outcome: visibleOutcomes.length,
+    grading: visibleGradingConflicts.length,
     request: visibleCommunityReports.length + visibleCatalogueRequests.length,
     proposal: highConfidenceProposals.length,
   };
@@ -298,6 +315,33 @@ export default function HumanDecisionInbox({
     });
   }
 
+  /**
+   * Record what a human saw in the slab, or that there was no slab.
+   *
+   * RAR never reads a grade off a listing title -- a title is a conflict
+   * signal, not proof -- so this refuses to send anything until the person
+   * says they opened the original listing. The sale's edition match and its
+   * verification are untouched: the only thing being settled is whether the
+   * copy is raw or graded, which decides the comparison group it belongs in.
+   */
+  async function correctGrading(item: GradingConflictDecision, copyType: "raw" | "graded") {
+    const key = `grading:${item.observationId}`;
+    const company = (gradingInputs[item.observationId]?.company ?? "").trim();
+    const grade = (gradingInputs[item.observationId]?.grade ?? "").trim();
+    if (copyType === "graded" && (!company || !grade)) {
+      setBanner({ tone: "error", text: "Enter both the grading company and the exact grade shown on the slab." });
+      return;
+    }
+    await request(key, "/api/observation-grading", {
+      observationId: item.observationId,
+      copyType,
+      gradingCompany: copyType === "graded" ? company : null,
+      gradeLabel: copyType === "graded" ? grade : null,
+      sourceConfirmed: true,
+      notes: decisionNotes[key] ?? "",
+    });
+  }
+
   async function decideCommunityReport(item: CommunityDecision, accepted: boolean) {
     const key = `community:${item.id}`;
     await request(key, "/api/community-reports", {
@@ -328,9 +372,9 @@ export default function HumanDecisionInbox({
       {banner ? <p className={`human-decision-banner is-${banner.tone}`} role="status">{banner.text}</p> : null}
 
       <nav className="human-decision-filters" aria-label="Decision categories">
-        {(["all", "sale", "printing", "catalogue", "cover", "outcome", "request", "proposal"] as const).map((kind) => (
+        {(["all", "sale", "printing", "catalogue", "cover", "outcome", "grading", "request", "proposal"] as const).map((kind) => (
           <button aria-pressed={filter === kind} key={kind} onClick={() => setFilter(kind)} type="button">
-            {kind === "all" ? "All decisions" : kind === "sale" ? "Sales" : kind === "printing" ? "Printing" : kind === "catalogue" ? "Catalogue" : kind === "cover" ? "Covers" : kind === "outcome" ? "Ended listings" : kind === "request" ? "Requests" : "Agent plans"}
+            {kind === "all" ? "All decisions" : kind === "sale" ? "Sales" : kind === "printing" ? "Printing" : kind === "catalogue" ? "Catalogue" : kind === "cover" ? "Covers" : kind === "outcome" ? "Ended listings" : kind === "grading" ? "Grading conflicts" : kind === "request" ? "Requests" : "Agent plans"}
             <span>{counts[kind]}</span>
           </button>
         ))}
@@ -393,6 +437,33 @@ export default function HumanDecisionInbox({
           <DecisionNote reason={decisionReasons[`outcome:${item.id}`] ?? ""} value={decisionNotes[`outcome:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`outcome:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`outcome:${item.id}`]: value }))} />
           <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check listing ↗</a>{item.status !== "sold_candidate" ? <button disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, true)} type="button">{busyKeys.has(`outcome:${item.id}`) ? "Saving…" : "Yes — keep watching"}</button> : null}{item.status === "sold_candidate" ? null : <Link className="secondary-action" href={`/listing-outcomes?outcome=${item.id}`}>It sold — record the price</Link>}<button className="is-no" disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, false)} type="button">No — dismiss</button></div>
           {item.status === "sold_candidate" ? <OutcomeSaleConfirmationForm listingTitle={item.listingTitle} buyingFormat={item.buyingFormat} outcomeProvider={item.outcomeProvider} disabled={!reviewer.trim() || busyKeys.has(`outcome:${item.id}`)} saving={busyKeys.has(`outcome:${item.id}`)} onConfirm={(confirmation) => void decideOutcome(item, true, confirmation)} /> : null}
+        </article>
+      ))}
+
+      {canShow("grading") && visibleGradingConflicts.map((item) => (
+        <article className="human-decision-card" key={item.observationId}>
+          <div className="human-decision-question"><span>Grading conflict</span><h2>Is the copy in this sale raw, or is it in a graded slab?</h2></div>
+          <div className="human-decision-facts">
+            {item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}
+            <span>{item.soldDate ?? "Date not recorded"}</span>
+            <p>{item.listingTitle}</p>
+            <b>{item.editionLabel}</b>
+          </div>
+          <p className="human-decision-reason">
+            {item.gradingCompany || item.gradeLabel
+              ? "Only half a grade is recorded on this sale, so RAR cannot tell which comparison group it belongs in."
+              : "The listing title mentions grading but no grade is recorded, so this sale is currently held out of raw comparisons. A title is not proof of a grade — please open the listing and say what the copy actually is."}
+          </p>
+          <div className="grading-correction-fields">
+            <label>Grading company<input onChange={(event) => setGradingInputs((current) => ({ ...current, [item.observationId]: { ...(current[item.observationId] ?? { grade: "" }), company: event.target.value } }))} placeholder="CGC, CBCS, BGS, PSA…" value={gradingInputs[item.observationId]?.company ?? item.gradingCompany ?? ""} /></label>
+            <label>Exact grade<input onChange={(event) => setGradingInputs((current) => ({ ...current, [item.observationId]: { ...(current[item.observationId] ?? { company: "" }), grade: event.target.value } }))} placeholder="9.8" value={gradingInputs[item.observationId]?.grade ?? item.gradeLabel ?? ""} /></label>
+          </div>
+          <DecisionNote reason={decisionReasons[`grading:${item.observationId}`] ?? ""} value={decisionNotes[`grading:${item.observationId}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`grading:${item.observationId}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`grading:${item.observationId}`]: value }))} />
+          <div className="human-decision-actions">
+            <a href={item.sourceUrl} target="_blank" rel="noreferrer">Open original listing ↗</a>
+            <button disabled={busyKeys.has(`grading:${item.observationId}`)} onClick={() => void correctGrading(item, "graded")} type="button">{busyKeys.has(`grading:${item.observationId}`) ? "Saving…" : "It is graded — save this grade"}</button>
+            <button className="is-no" disabled={busyKeys.has(`grading:${item.observationId}`)} onClick={() => void correctGrading(item, "raw")} type="button">It is raw — no slab</button>
+          </div>
         </article>
       ))}
 
