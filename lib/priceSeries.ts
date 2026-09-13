@@ -1,6 +1,7 @@
 import { comparisonGroup, type MarketSale } from "./fx.ts";
 import { MIN_COMPARABLE_SALES, type PrintClassification } from "./printClassification.ts";
 import { ordinal } from "./editionDisplay.ts";
+import { hasUnresolvedGrading } from "./gradingEvidence.ts";
 
 // One chart, several lines — the split rules, kept out of the component.
 //
@@ -27,6 +28,7 @@ import { ordinal } from "./editionDisplay.ts";
 //                becomes its own line without a rewrite.
 
 export type SeriesSale = MarketSale & {
+  listing_title?: string | null;
   print_classification: PrintClassification;
   known_printing_number: number | null;
 };
@@ -76,7 +78,7 @@ export function buildPriceSeries<T extends SeriesSale>(sales: T[], minSales = MI
   const groups = new Map<string, PriceSeries<T>>();
 
   for (const sale of sales) {
-    if (!sale.sold_date) continue;
+    if (!sale.sold_date || hasUnresolvedGrading(sale)) continue;
     const printing = printingPart(sale);
     const grading = comparisonGroup(sale);
     const id = `${printing.key}::${grading.key}`;

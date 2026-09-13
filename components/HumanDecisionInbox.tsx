@@ -3,6 +3,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import OutcomeSaleConfirmationForm from "@/components/OutcomeSaleConfirmationForm";
+import type { OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type SaleDecision = {
@@ -69,6 +71,8 @@ type CoverDecision = {
 };
 
 type ListingOutcomeDecision = {
+  buyingFormat: string | null;
+  outcomeProvider: string | null;
   id: string;
   status: string;
   editionLabel: string;
@@ -284,9 +288,10 @@ export default function HumanDecisionInbox({
     });
   }
 
-  async function decideOutcome(item: ListingOutcomeDecision, accepted: boolean) {
+  async function decideOutcome(item: ListingOutcomeDecision, accepted: boolean, confirmation?: OutcomeSaleConfirmation) {
     const key = `outcome:${item.id}`;
     await request(key, "/api/listing-outcomes", {
+      ...confirmation,
       outcomeId: item.id,
       decision: accepted ? (item.status === "sold_candidate" ? "confirm_sale" : "keep_watching") : "dismiss",
       notes: decisionNotes[key] ?? "",
@@ -386,7 +391,8 @@ export default function HumanDecisionInbox({
           <div className="human-decision-question"><span>Outcome Monitor asks{item.score === null ? "" : ` · ${item.score}% match`}</span><h2>{item.status === "sold_candidate" ? "Did this listing sell as the exact edition shown?" : "Should RAR keep watching this unresolved listing?"}</h2></div>
           <div className="human-decision-facts">{item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}<span>{item.soldAt ?? item.status.replaceAll("_", " ")}</span><p>{item.listingTitle}</p><b>{item.editionLabel}</b></div>
           <DecisionNote reason={decisionReasons[`outcome:${item.id}`] ?? ""} value={decisionNotes[`outcome:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`outcome:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`outcome:${item.id}`]: value }))} />
-          <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check listing ↗</a><button disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, true)} type="button">{busyKeys.has(`outcome:${item.id}`) ? "Saving…" : item.status === "sold_candidate" ? "Yes — verify sale" : "Yes — keep watching"}</button>{item.status === "sold_candidate" ? null : <Link className="secondary-action" href={`/listing-outcomes?outcome=${item.id}`}>It sold — record the price</Link>}<button className="is-no" disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, false)} type="button">No — dismiss</button></div>
+          <div className="human-decision-actions"><a href={item.sourceUrl} target="_blank" rel="noreferrer">Check listing ↗</a>{item.status !== "sold_candidate" ? <button disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, true)} type="button">{busyKeys.has(`outcome:${item.id}`) ? "Saving…" : "Yes — keep watching"}</button> : null}{item.status === "sold_candidate" ? null : <Link className="secondary-action" href={`/listing-outcomes?outcome=${item.id}`}>It sold — record the price</Link>}<button className="is-no" disabled={busyKeys.has(`outcome:${item.id}`)} onClick={() => void decideOutcome(item, false)} type="button">No — dismiss</button></div>
+          {item.status === "sold_candidate" ? <OutcomeSaleConfirmationForm listingTitle={item.listingTitle} buyingFormat={item.buyingFormat} outcomeProvider={item.outcomeProvider} disabled={!reviewer.trim() || busyKeys.has(`outcome:${item.id}`)} saving={busyKeys.has(`outcome:${item.id}`)} onConfirm={(confirmation) => void decideOutcome(item, true, confirmation)} /> : null}
         </article>
       ))}
 

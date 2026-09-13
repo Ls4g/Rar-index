@@ -11,6 +11,8 @@ import {
   type DismissalReason,
   type OutcomeQueue,
 } from "@/lib/listingOutcomeTriage";
+import OutcomeSaleConfirmationForm from "@/components/OutcomeSaleConfirmationForm";
+import { outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 import { assessOutcomeConfidence } from "@/lib/listingOutcomeConfidence";
 import type { StaffPageSignal } from "@/lib/listingPageEvidence";
@@ -266,7 +268,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
     }
   }
 
-  async function decide(outcomeId: string, decision: string, decisionNotes?: string) {
+  async function decide(outcomeId: string, decision: string, decisionNotes?: string, confirmation?: OutcomeSaleConfirmation) {
     if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
     setSaving(`${outcomeId}:${decision}`);
     setMessage("");
@@ -274,7 +276,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
       const response = await fetch("/api/listing-outcomes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcomeId, decision, reviewer, notes: decisionNotes ?? notes[outcomeId] ?? "" }),
+        body: JSON.stringify({ ...confirmation, outcomeId, decision, reviewer, notes: decisionNotes ?? notes[outcomeId] ?? "" }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The decision could not be saved.");
@@ -454,7 +456,7 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
             const rowDecisions = decisionsFor(row);
             const canKeepWatching = rowDecisions.some((decision) => decision.key === "keep_watching");
             const canConfirm = rowDecisions.some((decision) => decision.key === "confirm_sale");
-            const isBestOffer = triage.isBestOffer;
+            const isBestOffer = outcomeIsBestOffer(row.buyingFormat, row.listingTitle);
             // A price can be recorded for anything that has not already been
             // resolved and does not already have one. Previously this was open
             // to Best Offer listings alone, so an ordinary listing a human
@@ -528,7 +530,10 @@ export default function ListingOutcomesPanel({ rows, capabilities, counts, rende
                       </div>
                     ) : null}
 
-                    {canConfirm ? <div className="outcome-confirm-sale"><label>Note (optional)<input onChange={(event) => setNotes((current) => ({ ...current, [row.id]: event.target.value }))} placeholder="Only if something needs saying" value={notes[row.id] ?? ""} /></label><button disabled={!reviewer.trim() || Boolean(saving)} onClick={() => void decide(row.id, "confirm_sale")} type="button">{saving === `${row.id}:confirm_sale` ? "Verifying…" : "Verify this sale"}</button></div> : null}
+                    {canConfirm && !row.reviewedBy ? <>
+                      <div className="outcome-confirm-sale"><label>Note (optional)<input onChange={(event) => setNotes((current) => ({ ...current, [row.id]: event.target.value }))} placeholder="Only if something needs saying" value={notes[row.id] ?? ""} /></label><a href={`/add-sale?editionId=${row.editionId}`}>Add sale with printing proof</a></div>
+                      <OutcomeSaleConfirmationForm listingTitle={row.listingTitle} buyingFormat={row.buyingFormat} outcomeProvider={row.outcomeProvider} disabled={!reviewer.trim() || Boolean(saving)} saving={saving === `${row.id}:confirm_sale`} onConfirm={(confirmation) => void decide(row.id, "confirm_sale", undefined, confirmation)} />
+                    </> : null}
 
                     <details className="outcome-history"><summary>Technical details and check history ({row.checkAttempts})</summary><dl className="outcome-technical-facts"><div><dt>Listing format</dt><dd>{row.buyingFormat?.replaceAll("_", " ").toLowerCase() ?? "—"}{row.bidCount !== null ? ` · ${row.bidCount} bids` : ""}</dd></div><div><dt>First watched</dt><dd>{when(row.firstSeenAt)}</dd></div><div><dt>Last seen live</dt><dd>{when(row.lastSeenAt)}</dd></div><div><dt>eBay item number</dt><dd>{row.externalId}</dd></div></dl>{row.matchConflicts.length ? <p className="outcome-conflict"><b>Match conflicts:</b> {row.matchConflicts.join("; ")}</p> : null}{row.matchReasons.length ? <p className="outcome-reasons"><b>Match signals:</b> {row.matchReasons.join(" · ")}</p> : null}{row.lastError ? <p className="outcome-conflict"><b>Last system error:</b> {row.lastError}{row.nextCheckAt ? ` · retry ${when(row.nextCheckAt)}` : ""}</p> : null}<ol>{row.checks.map((check) => <li key={`${check.attempt}-${check.checkedAt}`}><b>{when(check.checkedAt)}</b> · {check.provider}{check.httpStatus ? ` · HTTP ${check.httpStatus}` : ""} · {check.state ?? "unknown"} — {check.detail}</li>)}{row.checks.length ? null : <li>No checks recorded yet.</li>}</ol></details>
                   </div>

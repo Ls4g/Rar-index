@@ -170,17 +170,20 @@ export async function promoteEndedListings(admin: SupabaseClient) {
   return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
-export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT): Promise<OutcomeCheckResult> {
+export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT, resolve = resolveListingOutcome): Promise<OutcomeCheckResult> {
   const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [] };
   const nowIso = new Date().toISOString();
 
-  const { data } = await admin
+  const { data, error: queueError } = await admin
     .from("listing_outcomes")
     .select("id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts, outcome_provider")
     .in("status", ["ended_pending_check", "ambiguous"])
+    .is("reviewed_by", null)
+    .is("resulting_observation_id", null)
     .or(`next_check_at.is.null,next_check_at.lte.${nowIso}`)
     .order("next_check_at", { ascending: true, nullsFirst: true })
     .limit(limit);
+  if (queueError) throw new Error("RAR could not load outcome checks. Retry the pipeline; no listings were changed.");
 
   const rows = (data ?? []) as Array<{
     id: string; external_id: string; marketplace: string; listing_title: string;
@@ -197,20 +200,23 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
     const attempt = row.check_attempts + 1;
     let providerResult;
     try {
-      providerResult = await resolveListingOutcome(row.external_id, row.marketplace, row.listing_title);
+      providerResult = await resolve(row.external_id, row.marketplace, row.listing_title);
     } catch (error) {
       const message = error instanceof Error ? error.message : "outcome provider failed";
       result.errors.push(`${row.external_id}: ${message}`);
-      await admin.from("listing_outcome_checks").insert({
+      const { error: auditError } = await admin.from("listing_outcome_checks").insert({
         outcome_id: row.id, provider: "unavailable", attempt_number: attempt,
         listing_state: "unknown", resulting_status: row.status, detail: message,
       });
+      if (auditError) { result.errors.push(`${row.external_id}: could not save the failed-check audit; listing unchanged.`); return; }
       // A transient failure must not consume the listing's retries or push it
       // toward a conclusion. It stays where it is and comes round again.
-      await admin.from("listing_outcomes").update({
+      const { error: retryError } = await admin.from("listing_outcomes").update({
         last_checked_at: nowIso, last_error: message,
         next_check_at: nextOutcomeCheckAt(Math.max(0, attempt - 1)), updated_at: nowIso,
-      }).eq("id", row.id);
+      }).eq("id", row.id).eq("status", row.status).eq("check_attempts", row.check_attempts)
+        .is("reviewed_by", null).is("resulting_observation_id", null);
+      if (retryError) result.errors.push(`${row.external_id}: could not schedule retry; run the pipeline again.`);
       return;
     }
 
@@ -222,7 +228,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
       ? `${final.reason} Provider path: ${providerTrail.map((item) => `${item.provider}=${item.listingState}${item.detail ? ` (${item.detail})` : ""}`).join(" -> ")}`
       : final.reason;
 
-    await admin.from("listing_outcome_checks").insert({
+    const { error: auditError } = await admin.from("listing_outcome_checks").insert({
       outcome_id: row.id,
       provider: providerResult.signal.provider,
       attempt_number: attempt,
@@ -234,10 +240,11 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
         ? { final_response: providerResult.rawResponse ?? null, provider_attempts: providerTrail }
         : providerResult.rawResponse ?? null) as Record<string, unknown> | null,
     });
+    if (auditError) { result.errors.push(`${row.external_id}: could not save the check audit; listing unchanged.`); return; }
 
     // Never overwrite a human. If someone reviewed this row while the check
     // was in flight, their decision stands and the check is recorded only.
-    const { error: updateError } = await admin.from("listing_outcomes").update({
+    const { data: updated, error: updateError } = await admin.from("listing_outcomes").update({
       status: final.status,
       sold_price: final.soldPrice,
       sold_currency: final.soldCurrency,
@@ -249,8 +256,10 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
       last_error: null,
       next_check_at: final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
       updated_at: nowIso,
-    }).eq("id", row.id).in("status", ["ended_pending_check", "ambiguous", "active"]);
+    }).eq("id", row.id).eq("status", row.status).eq("check_attempts", row.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
     if (updateError) { result.errors.push(`${row.external_id}: ${updateError.message}`); return; }
+    if (!updated) return;
 
     result.checked += 1;
     if (exhausted) result.exhausted += 1;

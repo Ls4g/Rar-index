@@ -102,6 +102,9 @@ type CoverCandidateRow = {
 };
 
 type OutcomeRow = {
+  buying_format: string | null;
+  outcome_provider: string | null;
+  check_attempts: number;
   id: string;
   status: string;
   listing_title: string;
@@ -149,7 +152,7 @@ export default async function HumanDecisionsPage() {
     admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,target_id,evidence,proposed_payload").eq("status", "proposed").order("created_at", { ascending: false }).limit(100),
     admin.from("catalogue_review_queue").select("id,candidate_kind,candidate_title,candidate_series,candidate_volume_number,candidate_author,candidate_publisher,candidate_language,candidate_isbn_13,candidate_release_date,source_name,source_record_url,raw_payload").order("imported_at", { ascending: false }).limit(30),
     admin.from("cover_candidates").select("id,edition_id,source_name,cover_image_url,source_record_url,candidate_title,match_score,match_reasons,edition:manga_editions(title,series,volume_number,language,cover_verification_status)").eq("status", "pending").order("match_score", { ascending: false }).limit(30),
-    admin.from("listing_outcomes").select("id,status,listing_title,source_listing_url,sold_price,sold_currency,sold_at,asking_price,currency,match_assessment,edition:manga_editions(title,series,volume_number,language)").in("status", ["sold_candidate", "ended_pending_check", "ambiguous", "inaccessible"]).is("reviewed_by", null).or("status.eq.sold_candidate,match_assessment->>score.gte.75")
+    admin.from("listing_outcomes").select("id,status,buying_format,outcome_provider,check_attempts,listing_title,source_listing_url,sold_price,sold_currency,sold_at,asking_price,currency,match_assessment,edition:manga_editions(title,series,volume_number,language)").in("status", ["sold_candidate", "ended_pending_check", "ambiguous", "inaccessible"]).is("reviewed_by", null).or("status.eq.sold_candidate,match_assessment->>score.gte.75")
       // A listing queued for an automatic check that has not run yet is the
       // machine's turn, not a human question. Without this the inbox asked
       // "should RAR keep watching?" about listings that were plainly still
@@ -251,7 +254,7 @@ export default async function HumanDecisionsPage() {
     }));
 
   const outcomes = ((outcomeResult.data ?? []) as unknown as OutcomeRow[])
-    .filter((row) => !looksGraded(row.listing_title) && !(row.match_assessment?.conflicts?.length) && (row.status === "sold_candidate" || (row.match_assessment?.score ?? 0) >= 75))
+    .filter((row) => (row.status === "sold_candidate" || row.check_attempts > 0) && !looksGraded(row.listing_title) && !(row.match_assessment?.conflicts?.length) && (row.status === "sold_candidate" || (row.match_assessment?.score ?? 0) >= 75))
     .slice(0, 12)
     .map((row) => ({
       id: row.id,
@@ -262,6 +265,8 @@ export default async function HumanDecisionsPage() {
       price: row.sold_price ?? row.asking_price,
       currency: row.sold_currency ?? row.currency,
       soldAt: row.sold_at,
+      buyingFormat: row.buying_format,
+      outcomeProvider: row.outcome_provider,
       score: row.match_assessment?.score ?? null,
     }));
 

@@ -187,12 +187,18 @@ export async function createAndEvaluateScoutRule(
   const definition = ruleCandidateForAction(action.action_type, phrases, action.evidence ?? null);
   if (!definition) throw new Error("This recommendation does not define a Scout scoring rule.");
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("scout_rule_versions")
     .select("id,rule_key,version,rule_type,config,status,evaluation_metrics")
     .eq("source_action_id", action.id)
     .maybeSingle();
-  if (existing) return existing;
+  if (existingError) throw new Error(`Scout could not check for an existing shadow test: ${existingError.message}`);
+  if (existing) {
+    // A crash after creating a candidate is not a completed shadow test.
+    // Resume that same version, preserving its identity and holdout date.
+    if (["candidate", "shadow_passed"].includes(existing.status)) return reevaluateScoutRule(admin, existing.id, reviewer);
+    return existing;
+  }
 
   const { data: latest, error: versionError } = await admin
     .from("scout_rule_versions")

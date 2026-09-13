@@ -3,8 +3,10 @@ import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
 import { validateManualBestOfferEvidence, validateObservedSaleEvidence } from "@/lib/listingOutcome";
+import { confirmOutcomeSale, outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
+import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -15,7 +17,7 @@ import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPage
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-type DecisionBody = {
+type DecisionBody = OutcomeSaleConfirmation & {
   action?: string;
   outcomeId?: string;
   outcomeIds?: string[];
@@ -77,7 +79,7 @@ async function applyDecision(
   if (outcome.resulting_observation_id) {
     return { ok: false, error: "This listing has already produced a sale. It was not changed.", httpStatus: 409 };
   }
-  if (outcome.status === "review_complete" && outcome.reviewed_by) {
+  if (outcome.reviewed_by) {
     return { ok: false, error: `Already reviewed by ${outcome.reviewed_by}. It was not changed.`, httpStatus: 409 };
   }
 
@@ -105,7 +107,7 @@ async function applyDecision(
     });
     if (auditError) return { ok: false, error: "The review audit could not be saved. Nothing was changed.", httpStatus: 500 };
 
-    const { error: updateError } = await admin.from("listing_outcomes").update({
+    const { data: updated, error: updateError } = await admin.from("listing_outcomes").update({
       status: "active",
       last_seen_at: now,
       last_checked_at: now,
@@ -115,8 +117,9 @@ async function applyDecision(
       outcome_provider: "human review",
       check_attempts: nextAttempt,
       updated_at: now,
-    }).eq("id", outcome.id);
-    if (updateError) return { ok: false, error: "The listing could not be returned to monitoring. The audit attempt remains visible.", httpStatus: 500 };
+    }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
+    if (updateError || !updated) return { ok: false, error: "The listing could not be returned to monitoring. The audit attempt remains visible.", httpStatus: 500 };
     return { ok: true, status: "active" };
   }
 
@@ -126,12 +129,13 @@ async function applyDecision(
 
   const status = DECISION_STATUS[decision];
   if (!status) return { ok: false, error: "Unknown decision.", httpStatus: 400 };
-  const { error } = await admin.from("listing_outcomes").update({
+  const { data: updated, error } = await admin.from("listing_outcomes").update({
     status, reviewed_by: reviewer, reviewed_at: now, review_notes: notes,
     // A human has answered; stop spending API calls on it.
     next_check_at: null, updated_at: now,
-  }).eq("id", outcome.id);
-  if (error) return { ok: false, error: "The decision could not be saved.", httpStatus: 500 };
+  }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
+  if (error || !updated) return { ok: false, error: "This listing changed or the decision could not be saved. Refresh before retrying.", httpStatus: 500 };
   return { ok: true, status };
 }
 
@@ -223,7 +227,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "This listing has already produced a sale. It was not changed." }, { status: 409 });
   }
   // A previous human decision is never overwritten by another action here.
-  if (outcome.status === "review_complete" && outcome.reviewed_by) {
+  if (outcome.reviewed_by) {
     return Response.json({ error: `Already reviewed by ${outcome.reviewed_by}. It was not changed.` }, { status: 409 });
   }
 
@@ -258,7 +262,7 @@ export async function POST(request: Request) {
     if (auditError) return Response.json({ error: "The page observation could not be audited. Nothing was changed." }, { status: 500 });
 
     const resolvedUnsold = body.pageSignal === "red_ended";
-    const { error: updateError } = await admin.from("listing_outcomes").update({
+    const { data: updated, error: updateError } = await admin.from("listing_outcomes").update({
       status: pageEvidence.resultingStatus,
       outcome_reason: detail,
       outcome_provider: "eBay page — staff observed",
@@ -271,8 +275,9 @@ export async function POST(request: Request) {
       reviewed_at: resolvedUnsold ? now : null,
       review_notes: resolvedUnsold ? detail : null,
       updated_at: now,
-    }).eq("id", outcome.id);
-    if (updateError) return Response.json({ error: "The page observation could not be applied. Its audit record remains visible." }, { status: 500 });
+    }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
+    if (updateError || !updated) return Response.json({ error: "The page observation could not be applied. Its audit record remains visible." }, { status: 500 });
     return Response.json({ ok: true, status: pageEvidence.resultingStatus, outcomeConfidence: body.pageSignal === "green_sold" ? 85 : body.pageSignal === "red_ended" || body.pageSignal === "still_live" ? 95 : 30 });
   }
 
@@ -283,6 +288,9 @@ export async function POST(request: Request) {
   // Best Offer one, so those listings could only be kept watching or dismissed
   // — a sale a human was looking at had nowhere to go.
   if (body.action === "record-observed-sale") {
+    if (outcomeIsBestOffer(outcome.buying_format, outcome.listing_title)) {
+      return Response.json({ error: "Use the accepted Best Offer price check for this listing; its advertised price cannot be used." }, { status: 400 });
+    }
     const alreadyPriced = Boolean(outcome.sold_price && outcome.sold_currency && outcome.sold_at);
     if (outcome.status === "sold_candidate" && alreadyPriced) {
       return Response.json({ error: "This candidate already has a price and date. Verify it against the edition instead." }, { status: 409 });
@@ -327,7 +335,7 @@ export async function POST(request: Request) {
     // deciding it is the exact RAR edition are two different judgements, and
     // collapsing them into one button is how a wrong-edition sale reaches a
     // chart.
-    const { error: updateError } = await admin.from("listing_outcomes").update({
+    const { data: updated, error: updateError } = await admin.from("listing_outcomes").update({
       status: "sold_candidate",
       sold_price: soldPrice,
       sold_currency: soldCurrency,
@@ -339,19 +347,21 @@ export async function POST(request: Request) {
       next_check_at: null,
       last_error: null,
       updated_at: now,
-    }).eq("id", outcome.id);
-    if (updateError) return Response.json({ error: "The observed sale could not be saved. Its audit record remains visible." }, { status: 500 });
+    }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
+    if (updateError || !updated) return Response.json({ error: "The observed sale could not be saved. Its audit record remains visible." }, { status: 500 });
     return Response.json({ ok: true, status: "sold_candidate" });
   }
 
   if (body.action === "record-best-offer-price") {
-    if (!["ended_pending_check", "ambiguous", "inaccessible"].includes(outcome.status)) {
+    if (!["ended_pending_check", "ambiguous", "inaccessible", "sold_candidate"].includes(outcome.status)
+      || (outcome.status === "sold_candidate" && outcome.sold_price && outcome.sold_currency && outcome.sold_at)) {
       return Response.json({ error: "Only an ended Best Offer with an unresolved outcome can use this check." }, { status: 400 });
     }
     const soldPrice = Number(body.soldPrice);
     const soldCurrency = (body.soldCurrency ?? "").trim().toUpperCase();
     const soldAt = (body.soldAt ?? "").trim();
-    const validationError = validateManualBestOfferEvidence({ buyingFormat: outcome.buying_format, soldPrice, soldCurrency, soldAt });
+    const validationError = validateManualBestOfferEvidence({ buyingFormat: outcomeIsBestOffer(outcome.buying_format, outcome.listing_title) ? "BEST_OFFER" : outcome.buying_format, soldPrice, soldCurrency, soldAt });
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const detail = `Human ${reviewer} matched eBay item ${outcome.external_id} on 130point and recorded the accepted Best Offer price. 130point corroborates the hidden price; the original sale source remains eBay.${notes ? ` Note: ${notes}` : ""}`;
@@ -369,7 +379,7 @@ export async function POST(request: Request) {
     });
     if (auditError) return Response.json({ error: "The corroboration audit record could not be saved. Nothing was changed." }, { status: 500 });
 
-    const { error: updateError } = await admin.from("listing_outcomes").update({
+    const { data: updated, error: updateError } = await admin.from("listing_outcomes").update({
       status: "sold_candidate",
       sold_price: soldPrice,
       sold_currency: soldCurrency,
@@ -381,8 +391,9 @@ export async function POST(request: Request) {
       next_check_at: null,
       last_error: null,
       updated_at: now,
-    }).eq("id", outcome.id);
-    if (updateError) return Response.json({ error: "The accepted price could not be saved. The audit attempt remains visible." }, { status: 500 });
+    }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
+      .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
+    if (updateError || !updated) return Response.json({ error: "The accepted price could not be saved. The audit attempt remains visible." }, { status: 500 });
     return Response.json({ ok: true, status: "sold_candidate" });
   }
 
@@ -396,90 +407,11 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, status: result.status });
   }
 
-  // ---------------------------------------------------------- confirm ----
-  // The one deliberate action that turns a watched listing into evidence.
-  // It reuses the existing price-observation and price-review workflow rather
-  // than inventing a second one, and it completes in a single step: staff do
-  // not approve the same evidence again on the review page.
-  if (outcome.status !== "sold_candidate") {
-    return Response.json({ error: "Only a sold candidate can be confirmed as a sale." }, { status: 400 });
+  try {
+    const result = await confirmOutcomeSale(admin, outcome, body, reviewer, notes);
+    try { await snapshotHoldersOfEdition(admin, outcome.edition_id); } catch { /* The audited sale is already committed. */ }
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "The sale could not be saved. Refresh and retry." }, { status: 409 });
   }
-  if (!outcome.sold_price || !outcome.sold_currency || !outcome.sold_at) {
-    return Response.json({ error: "This candidate has no confirmed price and date, so it cannot become a sale." }, { status: 400 });
-  }
-
-  // The same guard add-sale uses: one marketplace listing, one sale, ever.
-  const { data: duplicate } = await admin
-    .from("price_observations")
-    .select("id")
-    .eq("source_id", outcome.source_id)
-    .eq("external_id", outcome.external_id)
-    .maybeSingle();
-  if (duplicate) {
-    await admin.from("listing_outcomes").update({
-      status: "review_complete", resulting_observation_id: duplicate.id,
-      reviewed_by: reviewer, reviewed_at: now, review_notes: notes, next_check_at: null, updated_at: now,
-    }).eq("id", outcome.id);
-    return Response.json({ error: "That marketplace listing already exists as a sale in RAR. The outcome was linked to it and nothing was duplicated." }, { status: 409 });
-  }
-
-  const { data: observation, error: insertError } = await admin.from("price_observations").insert({
-    edition_id: outcome.edition_id,
-    source_id: outcome.source_id,
-    source_listing_url: outcome.source_listing_url,
-    external_id: outcome.external_id,
-    listing_title: outcome.listing_title,
-    sold_date: outcome.sold_at,
-    sale_price: outcome.sold_price,
-    currency: outcome.sold_currency,
-    sale_type: outcome.buying_format?.includes("AUCTION") ? "auction" : "fixed_price",
-    // Raw versus graded is never inferred here. The observation lands with no
-    // grading company, which is RAR's "raw" position, and a graded sale is
-    // recorded by a human on the sale record exactly as it always has been.
-    raw_payload: {
-      ...(outcome.original_snapshot ?? {}),
-      rar_outcome_evidence: {
-        provider: outcome.outcome_provider,
-        reason: outcome.outcome_reason,
-      },
-    },
-    is_verified: false,
-    match_status: "needs_review",
-    sale_status: "confirmed",
-    notes,
-  }).select("id").maybeSingle();
-
-  if (insertError?.code === "23505" || (!observation && !insertError)) {
-    return Response.json({ error: "That marketplace listing already exists as a sale in RAR. It was not changed." }, { status: 409 });
-  }
-  if (insertError || !observation) {
-    return Response.json({ error: "The sale could not be created. Nothing was verified." }, { status: 500 });
-  }
-
-  // Verified in the same action, through the same function the review queue
-  // uses, so the audit trail is identical to a sale approved by hand.
-  const { error: reviewError } = await admin.rpc("apply_price_review", {
-    p_observation_id: observation.id,
-    p_decision: "verified_match",
-    p_decision_notes: notes ?? `Confirmed from watched eBay listing ${outcome.external_id}.`,
-    p_reviewed_by: reviewer,
-  });
-  if (reviewError) {
-    return Response.json({
-      error: "The sale was created but could not be verified. It is in the review queue and has not reached any chart.",
-      observationId: observation.id,
-    }, { status: 500 });
-  }
-
-  await admin.from("listing_outcomes").update({
-    status: "review_complete",
-    resulting_observation_id: observation.id,
-    reviewed_by: reviewer,
-    reviewed_at: now,
-    review_notes: notes,
-    next_check_at: null,
-    updated_at: now,
-  }).eq("id", outcome.id);
-
-  return Response.json({ ok: true, status: "review_complete", observationId: observation.id });
 }

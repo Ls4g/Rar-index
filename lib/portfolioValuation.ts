@@ -7,13 +7,15 @@
 // separate (comparisonGroup in lib/fx.ts), and a value is only combined
 // across currencies when convertSale() can find a real historical rate --
 // never guessed, never defaulted to zero.
-import { convertSale, median, type DisplayCurrency, type FxRate } from "@/lib/fx";
+import { convertSale, median, type DisplayCurrency, type FxRate } from "./fx.ts";
+import { isRawValuationEvidence, type GradingEvidence } from "./gradingEvidence.ts";
 
 export type PrintClassification = "first_print_proven" | "known_later_print" | "printing_not_identified";
 
 export type ValuationEdition = {
   id: string;
   printing_of_edition_id: string | null;
+  printing_number?: number | null;
 };
 
 export type ValuationHolding = {
@@ -26,15 +28,17 @@ export type ValuationHolding = {
   edition: ValuationEdition | null;
 };
 
-export type ValuationSale = {
+export type ValuationSale = GradingEvidence & {
   edition_id: string;
   sale_price: number;
   currency: string;
   sold_date: string | null;
   print_classification: PrintClassification;
+  known_printing_number: number | null;
 };
 
 export type EditionMarketMetric = {
+  comparison_group?: string;
   edition_id: string;
   currency: string;
   market_value_median: number;
@@ -96,55 +100,43 @@ function medianByCurrency(salesByPublication: Map<string, SaleFigure[]>): Map<st
 // edition_id (a publication and its print-run child can each be held
 // separately).
 //
-// Which sales count as evidence depends on what the held record actually
-// claims to be, because a valuation must answer the question that record
-// asks:
-//
-//   - A general publication record ("One Piece Vol. 1, Japanese, Shueisha")
-//     claims nothing about printing, so every verified completed sale of
-//     that publication is evidence for it. Requiring first-print proof here
-//     valued a real, fully verified sale at nothing.
-//   - A specific print-run child record DOES claim a printing, so it keeps
-//     the stricter bar: only first_print_proven sales, never a sale whose
-//     printing was never established.
-//
-// Both pools are built from sales already filtered to confirmed +
-// verified_match by the caller -- this only decides which verified sales
-// answer which record's question, and never widens what counts as verified.
+// Raw comparison groups stay separate by printing. General publications use
+// the most-supported group; specific print runs require the exact number.
+// Callers restrict observations to verified, confirmed completed sales.
 export function computeEditionMetrics(holdings: ValuationHolding[], sales: ValuationSale[], publicationByMember: Map<string, string>): { metrics: EditionMarketMetric[]; otherSaleCounts: Map<string, number> } {
-  const provenByPublication = new Map<string, SaleFigure[]>();
-  const allVerifiedByPublication = new Map<string, SaleFigure[]>();
-  const unprovenCountByPublication = new Map<string, number>();
+  const groupsByPublication = new Map<string, Map<string, SaleFigure[]>>();
   for (const sale of sales) {
+    if (!isRawValuationEvidence(sale)) continue;
     const publicationId = publicationByMember.get(sale.edition_id) ?? sale.edition_id;
-    const figure: SaleFigure = { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date };
-    allVerifiedByPublication.set(publicationId, [...(allVerifiedByPublication.get(publicationId) ?? []), figure]);
-    if (sale.print_classification === "first_print_proven") {
-      provenByPublication.set(publicationId, [...(provenByPublication.get(publicationId) ?? []), figure]);
-    } else {
-      unprovenCountByPublication.set(publicationId, (unprovenCountByPublication.get(publicationId) ?? 0) + 1);
-    }
+    const key = sale.print_classification === "first_print_proven" ? "first"
+      : sale.print_classification === "known_later_print" ? `later:${sale.known_printing_number ?? "unknown"}` : "unknown";
+    const groups = groupsByPublication.get(publicationId) ?? new Map<string, SaleFigure[]>();
+    groups.set(key, [...(groups.get(key) ?? []), { price: sale.sale_price, currency: sale.currency, soldDate: sale.sold_date }]);
+    groupsByPublication.set(publicationId, groups);
   }
-
-  const provenMetrics = medianByCurrency(provenByPublication);
-  const allVerifiedMetrics = medianByCurrency(allVerifiedByPublication);
-
   const metrics: EditionMarketMetric[] = [];
   const otherSaleCounts = new Map<string, number>();
+  const valuedEditions = new Set<string>();
   for (const holding of holdings) {
+    if (valuedEditions.has(holding.edition_id)) continue;
+    valuedEditions.add(holding.edition_id);
     const publicationId = holding.edition?.printing_of_edition_id ?? holding.edition_id;
-    // A record that is itself a print-run child of another record is the
-    // one making a printing claim; a record with no parent is the general
-    // publication.
-    const claimsSpecificPrinting = Boolean(holding.edition?.printing_of_edition_id);
-    const source = claimsSpecificPrinting ? provenMetrics : allVerifiedMetrics;
-    for (const entry of source.get(publicationId) ?? []) {
-      metrics.push({ edition_id: holding.edition_id, currency: entry.currency, market_value_median: entry.value, verified_sale_count: entry.count, latest_sale_date: entry.latestSoldDate });
+    const groups = groupsByPublication.get(publicationId) ?? new Map<string, SaleFigure[]>();
+    const printing = holding.edition?.printing_number;
+    const selectedKey = holding.edition?.printing_of_edition_id
+      ? printing === 1 ? "first" : printing && printing > 1 ? `later:${printing}` : "unresolved-printing"
+      : [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))[0]?.[0];
+    // One comparable printing group, never a median across first/third/fifth
+    // printings. A general publication uses its most-supported raw group;
+    // a specific print-run holding can only use its own known printing.
+    const selectedSales = selectedKey ? groups.get(selectedKey) ?? [] : [];
+    const selectedMetrics = medianByCurrency(new Map([[publicationId, selectedSales]]));
+    for (const entry of selectedMetrics.get(publicationId) ?? []) {
+      const comparisonLabel = selectedKey === "first" ? "Raw · Proven first print"
+        : selectedKey?.startsWith("later:") ? `Raw · Later printing ${selectedKey.slice(6)}` : "Raw · Printing not identified";
+      metrics.push({ edition_id: holding.edition_id, comparison_group: comparisonLabel, currency: entry.currency, market_value_median: entry.value, verified_sale_count: entry.count, latest_sale_date: entry.latestSoldDate });
     }
-    // "Other sales" means sales real enough to see but not counted in this
-    // record's value -- which for a general publication record is now none
-    // of them.
-    otherSaleCounts.set(holding.edition_id, claimsSpecificPrinting ? (unprovenCountByPublication.get(publicationId) ?? 0) : 0);
+    otherSaleCounts.set(holding.edition_id, [...groups.values()].reduce((total, group) => total + group.length, 0) - selectedSales.length);
   }
   return { metrics, otherSaleCounts };
 }
@@ -153,6 +145,16 @@ export function groupMetricsByEdition(metrics: EditionMarketMetric[]): Map<strin
   const mapped = new Map<string, EditionMarketMetric[]>();
   for (const metric of metrics) mapped.set(metric.edition_id, [...(mapped.get(metric.edition_id) ?? []), metric]);
   return mapped;
+}
+
+// Currency summaries are alternative evidence for ONE copy, not additional
+// assets. Use the best-supported currency group, breaking ties by recency
+// and then currency. The choice stays stable when display currency changes;
+// conversion still requires a real rate, with no invented fallback.
+function valuationMetric(metrics: EditionMarketMetric[]): EditionMarketMetric[] {
+  return [...metrics].sort((a, b) => b.verified_sale_count - a.verified_sale_count
+    || (b.latest_sale_date ?? "").localeCompare(a.latest_sale_date ?? "")
+    || a.currency.localeCompare(b.currency)).slice(0, 1);
 }
 
 // Converts one amount into the display currency only when it's safe to:
@@ -208,7 +210,7 @@ export function computePortfolioSummary(holdings: ValuationHolding[], metricsByE
       }
     }
 
-    const editionMetrics = metricsByEdition.get(holding.edition_id) ?? [];
+    const editionMetrics = valuationMetric(metricsByEdition.get(holding.edition_id) ?? []);
     if (editionMetrics.length) {
       valuedCount += 1;
       for (const metric of editionMetrics) {
@@ -224,7 +226,8 @@ export function computePortfolioSummary(holdings: ValuationHolding[], metricsByE
   }
 
   const unvaluedCount = holdings.length - valuedCount;
-  const canCompareGainLoss = hasAnyPurchasePrice && paidTotal > 0 && valuedCount > 0 && paidExcludedCount === 0 && marketExcludedCount === 0;
+  const completeCosts = holdings.every((holding) => holding.purchase_price !== null && Boolean(holding.purchase_currency));
+  const canCompareGainLoss = completeCosts && hasAnyPurchasePrice && paidTotal > 0 && valuedCount === holdings.length && paidExcludedCount === 0 && marketExcludedCount === 0;
   const gainLoss = canCompareGainLoss ? marketTotal - paidTotal : null;
   const gainLossPercent = gainLoss !== null && paidTotal > 0 ? (gainLoss / paidTotal) * 100 : null;
 
@@ -264,7 +267,7 @@ export function computeHoldingMarketValues(holdings: ValuationHolding[], metrics
       ? convertAmount(holding.purchase_price * holding.quantity, holding.purchase_currency, holding.purchase_date, displayCurrency, rates)
       : null;
 
-    const editionMetrics = metricsByEdition.get(holding.edition_id) ?? [];
+    const editionMetrics = valuationMetric(metricsByEdition.get(holding.edition_id) ?? []);
     if (!editionMetrics.length) {
       return { holdingId: holding.id, editionId: holding.edition_id, marketValue: null, hasExcludedEvidence: false, paidValue, gain: null, gainPercent: null };
     }

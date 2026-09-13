@@ -143,15 +143,13 @@ export async function POST(request: Request) {
         }
         if (decision === "approved" && execute && executionKind === "scan_stale_profiles") {
           execution = await runScoutBatch(admin, { limit: 20, dueOnly: true });
+          if (execution.failures > 0) throw new Error(`${execution.scannedProfiles} profiles checked; ${execution.failures} failed. Successful checks are saved. Retry this proposal to check profiles still due; inspect Scout scan history if failures continue.`);
         }
       } catch (executionError) {
         if (execute) {
           const failureMessage = executionError instanceof Error ? executionError.message : "Execution failed.";
           await admin.from("agent_actions").update({
             status: "proposed",
-            reviewed_by: null,
-            review_notes: null,
-            reviewed_at: null,
           }).eq("id", actionId).eq("status", "approved");
           await admin.from("agent_action_events").insert({
             action_id: action.id,

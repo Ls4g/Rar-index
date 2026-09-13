@@ -75,7 +75,7 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, value, c
 
         <div className="holding-card-status">
           {metrics.length ? (
-            <span className="print-classification-badge is-first-print-proven">Proven first print · {metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0)} verified sale{metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0) === 1 ? "" : "s"}</span>
+            <span className="print-classification-badge">{metrics[0]?.comparison_group ?? "Raw evidence"} · {metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0)} verified sale{metrics.reduce((sum, metric) => sum + metric.verified_sale_count, 0) === 1 ? "" : "s"}</span>
           ) : otherSaleCount > 0 ? (
             <span className="print-classification-badge is-printing-not-identified">Printing not identified · {otherSaleCount} sale{otherSaleCount === 1 ? "" : "s"} on file</span>
           ) : (
@@ -97,7 +97,7 @@ export default function HoldingCard({ holding, metrics, otherSaleCount, value, c
             </dd>
           </div>
           <div>
-            <dt>Market value</dt>
+            <dt title="Uses the most-supported comparable raw printing and currency group, converted to your display currency.">Market value</dt>
             {/* Converted into the display currency so it agrees with the
                 gain beside it and the totals above. Only when a real rate
                 is missing does this fall back to listing each original
