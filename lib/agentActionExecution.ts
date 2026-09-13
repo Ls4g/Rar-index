@@ -29,7 +29,11 @@ export function isExecutableAgentAction(actionType: string) {
 export function preflightAgentAction(action: ExecutableAgentAction): AgentActionPreflight {
   const executionKind = agentActionExecutionKind(action.action_type);
   const checks = [
-    { key: "still_proposed", passed: action.status === "proposed", message: "The proposal is still awaiting a human decision." },
+    // Approved counts. Approving a machine-executable action without running
+    // it used to be a one-way door: the execute path only ever looked for
+    // "proposed", so a human agreeing to the work was the exact thing that
+    // locked it out of ever running. Six actions were stuck that way.
+    { key: "open_for_execution", passed: ["proposed", "approved"].includes(action.status), message: "The action is approved, or still awaiting a human decision." },
     { key: "known_execution", passed: executionKind !== null, message: "RAR has a defined execution contract for this action." },
     { key: "target_present", passed: Boolean(action.target_type?.trim()), message: "The proposal names the data boundary it may affect." },
     { key: "evidence_present", passed: Boolean(action.evidence && Object.keys(action.evidence).length), message: "The proposal carries evidence for the human decision." },

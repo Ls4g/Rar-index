@@ -59,11 +59,29 @@ const derivedEditionRule = ruleCandidateForAction("shadow_test_edition_conflicts
 ] });
 assert.deepEqual(derivedEditionRule?.config.phrases, ["deluxe edition", "omnibus"]);
 
+// A scan pointed at the wrong table, carrying no evidence. Both are named
+// individually so a future change cannot quietly drop one and still pass on a
+// count.
 const unsafePreflight = preflightAgentAction({
   id: "action-2", action_type: "scan_stale_profiles", status: "approved", target_type: "price_observations", target_id: null,
   evidence: {}, proposed_payload: {},
 });
 assert.equal(unsafePreflight.ok, false);
-assert.ok(unsafePreflight.checks.filter((check) => !check.passed).length >= 3);
+const failedKeys = unsafePreflight.checks.filter((check) => !check.passed).map((check) => check.key).sort();
+assert.deepEqual(failedKeys, ["evidence_present", "scan_scope"]);
+// Approved is executable. Approving a machine-executable action without
+// running it used to lock it out of ever running -- six actions were stuck
+// exactly that way -- so this check must NOT fail on an approved action.
+assert.equal(unsafePreflight.checks.find((check) => check.key === "open_for_execution")?.passed, true);
+
+// But a decision that closed the action still refuses execution.
+for (const status of ["rejected", "cancelled", "executed"]) {
+  const closed = preflightAgentAction({
+    id: "action-3", action_type: "scan_stale_profiles", status, target_type: "marketplace_search_profiles", target_id: null,
+    evidence: { profiles: 4 }, proposed_payload: {},
+  });
+  assert.equal(closed.ok, false, `${status} must not be executable`);
+  assert.equal(closed.checks.find((check) => check.key === "open_for_execution")?.passed, false);
+}
 
 console.log("Agent Reliability tests passed (stored evidence, safety failures and typed execution preflight).\n");
