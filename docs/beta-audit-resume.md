@@ -35,7 +35,27 @@ Apply in this order, then tell the agent so the held code can ship:
 
 All three are additive: new columns (nullable or defaulted), new tables, new functions, new indexes. Nothing existing is altered or dropped. Each has been executed end-to-end against real PostgreSQL 18.3 via PGlite.
 
-## Code held back, uncommitted in the working tree
+## Held code — SHIPPED in `0185dfd`, deployed and verified
+
+Nothing is held any more. The table below is kept as the record of what was waiting on which migration.
+
+### Post-deployment verification, 13 September 2026
+
+Read-only against production, nothing mutated:
+
+- All three new column sets and the grading audit table are readable.
+- All five functions are reachable by the server role and **refused for the public key** — the grant hole closed in `4be59d2` is genuinely shut.
+- Lease recovery is currently a true no-op: no action is mid-run, and calling it recovered 0.
+- The Decisions page grading query returns exactly one conflict, the known Hunter x Hunter slab.
+- `ff81fb2f` untouched; no grading decisions exist; all 23 approved actions still approved/not_started; backfill marked all 74 executed actions succeeded.
+- Deployed site live. `/api/observation-grading` answers 401 "Staff credentials are required" rather than 404, so the new route is in production.
+- **The exclusion is visibly working on the live edition page.** Hunter x Hunter Volume 1 shows a median of £89.30 = US$120, the median of the five RAW sales. Pooling the US$2,000 slab would give ~£96. The graded copy is genuinely out of the raw comparison group in production.
+
+Gate: full suite (36 scripts) exit 0, TypeScript clean, lint 0 errors with the two existing image warnings, production build passed with `/api/observation-grading` compiled.
+
+**Still unverified:** the staff screens themselves. They sit behind a login whose password must not be typed into a form, so the grading card and the outcome confirmation form have not been seen rendering, on desktop or phone. Both need a human look.
+
+### What was held, and why
 
 Held because it reads columns or calls functions the migrations create. Deploying it before the migrations would break the pages listed.
 
@@ -50,7 +70,7 @@ Held because it reads columns or calls functions the migrations create. Deployin
 | `app/globals.css` | — | Styling for the grading fields |
 | `app/api/agents/route.ts` | `claim_agent_action` / `finish_agent_action` | Agent execution claims |
 
-After applying, run the gate (`corepack pnpm run test:workflows`, `node node_modules/typescript/bin/tsc --noEmit`, `corepack pnpm run lint`, `corepack pnpm run build`), then commit and push the held files.
+All of the above shipped in `0185dfd`.
 
 ## Live read-only baseline, 13 September 2026 11:27 UTC
 
@@ -73,10 +93,13 @@ After applying, run the gate (`corepack pnpm run test:workflows`, `node node_mod
 
 **Not performed:** any live database mutation, any staff-UI end-to-end test, any phone check. No credentials entered, no fake evidence created.
 
-## Next commands
+## Next — all of these need a person, not another migration
 
-1. Apply the three migrations above.
-2. `corepack pnpm run test:workflows && node node_modules/typescript/bin/tsc --noEmit && corepack pnpm run lint && corepack pnpm run build`
-3. Commit and push the held files.
-4. `node --experimental-strip-types --env-file=.env.local scripts/reconcile-open-agent-actions.mjs` — then work the 23 individually.
-5. Human: open `ff81fb2f`'s eBay listing and record raw or graded on the Decisions page.
+1. **Look at the two staff screens.** The grading card on `/review` and the outcome confirmation form on `/listing-outcomes` have never been seen rendering, on desktop or phone. This is the only remaining unknown in the work that shipped.
+2. **Resolve `ff81fb2f`.** Open its eBay listing and record raw or graded on the Decisions page. Its five raw siblings are unaffected either way; the slab is currently held out of raw comparisons and the live page confirms it.
+3. **Work the 23 open approvals.** `node --experimental-strip-types --env-file=.env.local scripts/reconcile-open-agent-actions.mjs` gives a verdict per action: 1 to run, 1 already clear, 7 genuinely live, 14 needing a judgement.
+4. **Decide on graded leads.** `graded_slab` would cut Scout junk by roughly half but costs real buying opportunities. It needs its own queue rather than activation.
+5. **Investigate the 4 failed agent runs** out of the last 140.
+6. **Still unaudited:** `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile workflows.
+
+Concurrency under two simultaneous connections remains untested — PGlite is a single backend and this machine has no Docker.
