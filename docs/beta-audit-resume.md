@@ -11,7 +11,19 @@ Baseline for this tranche: main at `4ef7c9a`. Earlier tranche: `326ad78`, `bdbdd
 | `2c3e4b4` | Durable agent execution: migration, lease tests, reconciliation script, cron recovery |
 | `b07a116` | Scout junk reduction measured; rules left in shadow mode |
 
-## BLOCKED — three migrations are written and tested but NOT APPLIED
+## Migration blocker resolved — applied 13 September 2026
+
+Codex applied all three migrations below, in order, to RAR production project `fmzzersppzqevtwqvnbd` through the authenticated in-app Supabase SQL editor. Each ran in its own explicit transaction and returned success. Editor SQL was compared with the local migration using normalized-content length/checksum before execution (comments and formatting omitted; SQL statements unchanged).
+
+Post-application checks confirmed five functions, three grading columns, six execution columns, all three indexes, grading audit RLS and append-only trigger, and completed-action backfill. All 23 approved actions remain approved/not_started. Observation `ff81fb2f-201d-4ef1-85db-74171ae76b2a` remains unchanged, and no grading decisions were created. No evidence verification or agent execution was performed.
+
+**Additional security repair applied:** `20260913_beta_rpc_permissions.sql`. Live permission checks found that Supabase defaults had granted EXECUTE directly to `anon` and `authenticated`; revoking PUBLIC in the original migrations did not remove those grants. The additive permission migration explicitly revokes both roles on the five new RPCs. Rechecked live: service_role=true, anon=false, authenticated=false for all five.
+
+The held application files below were not committed or deployed by this migration-application task. Claude can now complete the application validation/deployment gate. Do not reapply the migrations merely because the historical notes below describe the earlier blocker.
+
+Application-time checks: lint passed with two existing EditionCover warnings, direct TypeScript check passed, and full production build passed against the current working tree. The workflow suites and two-session concurrency tests were not rerun in this application-only task.
+
+### Historical blocker
 
 The Supabase dashboard would not render in Chrome on this machine (page HTML loads, 94 scripts present, `#__next` present, React never mounts, no Monaco). Five attempts across three tabs. No Docker, no `psql`, no database password in `.env.local`, so there is no other route to DDL from here.
 
