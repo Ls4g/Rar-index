@@ -93,10 +93,29 @@ All of the above shipped in `0185dfd`.
 
 **Not performed:** any live database mutation, any staff-UI end-to-end test, any phone check. No credentials entered, no fake evidence created.
 
+## Third tranche — two inbox dead ends, 13 September 2026 (`e2bb0a4`)
+
+Both reported from a phone, both now fixed, pushed and deployed.
+
+**The slab is resolved.** `ff81fb2f` now reads BGS 8.5, `grading_reviewed_by` SP, `grading_reviewed_at` 13 Sep 17:39 UTC. The human confirmed the grade was correct. Item 2 of the old Next list is done; no further action.
+
+**Staff screens do render on mobile.** A phone screenshot of `/review` shows the catalogue card and the outcome card laid out correctly. The *grading* card still has not been seen.
+
+| Bug | Root cause | Fix |
+| --- | --- | --- |
+| A correct edition could not be added | The inbox offered one-click `Yes — add edition` for every `edition_candidate`, but the API refuses `approve_new` without a language, and the Curator deliberately leaves language blank when the source did not state one. Yowamushi Pedal Vol. 2 (`d20f7e7a`, ISBN 9780316354684, Yen Press) is exactly that. Guards themselves were fine — both returned null. | `catalogueOneClickApprovalBlocker()` in `lib/catalogueApprovalGuard.ts` runs the API's own preconditions plus both existing guards. Blocked candidates show the reason and link to `/catalogue-review#candidate-<id>`, which already asks for the language rather than guessing. |
+| A linked sale was missing on `/listing-outcomes` | The attention query caps at 200 while **949** listings qualify, so a linked listing was usually outside every window, and the panel's `rows.find` matched nothing silently. | The page fetches the focused outcome by id and merges it in, deduplicated. |
+
+`scripts/test-decision-handoff-live.mjs` — 12 checks, live read-only, needs `--env-file=.env.local`. Deliberately **not** in `test:workflows`, which must run without credentials. Asserts the real Yowamushi row is held back, a complete candidate still approves in one click, and a genuinely out-of-window listing becomes present without duplication.
+
+Gate: full suite (36 scripts) exit 0, TypeScript clean, lint 0 errors with the two existing `EditionCover` warnings, production build passed. Site live, `/listing-outcomes` correctly 307s to login.
+
+**Not fixed, deliberately:** 749 attention listings remain unreachable through the page's own filters. The by-id fetch repairs the *link*, not the browsing cap. Paginating that queue is its own piece of work.
+
 ## Next — all of these need a person, not another migration
 
-1. **Look at the two staff screens.** The grading card on `/review` and the outcome confirmation form on `/listing-outcomes` have never been seen rendering, on desktop or phone. This is the only remaining unknown in the work that shipped.
-2. **Resolve `ff81fb2f`.** Open its eBay listing and record raw or graded on the Decisions page. Its five raw siblings are unaffected either way; the slab is currently held out of raw comparisons and the live page confirms it.
+1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.
+2. ~~**Resolve `ff81fb2f`.**~~ Done 13 Sep: BGS 8.5, confirmed correct by SP.
 3. **Work the 23 open approvals.** `node --experimental-strip-types --env-file=.env.local scripts/reconcile-open-agent-actions.mjs` gives a verdict per action: 1 to run, 1 already clear, 7 genuinely live, 14 needing a judgement.
 4. **Decide on graded leads.** `graded_slab` would cut Scout junk by roughly half but costs real buying opportunities. It needs its own queue rather than activation.
 5. **Investigate the 4 failed agent runs** out of the last 140.
