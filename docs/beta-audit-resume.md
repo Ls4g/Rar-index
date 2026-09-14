@@ -368,9 +368,31 @@ Open incident `f6fcc37f` "An agent cycle needs inspection" (`consecutive_failure
 
 It is the one "RUN IT" verdict, but executing it calls `runScoutBatch(admin, { limit: 20, dueOnly: true })`, which hits eBay. `.env.local` holds `CRON_SECRET`, both Supabase keys, the anon URL and the throwaway staff credentials — and **no eBay credentials** (checked, not assumed). Attempting it locally would fail inside the try block and write a failed run row for nothing. It needs a person on the deployed `/agents` screen.
 
+### Every open approval now has an evidence-backed verdict
+
+The remaining seven "needs a human look" actions were unmeasured only because their action types were missing from the script's `OUTSTANDING_WORK` map. Adding probes for them takes the category to **zero**.
+
+Final split of the 26: superseded 11, close as done **8**, still outstanding **6**, run it 1, needs a human look **0**.
+
+The probes reuse the planner's own modules — `analyseLiveScoutFeedback`, `readScoutBacklog`/`diagnoseScoutBacklog`, and `agentRuntime`'s readiness-status derivation — rather than restating their rules. "Fewer than one in four leads reviewable over at least ten" and "which dismissals are scorer-relevant" are real definitions that live in `lib/`; a second copy here would drift from the thing it claims to measure, which is exactly how the old `scout_review_now` probe reported a backlog 88× too large.
+
+| Action | Measure | Now |
+| --- | --- | --- |
+| `204295cc` readiness: search ready | `edition_readiness` rows in that status | **0 — close as done** |
+| `4ba1adaa` readiness: collecting | same | 87 — still outstanding |
+| `845ed277` tune_low_yield_profiles | `profilesNeedingTuning` | 1 — still outstanding |
+| `ddd94480` feedback precision | `scorerRelevantDismissals` | 39 — still outstanding |
+| `76f32542` feedback conflicts | `watchedConflicts` | 4 — still outstanding |
+| `1f2b47e0` investigate_agent_failures | failed runs in 24h | **close as done, see below** |
+| `aa1ce91b` resolve_agent_incidents | open incidents | **close as done, see below** |
+
+**A rolling window is not a queue that drains.** Those last two measure a 24-hour window and an incident list, so a non-zero count can be entirely new trouble rather than the work the action was raised for. Both are in exactly that state: `1f2b47e0` was raised 21 Aug for the eBay failures (long since configured), and `aa1ce91b` 7 Sep for an incident that was resolved — yet both now match today's curator timeout and the incident it raised. The probes compare every item's timestamp against the approval, and when all of them postdate it the verdict says so plainly and prints the items, rather than calling new trouble old work. Without that, both would read STILL OUTSTANDING and a person would go looking for a failure that no longer exists.
+
+**Not covered by a test.** This script is read-only tooling with no unit test, and its verdicts are meant to be checked against the evidence lines printed beside them, not trusted blind.
+
 ### Gate
 
-Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed. Run twice — once after the shadow-test change, once after the probes.
 
 ## Next — all of these need a person, not another migration
 

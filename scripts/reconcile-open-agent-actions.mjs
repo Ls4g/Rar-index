@@ -17,6 +17,8 @@
 // closed. One whose queue is still full is live work, not clutter.
 import { createClient } from "@supabase/supabase-js";
 import { isExecutableAgentAction } from "../lib/agentActionExecution.ts";
+import { readScoutBacklog, diagnoseScoutBacklog } from "../lib/scoutDiagnostics.ts";
+import { analyseLiveScoutFeedback } from "../lib/scoutFeedback.ts";
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -26,6 +28,45 @@ async function countRows(table, apply) {
   if (error) return { error: error.message };
   return { count: count ?? 0 };
 }
+
+// The measures below reuse the planner's own modules rather than restating
+// their rules here. "Fewer than one in four leads reviewable over at least
+// ten" and "which dismissals are scorer-relevant" are real definitions that
+// live in lib/; a second copy in this script would drift from the thing it
+// claims to measure, exactly as the scout_review_now probe did.
+//
+// Each is read once and reused: they are whole-table reads, and most runs
+// need at most one of them.
+// `investigate_agent_failures` and `resolve_agent_incidents` measure a rolling
+// window rather than a queue that drains, so a non-zero count does not mean
+// this action's work is outstanding -- it can be entirely new trouble that
+// arrived long afterwards, which the planner raises its own action for. When
+// every item postdates the approval, the thing it was raised about is gone.
+function allAfter(timestamps, action) {
+  if (!timestamps.length) return false;
+  const decidedAt = Date.parse(action.reviewed_at ?? action.created_at);
+  return timestamps.every((stamp) => Date.parse(stamp) > decidedAt);
+}
+
+const once = new Map();
+function cached(key, load) {
+  if (!once.has(key)) once.set(key, load());
+  return once.get(key);
+}
+const scoutFeedback = () => cached("feedback", () => analyseLiveScoutFeedback(admin));
+const scoutBacklog = () => cached("backlog", async () => diagnoseScoutBacklog(await readScoutBacklog(admin)));
+// The same derivation agentRuntime uses, so a readiness status is bucketed
+// here exactly as it was when the planner raised the action.
+const readinessCounts = () => cached("readiness", async () => {
+  const { data, error } = await admin.from("edition_readiness").select("readiness_status");
+  if (error) throw new Error(error.message);
+  const counts = new Map();
+  for (const row of data ?? []) {
+    const status = String(row.readiness_status ?? "unknown").replace(/[^a-z0-9_]/g, "_");
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  return counts;
+});
 
 // What "still outstanding" means for each kind of human work, expressed as the
 // queue the action was telling someone to go and clear.
@@ -43,6 +84,49 @@ const OUTSTANDING_WORK = {
   triage_scout_leads: () => countRows("scout_listing_leads", (q) => q.eq("review_status", "new")),
   review_community_reports: () => countRows("community_sale_reports", (q) => q.eq("status", "pending")),
   review_sales_evidence: () => countRows("price_observations", (q) => q.eq("match_status", "needs_review")),
+
+  // A readiness bottleneck names one status in its dedupe key
+  // (operator:readiness:readiness_search_ready). Counting the whole table
+  // would call every bottleneck outstanding forever.
+  resolve_readiness_bottleneck: async (action) => {
+    const key = (action.dedupe_key ?? "").split(":").pop();
+    if (!key?.startsWith("readiness_")) return { error: "the action does not name a readiness status" };
+    const counts = await readinessCounts();
+    return { count: counts.get(key.replace("readiness_", "")) ?? 0, note: `status ${key.replace("readiness_", "")}` };
+  },
+
+  // These two are rolling windows, not queues that drain: a count above zero
+  // can be entirely different work from what the action was raised for. So
+  // they report what is there now rather than just how many, and the lines
+  // are what tell a person whether it is the same thing.
+  investigate_agent_failures: async (action) => {
+    const cutoff = new Date(Date.now() - 86_400_000).toISOString();
+    const { data, error } = await admin.from("agent_runs").select("agent_key,started_at,error_message")
+      .eq("status", "failed").gte("started_at", cutoff).order("started_at", { ascending: false });
+    if (error) return { error: error.message };
+    return {
+      count: data.length,
+      allNewerThanApproval: allAfter(data.map((run) => run.started_at), action),
+      note: "failed runs in the last 24 hours (a rolling window, not a queue that drains)",
+      lines: data.map((run) => `${run.started_at} ${run.agent_key}: ${run.error_message ?? "no error recorded"}`),
+    };
+  },
+  resolve_agent_incidents: async (action) => {
+    const { data, error } = await admin.from("agent_incidents")
+      .select("id,title,incident_key,severity,created_at,details").eq("status", "open")
+      .order("created_at", { ascending: false });
+    if (error) return { error: error.message };
+    return {
+      count: data.length,
+      allNewerThanApproval: allAfter(data.map((incident) => incident.created_at), action),
+      note: "open incidents",
+      lines: data.map((incident) => `${incident.created_at} [${incident.severity}] ${incident.title} — ${incident.details?.summary ?? incident.incident_key}`),
+    };
+  },
+
+  tune_low_yield_profiles: async () => ({ count: (await scoutBacklog()).profilesNeedingTuning, note: "profiles with 10+ leads and under a quarter reviewable" }),
+  review_scout_feedback_conflicts: async () => ({ count: (await scoutFeedback()).watchedConflicts.length, note: "watched leads the current scorer calls edition conflicts" }),
+  review_scout_feedback_precision: async () => ({ count: (await scoutFeedback()).scorerRelevantDismissals.length, note: "scorer-relevant dismissals among leads scoring 50+" }),
 };
 
 // The planner's own metric for each recurring job, read from the evidence it
@@ -179,12 +263,24 @@ for (const action of open) {
     summary.needsLook.push(action.id);
     continue;
   }
-  const outstanding = await probe();
+  // A probe that throws must not read as an empty queue -- that would close a
+  // live action on a network blip.
+  let outstanding;
+  try {
+    outstanding = await probe(action);
+  } catch (probeError) {
+    outstanding = { error: probeError instanceof Error ? probeError.message : "the probe failed" };
+  }
+  if (outstanding.note) console.log(`  measured: ${outstanding.note}`);
+  for (const detail of outstanding.lines ?? []) console.log(`    ${detail}`);
   if (outstanding.error) {
     console.log(`  VERDICT: NEEDS A LOOK. Could not read the queue: ${outstanding.error}`);
     summary.needsLook.push(action.id);
   } else if (outstanding.count === 0) {
     console.log("  VERDICT: CLOSE AS DONE. The queue this action pointed at is now empty, so the work was done and the action was never closed.");
+    summary.closeAsDone.push(action.id);
+  } else if (outstanding.allNewerThanApproval) {
+    console.log(`  VERDICT: CLOSE AS DONE. Every one of the ${outstanding.count} item(s) above appeared AFTER this approval, so what it was raised about is gone. The new trouble gets its own action from the planner; do not read this as the same work.`);
     summary.closeAsDone.push(action.id);
   } else {
     console.log(`  VERDICT: STILL OUTSTANDING. ${outstanding.count} item(s) remain in that queue; this is live work, not clutter.`);
