@@ -17,16 +17,18 @@ function isManga(candidate: SoldSearchCandidate) {
 }
 
 function priorityLane(candidate: SoldSearchCandidate) {
-  if (isManga(candidate) && candidate.comparableRawSales === 0) return 0;
-  if (isManga(candidate)) return 1;
-  return 2;
+  return isManga(candidate) ? 0 : 1;
 }
 
 function evidenceRank(count: number) {
-  if (count === 2) return 0;
-  if (count === 4) return 1;
-  if (count === 1) return 2;
-  if (count === 3) return 3;
+  // Consolidate evidence before widening it: first finish publications that
+  // are one sale from strong coverage, then unlock a chart for publications
+  // that already have two comparable sales.
+  if (count === 4) return 0;
+  if (count === 2) return 1;
+  if (count === 3) return 2;
+  if (count === 1) return 3;
+  if (count === 0) return 4;
   return 4;
 }
 
@@ -46,11 +48,11 @@ export function prioritiseSoldSearches(candidates: SoldSearchCandidate[], limit 
 }
 
 export function soldSearchReason(count: number, collectibleType: string | null = "tankobon") {
-  if ((collectibleType ?? "tankobon") === "tankobon" && count === 0) return "Top priority: manga with no verified raw sale";
+  if ((collectibleType ?? "tankobon") === "tankobon" && count === 0) return "Needs three verified raw sales to unlock a chart";
   if (count === 2) return "One verified raw sale could unlock its chart";
   if (count === 4) return "One verified raw sale reaches strong coverage";
   if (count === 1) return "Two more verified raw sales could unlock a chart";
-  if (count === 3) return "Chart ready; one more sale strengthens it";
+  if (count === 3) return "Chart ready; two more sales reach strong coverage";
   return "No verified raw sale yet";
 }
 

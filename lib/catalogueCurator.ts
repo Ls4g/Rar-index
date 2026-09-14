@@ -360,6 +360,45 @@ type CatalogueLookup = {
   warnings: string[];
 };
 
+type CataloguePreparationError = {
+  message: string;
+  code?: string | null;
+};
+
+type CataloguePreparationResponse<T> = {
+  data: T | null;
+  error: CataloguePreparationError | null;
+};
+
+export function isTransientCataloguePreparationError(error: CataloguePreparationError | null) {
+  if (!error) return false;
+  const detail = `${error.code ?? ""} ${error.message}`;
+  return /(?:^|\D)(?:502|503|504)(?:\D|$)|gateway timeout|service unavailable|fetch failed|connection reset|econnreset/i.test(detail);
+}
+
+export async function runCataloguePreparationRead<T>(
+  label: string,
+  read: () => PromiseLike<CataloguePreparationResponse<T>>,
+  retryDelayMs = 250,
+) {
+  let result: CataloguePreparationResponse<T> = { data: null, error: { message: "Unknown catalogue preparation failure." } };
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      result = await read();
+    } catch (caught) {
+      result = {
+        data: null,
+        error: { message: caught instanceof Error ? caught.message : "Catalogue preparation request failed." },
+      };
+    }
+    if (!result.error || attempt === 2 || !isTransientCataloguePreparationError(result.error)) {
+      return { ...result, label, attempts: attempt };
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
+  return { ...result, label, attempts: 2 };
+}
+
 async function findCandidates(target: CatalogueDiscoveryTarget): Promise<CatalogueLookup> {
   if (target.source === "open_library") {
     return { sourceName: "Open Library", candidates: await searchOpenLibraryCatalogue(target.query), warnings: [] };
@@ -393,13 +432,15 @@ async function findCandidates(target: CatalogueDiscoveryTarget): Promise<Catalog
 
 export async function stageCatalogueCandidates(admin: SupabaseClient, runId: string): Promise<CatalogueCuratorResult> {
   const [requestResult, editionResult, queueResult, sourceResult] = await Promise.all([
-    admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100),
-    admin.from("manga_editions").select("title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000),
-    admin.from("catalogue_import_queue").select("source_id,external_id,candidate_title,candidate_series,candidate_volume_number,candidate_language,candidate_isbn_13,raw_payload").limit(5000),
-    admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library", "OpenBD"]),
+    runCataloguePreparationRead("catalogue requests", () => admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100)),
+    runCataloguePreparationRead("verified editions", () => admin.from("manga_editions").select("title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000)),
+    runCataloguePreparationRead("catalogue import queue", () => admin.from("catalogue_import_queue").select("source_id,external_id,candidate_title,candidate_series,candidate_volume_number,candidate_language,candidate_isbn_13,raw_payload").limit(5000)),
+    runCataloguePreparationRead("catalogue sources", () => admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library", "OpenBD"])),
   ]);
-  const error = requestResult.error || editionResult.error || queueResult.error || sourceResult.error;
-  if (error) throw new Error(`Catalogue Curator could not prepare discovery: ${error.message}`);
+  const failedRead = [requestResult, editionResult, queueResult, sourceResult].find((result) => result.error);
+  if (failedRead?.error) {
+    throw new Error(`Catalogue Curator could not prepare discovery (${failedRead.label}, ${failedRead.attempts} attempt${failedRead.attempts === 1 ? "" : "s"}): ${failedRead.error.message}`);
+  }
 
   const requests = (requestResult.data ?? []) as CatalogueDiscoveryRequest[];
   const editions = (editionResult.data ?? []) as CatalogueDiscoveryEdition[];

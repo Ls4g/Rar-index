@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { candidateMatchesDiscoveryTarget, cataloguePublisherMatches, planCatalogueDiscoveryTargets, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
+import { candidateMatchesDiscoveryTarget, cataloguePublisherMatches, planCatalogueDiscoveryTargets, runCataloguePreparationRead, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
 import { catalogueApprovalProblem } from "../lib/catalogueApprovalGuard.ts";
 
 assert.equal(volumeFromCatalogueTitle("ONE PIECE 2"), 2);
@@ -75,6 +75,24 @@ assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_ti
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece, Vol. 2: Buggy the Clown", candidate_volume_number: "2" }, target), true);
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "One Piece Academy, Vol. 2" }, target), false);
 assert.equal(cataloguePublisherMatches("SHONEN JUMP ADVANCED", "VIZ Media"), true);
+
+let transientAttempts = 0;
+const recoveredRead = await runCataloguePreparationRead("verified editions", async () => {
+  transientAttempts += 1;
+  return transientAttempts === 1
+    ? { data: null, error: { message: "Gateway Timeout", code: "504" } }
+    : { data: [{ id: "edition-1" }], error: null };
+}, 0);
+assert.equal(recoveredRead.attempts, 2);
+assert.deepEqual(recoveredRead.data, [{ id: "edition-1" }]);
+
+let permanentAttempts = 0;
+const rejectedRead = await runCataloguePreparationRead("catalogue sources", async () => {
+  permanentAttempts += 1;
+  return { data: null, error: { message: "permission denied", code: "42501" } };
+}, 0);
+assert.equal(rejectedRead.attempts, 1);
+assert.equal(permanentAttempts, 1);
 
 const isbnTarget = { ...target, isbn13: "9781591160571", volumeNumber: null };
 assert.equal(candidateMatchesDiscoveryTarget({ ...correctCandidate, candidate_title: "Unexpected catalogue title" }, isbnTarget), true);
