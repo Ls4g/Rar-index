@@ -74,8 +74,19 @@ if (openResult.error) { console.error("Could not read agent actions:", openResul
 const open = openResult.rows;
 if (!openResult.leaseColumns) console.log("\n(The durable-execution migration is not applied yet, so lease columns are not shown.)");
 
-const { data: ruleVersions } = await admin.from("scout_rule_versions")
-  .select("id,rule_key,status,created_at").order("created_at", { ascending: false });
+// source_action_id is the rule version's own record of which action created
+// it, so "did this shadow test already run?" is a lookup, not an inference
+// from timestamps. The error is NOT ignored: a failed read here used to fall
+// through to "RUN IT", which would tell someone to re-run a shadow test that
+// had already run and write a duplicate candidate rule version.
+const { data: ruleVersions, error: ruleVersionsError } = await admin.from("scout_rule_versions")
+  .select("id,rule_key,version,status,source_action_id,created_at").order("created_at", { ascending: false });
+if (ruleVersionsError) { console.error("Could not read scout rule versions:", ruleVersionsError.message); process.exit(1); }
+const ruleVersionsByAction = new Map();
+for (const rule of ruleVersions ?? []) {
+  if (!rule.source_action_id) continue;
+  ruleVersionsByAction.set(rule.source_action_id, [...(ruleVersionsByAction.get(rule.source_action_id) ?? []), rule]);
+}
 const { data: runs } = await admin.from("agent_runs")
   .select("id,agent_key,status,started_at,finished_at,error_message,trigger_source")
   .order("started_at", { ascending: false }).limit(200);
@@ -138,16 +149,23 @@ for (const action of open) {
   if (siblings > 0) console.log(`  This is the current approval for its job; ${siblings} older one(s) are superseded.`);
 
   if (executable) {
-    // Did anything actually run after the approval? For a shadow test that
-    // means a candidate rule version; there is no other trace it could leave.
-    const since = ruleVersions?.filter((rule) => Date.parse(rule.created_at) > Date.parse(decidedAt)) ?? [];
-    const ran = action.action_type.startsWith("shadow_test_") ? since.length > 0 : null;
+    // Did anything actually run for THIS action? For a shadow test the trace
+    // is a candidate rule version stamped with the action's own id.
+    //
+    // Before `6d7e753` the execute path ran the shadow test on any approval,
+    // whether or not running had been asked for, while the status update only
+    // advanced to "executed" when it had. So a plain approval did the work and
+    // left the row looking undone. Five actions are in exactly that state;
+    // re-running them would write a duplicate candidate rule version for a
+    // test that has already produced its answer.
+    const produced = ruleVersionsByAction.get(action.id) ?? [];
     if (action.executed_at) {
       console.log("  VERDICT: already executed; the open status is stale.");
       summary.closeAsDone.push(action.id);
-    } else if (ran) {
-      console.log(`  VERDICT: NEEDS A LOOK. ${since.length} candidate rule version(s) appeared after this approval, so a shadow test may have run under a different action. Compare before re-running.`);
-      summary.needsLook.push(action.id);
+    } else if (produced.length) {
+      for (const rule of produced) console.log(`  this action already produced ${rule.rule_key} v${rule.version} (${rule.status}, ${rule.created_at})`);
+      console.log("  VERDICT: CLOSE AS DONE. The shadow test ran and left its candidate rule version; only the status is stale. Do NOT re-run — that writes a duplicate candidate.");
+      summary.closeAsDone.push(action.id);
     } else {
       console.log("  VERDICT: RUN IT. Machine-executable, approved, and no execution evidence exists.");
       summary.runNow.push(action.id);

@@ -325,6 +325,53 @@ The one opportunity `graded_slab` destroys is `BGS 7.0 Demon Slayer Kimetsu no Y
 
 Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
 
+## Phase 4 — approvals reclassified, one new curator failure diagnosed (14 September 2026)
+
+Read 2026-09-14T~19:00Z. Read-only throughout: **nothing was written, nothing closed, nothing run.**
+
+### Five open approvals had already done their work
+
+The count is still 26, but three of the ten "needs a human look" actions are now answerable from evidence, and two more were already covered by the superseded rule.
+
+`scout_rule_versions.source_action_id` records which action created each rule version. Every one of the 8 shadow-test actions ever raised produced **exactly one** rule version, and none is orphaned. So "did this shadow test run?" is a lookup, not an inference — and all five open shadow-test approvals had already run:
+
+| Action | Produced |
+| --- | --- |
+| `71d336c5` shadow_test_multi_volume_detection | `multi-volume-language` v1 (26 Aug) |
+| `d615840b` shadow_test_first_print_proof_gate | `first-print-proof` v1 (2 Sep) |
+| `fa7d13eb` shadow_test_edition_conflicts | `edition-conflict-language` v1 (4 Sep) |
+| `153a48b5` shadow_test_multi_volume_detection | `multi-volume-language` v2 (11 Sep) |
+| `835f3dc1` shadow_test_first_print_proof_gate | `first-print-proof` v2 (11 Sep) |
+
+**Root cause.** Before `6d7e753` (11 Sep) the execute path read `if (decision === "approved" && action.action_type.startsWith("shadow_test_"))` — it ran the shadow test on *any* approval, while `finalStatus` only advanced to `executed` when running had actually been asked for. A plain approval therefore did the work and left the row looking undone. That is the whole split: the three actions marked `executed` were approve-and-run, the five stuck at `approved` were approve-only. `6d7e753` gated it on `execute` and fixed this going forward, but nothing reconciled the five rows already in that state.
+
+**Do not re-run these.** Each would write a duplicate candidate rule version for a test that already produced its answer.
+
+### Two defects repaired in the reconcile script
+
+1. **It was guessing from timestamps.** The shadow verdict counted rule versions created *after* the approval and returned "NEEDS A LOOK — compare before re-running". It now matches on `source_action_id` and returns CLOSE AS DONE naming the exact rule version.
+2. **A failed rule read silently became "RUN IT".** `const { data: ruleVersions } = await ...` ignored its error, so an unreadable `scout_rule_versions` left the map empty and every shadow test fell through to "RUN IT" — advice to re-run work that had already run. The error now exits non-zero. (Found by hitting it: a scratch script selecting a non-existent `notes` column reported "0 rule versions created after" for all five actions, which was the bug, not a finding.)
+
+New verdict split: superseded 11, run it 1, **close as done 5** (was 2), still outstanding 2, **needs a human look 7** (was 10).
+
+### One new agent failure, already fixed by `5b4aefa`
+
+`catalogue_curator` failed on the 11:36 UTC schedule on 14 Sep: `could not prepare discovery: Gateway Timeout`. The other **21 of 22** curator runs in the last 14 days succeeded, so this is a one-off transient Supabase read failure, not a persistent defect.
+
+The recorded message has no `(label, N attempts)` suffix, so the run used the pre-fix code. `5b4aefa` (14 Sep 17:25 UTC, ~6h *after* the failing run) added `runCataloguePreparationRead` — one retry on 502/503/504, gateway timeout, service unavailable, fetch failed and connection reset, with the failing read now named in the error. **The fix is committed and pushed; there is nothing to repair here.**
+
+Open incident `f6fcc37f` "An agent cycle needs inspection" (`consecutive_failures: 1`) was raised at 11:36:25 on that same run, and is what approval `aa1ce91b resolve_agent_incidents` points at.
+
+**Not yet evidence:** no scheduled curator run has happened since the fix. The next one (15 Sep 11:36 UTC) is what would confirm it. Deployment of `5b4aefa` was not verified either.
+
+### `586c8108 scan_stale_profiles` cannot be run from this machine
+
+It is the one "RUN IT" verdict, but executing it calls `runScoutBatch(admin, { limit: 20, dueOnly: true })`, which hits eBay. `.env.local` holds `CRON_SECRET`, both Supabase keys, the anon URL and the throwaway staff credentials — and **no eBay credentials** (checked, not assumed). Attempting it locally would fail inside the try block and write a failed run row for nothing. It needs a person on the deployed `/agents` screen.
+
+### Gate
+
+Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.
