@@ -186,6 +186,7 @@ export default function AgentControlCentre({
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
+  const [closeReasons, setCloseReasons] = useState<Record<string, string>>({});
   const [resolvedActionIds, setResolvedActionIds] = useState<Set<string>>(() => new Set());
   const [ebayHealth, setEbayHealth] = useState(initialEbayHealth);
 
@@ -228,7 +229,7 @@ export default function AgentControlCentre({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The command failed.");
-      if (body.command === "review_action" && typeof body.actionId === "string") {
+      if ((body.command === "review_action" || body.command === "close_action") && typeof body.actionId === "string") {
         setResolvedActionIds((current) => new Set(current).add(body.actionId as string));
       }
       setMessage(typeof result.message === "string" ? result.message : "Agents updated.");
@@ -243,6 +244,15 @@ export default function AgentControlCentre({
   const lastRun = new Map<string, Run>();
   for (const run of runs) if (!lastRun.has(run.agent_key)) lastRun.set(run.agent_key, run);
   const proposed = actions.filter((action) => action.status === "proposed" && !resolvedActionIds.has(action.id));
+  // Everything a person has already approved and that has not finished.
+  //
+  // This had no surface at all. The proposal list renders only "proposed", so
+  // approving an action removed it from the page: 22 of 26 open approvals
+  // were unreachable from any screen, and the 4 feedback ones below rendered
+  // as plain text with no controls. An approved machine-executable action
+  // could not be run and a finished one could not be cleared, so the backlog
+  // could only ever grow.
+  const openApprovals = actions.filter((action) => action.status === "approved" && !resolvedActionIds.has(action.id));
   const plannedFeedback = actions.filter((action) => action.status === "approved" && isFeedbackAction(action));
   const executed = actions.filter((action) => action.status === "executed").slice(0, 10);
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
@@ -276,6 +286,7 @@ export default function AgentControlCentre({
         </div>
         <div className="agent-workbench-grid">
           <Link href="#agent-recommendations"><strong>{proposed.length}</strong><span>agent recommendations</span><small>Review suggested work</small></Link>
+          <Link href="#agent-open-approvals"><strong>{openApprovals.length}</strong><span>open approvals</span><small>Work you approved that has not finished</small></Link>
           <Link href="/scout"><strong>{scoutReviewCount}</strong><span>Scout leads for people</span><small>Open the filtered inbox</small></Link>
           <Link href="/review"><strong>{evidenceReviewCount}</strong><span>evidence decisions</span><small>Review sales and printing proof</small></Link>
         </div>
@@ -355,6 +366,55 @@ export default function AgentControlCentre({
           const isRunning = busy === `approve-${action.id}`;
           return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{acceptsExtraPhrases ? <label className="agent-rule-phrases"><span>Optional extra phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder="RAR will derive safe phrases from the examples" value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: canExecute, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isRunning ? canExecute ? "Running…" : "Saving…" : canExecute ? "Approve and run" : isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
+      </section>
+
+      <section className="agent-proposals agent-open-approvals" id="agent-open-approvals">
+        <div className="section-intro">
+          <p className="eyebrow">Already approved</p>
+          <h2>Open approvals</h2>
+          <p className="section-copy">
+            Work you have already agreed to that has not finished. A machine-executable one can be run here; anything
+            already done or replaced by a newer approval can be closed with a reason. Closing records that the work
+            ended — it never rewrites your original decision.
+          </p>
+        </div>
+        {openApprovals.length ? <div className="agent-proposal-list">{openApprovals.map((action) => {
+          const workQueue = ACTION_LINKS[action.action_type];
+          const canExecute = isExecutableAgentAction(action.action_type);
+          const reason = closeReasons[action.id] ?? "";
+          return (
+            <article key={action.id}>
+              <div>
+                <span>{action.agent_key.replaceAll("_", " ")} · approved</span>
+                <h3>{action.title}</h3>
+                <p>{action.rationale}</p>
+                <small>{formatTime(action.created_at)}</small>
+              </div>
+              <div>
+                {workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}
+                {canExecute ? (
+                  <button disabled={Boolean(busy)} onClick={() => command(`run-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: true, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">
+                    {busy === `run-${action.id}` ? "Running…" : "Run now"}
+                  </button>
+                ) : null}
+                {/* The reason is required by the API, so the button stays dead
+                    until there is one. A closed approval is the only record of
+                    what happened to the work. */}
+                <label className="agent-close-reason">
+                  <span>Why is this closed?</span>
+                  <input
+                    onChange={(event) => setCloseReasons((current) => ({ ...current, [action.id]: event.target.value }))}
+                    placeholder="Superseded by a newer approval, or the queue is already clear"
+                    value={reason}
+                  />
+                </label>
+                <button className="secondary" disabled={Boolean(busy) || reason.trim().length < 3} onClick={() => command(`close-${action.id}`, { command: "close_action", actionId: action.id, reason: reason.trim() })} type="button">
+                  {busy === `close-${action.id}` ? "Closing…" : "Close as done"}
+                </button>
+              </div>
+            </article>
+          );
+        })}</div> : <div className="review-empty agent-empty-compact"><strong>No approvals are open.</strong><p>Everything you have approved has either run or been closed.</p></div>}
       </section>
 
       <section className="agent-team-section">

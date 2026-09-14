@@ -2683,6 +2683,14 @@ html[data-theme="day"] .public-page {
 .agent-rule-phrases { display: grid; gap: .35rem; margin: .75rem 0; }
 .agent-rule-phrases span { color: #bdb4a9; font-size: .65rem; }
 .agent-rule-phrases input { width: min(36rem, 100%); }
+
+/* The close reason sits in the action column beside the buttons. Its label
+   has to opt out of the uppercase orange eyebrow that .agent-proposal-list
+   span sets, the same way .agent-rule-phrases span does. */
+.agent-close-reason { display: grid; gap: .3rem; }
+.agent-close-reason span { color: #bdb4a9; font-size: .65rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.agent-close-reason input { width: min(20rem, 100%); padding: .6rem .7rem; border: 1px solid rgba(255,255,255,.16); border-radius: .4rem; background: #11100e; color: #f5eee4; }
+.agent-open-approvals .agent-proposal-list article { border-color: rgba(223,118,95,.22); }
 .agent-feedback-examples { margin: .7rem 0; }
 .agent-feedback-examples summary { color: #7fe0b9; cursor: pointer; font-size: .72rem; font-weight: 800; }
 .agent-feedback-examples ul { display: grid; gap: .45rem; margin: .55rem 0 0; padding: 0; list-style: none; }

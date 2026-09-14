@@ -84,6 +84,55 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
 
+    // Closing an approval is deliberately NOT a decision. `review_action`
+    // refuses anything but a proposal precisely so an approval cannot be
+    // rewritten behind the approver's back, and that guarantee stays — this
+    // command cannot touch a proposal, cannot reject anything, and never
+    // rewrites reviewed_by or reviewed_at. It records that work a person
+    // already approved is finished or superseded, which until now had no
+    // path at all: 22 approved actions were unreachable from any screen and
+    // the remaining 4 rendered as plain text with no controls.
+    //
+    // The reason is required. Bulk-clearing a backlog without one destroys
+    // exactly the information anyone would later want, and "cancelled" on
+    // its own cannot tell a finished job apart from an abandoned one.
+    if (command === "close_action") {
+      const actionId = clean(payload.actionId);
+      const reason = clean(payload.reason);
+      if (!actionId) return Response.json({ error: "Choose an approved action to close." }, { status: 400 });
+      if (reason.length < 3) return Response.json({ error: "Say why this approval is being closed — it is the only record of what happened to the work." }, { status: 400 });
+
+      const { data: action, error: readError } = await admin.from("agent_actions")
+        .select("id,status,title,review_notes,execution_status,lease_owner,lease_expires_at")
+        .eq("id", actionId).eq("status", "approved").maybeSingle();
+      if (readError) throw new Error(readError.message);
+      if (!action) return Response.json({ error: "That action is not an open approval. Refresh the list." }, { status: 409 });
+
+      // A claimed action is mid-run somewhere else. Closing it would strand
+      // the worker holding the lease.
+      if (action.execution_status === "running" && action.lease_expires_at && Date.parse(action.lease_expires_at) > Date.now()) {
+        return Response.json({ error: `This action is running (claimed by ${action.lease_owner ?? "unknown"}). Wait for it to finish before closing it.` }, { status: 409 });
+      }
+
+      // Conditioned on status so two people closing at once cannot both win.
+      const { data: closed, error: closeError } = await admin.from("agent_actions").update({
+        status: "cancelled",
+        review_notes: [action.review_notes, `Closed by ${reviewer}: ${reason}`].filter(Boolean).join(" · "),
+      }).eq("id", actionId).eq("status", "approved").select("id").maybeSingle();
+      if (closeError) throw new Error(closeError.message);
+      if (!closed) return Response.json({ error: "Another request closed this action first." }, { status: 409 });
+
+      await admin.from("agent_action_events").insert({
+        action_id: actionId,
+        previous_status: "approved",
+        next_status: "cancelled",
+        actor: reviewer,
+        notes: reason,
+        details: { closed_without_executing: true, title: action.title },
+      });
+      return Response.json({ ok: true });
+    }
+
     if (command === "review_action") {
       const actionId = clean(payload.actionId);
       const decision = clean(payload.decision);

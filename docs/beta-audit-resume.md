@@ -394,6 +394,37 @@ The probes reuse the planner's own modules — `analyseLiveScoutFeedback`, `read
 
 Full suite 80 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed. Run twice — once after the shadow-test change, once after the probes.
 
+## Phase 5 — open approvals had no UI at all (14 September 2026)
+
+Found by asking SP to close the 19 finished approvals and run `scan_stale_profiles`, and being told neither could be found. They could not: **neither action was possible in the product.**
+
+### What was missing
+
+`/agents` renders three lists — `proposed` (full cards with buttons), approved *feedback* actions (as bare text, no controls), and the last 10 executed. Approving an action therefore removed it from every screen:
+
+- **22 of the 26 open approvals rendered nowhere.** Including `586c8108 scan_stale_profiles`, the one machine-executable action. The API would have run it — `review_action` accepts `approved` when `execute: true` — but nothing in the UI could call that.
+- **Closing was impossible by any route.** `review_action` selects `.in("status", execute ? ["proposed", "approved"] : ["proposed"])`, so a decision without execute only matches a proposal. There was no path, UI or API, to close an approved action. The backlog could only grow.
+
+This is the second half of the one-way door recorded in `preflightAgentAction`: that comment fixed the API's refusal to *run* an approved action, but nothing ever gave the UI a way to *reach* one.
+
+### What was built
+
+An **Open approvals** section on `/agents` listing every approved, unfinished action, with a Run button for executable ones and a Close button for the rest, plus a count in the "What needs you" summary.
+
+Closing is a new `close_action` command, deliberately **not** a decision. `review_action`'s refusal to touch anything but a proposal is the guarantee that an approval cannot be rewritten behind the approver's back, and it is untouched. `close_action` cannot match a proposal, cannot reject anything, and **never rewrites `reviewed_by` or `reviewed_at`** — the original decision stays exactly as the person made it. It writes `cancelled` plus a required reason into `review_notes` and an `agent_action_events` row. No migration: `cancelled` is already in the status constraint, and the reason is what tells a finished job from an abandoned one.
+
+Guards: a live lease refuses the close rather than stranding the worker holding it, and the update is conditioned on the status so two simultaneous closes resolve to one winner instead of both reporting success.
+
+### Evidence
+
+`scripts/test-agent-open-approvals.mjs` — 28 checks, no credentials, in `test:workflows`. Pins every invariant above, including that `review_action`'s original guarantee still holds and that the close button stays dead without a reason (the API refuses a short one, so the UI must not offer a round trip that can only fail).
+
+**Rendering is unverified.** `/agents` sits behind the staff login, so this has not been seen on any screen, desktop or phone. The compiled production CSS (`.next/static/chunks/1-y-zeclfiby3.css`) carries `.agent-close-reason`, its `text-transform: none` override of the uppercase eyebrow that `.agent-proposal-list span` would otherwise apply, `.agent-open-approvals`, and the existing `flex-direction: column` mobile stacking rule that the new section inherits. That is a check of the stylesheet, not of the page. **It needs a phone check.**
+
+### Gate
+
+Full suite 81 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.
