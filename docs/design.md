@@ -52,12 +52,13 @@ whisper-weight didone display face — it made the site read old.
   caution, and semantic colour is separate from the accent.
 - **One chromatic accent per surface.** If something new needs a colour,
   first ask what it is competing with.
-- **The agent console is deliberately one mood.** `/agents` and
-  `/agent-learning` stay dark in both themes. They are an operations console,
-  not a reading surface, and every rule in that block was written against a
-  dark canvas. The selector is `.review-page.agent-control-page` — qualified
-  so it outranks the editorial `.review-page` background, which is imported
-  later and would otherwise win. Other staff pages follow the theme normally.
+- **The agent console follows the theme like every other staff page.**
+  `/agents` and `/agent-learning` are not an exception. Their rules in
+  `globals.css` were written against a dark canvas and still hold literal
+  colours; those are overridden in `editorial-system.css`, which is where the
+  console's colour now lives. Add colour for that console there, in tokens —
+  a literal in `globals.css` will either be silently overridden or, worse,
+  win somewhere and be invisible in one theme.
 
 **Rejected:** warm cream (#F4F1EA) with a serif display and terracotta accent —
 the generic AI-design look. Colour-block cream panels as card fills.
@@ -161,8 +162,9 @@ credential gated by `proxy.ts`. Never add a third.
    (`.price-chart text`) outranks a bare class (`.chart-axis-label`) and will
    silently swallow it.
    **Import order counts too.** `editorial-system.css` is imported after
-   `globals.css`, so at equal specificity it wins. A page background written
-   as a bare class in `globals.css` is dead on any `.review-page`. This cost
-   a real bug: `/agents` was unreadable in Day for as long as the rule existed,
-   and Night masked it. Check the compiled chunks, not the source order —
-   the two files compile to separate CSS files.
+   `globals.css`, so at equal specificity it wins, and the two compile to
+   separate chunks — source order is not what decides it. `/agents` was
+   unreadable in Day because its containers had been brought into the theme
+   there while its text colours were left as Night literals here. Night masked
+   it completely. **When a surface is themed in one file and coloured in the
+   other, that is the bug** — check both before believing either.

@@ -412,3 +412,60 @@ html[data-theme="night"] :is(.home-page, .edition-page) {
   .public-mobile-theme { right: 122px; }
   .public-mobile-theme .theme-toggle button { padding-inline: .28rem; }
 }
+
+/* ---- Agent console -------------------------------------------------------
+   The console's own rules in globals.css were written against a dark canvas
+   and use literal colours. The containers above were already brought into the
+   theme; these are the text, border and panel colours that were left behind,
+   which is why /agents and /agent-learning were unreadable in Day -- #f5eee4
+   values and titles on a near-white surface, and a Resolve button that was
+   near-white on near-white. Tokens only. Do not reintroduce literals here.
+   ------------------------------------------------------------------------ */
+
+/* Panels and cards still carrying a dark or dark-assuming fill. */
+.review-page :is(.agent-proposals, .agent-proposal-list article, .agent-workbench-grid > a, .agent-learning-workbench, .agent-autopilot-panel, .agent-kill-switch, .agent-last-run) {
+  border-color: var(--rar-line);
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+}
+
+/* Values, headings and anything that must read as primary text. */
+.review-page :is(.agent-workbench-grid strong, .agent-workbench-grid span, .agent-autopilot-metrics b, .agent-incident-list strong, .agent-metrics b, .agent-feedback-planned strong),
+.review-page .agent-control-content .section-intro h2 { color: var(--rar-ink); }
+
+/* Supporting copy, labels and timestamps. */
+.review-page :is(.agent-workbench-heading p, .agent-workbench-grid small, .agent-autopilot-heading p, .agent-autopilot-metrics span, .agent-incident-list small, .agent-kill-switch p, .agent-identity-bar label span, .agent-identity-bar p, .agent-feedback-copy p:last-child, .agent-card > p, .agent-proposal-list p, .agent-proposal-list small),
+.review-page .agent-control-content .section-copy { color: var(--rar-muted); }
+
+/* Hairlines that were white-on-dark and vanish on a light surface. */
+.review-page :is(.agent-autopilot-metrics span, .agent-workbench-grid > a, .agent-proposal-list article, .agent-card button.secondary, .agent-proposal-list button.secondary, .agent-incident-list button) { border-color: var(--rar-line); }
+
+/* Secondary buttons -- Resolve was #e8dfd4 on #fbfbfa. */
+.review-page :is(.agent-incident-list button, .agent-card button.secondary, .agent-proposal-list button.secondary) {
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+}
+
+/* Semantic panels keep their meaning, mixed into the surface rather than
+   assuming a dark parent to sit on. */
+.review-page .agent-autopilot-panel {
+  border-color: var(--accent-info-text);
+  background: color-mix(in srgb, var(--accent-info-text) 8%, var(--rar-surface));
+}
+.review-page .agent-kill-switch {
+  border-color: var(--accent-positive-text);
+  background: color-mix(in srgb, var(--accent-positive-text) 8%, var(--rar-surface));
+}
+.review-page :is(.agent-autopilot-panel, .agent-kill-switch).is-paused {
+  border-color: var(--rar-red);
+  background: color-mix(in srgb, var(--rar-red) 8%, var(--rar-surface));
+}
+.review-page .agent-incident-list article {
+  border-color: var(--accent-warning-text);
+  background: color-mix(in srgb, var(--accent-warning-text) 8%, var(--rar-surface));
+}
+.review-page .agent-incident-list article.is-critical {
+  border-color: var(--rar-red);
+  background: color-mix(in srgb, var(--rar-red) 8%, var(--rar-surface));
+}
+.review-page :is(.agent-incident-list span, .agent-last-run em, .agent-workbench-heading > a) { color: var(--rar-red); }
