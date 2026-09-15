@@ -2511,7 +2511,14 @@ html[data-theme="day"] .public-page {
 /* Agent Control Centre: intentionally operational, legible and visibly safer
    than the public collector interface. Coral marks actions; green means a
    healthy observer; red is reserved for the global kill switch. */
-.agent-control-page { min-height: 100vh; background: #12110f; color: #f5eee4; }
+/* Qualified with .review-page on purpose. editorial-system.css is imported
+   after globals.css and sets `.public-page, .review-page { background:
+   var(--rar-canvas) }` at the same specificity, so a bare .agent-control-page
+   background lost the cascade and never applied. Night hid it -- --rar-canvas
+   is #101217 there -- but in Day the console rendered #f5eee4 text on a
+   #fbfbfa canvas and the values, incident titles and Resolve button were all
+   invisible. The console keeps one mood across both themes; see docs/design.md. */
+.review-page.agent-control-page { min-height: 100vh; background: #12110f; color: #f5eee4; }
 .agent-hero { background: radial-gradient(circle at 88% 20%, rgba(200,76,50,.18), transparent 28%), #1a1815; border-bottom-color: rgba(255,255,255,.09); }
 .agent-control-content { display: grid; gap: 1.25rem; width: 100%; max-width: 1240px; margin: auto; padding: 2rem clamp(1rem, 4vw, 4rem) 5rem; background: #12110f; }
 .agent-workbench { display: grid; gap: 1rem; padding: 1.4rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: #1b1916; }

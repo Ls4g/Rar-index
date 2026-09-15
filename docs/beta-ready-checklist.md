@@ -69,11 +69,29 @@ The gate is absolute, not comparative — `critical_safety_regressions: { passed
 
 **Proposed change, not yet built and awaiting SP:** keep the auto-dismissal case as a critical incident; report the completeness-check disagreements as a live count on `/agents` instead of a daily critical alarm, in the same shape as Phase 6's standing queues. Effect: alarms fire only when automation actually loses something.
 
+## Phone check 2026-09-15, and the Day-mode defect it found
+
+SP checked `/agents` and the public surfaces on a handset at ~23:01 local and reported every listed item clear: the "What needs you" tiles rendering and linking, the "Open approvals" heading and copy (the section is empty — 0 approved actions), the 7 recommendation cards, the homepage cover shelf swipe, and the `/review` grading card. **Gap 14's listed items are closed on a real handset.**
+
+SP also reported text that could not be read, with a screenshot. Diagnosed and fixed.
+
+**Not a Day-mode styling gap — a dead rule.** `globals.css` set `.agent-control-page { background: #12110f }` as a bare class. `editorial-system.css` is imported after it and sets `.public-page, .review-page { background: var(--rar-canvas) }` at the same specificity, so the later file won and the console background **never applied in either theme**. Night masked it because `--rar-canvas` is `#101217` there; in Day it is `#fbfbfa`, so `#f5eee4` text sat on a near-white canvas.
+
+**Why only part of the page broke.** Sections with a *solid* dark fill stayed legible — `.agent-workbench` (`#1b1916`), `.agent-proposals` (`#191714`), `.agent-proposal-list article` (`#211e1a`). Sections with a *translucent* fill that assumed a dark parent went pale and took their near-white text with them: `.agent-autopilot-panel` (`rgba(53,89,151,.1)`), `.agent-autopilot-metrics span` (`rgba(0,0,0,.14)`), `.agent-incident-list article` (`rgba(238,91,75,.09)`) and `.agent-kill-switch` (`rgba(93,204,159,.06)`). That is exactly what the screenshot shows: readable tiles, invisible cycle values, invisible incident titles, a ghosted Resolve button.
+
+**Scope:** two pages only — `/agents` and `/agent-learning`, the only routes carrying `agent-control-page`. Every other staff page uses plain `review-page catalogue-page` and follows the editorial tokens correctly.
+
+**Fix applied:** the selector is now `.review-page.agent-control-page` (0,2,0), which outranks the editorial `.review-page` background regardless of import order. SP chose keeping the console one mood across both themes over converting its ~20 literal colours to tokens; recorded in `docs/design.md`, along with a sharpened cascade warning about cross-file import order.
+
+**Gates:** lint 0 errors (the two pre-existing `EditionCover` warnings remain), `tsc --noEmit` clean, production build exit 0. Compiled CSS verified: `.review-page.agent-control-page{color:#f5eee4;background:#12110f;min-height:100vh}` is present and the bare rule is gone. `test:workflows` was **not** re-run — the change is CSS-only and touches no TypeScript or workflow logic.
+
+**Still unverified:** the fix itself. It needs a handset reload of `/agents` in Day mode to confirm the cycle values, incident titles and Resolve button are legible. Compiled-CSS inspection is not a page check.
+
 ## Gate 1 — Confirm the release and finish staff usability (IN PROGRESS)
 
 - [x] **VERIFIED 2026-09-15.** Match local commits to the deployed version using authorized read-only checks. Recount outcome views/queues, open actions by unique job, current incidents and recent runs over a named time window. Confirm whether the curator retry fix is deployed and inspect subsequent scheduled runs; a successful run demonstrates recovery, while targeted fault tests establish retry behavior.
 - [ ] **OPEN — rendering unverified; 20 production closes are functional evidence only.** Inspect `components/AgentControlCentre.tsx`, `app/api/agents/route.ts`, `lib/agentPlanning.ts` and `lib/agentRuntime.ts`. Verify Open approvals, Run/Close controls, required close reasons and live summary links in a real authenticated desktop browser and on a physical phone. Confirm all open items are reachable, failures remain visible, controls update after success and approval identity/timestamp are preserved.
-- [ ] Finish the specific handset gaps: homepage cover shelf swipe/link access; grading card raw/graded controls and source confirmation using the real component/route with isolated fixtures. Never manufacture a production grading conflict. Record fixture versus production evidence distinctly.
+- [x] **VERIFIED on a handset 2026-09-15; one defect found and repaired, repair itself still unverified.** Finish the specific handset gaps: homepage cover shelf swipe/link access; grading card raw/graded controls and source confirmation using the real component/route with isolated fixtures. Never manufacture a production grading conflict. Record fixture versus production evidence distinctly.
 - [ ] Verify navigation and representative interaction across `/review`, `/listing-outcomes`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and `/agents`. Reuse prior valid evidence for unchanged surfaces; concentrate fresh checks on changed or untested flows. Check hydration, keyboard/overflow and actionable error states. CSS inspection and desktop iframes do not establish handset success.
 
 Acceptance: current release identified; new staff surfaces rendered and usable; no inaccessible required action or false confirmation; exact remaining human-only checks listed. If a phone is unavailable, provide one concise checklist and keep that item BLOCKED.
