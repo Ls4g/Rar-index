@@ -1,5 +1,7 @@
 # Beta audit resume — second repair tranche
 
+> Superseded as a worklist on 15 September 2026 by [beta-ready-checklist.md](beta-ready-checklist.md). Read that checklist first for current execution priorities. This document preserves audit evidence and historical checkpoints; its older Next lists are not active instructions.
+
 Baseline for this tranche: main at `4ef7c9a`. Earlier tranche: `326ad78`, `bdbdd70`, checkpoint `4ef7c9a`. Everything below supersedes the previous status.
 
 ## Shipped and pushed
@@ -467,11 +469,33 @@ SP confirmed on a handset, nothing off: `/listing-outcomes` pager to page 2 and 
 
 ## Next — all of these need a person, not another migration
 
-1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.
-2. ~~**Resolve `ff81fb2f`.**~~ Done 13 Sep: BGS 8.5, confirmed correct by SP.
-3. **Work the 23 open approvals.** `node --experimental-strip-types --env-file=.env.local scripts/reconcile-open-agent-actions.mjs` gives a verdict per action: 1 to run, 1 already clear, 7 genuinely live, 14 needing a judgement.
-4. **Decide on graded leads.** `graded_slab` would cut Scout junk by roughly half but costs real buying opportunities. It needs its own queue rather than activation.
-5. **Investigate the 4 failed agent runs** out of the last 140.
-6. **Still unaudited:** `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile workflows.
+Rewritten 15 September 2026, after Phase 6. Everything previously listed here that is now closed has been removed; the gap table in `beta-audit-findings.md` carries the full record.
 
-Concurrency under two simultaneous connections remains untested — PGlite is a single backend and this machine has no Docker.
+### Needs a phone, and nothing else
+
+1. **Look at Phases 5 and 6 on a handset.** The Open approvals section, its Run and Close controls, and the summary tiles have never been seen on any screen. They exist as 51 passing checks and a compiled stylesheet. That is not a page check.
+2. **The grading card on `/review`.** Still unseen on a phone. With `ff81fb2f` resolved there may be no conflict left to render it, so a case may need constructing before it can be seen at all.
+3. **The homepage cover shelf swipe.** The one item left from the 14 September phone check.
+
+### Needs the deployed staff UI
+
+4. **Close the 19 finished approvals** on `/agents` — 11 superseded, 8 done. Phase 6 deliberately does not close these: an approval is a decision a person made. Each close needs a reason; that is what tells a finished job from an abandoned one.
+5. **Run `586c8108 scan_stale_profiles`.** The single machine-executable action. It calls `runScoutBatch` which hits eBay, and `.env.local` holds no eBay credentials (checked, not assumed), so it cannot be run from this machine — attempting it locally writes a failed run row for nothing.
+6. **Work the 6 genuinely outstanding actions:** 87 editions in readiness `collecting`, 1 low-yield profile to tune, 39 scorer-relevant dismissals, 4 watched conflicts, and the two remaining live queues. Verdicts and counts come from `node --experimental-strip-types --env-file=.env.local scripts/reconcile-open-agent-actions.mjs`, which writes nothing.
+
+### Needs a decision from SP
+
+7. **Whether `multi_volume_lot` leaves shadow.** Measured safe on holdout — junk rejection 17.7% → 49.6%, zero genuine opportunities lost. Held in shadow at your choice, and wired into nothing that runs. `graded_slab` stays in shadow permanently by design.
+
+### Needs infrastructure this machine does not have
+
+8. **Concurrency under two simultaneous connections.** PGlite is a single backend, so `for update` blocking a second session cannot be observed. Needs Docker or a real server; neither is available here, and no database password is either. The harness is written and self-refuses against production.
+9. **Availability throughput.** 31% of the junk staff see is unavailable listings, and the label is hindsight — no rule fixes it. The re-check examines ~25 listings per run against 2240 new leads.
+
+### Waiting on a clock
+
+10. **Confirm `5b4aefa`.** The curator retry fix shipped ~6h after the 14 Sep gateway timeout. The next scheduled run (15 Sep 11:36 UTC) is what would confirm it, and its deployment was never verified either.
+
+### The standing gap behind all of it
+
+**No staff decision *write* has been exercised against production.** Every verification so far has been read-only, on fixtures, or against synthetic data. Items 4 and 5 above would be the first — which is also why they are worth doing carefully rather than in bulk.

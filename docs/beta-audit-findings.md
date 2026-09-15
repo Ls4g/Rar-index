@@ -1,5 +1,7 @@
 # Beta audit — 13 September 2026
 
+> Superseded as a worklist on 15 September 2026 by [beta-ready-checklist.md](beta-ready-checklist.md). Findings and status tables below remain historical evidence; use the new checklist for readiness gates and next actions.
+
 This is the first repair tranche, not a beta-readiness certification. Baseline: main at `86f8b29`. No production evidence was created or corrected by the audit. No schema changes.
 
 ## Priority findings
@@ -88,24 +90,32 @@ Four PGlite suites run the shipped migration SQL against real PostgreSQL 18.3 �
 
 ## Remaining beta-readiness gaps
 
-Status as of 13 September 2026, after Phase 1. See `beta-audit-resume.md` for the evidence behind each line.
+Status as of 15 September 2026, after Phase 6. See `beta-audit-resume.md` for the evidence behind each line.
 
 | # | Gap | Status |
 | --- | --- | --- |
 | 1 | Three migrations unapplied | **Closed.** Applied and verified live, plus `20260913_beta_rpc_permissions.sql`. |
 | 2 | `ff81fb2f` needs a human | **Closed.** BGS 8.5, confirmed by SP, 2026-09-13T17:39Z. |
-| 3 | 23 legacy actions still open | **Recounted: 26, covering 15 distinct jobs.** The duplication cause is fixed and every action now has a disposition. 11 superseded, 1 to run, 2 closable, 2 live, 10 needing a person — all reported individually, none closed by automation. |
+| 3 | 23 legacy actions still open | **Closed as a measurement problem; the work itself is live.** Recounted to 26 across 15 distinct jobs. Every action now carries an evidence-backed verdict and the "needs a human look" category is **zero**. Split: 11 superseded, 8 close as done, 6 still outstanding, 1 to run. The 19 finished ones need closing by hand on `/agents` — a rule change must not close a decision a person made. |
 | 4 | Graded leads need their own queue before `graded_slab` activates | **Closed.** SP chose routing over dismissal; the dedicated graded queue already existed and was verified working (Graded backlog, 47 leads, fully reviewable). `graded_slab` stays in shadow permanently — it destroys a graded first print a person kept. |
-| 5 | Concurrency untested against a real multi-connection server | Open, and **blocked on infrastructure, not effort**. No PostgreSQL, Docker or psql on this machine and no database password available. Harness written and self-refusing against production; the five unproven scenarios and the exact setup are in the resume doc. |
-| 6 | `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile unaudited | **Closed for rendering and navigation**, by 71 HTTP checks and a real browser at 1920px and 390px. Two mobile defects found and repaired. Authenticated rendering on a physical handset remains unverified — checklist in the resume doc. |
-| 7 | 4 of the last 140 agent runs failed, uninvestigated | **Closed.** Window 2026-08-15 to 2026-09-13: 136 succeeded, 4 failed. All four are `market_scout` with one message — missing eBay credentials — on 20–21 August, since configured; 23 days of clean runs follow. Transient configuration, already resolved, nothing retried. |
+| 5 | Concurrency untested against a real multi-connection server | **Open, and blocked on infrastructure, not effort.** No PostgreSQL, Docker or psql on this machine and no database password available. Harness written and self-refusing against production; the five unproven scenarios and the exact setup are in the resume doc. |
+| 6 | `/agents`, `/scout`, `/catalogue-review`, `/cover-review`, `/add-sale`, public collection and mobile unaudited | **Closed for rendering and navigation**, by 71 HTTP checks and a real browser at 1920px and 390px. Two mobile defects found and repaired. **Authenticated rendering on a physical handset remains unverified** — see gap 14. |
+| 7 | 4 of the last 140 agent runs failed, uninvestigated | **Closed.** All four are `market_scout`, one cause — missing eBay credentials, 20–21 August, since configured. A fifth, separate failure surfaced later; see gap 16. |
 | 8 | 1506 of 1812 listing outcomes unreachable, and every tab/queue count understated | **Closed.** Stable pagination; all ten view/queue combinations traverse every row exactly once, proved on synthetic and live data. |
-| 9 | The grading card had never been seen rendering | **Closed.** Verified on an isolated fixture with the real component, route and RPC. Found and fixed a vacuous source-confirmation gate. |
-
+| 9 | The grading card had never been seen rendering | **Closed on an isolated fixture** with the real component, route and RPC; found and fixed a vacuous source-confirmation gate. Still never seen on a phone — see gap 14. |
 | 10 | A recurring job accumulated an unbounded number of open approvals | **Closed.** Title comparison embedded a changing workload count, so a standing approval never matched its own re-proposal. Now compared with numbers normalised. |
 | 11 | Reconciliation measured the wrong backlog | **Closed.** `triage_scout_leads` was judged against 9657 unreviewed leads instead of the ~110 the action was raised for — an 88× overstatement. |
+| 12 | Scout junk rejection stuck at 18.85% with a rule that loses opportunities | **Partly closed, by choice.** `multi_volume_lot` refined and safe on both halves (−0 genuine, junk rejection 17.7% → 49.6% on holdout); held in shadow at SP's choice. `graded_slab` stays in shadow by design. The harness now judges readiness per rule, not combined — it would otherwise have green-lit `graded_slab`. Neither rule is wired into anything that runs. |
+| 13 | 31% of the junk staff see is unavailable listings | **Open,** and not fixable by a rule: the label is hindsight. The availability re-check examines ~25 listings per run against 2240 new leads. Throughput, not scoring. |
+| 14 | Phases 5 and 6 have never been seen rendering | **Open.** `/agents` sits behind the staff login, so the Open approvals section and the summary tiles exist only as passing tests and compiled CSS. A stylesheet check is not a page check. Also unchecked on a handset: the homepage cover shelf swipe and the grading card on `/review`. **Needs a phone check.** |
+| 15 | 22 of 26 open approvals rendered nowhere, and closing one was impossible by any route | **Closed (Phase 5).** `/agents` showed proposals, approved *feedback* actions as bare text, and the last 10 executed — approving an action removed it from every screen, including the one machine-executable one. `review_action` could only ever match a proposal, so the backlog could only grow. An Open approvals section now lists every approved unfinished action with Run and Close controls, via a new `close_action` command that is deliberately not a decision and never rewrites `reviewed_by`/`reviewed_at`. |
+| 16 | `catalogue_curator` failed on a gateway timeout | **Repaired, not yet confirmed.** One failure on 14 Sep 11:36 UTC (`could not prepare discovery: Gateway Timeout`); 21 of 22 curator runs in the prior 14 days succeeded, so a transient read failure. `5b4aefa` added `runCataloguePreparationRead` with one retry on 502/503/504 and related errors, committed and pushed ~6h after the failing run. **No scheduled run has happened since the fix, and its deployment was not verified.** |
+| 17 | Approvals were raised for queues that already had their own page and count | **Closed (Phase 6).** Fifteen of the twenty-six were the planner telling a person a queue had items in it; approving one caused nothing to happen. `needsHumanApproval()` now reserves an approval for work that will not otherwise happen unless a person decides. The filter sits at the point of writing an action, not planning, so every count still reaches `/agents` as a live figure. Existing `proposed` rows of these types retire automatically; **approved ones are untouched and stay for SP to close.** Steady state should be roughly one to four open approvals. |
 
-| 12 | Scout junk rejection stuck at 18.85% with a rule that loses opportunities | **Partly closed.** `multi_volume_lot` refined and now safe on both halves (−0 genuine, junk rejection 17.7% → 49.6% on holdout); held in shadow at SP's choice. `graded_slab` stays in shadow by design. The harness now judges readiness per rule, not combined — it would otherwise have green-lit `graded_slab`. |
-| 13 | 31% of the junk staff see is unavailable listings | Open, and not fixable by a rule: the label is hindsight. The availability re-check examines ~25 listings per run against 2240 new leads. Throughput, not scoring. |
+**Not beta-ready.** Three things hold it, and none is a migration:
 
-Not beta-ready: gap 5 is blocked on infrastructure, gap 13 needs availability throughput, and the remaining `triage_scout_leads` / cover / readiness work in gap 3 is real live work needing people. No staff decision *write* has been exercised against production.
+- **Gap 5** is blocked on infrastructure — no Docker or Postgres on this machine.
+- **Gap 13** needs availability throughput, not a better rule.
+- **Gap 14** means everything built in Phases 5 and 6 is unseen. The controls for working the backlog have never been looked at on a screen.
+
+Beyond those: the six genuinely outstanding queue actions in gap 3 are real live work needing people, and **no staff decision *write* has been exercised against production.**
