@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AGENT_LABELS, type AgentKey, type AgentMetrics, type AgentProposal, planAgentActions } from "@/lib/agentPlanning";
+import { AGENT_LABELS, type AgentKey, type AgentMetrics, type AgentProposal, needsHumanApproval, planAgentActions } from "@/lib/agentPlanning";
 import { stageCatalogueCandidates, type CatalogueCuratorResult } from "@/lib/catalogueCurator";
 import { refreshStaleScoutAvailability, type ScoutAvailabilityResult } from "@/lib/scoutAvailability";
 import { autoDismissDefinitiveScoutConflicts, type AutoTriageResult } from "@/lib/scoutAutoTriage";
@@ -145,18 +145,43 @@ async function reconcileAgentProposals(
   admin: SupabaseClient,
   agentKey: AgentKey,
   runId: string,
-  proposals: AgentProposal[],
+  allProposals: AgentProposal[],
 ) {
   const { data: current, error } = await admin
     .from("agent_actions")
-    .select("id,dedupe_key,status,title")
+    .select("id,dedupe_key,status,title,action_type")
     .eq("agent_key", agentKey)
     .in("status", ["proposed", "approved"])
     .neq("action_type", "suggest_print_classification")
     .order("reviewed_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(`Could not reconcile agent proposals: ${error.message}`);
 
-  const { proposedByDedupe, approvedByDedupe } = indexOpenAgentActions((current ?? []) as OpenAgentAction[]);
+  // A standing queue is reported, never raised as a decision. The plan still
+  // carries it, so the run's summary and metrics are unchanged and the count
+  // survives -- it simply stops becoming an approval nobody can close.
+  const proposals = allProposals.filter((proposal) => needsHumanApproval(proposal.actionType));
+  const briefed = allProposals.length - proposals.length;
+
+  // Ones already on the board from before this rule. Only untouched proposals
+  // are retired here: an approval is a decision a person made, and closing it
+  // is theirs to do on /agents.
+  const retiredIds = (current ?? [])
+    .filter((action) => action.status === "proposed" && !needsHumanApproval(action.action_type))
+    .map((action) => action.id);
+  let retired = 0;
+  if (retiredIds.length) {
+    const { data: closed, error: retireError } = await admin.from("agent_actions").update({
+      status: "cancelled",
+      reviewed_by: `${AGENT_LABELS[agentKey]} system`,
+      review_notes: "This queue is now reported as a live count on /agents rather than raised as a decision.",
+      reviewed_at: new Date().toISOString(),
+    }).in("id", retiredIds).eq("status", "proposed").select("id");
+    if (retireError) throw new Error(`Could not retire standing-queue proposals: ${retireError.message}`);
+    retired = closed?.length ?? 0;
+  }
+
+  const remaining = ((current ?? []) as OpenAgentAction[]).filter((action) => !retiredIds.includes(action.id));
+  const { proposedByDedupe, approvedByDedupe } = indexOpenAgentActions(remaining);
   const activeKeys = new Set(proposals.map((proposal) => proposal.dedupeKey));
   const staleIds = [...proposedByDedupe.values()].filter((action) => !activeKeys.has(action.dedupe_key)).map((action) => action.id);
   let cancelled = 0;
@@ -206,7 +231,7 @@ async function reconcileAgentProposals(
     if (!insertError) created += 1;
     else if (insertError.code !== "23505") throw new Error(`Could not record agent proposal: ${insertError.message}`);
   }
-  return { created, refreshed, cancelled, coveredByApproval };
+  return { created, refreshed, cancelled, coveredByApproval, briefed, retired };
 }
 
 export async function runAgentObservation(
@@ -443,6 +468,10 @@ export async function runAgentObservation(
       proposals_refreshed: proposalResult.refreshed,
       stale_proposals_closed: proposalResult.cancelled,
       proposals_covered_by_prior_approval: proposalResult.coveredByApproval,
+      // Standing queues the run measured and reported rather than raising as
+      // a decision, so the count is still on the record for this run.
+      queues_reported_not_raised: proposalResult.briefed,
+      standing_queue_proposals_retired: proposalResult.retired,
     };
     const { data: finished, error } = await admin.from("agent_runs").update({
       status: "succeeded",

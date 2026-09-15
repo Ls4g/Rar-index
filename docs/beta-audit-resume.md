@@ -425,6 +425,46 @@ Guards: a live lease refuses the close rather than stranding the worker holding 
 
 Full suite 81 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
 
+## Phase 6 — approvals reserved for decisions (15 September 2026)
+
+SP asked what the approvals were actually for. The honest answer: of the 26 open, **exactly one was work a machine would carry out**. Fifteen were the planner telling a person that a queue had items in it — a queue with its own page, already showing its own count. Approving one caused nothing to happen, and until Phase 5 there was no way to mark it done, so each sat open while the next run raised another.
+
+### The rule
+
+`STANDING_QUEUE_ACTIONS` in `lib/agentPlanning.ts` names them, with `needsHumanApproval()` as the single predicate. An approval is now reserved for work that will not otherwise happen unless a person decides: a machine that acts on approval, or a genuine change of behaviour being proposed.
+
+Retired to live counts: `triage_scout_leads`, `review_catalogue_queue`, `research_catalogue_requests`, `source_missing_covers`, `review_sales_evidence`, `classify_printing_evidence`, `review_community_reports`, `resolve_readiness_bottleneck`, `investigate_agent_failures`, `resolve_agent_incidents`.
+
+The last two are there for a different reason: both duplicate a control that already exists on `/agents` — the run log, and the incident panel's own Resolve button.
+
+Still decisions: `scan_stale_profiles`, every `shadow_test_*`, `tune_low_yield_profiles`, `review_scout_rule_regression` and the `review_scout_feedback_*` investigations.
+
+### Nothing is lost
+
+The planner still computes every one of them. The filter is at the point of *writing* an action, in `reconcileAgentProposals`, not at the point of planning — so each run's `summary` and `metrics` carry the counts exactly as before, plus `queues_reported_not_raised`.
+
+On `/agents` the three catalogue figures join the Scout and evidence counts already in the summary row, each linking to its queue. A live count is more current than a day-old approval and needs no closing.
+
+Existing `proposed` rows of these types are retired automatically with a note saying why. **Approved ones are not touched** — an approval is a decision a person made, and a rule change must not reach in and close it. Those stay for SP to close on `/agents`.
+
+### Expected effect
+
+Fifteen of the twenty-six would never have been raised. Steady state should be roughly one to four open approvals rather than a backlog that only grows.
+
+### Evidence
+
+`scripts/test-agent-open-approvals.mjs` — now 51 checks. Asserts the predicate both ways, and specifically that **no machine-executable action was retired**: quietly auto-running work would be the worst possible reading of "fewer approvals". Also pins that only untouched proposals are retired and that the retirement is conditioned on the status.
+
+**Rendering still unverified** — same staff-login reason as Phase 5. The new summary tiles have not been seen.
+
+### Gate
+
+Full suite 81 scripts exit 0, TypeScript clean, lint 0 errors with the two pre-existing `EditionCover` warnings, production build passed.
+
+### Phone check recorded, 14 September 2026
+
+SP confirmed on a handset, nothing off: `/listing-outcomes` pager to page 2 and back, queue chip counts matching the range that loads, and the "Find a listing" search with the keyboard up. Still unchecked: the homepage cover shelf swipe, the grading card on `/review`, and everything added in Phases 5 and 6.
+
 ## Next — all of these need a person, not another migration
 
 1. **Look at the grading card on `/review`.** The catalogue and outcome cards are confirmed rendering on a phone; the grading card is not. With `ff81fb2f` now resolved there may be no conflict left to render it, so this may need a case to be constructed before it can be seen at all.

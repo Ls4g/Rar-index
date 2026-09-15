@@ -27,6 +27,43 @@ export type AgentPlan = {
 
 export type AgentMetrics = Record<string, number>;
 
+// Work that is a standing queue, not a decision.
+//
+// Each of these says "this queue has N items in it" about a queue that has its
+// own page, already shows its own count, and is worked there. Raising it as an
+// approval asked a person to agree to their own to-do list: the approval
+// caused nothing to happen, and there was no way to mark it done, so it sat
+// open forever while the next run raised another. Of the 26 open approvals in
+// September 2026, exactly one was work a machine would carry out; fifteen were
+// these.
+//
+// They are still measured, still counted in each run's metrics and summary,
+// and now shown as live counts on /agents that link straight to the queue --
+// which is both more current than a day-old approval and less work to read.
+//
+// An approval is reserved for something that will not otherwise happen unless
+// a person decides here: a machine that will act on approval, or a genuine
+// change of behaviour being proposed. `investigate_agent_failures` and
+// `resolve_agent_incidents` are on this list for a different reason -- both
+// duplicate a control that already exists on /agents, the run log and the
+// incident panel's own Resolve button.
+export const STANDING_QUEUE_ACTIONS = new Set([
+  "triage_scout_leads",
+  "review_catalogue_queue",
+  "research_catalogue_requests",
+  "source_missing_covers",
+  "review_sales_evidence",
+  "classify_printing_evidence",
+  "review_community_reports",
+  "resolve_readiness_bottleneck",
+  "investigate_agent_failures",
+  "resolve_agent_incidents",
+]);
+
+export function needsHumanApproval(actionType: string) {
+  return !STANDING_QUEUE_ACTIONS.has(actionType);
+}
+
 export const AGENT_LABELS: Record<AgentKey, string> = {
   catalogue_curator: "Catalogue Curator",
   market_scout: "Market Scout",

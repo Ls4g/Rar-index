@@ -258,6 +258,12 @@ export default function AgentControlCentre({
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
   const marketScoutRun = runs.find((run) => run.agent_key === "market_scout");
   const evidenceRun = runs.find((run) => run.agent_key === "evidence_auditor");
+  // From the Curator's own latest run, the same figures it used to raise an
+  // approval about. `runs` is ordered newest first, so this is the current one.
+  const catalogueRun = runs.find((run) => run.agent_key === "catalogue_curator");
+  const catalogueQueueCount = catalogueRun?.metrics?.catalogue_queue_pending ?? 0;
+  const missingCoverCount = catalogueRun?.metrics?.verified_editions_missing_covers ?? 0;
+  const catalogueRequestCount = catalogueRun?.metrics?.catalogue_requests_pending ?? 0;
   const scoutReviewCount = scoutPriorityCount ?? marketScoutRun?.metrics?.scout_review_now ?? 0;
   const evidenceReviewCount = (evidenceRun?.metrics?.sales_needing_review ?? 0)
     + (evidenceRun?.metrics?.printing_suggestions_open ?? 0)
@@ -289,6 +295,13 @@ export default function AgentControlCentre({
           <Link href="#agent-open-approvals"><strong>{openApprovals.length}</strong><span>open approvals</span><small>Work you approved that has not finished</small></Link>
           <Link href="/scout"><strong>{scoutReviewCount}</strong><span>Scout leads for people</span><small>Open the filtered inbox</small></Link>
           <Link href="/review"><strong>{evidenceReviewCount}</strong><span>evidence decisions</span><small>Review sales and printing proof</small></Link>
+          {/* These three used to arrive as approvals — a day-old note asking
+              you to agree that a queue had items in it. The live count links
+              straight to the queue instead: more current, and nothing to
+              close afterwards. */}
+          <Link href="/catalogue-review"><strong>{catalogueQueueCount}</strong><span>catalogue candidates</span><small>Open catalogue review</small></Link>
+          <Link href="/cover-review"><strong>{missingCoverCount}</strong><span>covers to source</span><small>Open cover review</small></Link>
+          <Link href="/catalogue-requests"><strong>{catalogueRequestCount}</strong><span>public requests</span><small>Open requests</small></Link>
         </div>
       </section>
 
