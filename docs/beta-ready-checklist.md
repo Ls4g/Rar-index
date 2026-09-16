@@ -73,7 +73,23 @@ The gate is absolute, not comparative — `critical_safety_regressions: { passed
 
 **Gates:** `test:workflows` all suites exit 0 (79/79 and 51/51 on the two agent suites), lint 0 errors with the two pre-existing `EditionCover` warnings, `tsc --noEmit` clean, production build exit 0. Tests pin that Scout still raises, that the other four do not, that a dismissed exact match is still a critical failure, that a human rejecting a complete record is still recorded at case level, and that every evaluator carries an explicit classification so a new one cannot silently inherit a default.
 
-**Unverified:** the `/agents` label change has not been seen rendering. Needs a phone check.
+**VERIFIED in production on a handset, 2026-09-16T14:33Z.** SP resolved all three open incidents, then ran "Run reliability check" on `/agent-learning` against deployed `a86bb5a`. All five suites re-ran at `evaluator_version` 3, `trigger_source` manual, and the database confirms the split:
+
+| Evaluator | zero-tolerance gate | metric | incident |
+| --- | --- | --- | --- |
+| `market_scout_match` | present | `unattended_losses=7` | **raised**, "dismissed leads a person wanted" |
+| `catalogue_curator_guard` | absent | `human_disagreements=30` | none |
+| `evidence_sale_guard` | absent | `human_disagreements=4` | none |
+| `evidence_print_guard` | absent | `human_disagreements=0` | none |
+| `cover_provenance_guard` | absent | `human_disagreements=0` | none |
+
+Open incidents went **3 → 1**. The two evaluators with non-zero counts — 30 and 4 — raised nothing, which is the whole point.
+
+**Rendering verified too.** The cards were read on a real handset in Night and the labels are correct: "leads lost unattended" on Scout with NEEDS ATTENTION, "times a person disagreed" on the other four with LEARNING. `/agent-learning` had never been looked at in any theme before this, so that gap is closed for this page; `/agents` itself is still unverified.
+
+**Note:** `catalogue_curator_guard` was 28, then 29, now 30 as the benchmark grew 120 → 131 cases. That is the predicted behaviour — the count can only rise, because it counts records staff correctly rejected. Under the old code that was an escalating critical alarm every morning.
+
+**Still to confirm:** tomorrow's scheduled cron (~12:00 UTC). If SP resolves the Scout incident tonight and only Scout returns tomorrow, the churn is gone. Three consecutive days settles it.
 
 **Original proposal, now superseded by the above:** keep the auto-dismissal case as a critical incident; report the completeness-check disagreements as a live count on `/agents` instead of a daily critical alarm, in the same shape as Phase 6's standing queues. Effect: alarms fire only when automation actually loses something.
 
