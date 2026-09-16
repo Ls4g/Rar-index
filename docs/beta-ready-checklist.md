@@ -91,6 +91,33 @@ SP also reported text that could not be read, with a screenshot. Diagnosed and f
 
 **Still unverified:** the fix itself, and `/agent-learning` has never been looked at in any theme. A handset reload of `/agents` in Day is needed to confirm the cycle values, incident titles and Resolve button are legible, and Night should be re-checked since the console's colours changed there too. Compiled-CSS inspection is not a page check — the first attempt passed every compiled check and changed nothing on screen.
 
+## Public-page contrast, 16 September 2026 — partly repaired, long tail remains
+
+SP reported text that could not be read across the public pages and sent a Night-mode screenshot of `/edition/[id]`: section headings rendering near-black on a near-black canvas.
+
+**Root cause, same family as the agent console.** `globals.css` carried a block selecting `.home-page, .edition-page` **and** `html[data-theme="night"] .home-page/.edition-page` explicitly, then set the Day palette as literals inside it — `--canvas-heading: #0b0b0d`, `--line: #dadddf`, `--surface-card: #fff`, `background: #fbfbfa`. At `(0,2,1)` it outranked the editorial tokens at `(0,1,0)`. `background` and `color` were rescued by an editorial rule at equal specificity loading later, but **the custom properties were not** — so Night got a correct dark canvas with Day headings, Day hairlines and white cards.
+
+**The repair.** Those literals were exactly the Day values of the `--rar-*` tokens (`#d80d1c` is `--rar-red`, `#5f6879` is `--rar-muted`, `#dadddf` is `--rar-line`, `#0b0b0d` is `--rar-ink`, `#ffffff` is `--rar-surface`), so substituting tokens is a no-op in Day and correct in Night. Roughly 90 literals were converted across `globals.css`, plus 28 background whites. `color: #fff` was deliberately left alone — white on the red brand button is correct.
+
+**Measured, not assumed.** A WCAG contrast audit was run in a real browser against the running app, walking every text-bearing element and compositing effective backgrounds through translucent ancestors. Both themes, before and after.
+
+| Page | Night before | Night after | Day before | Day after |
+| --- | --- | --- | --- | --- |
+| `/` | 17 | 16 | 6 | 6 |
+| `/edition/[id]` | 30 | 25 | 2 | 2 |
+
+Day never regressed at any step, which was the safety check on a change this broad. Every catastrophic case on `/` — ratios of 1.03, 1.05, 1.17 and 1.43, effectively invisible — is gone.
+
+**One intermediate step made Night worse (17 → 22) before better.** Theming the backgrounds exposed text literals that had been sitting on white cards and were not yet mapped. Those were then mapped. Recorded because the audit caught it and an eyeball would not have.
+
+**Still open — this is not finished:**
+
+- `/edition/[id]` still reports 25 in Night, worst `1.1` — `.source-card` computes a white background in Night and no rule inspected so far explains it; several rules compete for that element and the winner was not identified. Needs a proper look, not another sweep.
+- A cluster of brand red at small sizes lands at 3.2–4.4 against a 4.5 requirement. That is a **design decision, not a defect** — fixing it means changing RAR red, which `design.md` treats as settled.
+- The theme-toggle finding is probably an artifact of the audit setting `data-theme` directly while the component's own React state disagreed; `AGENTS.md` warns about exactly this. Not treated as a bug.
+- Only `/` and one `/edition/[id]` were audited. `/browse`, `/collection`, `/portfolio`, `/identify` and the collector pages were not.
+- **Nothing here has been seen on a handset.** The audit is arithmetic on computed styles, not a page check.
+
 ## Gate 1 — Confirm the release and finish staff usability (IN PROGRESS)
 
 - [x] **VERIFIED 2026-09-15.** Match local commits to the deployed version using authorized read-only checks. Recount outcome views/queues, open actions by unique job, current incidents and recent runs over a named time window. Confirm whether the curator retry fix is deployed and inspect subsequent scheduled runs; a successful run demonstrates recovery, while targeted fault tests establish retry behavior.
