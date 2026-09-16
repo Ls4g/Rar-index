@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { evaluateReliabilityCase } from "../lib/agentReliability.ts";
+import { evaluateReliabilityCase, raisesIncident, UNSUPERVISED_EVALUATORS, RELIABILITY_EVALUATORS } from "../lib/agentReliability.ts";
 import { isExecutableAgentAction, preflightAgentAction } from "../lib/agentActionExecution.ts";
 import { ruleCandidateForAction } from "../lib/scoutRuleEvaluation.ts";
 
@@ -83,5 +83,39 @@ for (const status of ["rejected", "cancelled", "executed"]) {
   assert.equal(closed.ok, false, `${status} must not be executable`);
   assert.equal(closed.checks.find((check) => check.key === "open_for_execution")?.passed, false);
 }
+
+// --- Which evaluators may raise an incident -------------------------------
+// An incident is for automation acting unattended. Scout auto-dismisses, so a
+// genuine lead it bins is lost with nobody watching. Every other evaluator is
+// a completeness check feeding a human queue: a critical failure there means a
+// person was shown a well-formed record and rejected it, which is the system
+// working. Raising that daily produced 14 incidents, resolved 11 times, each
+// returning with an identical count.
+assert.equal(raisesIncident("market_scout_match"), true, "Scout auto-dismissal must still raise an incident");
+for (const key of ["catalogue_curator_guard", "evidence_sale_guard", "evidence_print_guard", "cover_provenance_guard"]) {
+  assert.equal(raisesIncident(key), false, key + " must not raise a daily incident for human disagreement");
+}
+// The split must stay exhaustive: a new evaluator has to be classified, not
+// silently inherit whichever behaviour happens to be the default.
+for (const key of RELIABILITY_EVALUATORS) {
+  assert.equal(typeof raisesIncident(key), "boolean", key + " must have an explicit classification");
+}
+assert.equal(UNSUPERVISED_EVALUATORS.size, 1, "only Scout acts without a person; adding to this set means adding an alarm");
+assert.ok(UNSUPERVISED_EVALUATORS.has("market_scout_match"));
+
+// The evaluator that lost real opportunities still reports them as critical,
+// so silencing the noise must not silence the one that matters.
+const stillCritical = evaluateReliabilityCase(confirmedMatch, [harmfulRule]);
+assert.equal(stillCritical.criticalFailure, true, "a dismissed exact match is still a critical failure");
+assert.equal(raisesIncident("market_scout_match"), true);
+
+// A human rejecting a complete record stays a recorded disagreement -- the
+// case-level flag is unchanged, only what it triggers has changed.
+const completeButRejected = evaluateReliabilityCase(benchmark("evidence_sale_guard", "reject", { observation: {
+  sale_status: "confirmed", source_listing_url: "https://www.ebay.co.uk/itm/1", sale_price: 12, currency: "GBP", sold_date: "2026-08-01", edition_id: "edition-1",
+} }));
+assert.equal(completeButRejected.predictedOutcome, "eligible");
+assert.equal(completeButRejected.criticalFailure, true, "the disagreement is still recorded at case level");
+assert.equal(raisesIncident("evidence_sale_guard"), false, "but it must not raise an incident");
 
 console.log("Agent Reliability tests passed (stored evidence, safety failures and typed execution preflight).\n");

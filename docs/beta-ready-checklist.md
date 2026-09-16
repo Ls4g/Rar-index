@@ -67,7 +67,15 @@ The gate is absolute, not comparative — `critical_safety_regressions: { passed
 
 **The benchmark itself is sound.** `agent_benchmark_cases` is intentionally append-only with snapshot versioning (`supersedes_case_id`), and `latestBySubject()` takes the newest snapshot per subject, breaking ties on `created_at`. 107 stored rows, 63 evaluated. The counts are not inflated.
 
-**Proposed change, not yet built and awaiting SP:** keep the auto-dismissal case as a critical incident; report the completeness-check disagreements as a live count on `/agents` instead of a daily critical alarm, in the same shape as Phase 6's standing queues. Effect: alarms fire only when automation actually loses something.
+**BUILT 16 September 2026.** `UNSUPERVISED_EVALUATORS` in `lib/agentReliability.ts` now names the only evaluator whose critical failure means automation acted on its own — `market_scout_match`, where an auto-dismissed genuine lead is gone from every screen with nobody able to tell. That one still raises a critical incident, retitled "dismissed leads a person wanted" rather than "failed a safety gate". The four completeness checks no longer raise one: their count is recorded as `human_disagreements` in the run metrics and shown on `/agents` as "times a person disagreed" instead of "safety regressions", and a non-zero count no longer flips the card to "Needs attention". The zero-tolerance gate is now only composed in for the unattended evaluator, since elsewhere it counted human judgement and could never pass. `EVALUATOR_VERSION` moved 2 → 3 so the suites replay.
+
+**Existing open incidents are untouched.** The three currently open will not be re-raised for the supervised evaluators once SP resolves them, because nothing writes them again. `market_scout_match` stays a genuine alarm and will return while leads are being lost. No incident was resolved by this change — that is a person's decision.
+
+**Gates:** `test:workflows` all suites exit 0 (79/79 and 51/51 on the two agent suites), lint 0 errors with the two pre-existing `EditionCover` warnings, `tsc --noEmit` clean, production build exit 0. Tests pin that Scout still raises, that the other four do not, that a dismissed exact match is still a critical failure, that a human rejecting a complete record is still recorded at case level, and that every evaluator carries an explicit classification so a new one cannot silently inherit a default.
+
+**Unverified:** the `/agents` label change has not been seen rendering. Needs a phone check.
+
+**Original proposal, now superseded by the above:** keep the auto-dismissal case as a critical incident; report the completeness-check disagreements as a live count on `/agents` instead of a daily critical alarm, in the same shape as Phase 6's standing queues. Effect: alarms fire only when automation actually loses something.
 
 ## Phone check 2026-09-15, and the Day-mode defect it found
 

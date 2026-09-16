@@ -17,7 +17,27 @@ export const RELIABILITY_EVALUATORS = [
 
 export type ReliabilityEvaluatorKey = (typeof RELIABILITY_EVALUATORS)[number];
 
-const EVALUATOR_VERSION = 2;
+/* An incident is for something a person must act on, and only one evaluator
+   here describes automation acting on its own. Scout auto-dismisses: a
+   genuinely useful lead it bins is gone from every screen and nobody can tell
+   it happened, so a critical failure there is a real, silent, unrecoverable
+   loss.
+   The rest are completeness checks feeding a human queue. "eligible" and
+   "publishable" mean only that a record has its fields and a person will be
+   shown it -- and then a person looked and decided otherwise. That is the
+   system working, not a fault. It also cannot reach zero: it would require
+   every record anyone ever rejected to have also been missing a field, and it
+   grows as staff reject more. Raising it daily produced 14 incidents, resolved
+   11 times, each returning on the next cron with an identical count.
+   Those evaluators report a standing figure instead of an alarm. */
+export const UNSUPERVISED_EVALUATORS: ReadonlySet<ReliabilityEvaluatorKey> = new Set(["market_scout_match"]);
+
+/** True when a critical failure means automation acted, not that a person disagreed. */
+export function raisesIncident(evaluatorKey: ReliabilityEvaluatorKey): boolean {
+  return UNSUPERVISED_EVALUATORS.has(evaluatorKey);
+}
+
+const EVALUATOR_VERSION = 3;
 const AUTOMATED_REVIEWER = /(?:agent|scout|curator|auditor|operator|system|auto.?triage)/i;
 
 type Json = Record<string, unknown>;
@@ -439,17 +459,29 @@ export async function runReliabilitySuite(
   const cases = latestBySubject(rows);
   const activeRules = evaluatorKey === "market_scout_match" ? await loadActiveScoutRules(admin) : [];
   const results = cases.map(item => evaluateReliabilityCase(item, activeRules));
-  const metrics = calculateMetrics(cases, results);
-  const positiveCount = Number(metrics.true_positive) + Number(metrics.false_negative);
-  const negativeCount = Number(metrics.true_negative) + Number(metrics.false_positive);
+  const baseMetrics = calculateMetrics(cases, results);
+  const positiveCount = Number(baseMetrics.true_positive) + Number(baseMetrics.false_negative);
+  const negativeCount = Number(baseMetrics.true_negative) + Number(baseMetrics.false_positive);
   const distinctSubjects = new Set(cases.map(coverageKey)).size;
   const criticalFailures = results.filter((item) => item.criticalFailure).length;
+  // Named for what it actually is on this evaluator, so nothing reports a
+  // person's own decision as a safety regression.
+  const metrics = {
+    ...baseMetrics,
+    ...(raisesIncident(evaluatorKey)
+      ? { unattended_losses: criticalFailures }
+      : { human_disagreements: criticalFailures }),
+  };
   const gates = {
     sample_size: { passed: cases.length >= 20, actual: cases.length, required: 20 },
     positive_examples: { passed: positiveCount >= 5, actual: positiveCount, required: 5 },
     negative_examples: { passed: negativeCount >= 5, actual: negativeCount, required: 5 },
     subject_coverage: { passed: distinctSubjects >= 3, actual: distinctSubjects, required: 3 },
-    critical_safety_regressions: { passed: criticalFailures === 0, actual: criticalFailures, required: 0 },
+    // Only meaningful where automation acts unattended; elsewhere this counted
+    // human disagreement and could never pass. See UNSUPERVISED_EVALUATORS.
+    ...(raisesIncident(evaluatorKey)
+      ? { critical_safety_regressions: { passed: criticalFailures === 0, actual: criticalFailures, required: 0 } }
+      : {}),
     positive_recall: { passed: Number(metrics.positive_recall) >= 0.8, actual: Number(metrics.positive_recall), required: 0.8 },
     balanced_accuracy: { passed: Number(metrics.balanced_accuracy) >= 0.7, actual: Number(metrics.balanced_accuracy), required: 0.7 },
   };
@@ -488,7 +520,9 @@ export async function runReliabilitySuite(
     if (error) throw new Error(`Reliability case results could not be saved: ${error.message}`);
   }
 
-  if (criticalFailures > 0) {
+  // A standing disagreement count is not an incident: resolving it changes
+  // nothing, so it reappears on the next run exactly as before.
+  if (criticalFailures > 0 && raisesIncident(evaluatorKey)) {
     const incidentKey = `reliability:${evaluatorKey}`;
     const { data: openIncident, error: incidentLookupError } = await admin.from("agent_incidents")
       .select("id")
@@ -499,7 +533,7 @@ export async function runReliabilitySuite(
     const incidentValues = {
       incident_type: "rule_regression",
       severity: "critical",
-      title: `${evaluatorKey.replaceAll("_", " ")} failed a safety gate`,
+      title: `${evaluatorKey.replaceAll("_", " ")} dismissed leads a person wanted`,
       details: { evaluation_run_id: run.id, critical_failures: criticalFailures },
       updated_at: createdAt,
     };

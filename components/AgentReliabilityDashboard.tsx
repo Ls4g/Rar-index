@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
+import { raisesIncident, type ReliabilityEvaluatorKey } from "@/lib/agentReliability";
 
 type Gate = { passed?: boolean; actual?: number; required?: number };
 type LatestRun = {
@@ -86,13 +87,19 @@ export default function AgentReliabilityDashboard({ dashboard }: { dashboard: Da
           const label = LABELS[suite.evaluatorKey] ?? { agent: suite.evaluatorKey, title: "Reliability suite" };
           const latest = suite.latest;
           const failedGates = latest ? Object.entries(latest.gates ?? {}).filter(([, gate]) => !gate.passed) : [];
+          // Scout acts on its own, so a count there is work lost with nobody
+          // watching. Everywhere else the count is how often a person decided
+          // against a record that had all its fields -- worth knowing, not a
+          // fault, and never zero while people reject well-formed records.
+          const unattended = raisesIncident(suite.evaluatorKey as ReliabilityEvaluatorKey);
+          const countLabel = unattended ? "leads lost unattended" : "times a person disagreed";
           return <article className={!latest ? "is-unmeasured" : latest.passed ? "is-passing" : "is-learning"} key={suite.evaluatorKey}>
-            <div className="agent-reliability-card-head"><span>{label.agent}</span><b>{!latest ? "Not measured" : latest.passed ? "Passing" : latest.regression_count ? "Needs attention" : "Learning"}</b></div>
+            <div className="agent-reliability-card-head"><span>{label.agent}</span><b>{!latest ? "Not measured" : latest.passed ? "Passing" : unattended && latest.regression_count ? "Needs attention" : "Learning"}</b></div>
             <h3>{label.title}</h3>
             <div className="agent-reliability-metrics">
               <p><strong>{latest?.case_count ?? 0}</strong><span>human cases</span></p>
               <p><strong>{percent(latest?.metrics?.balanced_accuracy)}</strong><span>balanced accuracy</span></p>
-              <p><strong>{latest?.regression_count ?? 0}</strong><span>safety regressions</span></p>
+              <p><strong>{latest?.regression_count ?? 0}</strong><span>{countLabel}</span></p>
             </div>
             {latest ? <details><summary>{failedGates.length ? `${failedGates.length} gate${failedGates.length === 1 ? "" : "s"} not ready` : "All gates passed"}</summary><ul>{Object.entries(latest.gates ?? {}).map(([name, gate]) => <li key={name}><span>{name.replaceAll("_", " ")}</span><b>{gate.passed ? "Pass" : `${gate.actual ?? 0} / ${gate.required ?? 0}`}</b></li>)}</ul></details> : <p>Run the check to build and test this benchmark set.</p>}
             {suite.failures?.length ? <details><summary>Inspect {suite.failures.length} failed example{suite.failures.length === 1 ? "" : "s"}</summary><ul>{suite.failures.slice(0, 8).map((failure, index) => <li key={`${failure.case?.subject_key ?? "case"}-${index}`}><span>{failure.case?.subject_key ?? "Benchmark case"}{failure.case?.reason_label ? ` · ${failure.case.reason_label.replaceAll("_", " ")}` : ""}</span><b>{failure.expected_outcome} → {failure.predicted_outcome}{failure.critical_failure ? " · safety" : ""}</b></li>)}</ul></details> : null}
