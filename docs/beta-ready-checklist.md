@@ -177,6 +177,39 @@ Acceptance: every required scenario executed against two real connections and pa
 
 Acceptance: accessible, audited staff operations work; legacy actions have evidence-backed dispositions; live work remains visible and owned; no duplicate execution or hidden failure. List any production confirmation still requiring an actual staff operation.
 
+## Gate 4 measurement, 2026-09-16T14:40Z — the 25-per-run cap is not the bottleneck
+
+Read-only against production, one named 14-day window (2026-09-02T14:40Z → 2026-09-16T14:40Z), exact counts rather than capped queries. Stale threshold is `SCOUT_STALE_AFTER_DAYS = 8`.
+
+| Measure | Value |
+| --- | --- |
+| Arrivals — leads first seen in window | 4,712 (336.6/day) |
+| Service — availability checks in window | 362 (25.9/day) |
+| Departures — leads reviewed by a person | 345 (24.6/day) |
+| Total leads | 12,153 |
+| `review_status = new` | 2,385 |
+| **Eligible for a check right now** | **241** |
+| Ever availability-checked | 675 |
+
+**The arrival figure is not the queue's input.** 336/day arrive, but eligibility needs `last_seen_at` older than 8 days, and the daily Scout run keeps re-seeing most leads — so only leads that *stop* appearing become eligible. The 8–14-day age bucket holds 136, which entered eligibility over the preceding 6 days: roughly **23/day entering against 25.9/day served**. The queue is keeping up, slightly ahead. Nothing in the eligible backlog is older than 30 days (8–14d: 136, 15–30d: 105, 31–60d: 0, 60d+: 0), so the oldest-first ordering is working and nothing is starving.
+
+**This contradicts the framing in gap 13.** "2,240 new leads against 25 per run" compared an arrival count with a batch size, which are not the same quantity — exactly as this checklist warned. Raising `CHECK_BATCH_SIZE` would not fix what gap 13 describes.
+
+**What is actually wrong is latency, not capacity.** Of the 345 leads a person reviewed in the window:
+
+| Age when a person reviewed it | Count |
+| --- | --- |
+| 0–2 days | 47 |
+| 3–7 days | 19 |
+| 8–14 days | 198 |
+| 15+ days | 81 |
+
+**44.3% (153 of 345) had never been availability-checked when a person looked at them.** A lead cannot be checked until 8 days stale, and the 241 backlog at 25.9/day adds about 9.3 days of queue latency — so a lead is typically around 17 days old before a check reaches it, while 57% of staff review happens at 8–14 days. **The median lead is reviewed before it could possibly have been checked.** That is the source of "31% of the junk staff see is unavailable listings".
+
+**Confirmed observability defect.** `ScoutAvailabilityResult.queued` is set to `leads.length`, and `leads` is already `.limit(CHECK_BATCH_SIZE)` — so `queued` can never exceed 25 and currently understates the real eligible backlog of 241 by roughly ten times. Anything reading `queued` as a backlog figure is being misled.
+
+**Implication for a fix, not yet built.** A bigger batch only shortens the 9.3-day queue latency; it does nothing about the 8-day threshold that blocks the 66 leads reviewed within a week. The levers that would actually work are lowering the staleness threshold, prioritising leads about to enter a review queue, or checking on demand when a lead is opened. All three change eBay call volume, and this checklist requires establishing API and runtime budgets before changing throughput — which has not been done, and cannot be done from this machine, since `.env.local` holds no eBay credentials.
+
 ## Gate 4 — Establish sustainable availability and a bounded pilot (OPEN)
 
 - [ ] Inspect `lib/scoutAvailability.ts`, `lib/ebayScout.ts`, `lib/scoutDiagnostics.ts`, `lib/agentRuntime.ts`, the availability-result RPC and schedules. Local code currently caps refreshes at 25. Measure arrivals, eligible stale backlog, checks, inconclusive results, age distribution and departures over the SAME time window. The historical 2,240 new leads versus 25 per run is not itself an arrival/service-rate comparison; `queued` currently reports the limited batch length.
