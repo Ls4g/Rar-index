@@ -13,7 +13,14 @@ type AvailabilityLead = {
 };
 
 export type ScoutAvailabilityResult = {
+  /** Every lead eligible for a check right now, not the slice this run took.
+      It used to be leads.length after .limit(CHECK_BATCH_SIZE) had already
+      applied, so it could never exceed the batch size and understated a real
+      backlog of 241 as 25. Anything reporting a backlog must read this. */
   queued: number;
+  /** The per-run ceiling, so a reader can tell a full batch from a drained
+      queue without knowing the constant. */
+  batchLimit: number;
   examined: number;
   active: number;
   unavailable: number;
@@ -22,6 +29,21 @@ export type ScoutAvailabilityResult = {
   connectionStatus: EbayConnectionHealth["status"] | "not_needed";
   warning: string | null;
 };
+
+async function countEligibleLeads(admin: SupabaseClient, staleBefore: string): Promise<number | null> {
+  try {
+    const { count, error } = await admin
+      .from("scout_listing_leads")
+      .select("id", { count: "exact", head: true })
+      .eq("review_status", "new")
+      .lt("last_seen_at", staleBefore)
+      .or(`availability_checked_at.is.null,availability_checked_at.lt.${staleBefore}`);
+    if (error || typeof count !== "number") return null;
+    return count;
+  } catch {
+    return null;
+  }
+}
 
 async function mapWithConcurrency<T, R>(rows: T[], limit: number, worker: (row: T) => Promise<R>) {
   const output: R[] = new Array(rows.length);
@@ -53,12 +75,17 @@ export async function refreshStaleScoutAvailability(
     .limit(CHECK_BATCH_SIZE);
   if (error) throw new Error(`Market Scout could not load stale availability checks: ${error.message}`);
   const leads = (data ?? []) as AvailabilityLead[];
-  if (!leads.length) return { queued: 0, examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0, connectionStatus: "not_needed", warning: null };
+  // Same predicate, no limit. Falls back to the batch length rather than
+  // failing the run, so a reporting query can never stop the work.
+  const eligible = await countEligibleLeads(admin, staleBefore);
+  const queued = eligible ?? leads.length;
+  if (!leads.length) return { queued, batchLimit: CHECK_BATCH_SIZE, examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0, connectionStatus: "not_needed", warning: null };
 
   const connection = await checkEbayConnectionHealth();
   if (connection.status !== "connected") {
     return {
-      queued: leads.length,
+      queued,
+      batchLimit: CHECK_BATCH_SIZE,
       examined: 0,
       active: 0,
       unavailable: 0,
@@ -103,7 +130,8 @@ export async function refreshStaleScoutAvailability(
   const result = (applied ?? {}) as { active?: number; unavailable?: number; inconclusive?: number };
   const appliedTotal = Number(result.active ?? 0) + Number(result.unavailable ?? 0) + Number(result.inconclusive ?? 0);
   return {
-    queued: leads.length,
+    queued,
+    batchLimit: CHECK_BATCH_SIZE,
     examined: leads.length,
     active: Number(result.active ?? 0),
     unavailable: Number(result.unavailable ?? 0),

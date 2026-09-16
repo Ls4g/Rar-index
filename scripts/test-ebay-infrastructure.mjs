@@ -11,12 +11,17 @@ try {
   delete process.env.EBAY_CLIENT_SECRET;
   assert.equal((await checkEbayConnectionHealth()).status, "missing");
 
+  // The count query is head:true and ends without .limit(), so the mock has to
+  // be awaitable at the end of the chain as well as chainable through it.
+  let eligibleCount = 241;
   const query = {
-    select() { return this; },
+    isCount: false,
+    select(_cols, options) { this.isCount = Boolean(options && options.head); return this; },
     eq() { return this; },
     lt() { return this; },
     or() { return this; },
     order() { return this; },
+    then(resolve) { return resolve({ count: this.isCount ? eligibleCount : null, error: null }); },
     limit() {
       return Promise.resolve({
         data: [{ id: "lead-1", external_id: "123", listing_title: "Example", last_seen_at: "2026-01-01T00:00:00.000Z", raw_payload: null }],
@@ -24,11 +29,22 @@ try {
       });
     },
   };
-  const skipped = await refreshStaleScoutAvailability({ from: () => query }, "run-1");
-  assert.equal(skipped.queued, 1);
+  const skipped = await refreshStaleScoutAvailability({ from: () => ({ ...query, isCount: false }) }, "run-1");
+  // queued is the whole eligible backlog, not the slice this run took. It used
+  // to be leads.length after .limit(25) had applied, so a backlog of 241
+  // reported as 25 and no reader could tell the difference.
+  assert.equal(skipped.queued, 241, "queued must report the eligible backlog, not the batch");
+  assert.equal(skipped.batchLimit, 25, "the per-run ceiling must be reported alongside it");
+  assert.ok(skipped.queued > skipped.batchLimit, "a backlog above the ceiling must remain visible as such");
   assert.equal(skipped.examined, 0);
   assert.equal(skipped.connectionStatus, "missing");
   assert.match(skipped.warning ?? "", /left untouched/i);
+
+  // A count is reporting, so a broken count must never stop the work.
+  const brokenCount = { ...query, isCount: false, then(resolve) { return resolve({ count: null, error: { message: "count failed" } }); } };
+  const degraded = await refreshStaleScoutAvailability({ from: () => brokenCount }, "run-1");
+  assert.equal(degraded.queued, 1, "a failed count falls back to the batch length rather than throwing");
+  assert.equal(degraded.connectionStatus, "missing");
 
   process.env.EBAY_CLIENT_ID = "test-client";
   process.env.EBAY_CLIENT_SECRET = "test-secret";

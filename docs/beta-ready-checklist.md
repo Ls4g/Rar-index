@@ -210,6 +210,35 @@ Read-only against production, one named 14-day window (2026-09-02T14:40Z → 202
 
 **Implication for a fix, not yet built.** A bigger batch only shortens the 9.3-day queue latency; it does nothing about the 8-day threshold that blocks the 66 leads reviewed within a week. The levers that would actually work are lowering the staleness threshold, prioritising leads about to enter a review queue, or checking on demand when a lead is opened. All three change eBay call volume, and this checklist requires establishing API and runtime budgets before changing throughput — which has not been done, and cannot be done from this machine, since `.env.local` holds no eBay credentials.
 
+## Gate 4 — eBay call budget, measured 2026-09-16
+
+**`queued` repaired.** `ScoutAvailabilityResult.queued` now runs the same predicate without the limit and reports the whole eligible backlog; `batchLimit` reports the per-run ceiling beside it, so a reader can tell a capped run from a drained queue. The count degrades to the batch length if it fails — reporting must never stop the work, and a test pins that. `agentRuntime` exposes both as `availability_candidates` and `availability_batch_limit`. The metric read 25 every single day while the real backlog was 241.
+
+**Current consumption**, from `market_scout` run metrics on 2026-09-16:
+
+| Consumer | Calls/day | Endpoint |
+| --- | --- | --- |
+| Watch checks (`watch_checks_due`) | **893** | `get_item_by_legacy_id` |
+| Profile searches (`active_search_profiles`) | 134 | `item_summary/search` |
+| Availability checks (`availability_examined`) | 25 | `get_item_by_legacy_id` |
+| **Total** | **≈1,052** | |
+
+eBay's documented default application-level limit is **5,000 calls/day**, shared across the whole application rather than per user. So RAR is at roughly **21%, with about 3,950 calls/day spare**.
+
+**The watch checks are the growth risk, not availability.** `watch_checks_due` over eight days: 146, 78, 0, 386, 688, 799, 883, 893 — climbing steadily since 11 September as `watch_listings_active` grows 605 → 795. Availability has been pinned at exactly 25 every run, which is the cap, not the demand.
+
+**Cost of each lever, against ~3,950 spare:**
+
+| Lever | Cost | Effect |
+| --- | --- | --- |
+| Raise `CHECK_BATCH_SIZE` 25 → 50 | +25/day peak, then idle at ~23/day | Drains the 241 backlog in ~9 days, removing the 9.3-day queue latency. Does nothing for the 8-day threshold. |
+| Lower the staleness threshold | Large and partly wasted | Leads still being re-seen daily are still active, so most of those checks return "active" for nothing. |
+| **Check on demand when a lead is opened** | **~25/day** (staff review 24.6/day) | Checks exactly the leads a person is about to look at, at the moment they look. Addresses all of the 44% that reach a person unchecked, not a fraction. |
+
+**Recommendation: on-demand checking**, optionally with a batch raise to clear the standing backlog. It is the smallest spend and the only lever that targets the actual failure — a person opening a lead that ended days ago.
+
+**Caveat on the budget figure.** 5,000/day is eBay's *documented default*. RAR's real limit has not been read: it comes from the Analytics API `getRateLimits`, or from the application's page in the eBay developer portal, and both need the production credentials that exist only in Vercel. Treat 5,000 as a working assumption until someone reads the real number. The headroom is large enough that the recommendation holds under any plausible value, but a pilot scope should be set against the measured limit.
+
 ## Gate 4 — Establish sustainable availability and a bounded pilot (OPEN)
 
 - [ ] Inspect `lib/scoutAvailability.ts`, `lib/ebayScout.ts`, `lib/scoutDiagnostics.ts`, `lib/agentRuntime.ts`, the availability-result RPC and schedules. Local code currently caps refreshes at 25. Measure arrivals, eligible stale backlog, checks, inconclusive results, age distribution and departures over the SAME time window. The historical 2,240 new leads versus 25 per run is not itself an arrival/service-rate comparison; `queued` currently reports the limited batch length.

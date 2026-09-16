@@ -419,7 +419,10 @@ export async function runAgentObservation(
       metrics.auto_dismiss_race_protected = safeActionResult.protectedByRace;
     }
     if (availabilityResult) {
+      // The whole eligible backlog, not this run's slice. Paired with the
+      // ceiling so a reader can tell a capped run from a drained queue.
       metrics.availability_candidates = availabilityResult.queued;
+      metrics.availability_batch_limit = availabilityResult.batchLimit;
       metrics.availability_examined = availabilityResult.examined;
       metrics.availability_confirmed_active = availabilityResult.active;
       metrics.availability_archived = availabilityResult.unavailable;
