@@ -21,12 +21,25 @@ export type OutcomeCheckResult = {
   stillActive: number;
   exhausted: number;
   errors: string[];
+  /** Checks already recorded today, and what is left of the daily ceiling.
+      null when the count could not be read -- the run proceeds on its own
+      per-run bound rather than stopping, and says so. */
+  dailySpent: number | null;
+  dailyRemaining: number | null;
+  ceilingReached: boolean;
 };
 
 // A daily batch of 40 could not keep pace with the live queue: the job was
 // healthy, but hundreds of due rows accumulated. This remains deliberately
 // bounded so one run cannot fan out without limit or surprise the eBay quota.
-export const DEFAULT_OUTCOME_CHECK_LIMIT = 160;
+export const DEFAULT_OUTCOME_CHECK_LIMIT = 400;
+/* A per-run bound is not enough on its own. /api/listing-outcomes runs a batch
+   on staff action as well as the daily cron, so 11 September reached 1,573
+   checks at a limit of 160 -- about ten runs. Raising the limit without a
+   daily ceiling would turn that same day into roughly 4,000 calls, 80% of the
+   documented budget, in one afternoon. The ceiling counts what has actually
+   been spent today from the audit table and trims the batch to fit. */
+export const DAILY_OUTCOME_CHECK_CEILING = 2000;
 export const OUTCOME_CHECK_CONCURRENCY = 6;
 
 type LeadRow = {
@@ -170,8 +183,42 @@ export async function promoteEndedListings(admin: SupabaseClient) {
   return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
+/** Checks already recorded since midnight UTC, from the audit table that
+    records every one. Returns null if it cannot be read: a budget guard must
+    never be the reason real work stops. */
+async function countChecksSpentToday(admin: SupabaseClient): Promise<number | null> {
+  try {
+    const midnight = new Date();
+    midnight.setUTCHours(0, 0, 0, 0);
+    const { count, error } = await admin
+      .from("listing_outcome_checks")
+      .select("id", { count: "exact", head: true })
+      .gte("checked_at", midnight.toISOString());
+    if (error || typeof count !== "number") return null;
+    return count;
+  } catch {
+    return null;
+  }
+}
+
 export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT, resolve = resolveListingOutcome): Promise<OutcomeCheckResult> {
-  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [] };
+  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [], dailySpent: null, dailyRemaining: null, ceilingReached: false };
+
+  // The per-run bound alone cannot hold a day: this also runs on staff
+  // action, not just the cron. Trim the batch to what the ceiling has left.
+  const spentToday = await countChecksSpentToday(admin);
+  result.dailySpent = spentToday;
+  let effectiveLimit = limit;
+  if (spentToday !== null) {
+    const remaining = Math.max(0, DAILY_OUTCOME_CHECK_CEILING - spentToday);
+    result.dailyRemaining = remaining;
+    if (remaining === 0) {
+      // Not an error. The queue is intact and the next run picks it up.
+      result.ceilingReached = true;
+      return result;
+    }
+    effectiveLimit = Math.min(limit, remaining);
+  }
   const nowIso = new Date().toISOString();
 
   const { data, error: queueError } = await admin
@@ -182,7 +229,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
     .is("resulting_observation_id", null)
     .or(`next_check_at.is.null,next_check_at.lte.${nowIso}`)
     .order("next_check_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+    .limit(effectiveLimit);
   if (queueError) throw new Error("RAR could not load outcome checks. Retry the pipeline; no listings were changed.");
 
   const rows = (data ?? []) as Array<{

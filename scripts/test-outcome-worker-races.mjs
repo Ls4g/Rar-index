@@ -51,3 +51,46 @@ await assert.rejects(runOutcomeChecks(database({ queueError: true }), 1, async (
 const reviewed = database(); reviewed.state.row.reviewed_by = "SP";
 assert.equal((await runOutcomeChecks(reviewed, 1, async () => { throw new Error("must not call eBay"); })).due, 0);
 console.log("Outcome worker passed: successful checks, human-decision races, provider failure, audit failure and queue failure.");
+
+// --- Daily ceiling ---------------------------------------------------------
+// The per-run bound cannot hold a day on its own: /api/listing-outcomes runs a
+// batch on staff action as well as the cron, so 11 September reached 1,573
+// checks at a per-run limit of 160. Raising the limit without a ceiling would
+// have made that day roughly 4,000 calls.
+{
+  const { DAILY_OUTCOME_CHECK_CEILING, DEFAULT_OUTCOME_CHECK_LIMIT } = await import("../lib/watchToSale.ts");
+  assert.ok(DEFAULT_OUTCOME_CHECK_LIMIT <= DAILY_OUTCOME_CHECK_CEILING,
+    "a single run must never be allowed to exhaust the day");
+
+  // A ceiling that is already spent stops the batch without erroring, and
+  // without touching the queue.
+  const spentDb = {
+    from(table) {
+      if (table === "listing_outcome_checks") {
+        return { select: () => ({ gte: () => Promise.resolve({ count: DAILY_OUTCOME_CHECK_CEILING, error: null }) }) };
+      }
+      throw new Error("the queue must not be read once the ceiling is spent");
+    },
+  };
+  const stopped = await runOutcomeChecks(spentDb, 400, async () => { throw new Error("must not call eBay"); });
+  assert.equal(stopped.ceilingReached, true);
+  assert.equal(stopped.checked, 0);
+  assert.equal(stopped.dailyRemaining, 0);
+  assert.deepEqual(stopped.errors, [], "a spent ceiling is a budget state, not an error");
+
+  // A ceiling that cannot be read must not stop real work.
+  const blindDb = {
+    from(table) {
+      if (table === "listing_outcome_checks") {
+        return { select: () => ({ gte: () => Promise.resolve({ count: null, error: { message: "unreadable" } }) }) };
+      }
+      return { select: () => ({ in: () => ({ is: () => ({ is: () => ({ or: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }) }) }) }) };
+    },
+  };
+  const blind = await runOutcomeChecks(blindDb, 400, async () => { throw new Error("no rows, so no call"); });
+  assert.equal(blind.ceilingReached, false, "an unreadable count must not be treated as a spent ceiling");
+  assert.equal(blind.dailySpent, null);
+  assert.equal(blind.dailyRemaining, null);
+}
+
+console.log("Outcome daily ceiling passed: spent ceiling halts without error, unreadable count never blocks work.\n");

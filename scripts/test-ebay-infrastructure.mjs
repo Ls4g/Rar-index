@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { checkEbayConnectionHealth } from "../lib/ebayScout.ts";
-import { refreshStaleScoutAvailability } from "../lib/scoutAvailability.ts";
+import { refreshStaleScoutAvailability, CHECK_BATCH_SIZE } from "../lib/scoutAvailability.ts";
 
 const originalClientId = process.env.EBAY_CLIENT_ID;
 const originalClientSecret = process.env.EBAY_CLIENT_SECRET;
@@ -34,7 +34,9 @@ try {
   // to be leads.length after .limit(25) had applied, so a backlog of 241
   // reported as 25 and no reader could tell the difference.
   assert.equal(skipped.queued, 241, "queued must report the eligible backlog, not the batch");
-  assert.equal(skipped.batchLimit, 25, "the per-run ceiling must be reported alongside it");
+  // Pinned to the constant, not a literal, so tuning the batch cannot make
+  // this test assert a stale number.
+  assert.equal(skipped.batchLimit, CHECK_BATCH_SIZE, "the per-run ceiling must be reported alongside it");
   assert.ok(skipped.queued > skipped.batchLimit, "a backlog above the ceiling must remain visible as such");
   assert.equal(skipped.examined, 0);
   assert.equal(skipped.connectionStatus, "missing");

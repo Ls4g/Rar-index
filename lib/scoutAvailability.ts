@@ -1,8 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkEbayConnectionHealth, checkEbayListingAvailability, getEbayApplicationToken, type EbayAvailabilityCheck, type EbayConnectionHealth } from "./ebayScout.ts";
-import { SCOUT_STALE_AFTER_MS } from "./scoutDiagnostics.ts";
+import { AVAILABILITY_STALE_AFTER_MS } from "./scoutDiagnostics.ts";
 
-const CHECK_BATCH_SIZE = 25;
+/* 25 a day against a 241 backlog left roughly nine days of queue latency on
+   top of the staleness wait. At 100 the standing backlog drains in about five
+   days and then idles well under the ceiling. Still bounded: one run cannot
+   fan out, and 100 calls a day is about 2% of eBay's documented 5,000. */
+export const CHECK_BATCH_SIZE = 100;
 
 type AvailabilityLead = {
   id: string;
@@ -63,7 +67,7 @@ export async function refreshStaleScoutAvailability(
   admin: SupabaseClient,
   runId: string,
 ): Promise<ScoutAvailabilityResult> {
-  const staleBefore = new Date(Date.now() - SCOUT_STALE_AFTER_MS).toISOString();
+  const staleBefore = new Date(Date.now() - AVAILABILITY_STALE_AFTER_MS).toISOString();
   const { data, error } = await admin
     .from("scout_listing_leads")
     .select("id,external_id,listing_title,last_seen_at,raw_payload")

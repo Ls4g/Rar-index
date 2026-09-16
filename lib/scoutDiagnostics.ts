@@ -5,6 +5,16 @@ import { surplusScoutLeadIds, type ScoutTriageCoverageLead } from "./scoutCovera
 import { SCOUT_REVIEW_NOW_MIN_SCORE } from "./scoutTriagePolicy.ts";
 
 export const SCOUT_STALE_AFTER_DAYS = 8;
+/* The availability check uses its own, much shorter threshold. Eight days was
+   why 44% of leads reached a person unchecked: a lead cannot be checked until
+   it has been unseen that long, and 57% of staff review happens between days
+   eight and fourteen, so the check usually arrived after the decision. A lead
+   that stops appearing in the daily search has very likely ended, so three
+   days is the point where checking it is worth a call. Measured pools: 241
+   eligible at 8 days, 491 at 3, 1,248 at 1. The diagnostic staleness above is
+   a different question -- how long a lead has been sitting -- and stays at 8. */
+export const AVAILABILITY_STALE_AFTER_DAYS = 3;
+export const AVAILABILITY_STALE_AFTER_MS = AVAILABILITY_STALE_AFTER_DAYS * 86_400_000;
 export const SCOUT_STALE_AFTER_MS = SCOUT_STALE_AFTER_DAYS * 86_400_000;
 
 export type ScoutDiagnosticLead = {

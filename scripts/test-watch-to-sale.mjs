@@ -15,7 +15,7 @@ import {
   validateObservedSaleEvidence,
 } from "../lib/listingOutcome.ts";
 import { resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
-import { DEFAULT_OUTCOME_CHECK_LIMIT, OUTCOME_CHECK_CONCURRENCY } from "../lib/watchToSale.ts";
+import { DEFAULT_OUTCOME_CHECK_LIMIT, DAILY_OUTCOME_CHECK_CEILING, OUTCOME_CHECK_CONCURRENCY } from "../lib/watchToSale.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -118,7 +118,10 @@ const exhausted = exhaustedOutcome("eBay Browse", MAX_OUTCOME_ATTEMPTS);
 check("retry exhaustion records unknown, not unsold", exhausted.status === "ambiguous" && exhausted.resolved === true);
 
 console.log("\n--- scheduling ---");
-check("daily outcome capacity can clear more than the previous 40-row ceiling", DEFAULT_OUTCOME_CHECK_LIMIT === 160);
+// Asserted as properties, not a literal: the limit is tuned against measured
+// demand, and a test pinned to the number just breaks every time it moves.
+check("daily outcome capacity clears far more than the original 40-row ceiling", DEFAULT_OUTCOME_CHECK_LIMIT >= 160);
+check("one run can never exhaust the daily ceiling on its own", DEFAULT_OUTCOME_CHECK_LIMIT < DAILY_OUTCOME_CHECK_CEILING);
 check("outcome provider requests use bounded concurrency", OUTCOME_CHECK_CONCURRENCY === 6);
 const future = new Date(Date.now() + 3_600_000).toISOString();
 check("a listing that has not ended is never checked", !isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: future }));

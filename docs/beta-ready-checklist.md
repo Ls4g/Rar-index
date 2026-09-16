@@ -239,6 +239,24 @@ eBay's documented default application-level limit is **5,000 calls/day**, shared
 
 **Caveat on the budget figure.** 5,000/day is eBay's *documented default*. RAR's real limit has not been read: it comes from the Analytics API `getRateLimits`, or from the application's page in the eBay developer portal, and both need the production credentials that exist only in Vercel. Treat 5,000 as a working assumption until someone reads the real number. The headroom is large enough that the recommendation holds under any plausible value, but a pilot scope should be set against the measured limit.
 
+## Gate 4 — throughput raised, 2026-09-16 (BUILT)
+
+**Correction to the budget figure recorded earlier.** `watch_checks_due` is a backlog count — outcomes at `ended_pending_check` with `next_check_at` in the past — not calls made. It was read as a service rate, which is the same mistake `queued` was making. Exact counts from `listing_outcome_checks`: **3,757 checks in 14 days**, ~378/day recently, with 1,573 on 11 September. So real consumption is about **537/day** (378 outcome + 134 search + 25 availability), roughly **11% of the documented 5,000**, not the 1,052 recorded before.
+
+**SP's decision:** spend on availability and outcome checks, not on more profile searches. Availability and outcomes improve queue quality and pricing accuracy; searches only add more for a person to look at.
+
+**Availability — threshold, not on-demand.** The approved plan was an on-demand check when a lead is opened. That was dropped after sizing it: "opened" would fire per lead rendered in the triage list, not per lead reviewed, so the ~25/day estimate could have been many times that. Lowering the staleness threshold achieves the same thing with a predictable bound and no UI change.
+
+`AVAILABILITY_STALE_AFTER_DAYS = 3` is now separate from `SCOUT_STALE_AFTER_DAYS = 8`, which stays as the diagnostic definition. Measured eligible pools: 241 at 8 days, 308 at 6, 431 at 4, **491 at 3**, 1,248 at 1. Three days is where a lead that has stopped appearing has very likely ended. `CHECK_BATCH_SIZE` 25 → **100**, which drains the 491 backlog in about five days and then idles at roughly 50/day against a 100/day ceiling.
+
+**Outcome checks — limit raised, and bounded by a daily ceiling.** `DEFAULT_OUTCOME_CHECK_LIMIT` 160 → **400**. A per-run bound alone cannot hold a day, because `/api/listing-outcomes` runs a batch on staff action as well as the cron — that is how 11 September reached 1,573 checks at a limit of 160. At 400 the same day would have been roughly 4,000 calls, 80% of budget in one afternoon. `DAILY_OUTCOME_CHECK_CEILING = 2000` counts what has actually been spent since midnight UTC from the audit table and trims the batch to fit; reaching it is a budget state, not an error, and the queue is left intact for the next run. An unreadable count never blocks work — the run proceeds on its own per-run bound and reports `dailySpent: null`.
+
+**Expected steady state:** ~100 availability + ~400 outcome + ~134 search ≈ **634/day, about 13% of budget**, with a hard ceiling of 2,000 outcome checks keeping the worst day near 40%.
+
+**Gates:** `test:workflows` exit 0, `tsc` clean, lint 0 errors with the two pre-existing `EditionCover` warnings, build passed. Two existing tests asserted tuning constants as literals (`=== 160`, `=== 25`) and broke; both now assert the property instead — that the limit exceeds the original 40-row ceiling, and that one run can never exhaust the daily ceiling.
+
+**Unverified:** no run has happened under the new numbers. The next `listing-outcomes` cron (09:30 UTC) and `rar-agents` cron (11:00 UTC) are the first test. Watch that `availability_candidates` falls from 491 over about five days, and that `dailySpent` stays under 2,000.
+
 ## Gate 4 — Establish sustainable availability and a bounded pilot (OPEN)
 
 - [ ] Inspect `lib/scoutAvailability.ts`, `lib/ebayScout.ts`, `lib/scoutDiagnostics.ts`, `lib/agentRuntime.ts`, the availability-result RPC and schedules. Local code currently caps refreshes at 25. Measure arrivals, eligible stale backlog, checks, inconclusive results, age distribution and departures over the SAME time window. The historical 2,240 new leads versus 25 per run is not itself an arrival/service-rate comparison; `queued` currently reports the limited batch length.
