@@ -110,6 +110,10 @@ Day never regressed at any step, which was the safety check on a change this bro
 
 **One intermediate step made Night worse (17 → 22) before better.** Theming the backgrounds exposed text literals that had been sitting on white cards and were not yet mapped. Those were then mapped. Recorded because the audit caught it and an eyeball would not have.
 
+**Handset check, 16 September 2026: SP confirmed the public pages read clearly in Night.** That is the check that counts — the audit is arithmetic on computed styles, and the first agent-console attempt passed every compiled check while changing nothing on screen. The reported defect is closed.
+
+**One caveat worth keeping.** The audit still flags a 1.1-ratio case on `/edition/[id]` (`.source-card` computing white in Night) that SP did not see. Both can be true — the element may sit below the fold or render only for certain editions. It stays open rather than being closed on "looks fine", because a contrast failure nobody happened to scroll to is still a contrast failure.
+
 **Still open — this is not finished:**
 
 - `/edition/[id]` still reports 25 in Night, worst `1.1` — `.source-card` computes a white background in Night and no rule inspected so far explains it; several rules compete for that element and the winner was not identified. Needs a proper look, not another sweep.
