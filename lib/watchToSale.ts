@@ -32,14 +32,14 @@ export type OutcomeCheckResult = {
 // A daily batch of 40 could not keep pace with the live queue: the job was
 // healthy, but hundreds of due rows accumulated. This remains deliberately
 // bounded so one run cannot fan out without limit or surprise the eBay quota.
-export const DEFAULT_OUTCOME_CHECK_LIMIT = 400;
+export const DEFAULT_OUTCOME_CHECK_LIMIT = 600;
 /* A per-run bound is not enough on its own. /api/listing-outcomes runs a batch
    on staff action as well as the daily cron, so 11 September reached 1,573
    checks at a limit of 160 -- about ten runs. Raising the limit without a
    daily ceiling would turn that same day into roughly 4,000 calls, 80% of the
    documented budget, in one afternoon. The ceiling counts what has actually
    been spent today from the audit table and trims the batch to fit. */
-export const DAILY_OUTCOME_CHECK_CEILING = 2000;
+export const DAILY_OUTCOME_CHECK_CEILING = 2500;
 export const OUTCOME_CHECK_CONCURRENCY = 6;
 
 type LeadRow = {

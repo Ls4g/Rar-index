@@ -251,7 +251,11 @@ eBay's documented default application-level limit is **5,000 calls/day**, shared
 
 **Outcome checks — limit raised, and bounded by a daily ceiling.** `DEFAULT_OUTCOME_CHECK_LIMIT` 160 → **400**. A per-run bound alone cannot hold a day, because `/api/listing-outcomes` runs a batch on staff action as well as the cron — that is how 11 September reached 1,573 checks at a limit of 160. At 400 the same day would have been roughly 4,000 calls, 80% of budget in one afternoon. `DAILY_OUTCOME_CHECK_CEILING = 2000` counts what has actually been spent since midnight UTC from the audit table and trims the batch to fit; reaching it is a budget state, not an error, and the queue is left intact for the next run. An unreadable count never blocks work — the run proceeds on its own per-run bound and reports `dailySpent: null`.
 
-**Expected steady state:** ~100 availability + ~400 outcome + ~134 search ≈ **634/day, about 13% of budget**, with a hard ceiling of 2,000 outcome checks keeping the worst day near 40%.
+**Raised again at SP’s request, same day.** 13% was more caution than the budget needed. Availability threshold 3 → **2 days** (pool 596 rather than 491, catching a lead a day sooner); outcome limit 400 → **600**; ceiling 2,000 → **2,500**.
+
+Two days is the floor worth paying for. At one day the pool jumps to 1,248 and most of those leads are still being re-seen by the daily search, so the check answers “still there” and the call is wasted. Note also that availability spend is demand-limited, not cap-limited — once the backlog drains it idles near 50/day whatever the batch allows, so the threshold is the lever there, not the batch.
+
+**Expected steady state:** ~200 availability + ~600 outcome + ~134 search ≈ **934/day, about 17-19% of budget**, with the 2,500 ceiling holding the worst day near 50%.
 
 **Gates:** `test:workflows` exit 0, `tsc` clean, lint 0 errors with the two pre-existing `EditionCover` warnings, build passed. Two existing tests asserted tuning constants as literals (`=== 160`, `=== 25`) and broke; both now assert the property instead — that the limit exceeds the original 40-row ceiling, and that one run can never exhaust the daily ceiling.
 

@@ -11,9 +11,12 @@ export const SCOUT_STALE_AFTER_DAYS = 8;
    eight and fourteen, so the check usually arrived after the decision. A lead
    that stops appearing in the daily search has very likely ended, so three
    days is the point where checking it is worth a call. Measured pools: 241
-   eligible at 8 days, 491 at 3, 1,248 at 1. The diagnostic staleness above is
-   a different question -- how long a lead has been sitting -- and stays at 8. */
-export const AVAILABILITY_STALE_AFTER_DAYS = 3;
+   eligible at 8 days, 491 at 3, 596 at 2, 1,248 at 1. Two is the floor worth
+   paying for: at one day most leads are still being re-seen by the daily
+   search, so the check answers "still there" and the call is wasted. The
+   diagnostic staleness above is a different question -- how long a lead has
+   been sitting -- and stays at 8. */
+export const AVAILABILITY_STALE_AFTER_DAYS = 2;
 export const AVAILABILITY_STALE_AFTER_MS = AVAILABILITY_STALE_AFTER_DAYS * 86_400_000;
 export const SCOUT_STALE_AFTER_MS = SCOUT_STALE_AFTER_DAYS * 86_400_000;
 
