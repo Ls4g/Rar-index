@@ -124,15 +124,35 @@ export async function refreshStaleScoutAvailability(
     decision_notes: check.reason,
   }));
 
-  const { data: applied, error: applyError } = await admin.rpc("apply_scout_agent_availability_results", {
-    p_run_id: runId,
-    p_active: active,
-    p_unavailable: unavailable,
-    p_inconclusive: inconclusive,
-  });
-  if (applyError) throw new Error(`Market Scout could not save availability results: ${applyError.message}`);
-  const result = (applied ?? {}) as { active?: number; unavailable?: number; inconclusive?: number };
-  const appliedTotal = Number(result.active ?? 0) + Number(result.unavailable ?? 0) + Number(result.inconclusive ?? 0);
+  /* The RPC refuses more than 25 leads across the three arrays in one call --
+     a guard in 20260819_phase_three_scout_availability.sql. Raising the batch
+     to 100 hit it and failed every Market Scout run on 17 September, so the
+     results are applied in chunks that respect it. Each chunk is its own
+     transaction, which is correct here: a later chunk failing must not undo
+     checks already recorded, and the leads it covered simply stay eligible. */
+  const RPC_MAX_PER_CALL = 25;
+  const tagged = [
+    ...active.map((row) => ({ kind: "active" as const, row })),
+    ...unavailable.map((row) => ({ kind: "unavailable" as const, row })),
+    ...inconclusive.map((row) => ({ kind: "inconclusive" as const, row })),
+  ];
+  const totals = { active: 0, unavailable: 0, inconclusive: 0 };
+  for (let offset = 0; offset < tagged.length; offset += RPC_MAX_PER_CALL) {
+    const chunk = tagged.slice(offset, offset + RPC_MAX_PER_CALL);
+    const { data: applied, error: applyError } = await admin.rpc("apply_scout_agent_availability_results", {
+      p_run_id: runId,
+      p_active: chunk.filter((item) => item.kind === "active").map((item) => item.row),
+      p_unavailable: chunk.filter((item) => item.kind === "unavailable").map((item) => item.row),
+      p_inconclusive: chunk.filter((item) => item.kind === "inconclusive").map((item) => item.row),
+    });
+    if (applyError) throw new Error(`Market Scout could not save availability results: ${applyError.message}`);
+    const chunkResult = (applied ?? {}) as { active?: number; unavailable?: number; inconclusive?: number };
+    totals.active += Number(chunkResult.active ?? 0);
+    totals.unavailable += Number(chunkResult.unavailable ?? 0);
+    totals.inconclusive += Number(chunkResult.inconclusive ?? 0);
+  }
+  const result = totals;
+  const appliedTotal = result.active + result.unavailable + result.inconclusive;
   return {
     queued,
     batchLimit: CHECK_BATCH_SIZE,

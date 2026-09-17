@@ -76,3 +76,47 @@ try {
   else process.env.EBAY_CLIENT_SECRET = originalClientSecret;
   globalThis.fetch = originalFetch;
 }
+
+// --- RPC chunking ----------------------------------------------------------
+// apply_scout_agent_availability_results refuses more than 25 leads across its
+// three arrays. Raising CHECK_BATCH_SIZE to 100 hit that guard and failed every
+// Market Scout run on 17 September. Results are now applied in chunks.
+{
+  const leads = Array.from({ length: 60 }, (_, i) => ({
+    id: `lead-${i}`, external_id: String(i), listing_title: `Item ${i}`,
+    last_seen_at: "2026-01-01T00:00:00.000Z", raw_payload: null,
+  }));
+  const calls = [];
+  const db = {
+    from() {
+      const chain = {
+        select() { return chain; },
+        eq() { return chain; },
+        lt() { return chain; },
+        or() { return chain; },
+        order() { return chain; },
+        limit() { return Promise.resolve({ data: leads, error: null }); },
+        then(resolve) { return resolve({ count: leads.length, error: null }); },
+      };
+      return chain;
+    },
+    rpc(_name, args) {
+      const n = args.p_active.length + args.p_unavailable.length + args.p_inconclusive.length;
+      calls.push(n);
+      return Promise.resolve({ data: { active: args.p_active.length, unavailable: args.p_unavailable.length, inconclusive: args.p_inconclusive.length }, error: null });
+    },
+  };
+  process.env.EBAY_CLIENT_ID = "test-client";
+  process.env.EBAY_CLIENT_SECRET = "test-secret";
+  globalThis.fetch = async (url) => String(url).includes("oauth")
+    ? new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 })
+    : new Response(JSON.stringify({ itemEndDate: null, buyingOptions: ["FIXED_PRICE"] }), { status: 200 });
+
+  const many = await refreshStaleScoutAvailability(db, "run-chunk");
+  assert.ok(calls.length >= 3, `60 leads must span several calls, got ${calls.length}`);
+  for (const n of calls) assert.ok(n <= 25, `every RPC call must stay within the 25-lead guard, got ${n}`);
+  assert.equal(calls.reduce((a, b) => a + b, 0), 60, "every lead must be applied exactly once across the chunks");
+  assert.equal(many.examined, 60);
+}
+
+console.log("Availability RPC chunking passed: no call exceeds the 25-lead guard and every lead is applied once.\n");
