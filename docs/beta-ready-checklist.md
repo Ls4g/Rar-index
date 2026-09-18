@@ -251,6 +251,23 @@ eBay's documented default application-level limit is **5,000 calls/day**, shared
 
 **Outcome checks — limit raised, and bounded by a daily ceiling.** `DEFAULT_OUTCOME_CHECK_LIMIT` 160 → **400**. A per-run bound alone cannot hold a day, because `/api/listing-outcomes` runs a batch on staff action as well as the cron — that is how 11 September reached 1,573 checks at a limit of 160. At 400 the same day would have been roughly 4,000 calls, 80% of budget in one afternoon. `DAILY_OUTCOME_CHECK_CEILING = 2000` counts what has actually been spent since midnight UTC from the audit table and trims the batch to fit; reaching it is a budget state, not an error, and the queue is left intact for the next run. An unreadable count never blocks work — the run proceeds on its own per-run bound and reports `dailySpent: null`.
 
+## Availability threshold corrected to 4 days, 2026-09-18
+
+Two days was wrong, and the earlier sizing was wrong for a specific reason: the **pool** at each threshold was measured, the **entry rate** was not. They behave very differently.
+
+| Threshold | Entering/day | Pool |
+| --- | --- | --- |
+| 2 days | **456** | 838 |
+| 3 days | 147 | 382 |
+| 4 days | **12** | 235 |
+| 8 days | 8 | 191 |
+
+Most leads that go quiet for two days come back — re-seen on day three or four. So at two days the queue took in 456/day against a 100/day batch and grew ~160/day, and 58% of the calls answered "still there" (real runs: 42%, 48%, 59% dead, so 41–58% wasted). Raising the batch to 300, which was the first proposal, would still have lost the race while paying for wasted calls.
+
+At four days only leads that have genuinely stopped appearing qualify. Entry is 12/day, the standing pool of 235 drains in about two and a half days at the existing batch of 100, and a check still lands around day four to six — well ahead of the day 8–14 review window that caused the original 44%-unchecked problem. `CHECK_BATCH_SIZE` stays 100, which is now generous headroom rather than a constraint.
+
+**Consequence worth recording:** this puts total spend near **13% of budget, not the 18% SP asked for**. The extra budget has nowhere useful to go — outcome checks are demand-limited at ~520/day and availability work simply does not exist beyond this. Spending to hit a percentage would mean paying for "still there" answers. Budget share is not a target.
+
 **Raised again at SP’s request, same day.** 13% was more caution than the budget needed. Availability threshold 3 → **2 days** (pool 596 rather than 491, catching a lead a day sooner); outcome limit 400 → **600**; ceiling 2,000 → **2,500**.
 
 Two days is the floor worth paying for. At one day the pool jumps to 1,248 and most of those leads are still being re-seen by the daily search, so the check answers “still there” and the call is wasted. Note also that availability spend is demand-limited, not cap-limited — once the backlog drains it idles near 50/day whatever the batch allows, so the threshold is the lever there, not the batch.

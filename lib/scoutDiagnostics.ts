@@ -5,18 +5,27 @@ import { surplusScoutLeadIds, type ScoutTriageCoverageLead } from "./scoutCovera
 import { SCOUT_REVIEW_NOW_MIN_SCORE } from "./scoutTriagePolicy.ts";
 
 export const SCOUT_STALE_AFTER_DAYS = 8;
-/* The availability check uses its own, much shorter threshold. Eight days was
-   why 44% of leads reached a person unchecked: a lead cannot be checked until
-   it has been unseen that long, and 57% of staff review happens between days
-   eight and fourteen, so the check usually arrived after the decision. A lead
-   that stops appearing in the daily search has very likely ended, so three
-   days is the point where checking it is worth a call. Measured pools: 241
-   eligible at 8 days, 491 at 3, 596 at 2, 1,248 at 1. Two is the floor worth
-   paying for: at one day most leads are still being re-seen by the daily
-   search, so the check answers "still there" and the call is wasted. The
-   diagnostic staleness above is a different question -- how long a lead has
-   been sitting -- and stays at 8. */
-export const AVAILABILITY_STALE_AFTER_DAYS = 2;
+/* The availability check uses its own threshold, much shorter than the
+   diagnostic staleness below. Eight days was why 44% of leads reached a person
+   unchecked: a lead could not be checked until unseen that long, while 57% of
+   review happens between days eight and fourteen, so the check usually arrived
+   after the decision.
+   Four days, not two. The pool size alone is misleading -- what matters is how
+   many leads cross the line each day, and that has a cliff in it:
+
+     threshold   entering/day   pool
+       2 days        456         838
+       3 days        147         382
+       4 days         12         235
+       8 days          8         191
+
+   Most leads that go quiet for two days come back; they are re-seen on day
+   three or four. Checking at two days meant 58% of calls answered "still
+   there", and 456 a day entering outran any batch worth running. At four days
+   only leads that have genuinely stopped appearing qualify, and a check still
+   lands around day four to six -- comfortably before the review window that
+   caused the original problem. */
+export const AVAILABILITY_STALE_AFTER_DAYS = 4;
 export const AVAILABILITY_STALE_AFTER_MS = AVAILABILITY_STALE_AFTER_DAYS * 86_400_000;
 export const SCOUT_STALE_AFTER_MS = SCOUT_STALE_AFTER_DAYS * 86_400_000;
 
