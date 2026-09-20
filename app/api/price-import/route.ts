@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { assessEditionMatch, type EditionMatchAssessment } from "@/lib/editionMatch";
+import type { EditionMatchAssessment } from "@/lib/editionMatch";
 import { ensureProfileAndRunForEdition } from "@/lib/collectionRunAudit";
+import { resolvePriceImportEdition, type PriceImportEdition } from "@/lib/priceImportEditionResolver";
 import { isStaffRequest } from "@/lib/staffSession";
 
 const REQUIRED_HEADERS = [
@@ -30,14 +31,7 @@ const MAX_ROWS = 500;
 const MAX_CSV_CHARACTERS = 1_500_000;
 
 type Source = { id: string; name: string | null };
-type Edition = {
-  id: string;
-  title: string | null;
-  series: string | null;
-  volume_number: string | number | null;
-  language: string | null;
-  isbn_13: string | null;
-  publisher: string | null;
+type Edition = PriceImportEdition & {
   printing_number: number | null;
   edition_statement: string | null;
   variant_name: string | null;
@@ -57,6 +51,9 @@ type ReportRow = {
   price: string;
   currency: string;
   evidenceImageUrl: string;
+  edition: Edition | null;
+  resolutionMethod: "selected" | "isbn" | "ranked" | null;
+  suggestions: Array<{ id: string; label: string; score: number }>;
   match: EditionMatchAssessment | null;
 };
 
@@ -78,6 +75,8 @@ type PreparedSale = {
   evidenceImageUrl: string | null;
   rawPayload: Record<string, unknown>;
   candidate: Record<string, string | null>;
+  edition: Edition;
+  resolutionMethod: "selected" | "isbn" | "ranked";
   match: EditionMatchAssessment;
   printClassification: PrintClassification;
   knownPrintingNumber: number | null;
@@ -196,7 +195,20 @@ function candidateFromRow(row: CsvRow) {
   };
 }
 
-function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status"], issues: string[], match: EditionMatchAssessment | null = null): ReportRow {
+function editionLabel(edition: Edition) {
+  return [edition.title || edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.publisher].filter(Boolean).join(" · ");
+}
+
+function reportFromRow(
+  rowNumber: number,
+  row: CsvRow,
+  status: ReportRow["status"],
+  issues: string[],
+  match: EditionMatchAssessment | null = null,
+  edition: Edition | null = null,
+  resolutionMethod: ReportRow["resolutionMethod"] = null,
+  suggestions: ReportRow["suggestions"] = [],
+): ReportRow {
   return {
     rowNumber,
     status,
@@ -208,6 +220,9 @@ function reportFromRow(rowNumber: number, row: CsvRow, status: ReportRow["status
     price: clean(row.sale_price),
     currency: clean(row.currency).toUpperCase(),
     evidenceImageUrl: clean(row.evidence_image_url),
+    edition,
+    resolutionMethod,
+    suggestions,
     match,
   };
 }
@@ -216,13 +231,33 @@ async function loadEdition(editionId: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("manga_editions")
-    .select("id,title,series,volume_number,language,isbn_13,publisher,printing_number,edition_statement,variant_name")
+    .select("id,title,series,volume_number,language,isbn_13,publisher,format,collectible_type,issue_year,issue_number_label,cumulative_issue_no,printing_number,edition_statement,variant_name")
     .eq("id", editionId)
     .eq("is_verified", true)
     .maybeSingle();
 
   if (error) throw new Error("The selected edition could not be checked.");
   return (data as Edition | null) ?? null;
+}
+
+async function loadVerifiedEditions() {
+  const admin = getSupabaseAdmin();
+  const editions: Edition[] = [];
+  const pageSize = 1000;
+
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await admin
+      .from("manga_editions")
+      .select("id,title,series,volume_number,language,isbn_13,publisher,format,collectible_type,issue_year,issue_number_label,cumulative_issue_no,printing_number,edition_statement,variant_name")
+      .eq("is_verified", true)
+      .order("id")
+      .range(start, start + pageSize - 1);
+    if (error) throw new Error("RAR editions could not be loaded for matching.");
+    editions.push(...((data ?? []) as Edition[]));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+
+  return editions;
 }
 
 async function loadCollectionRun(collectionRunId: string, editionId: string) {
@@ -246,7 +281,7 @@ async function loadCollectionRun(collectionRunId: string, editionId: string) {
   return typedRun;
 }
 
-async function preflight(csv: string, edition: Edition) {
+async function preflight(csv: string, editions: Edition[], selectedEdition: Edition | null = null) {
   const parsedRows = parseCsv(csv);
   const admin = getSupabaseAdmin();
   const { data: sourceRows, error: sourceError } = await admin.from("sources").select("id,name").eq("is_active", true);
@@ -273,7 +308,14 @@ async function preflight(csv: string, edition: Edition) {
     const sealed = clean(record.is_sealed).toLowerCase();
     const evidenceImageUrl = clean(record.evidence_image_url);
     const candidate = candidateFromRow(record);
-    const match = assessEditionMatch(edition, candidate);
+    const resolution = resolvePriceImportEdition(editions, candidate, selectedEdition);
+    const resolvedEdition = resolution.status === "resolved" ? resolution.edition as Edition : null;
+    const match = resolution.status === "resolved" ? resolution.match : resolution.suggestions[0]?.match ?? null;
+    const suggestions = resolution.suggestions.map((suggestion) => ({
+      id: suggestion.edition.id,
+      label: editionLabel(suggestion.edition as Edition),
+      score: suggestion.match.score,
+    }));
     const printClassification = (clean(record.print_classification).toLowerCase() || "printing_not_identified") as PrintClassification;
     const knownPrintingNumberRaw = clean(record.known_printing_number);
     const knownPrintingNumber = knownPrintingNumberRaw ? Number(knownPrintingNumberRaw) : null;
@@ -307,7 +349,8 @@ async function preflight(csv: string, edition: Edition) {
     if (!/^[A-Z]{3}$/.test(currency)) issues.push("currency must be a three-letter code such as GBP, USD, or JPY");
     if (!candidate.title) issues.push("candidate_title is required");
     if (!candidate.language) issues.push("candidate_language is required");
-    if (match.conflicts.length) issues.push(...match.conflicts);
+    if (resolution.status === "blocked") issues.push(resolution.issue);
+    if (match?.conflicts.length) issues.push(...match.conflicts);
     if (sealed && !["true", "false", "yes", "no", "1", "0"].includes(sealed)) {
       issues.push("is_sealed must be true or false when supplied");
     }
@@ -334,7 +377,12 @@ async function preflight(csv: string, edition: Edition) {
     if (fileKey) seenFileKeys.add(fileKey);
 
     if (issues.length || !source || !rawPayload || salePrice.value === null) {
-      reports.push(reportFromRow(rowNumber, record, "blocked", issues, match));
+      reports.push(reportFromRow(rowNumber, record, "blocked", [...new Set(issues)], match, resolvedEdition, null, suggestions));
+      continue;
+    }
+
+    if (!resolvedEdition || resolution.status !== "resolved") {
+      reports.push(reportFromRow(rowNumber, record, "blocked", ["RAR could not attach this row to a reviewable edition."], match, null, null, suggestions));
       continue;
     }
 
@@ -356,7 +404,9 @@ async function preflight(csv: string, edition: Edition) {
       evidenceImageUrl: evidenceImageUrl || null,
       rawPayload,
       candidate,
-      match,
+      edition: resolution.edition as Edition,
+      resolutionMethod: resolution.method,
+      match: resolution.match,
       printClassification,
       knownPrintingNumber,
     });
@@ -382,16 +432,17 @@ async function preflight(csv: string, edition: Edition) {
     const sourceRow = parsedRows.find((item) => item.rowNumber === sale.rowNumber);
     if (!sourceRow) continue;
     if (existingKeys.has(`${sale.sourceId}:${sale.externalId}`)) {
-      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "duplicate", ["already exists in RAR and will not be overwritten"], sale.match));
+      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "duplicate", ["already exists in RAR and will not be overwritten"], sale.match, sale.edition, sale.resolutionMethod));
     } else {
       ready.push(sale);
-      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "ready", [], sale.match));
+      reports.push(reportFromRow(sale.rowNumber, sourceRow.record, "ready", [], sale.match, sale.edition, sale.resolutionMethod));
     }
   }
 
   reports.sort((left, right) => left.rowNumber - right.rowNumber);
   return {
-    edition,
+    edition: selectedEdition,
+    matchingMode: selectedEdition ? "single_edition" as const : "mixed_edition" as const,
     totalRows: parsedRows.length,
     readyCount: ready.length,
     duplicateCount: reports.filter((row) => row.status === "duplicate").length,
@@ -404,6 +455,7 @@ async function preflight(csv: string, edition: Edition) {
 function publicPreflight(result: Awaited<ReturnType<typeof preflight>>) {
   return {
     edition: result.edition,
+    matchingMode: result.matchingMode,
     totalRows: result.totalRows,
     readyCount: result.readyCount,
     duplicateCount: result.duplicateCount,
@@ -424,7 +476,7 @@ export async function GET(request: NextRequest) {
       const admin = getSupabaseAdmin();
       const { data, error } = await admin
         .from("manga_editions")
-        .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name")
+        .select("id,title,series,volume_number,language,isbn_13,publisher,format,collectible_type,issue_year,issue_number_label,cumulative_issue_no,printing_number,edition_statement,variant_name")
         .eq("id", editionId)
         .eq("is_verified", true)
         .maybeSingle();
@@ -441,7 +493,7 @@ export async function GET(request: NextRequest) {
       const admin = getSupabaseAdmin();
       const { data, error } = await admin
         .from("manga_editions")
-        .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name,is_verified")
+        .select("id,title,series,volume_number,language,isbn_13,publisher,format,collectible_type,issue_year,issue_number_label,cumulative_issue_no,printing_number,edition_statement,variant_name,is_verified")
         .eq("isbn_13", isbn)
         .order("is_verified", { ascending: false })
         .limit(8);
@@ -458,7 +510,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from("manga_editions")
-      .select("id,title,series,volume_number,language,isbn_13,printing_number,edition_statement,variant_name")
+      .select("id,title,series,volume_number,language,isbn_13,publisher,format,collectible_type,issue_year,issue_number_label,cumulative_issue_no,printing_number,edition_statement,variant_name")
       .ilike("title", `%${query.replace(/[\\%_]/g, "\\$&")}%`)
       .eq("is_verified", true)
       .order("title")
@@ -477,7 +529,7 @@ export async function POST(request: Request) {
   try {
     payload = await request.json();
   } catch {
-    return Response.json({ error: "Send an edition, a CSV batch, and whether this is a preflight." }, { status: 400 });
+    return Response.json({ error: "Send a CSV batch and whether this is a preflight." }, { status: 400 });
   }
 
   const editionId = typeof payload.editionId === "string" ? payload.editionId.trim() : "";
@@ -485,37 +537,52 @@ export async function POST(request: Request) {
   const csv = typeof payload.csv === "string" ? payload.csv : "";
   const dryRun = payload.dryRun !== false;
   const reviewer = typeof payload.reviewer === "string" ? payload.reviewer.trim() : "";
-  if (!editionId) return Response.json({ error: "Select the exact RAR edition for this batch." }, { status: 400 });
   if (!csv.trim()) return Response.json({ error: "Paste a CSV batch before running preflight." }, { status: 400 });
   if (csv.length > MAX_CSV_CHARACTERS) return Response.json({ error: "This CSV is too large. Split it into smaller batches of up to 500 rows." }, { status: 400 });
+  if (collectionRunId && !editionId) return Response.json({ error: "A collection run can only be reused when one exact edition is selected." }, { status: 400 });
 
   try {
-    const edition = await loadEdition(editionId);
-    if (!edition) return Response.json({ error: "Select a verified RAR edition before importing sales." }, { status: 400 });
-    let collectionRun = collectionRunId ? await loadCollectionRun(collectionRunId, edition.id) : null;
-    if (collectionRunId && !collectionRun) return Response.json({ error: "The selected collection run does not belong to this exact edition." }, { status: 400 });
+    const selectedEdition = editionId ? await loadEdition(editionId) : null;
+    if (editionId && !selectedEdition) return Response.json({ error: "The selected RAR edition is not verified or no longer exists." }, { status: 400 });
+    const editions = selectedEdition ? [selectedEdition] : await loadVerifiedEditions();
+    if (!editions.length) return Response.json({ error: "RAR has no verified editions available for matching." }, { status: 400 });
+    const suppliedCollectionRun = collectionRunId && selectedEdition ? await loadCollectionRun(collectionRunId, selectedEdition.id) : null;
+    if (collectionRunId && !suppliedCollectionRun) return Response.json({ error: "The selected collection run does not belong to this exact edition." }, { status: 400 });
 
-    const result = await preflight(csv, edition);
+    const result = await preflight(csv, editions, selectedEdition);
     if (dryRun || !result.ready.length) return Response.json({ ...publicPreflight(result), committed: 0 });
 
     if (!reviewer) {
       return Response.json({ error: "Add your name before committing this batch. RAR remembers it across staff tools." }, { status: 400 });
     }
 
-    if (!collectionRun) {
-      collectionRun = await ensureProfileAndRunForEdition(getSupabaseAdmin(), {
-        edition,
-        sourceId: result.ready[0].sourceId,
-        checkedBy: reviewer,
-        candidateCount: result.ready.length,
-        notes: `Automatically recorded from a committed ${result.ready.length}-row completed-sale import batch.`,
-      });
+    const admin = getSupabaseAdmin();
+    const collectionRunByGroup = new Map<string, CollectionRun>();
+    if (suppliedCollectionRun) {
+      for (const sale of result.ready) collectionRunByGroup.set(`${sale.edition.id}:${sale.sourceId}`, suppliedCollectionRun);
+    } else {
+      const groups = new Map<string, PreparedSale[]>();
+      for (const sale of result.ready) {
+        const key = `${sale.edition.id}:${sale.sourceId}`;
+        groups.set(key, [...(groups.get(key) ?? []), sale]);
+      }
+      for (const [key, sales] of groups) {
+        const first = sales[0];
+        const run = await ensureProfileAndRunForEdition(admin, {
+          edition: first.edition,
+          sourceId: first.sourceId,
+          checkedBy: reviewer,
+          candidateCount: sales.length,
+          notes: `Automatically recorded from a committed completed-sale import batch containing ${sales.length} candidate${sales.length === 1 ? "" : "s"} for this edition and source.`,
+        });
+        collectionRunByGroup.set(key, run);
+      }
     }
 
     const importedAt = new Date().toISOString();
     const records = result.ready.map((sale) => ({
-      edition_id: edition.id,
-      collection_run_id: collectionRun.id,
+      edition_id: sale.edition.id,
+      collection_run_id: collectionRunByGroup.get(`${sale.edition.id}:${sale.sourceId}`)?.id,
       source_id: sale.sourceId,
       source_listing_url: sale.sourceListingUrl,
       external_id: sale.externalId,
@@ -531,10 +598,14 @@ export async function POST(request: Request) {
       raw_payload: {
         ...sale.rawPayload,
         rar_import_metadata: {
-          contract_version: "marketplace-csv-v1",
+          contract_version: result.matchingMode === "mixed_edition" ? "marketplace-csv-v2-mixed" : "marketplace-csv-v1",
           imported_at: importedAt,
           candidate: sale.candidate,
           evidence_image_url: sale.evidenceImageUrl,
+          edition_resolution: {
+            method: sale.resolutionMethod,
+            suggested_edition_id: sale.edition.id,
+          },
           edition_match: sale.match,
         },
       },
@@ -544,7 +615,6 @@ export async function POST(request: Request) {
       notes: `Imported through CSV preflight. ${sale.match.confidence} match signal (${sale.match.score}/100): ${sale.match.reasons.join(", ") || "listing evidence needs review"}. Awaiting exact-edition review.`,
     }));
 
-    const admin = getSupabaseAdmin();
     const { data, error } = await admin.from("price_observations").insert(records).select("id");
     if (error?.code === "23505") {
       return Response.json({ error: "A listing was imported by another session. Run preflight again; RAR will not overwrite it." }, { status: 409 });

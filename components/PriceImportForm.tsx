@@ -26,11 +26,15 @@ type ReportRow = {
   price: string;
   currency: string;
   evidenceImageUrl: string;
+  edition: Edition | null;
+  resolutionMethod: "selected" | "isbn" | "ranked" | null;
+  suggestions: Array<{ id: string; label: string; score: number }>;
   match: { score: number; confidence: "strong" | "partial" | "insufficient" | "conflict"; reasons: string[]; conflicts: string[] } | null;
 };
 
 type Preflight = {
-  edition: Edition;
+  edition: Edition | null;
+  matchingMode: "single_edition" | "mixed_edition";
   totalRows: number;
   readyCount: number;
   duplicateCount: number;
@@ -207,10 +211,6 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
   }
 
   async function runImport(dryRun: boolean) {
-    if (!selectedEdition) {
-      setMessage("Select the exact verified RAR edition first.");
-      return;
-    }
     if (!csv.trim()) {
       setMessage("Paste a CSV or choose a .csv file first.");
       return;
@@ -222,7 +222,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       const response = await fetch("/api/price-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editionId: selectedEdition.id, csv, dryRun, reviewer }),
+        body: JSON.stringify({ editionId: selectedEdition?.id ?? "", csv, dryRun, reviewer }),
       });
       const data = (await response.json()) as Preflight & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "The CSV could not be processed.");
@@ -260,7 +260,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
       ) : null}
       <section className="price-import-form" aria-label="Price import preflight form">
         <div className="price-import-field">
-          <label htmlFor="edition-search">Exact RAR edition for this batch</label>
+          <label htmlFor="edition-search">One exact edition for the whole batch <span>(optional)</span></label>
           {selectedEdition ? (
             <div className="selected-edition">
               <strong>{editionLabel(selectedEdition)}</strong>
@@ -268,7 +268,8 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
             </div>
           ) : (
             <>
-              <input id="edition-search" value={query} onChange={(event) => { setQuery(event.target.value); setResult(null); }} placeholder="Start typing a verified edition title" autoComplete="off" />
+              <input id="edition-search" value={query} onChange={(event) => { setQuery(event.target.value); setResult(null); }} placeholder="Leave blank to match every row automatically" autoComplete="off" />
+              <p className="field-help">For a mixed batch, leave this blank. RAR will suggest one existing edition per row and block ambiguous matches.</p>
               {loadingSuggestions ? <p className="field-help">Looking for verified editions...</p> : null}
               {visibleSuggestions.length ? (
                 <div className="edition-suggestions">
@@ -282,7 +283,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
         <div className="price-import-field">
           <label htmlFor="csv-file">CSV batch</label>
           <input id="csv-file" type="file" accept=".csv,text/csv" onChange={handleFile} />
-          <p className="field-help">Up to 500 rows. Use <a href="/templates/marketplace-price-import-v1.csv">the RAR v1 template</a>; only confirmed sales are accepted.</p>
+          <p className="field-help">Up to 500 rows from data RAR has permission to reuse. Use <a href="/templates/marketplace-price-import-v1.csv">the source-neutral template</a>; only confirmed sales are accepted. This tool never fetches marketplace pages.</p>
         </div>
 
         <label className="price-import-field price-import-csv" htmlFor="csv-text">
@@ -311,7 +312,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
             <div className="duplicate"><strong>{result.duplicateCount}</strong><span>duplicates skipped</span></div>
             <div className="blocked"><strong>{result.blockedCount}</strong><span>blocked</span></div>
           </div>
-          <p className="preflight-edition"><span>Batch edition</span>{editionLabel(result.edition)}</p>
+          <p className="preflight-edition"><span>Matching mode</span>{result.edition ? `One edition: ${editionLabel(result.edition)}` : "Mixed editions: one suggestion per row"}</p>
           <div className="preflight-table-wrap">
             <table>
               <thead><tr><th>Row</th><th>Status</th><th>Listing</th><th>Sale</th><th>Result</th></tr></thead>
@@ -320,7 +321,7 @@ export default function PriceImportForm({ communityReportId = "", initialEdition
                   <tr key={row.rowNumber}>
                     <td>{row.rowNumber}</td>
                     <td><span className={`import-status ${row.status}`}>{row.status}</span></td>
-                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.evidenceImageUrl ? "Copyright-page proof supplied" : "No copyright-page proof — printing remains unidentified."}</small></td>
+                    <td><strong>{row.listingTitle || "Missing title"}</strong><small>{row.source || "Unknown source"} | {row.externalId || "No ID"}</small><small>{row.edition ? `Suggested: ${editionLabel(row.edition)}${row.resolutionMethod ? ` · ${row.resolutionMethod}` : ""}` : row.suggestions.length ? `Possible: ${row.suggestions.map((item) => `${item.label} (${item.score})`).join("; ")}` : "No RAR edition suggested"}</small><small>{row.evidenceImageUrl ? "Copyright-page proof supplied" : "No copyright-page proof — printing remains unidentified."}</small></td>
                     <td>{row.price && row.currency ? `${row.currency} ${row.price}` : "Not usable"}<small>{row.soldDate || "No sale date"}</small></td>
                     <td>{row.issues.length ? row.issues.join("; ") : <><strong>{row.match ? `${row.match.confidence} match signal (${row.match.score}/100)` : "Ready for staff review"}</strong><small>{row.match?.reasons.join("; ") || "No match signal recorded"}</small></>}</td>
                   </tr>
