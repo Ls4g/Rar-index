@@ -4,6 +4,7 @@ import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
 import { validateManualBestOfferEvidence, validateObservedSaleEvidence } from "@/lib/listingOutcome";
 import { confirmOutcomeSale, outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
+import { outcomeHumanSnoozedUntil } from "@/lib/outcomeHumanAttention";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
@@ -115,6 +116,7 @@ async function applyDecision(
       last_error: null,
       outcome_reason: detail,
       outcome_provider: "human review",
+      human_attention_snoozed_until: outcomeHumanSnoozedUntil(now),
       check_attempts: nextAttempt,
       updated_at: now,
     }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
@@ -274,6 +276,7 @@ export async function POST(request: Request) {
       reviewed_by: resolvedUnsold ? reviewer : null,
       reviewed_at: resolvedUnsold ? now : null,
       review_notes: resolvedUnsold ? detail : null,
+      human_attention_snoozed_until: body.pageSignal === "still_live" ? outcomeHumanSnoozedUntil(now) : null,
       updated_at: now,
     }).eq("id", outcome.id).eq("status", outcome.status).eq("check_attempts", outcome.check_attempts)
       .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
