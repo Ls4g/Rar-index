@@ -120,11 +120,9 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
   return (
     <section className="catalogue-bulk-panel">
       <div className="section-intro">
-        <p className="eyebrow">Decide a screenful at once</p>
+        <p className="eyebrow">Approve candidates</p>
         <h2>{visible.length} candidate{visible.length === 1 ? "" : "s"} in the queue</h2>
-        <p className="section-copy">
-          Approve selected is the final approval: it publishes each accepted record and removes it from this queue. Title, publisher, language, ISBN and date come from the candidate&apos;s own row. To change any of those, use the full form below instead. Linking to an existing edition is always individual, because it needs one exact edition named.
-        </p>
+        <p className="section-copy">Tick exact editions and publish them together. Use the detailed form below only when a record needs correcting or linking.</p>
       </div>
 
       <div className="catalogue-bulk-operator">
@@ -149,7 +147,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
       </div>
 
       <p className="catalogue-bulk-caution">
-        Eligible means the record has the fields needed to create an edition — not that its data is right. Bibliographic sources return library-binding resellers, missing dates and publisher names that vary between records for the same book. Read the rows before approving them.
+        Eligible means the required fields exist, not that the source is correct. Read each selected row before publishing it.
       </p>
 
       {banner ? <p className={`catalogue-bulk-banner ${banner.tone === "error" ? "is-error" : "is-ok"}`} role="status">{banner.text}</p> : null}

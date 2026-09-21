@@ -23,7 +23,6 @@ const MORE_GROUPS: NavGroup[] = [
   {
     label: "Catalogue tools",
     links: [
-      { href: "/catalogue-import", label: "Candidate import" },
       { href: "/discovery-backlog", label: "Discovery backlog" },
       { href: "/cover-review", label: "Cover images" },
       { href: "/catalogue-requests", label: "Edition requests" },

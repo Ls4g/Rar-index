@@ -1,5 +1,7 @@
 import Link from "next/link";
 import CatalogueBulkPanel, { type CatalogueBulkRecord } from "@/components/CatalogueBulkPanel";
+import CatalogueCuratorRunButton from "@/components/CatalogueCuratorRunButton";
+import CatalogueImportForm from "@/components/CatalogueImportForm";
 import CataloguePhotoButton from "@/components/CataloguePhotoButton";
 import CatalogueDecisionForm from "@/components/CatalogueDecisionForm";
 import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
@@ -114,16 +116,21 @@ function formatDate(value: string) {
 
 export default async function CatalogueReviewPage() {
   const admin = getSupabaseAdmin();
-  const [{ data }, { data: knownEditionData }] = await Promise.all([
+  const [queueResult, knownEditionResult, discoveryResult, coverResult] = await Promise.all([
     admin
       .from("catalogue_review_queue")
-      .select("id, external_id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, candidate_format, candidate_cover_image_url, source_name, source_record_url, raw_payload, imported_at")
+      .select("id, external_id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, candidate_format, candidate_cover_image_url, source_name, source_record_url, raw_payload, imported_at", { count: "exact" })
       .order("imported_at", { ascending: false })
       .limit(50),
     admin.from("manga_editions").select("series,language,publisher").eq("is_verified", true).limit(5000),
+    admin.from("catalogue_discovery_targets").select("id", { count: "exact", head: true }).eq("status", "researchable"),
+    admin.from("cover_review_queue").select("edition_id", { count: "exact", head: true }),
   ]);
-  const records = (data ?? []) as CatalogueRecord[];
-  const knownEditions = (knownEditionData ?? []) as KnownCatalogueEdition[];
+  const records = (queueResult.data ?? []) as CatalogueRecord[];
+  const queueCount = queueResult.count ?? records.length;
+  const researchableCount = discoveryResult.count ?? 0;
+  const missingCoverCount = coverResult.count ?? 0;
+  const knownEditions = (knownEditionResult.data ?? []) as KnownCatalogueEdition[];
   const approvalProblems = new Map(records.map((record) => [record.id, catalogueApprovalProblem(record as unknown as CatalogueApprovalQueueRow, knownEditions)]));
   const bulkRecords: CatalogueBulkRecord[] = records.map((record) => ({
     id: record.id,
@@ -164,9 +171,33 @@ export default async function CatalogueReviewPage() {
           <h1>Approve new editions</h1>
           <p>Check the source and edition identity once. Approve or dismiss, and RAR handles the rest.</p>
         </div>
-        <div className="queue-total"><strong>{records.length}</strong><span>candidates awaiting review</span></div>
+        <div className="queue-total"><strong>{queueCount}</strong><span>candidates awaiting review</span></div>
       </section>
-      <section className="review-list-section">
+      <section className="catalogue-workflow" aria-label="Catalogue workflow">
+        <article>
+          <span>1</span>
+          <div><small>Find editions</small><strong>{researchableCount} research targets ready</strong><p>The Curator searches approved catalogue sources and only stages candidates. It never publishes an edition.</p></div>
+          <CatalogueCuratorRunButton />
+        </article>
+        <article>
+          <span>2</span>
+          <div><small>Make one decision</small><strong>{queueCount} candidate{queueCount === 1 ? "" : "s"} waiting</strong><p>Check the source, then approve, reject or keep the record for detailed review.</p></div>
+          <a href="#catalogue-review-queue">Review candidates</a>
+        </article>
+        <article>
+          <span>3</span>
+          <div><small>Finish the profile</small><strong>{missingCoverCount} missing verified cover{missingCoverCount === 1 ? "" : "s"}</strong><p>Cover work is separate from edition identity, so a wrong image can never change the catalogue record.</p></div>
+          <Link href="/cover-review">Review covers</Link>
+        </article>
+      </section>
+      <section className="catalogue-manual-import" id="manual-import">
+        <details>
+          <summary>Add a specific edition manually</summary>
+          <p>Use this only when you already know the title, ISBN or exact publisher record you want RAR to inspect.</p>
+          <CatalogueImportForm />
+        </details>
+      </section>
+      <section className="review-list-section" id="catalogue-review-queue">
         {/* Only magazines need this: a book candidate arrives with a cover
             from its own source, while a magazine's cover art is copyrighted
             and no catalogue source carries a picture at all. */}
@@ -212,7 +243,7 @@ export default async function CatalogueReviewPage() {
               }}
             />
           </article>
-        ))}</div> : <div className="review-empty"><strong>The catalogue queue is clear.</strong><p>Use the catalogue importer to bring in the next source candidates.</p></div>}
+        ))}</div> : <div className="review-empty"><strong>The catalogue queue is clear.</strong><p>Run the Curator above, or add a specific edition manually.</p></div>}
       </section>
     </main>
   );
