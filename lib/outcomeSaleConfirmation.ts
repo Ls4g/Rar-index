@@ -41,10 +41,16 @@ export function outcomeSaleFields(outcome: OutcomeSale, confirmation: OutcomeSal
   const grade = confirmation.grading === "graded" ? clean(confirmation.gradeLabel) : "";
   if (confirmation.grading === "graded" && (!company || !grade)) throw new Error("Confirm both the grading company and exact grade.");
   const bestOffer = outcomeIsBestOffer(outcome.buying_format, outcome.listing_title);
-  // Reuse the corroboration a human already recorded; do not ask them to
-  // provide the same source twice. A provider label alone never verifies it.
+  // eBay now prints an accepted Best Offer price on the original sold page.
+  // Reuse that working original source instead of asking staff to find and
+  // submit the same sale again through 130point. Legacy 130point candidates
+  // retain their original audit link.
   const corroboration = clean(confirmation.priceCorroborationUrl)
-    || (outcome.outcome_provider === "130point manual corroboration" ? "https://130point.com/sales/" : "");
+    || (bestOffer
+      ? outcome.outcome_provider === "130point manual corroboration"
+        ? "https://130point.com/sales/"
+        : outcome.source_listing_url
+      : "");
   if (bestOffer && !httpUrl(corroboration)) throw new Error("Best Offer needs a link confirming the actual accepted price. The advertised price is not evidence.");
   return {
     company: company || null, grade: grade || null,

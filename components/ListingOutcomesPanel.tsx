@@ -153,7 +153,7 @@ export default function ListingOutcomesPanel({
   const [running, setRunning] = useState(false);
   const [testingEbay, setTestingEbay] = useState(false);
   const [searchDraft, setSearchDraft] = useState(search);
-  const [saleInputs, setSaleInputs] = useState<Record<string, { price: string; currency: string; soldAt: string; confirmed: boolean }>>({});
+  const [saleInputs, setSaleInputs] = useState<Record<string, { displayedTotal: string; buyerProtectionFee: string; currency: string; soldAt: string; confirmed: boolean }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkNote, setBulkNote] = useState("");
   const [bulkDismissReason, setBulkDismissReason] = useState<DismissalReason>("");
@@ -307,18 +307,15 @@ export default function ListingOutcomesPanel({
   /**
    * Record what a listing sold for, from a human who opened the page.
    *
-   * Two routes, one form. A Best Offer hides the accepted price on eBay
-   * itself, so it goes through the 130point corroboration path and keeps that
-   * audit wording. Every other listing prints the price on the page, so the
-   * staff observation is the evidence and is recorded as exactly that.
+   * eBay's sold page now discloses Best Offer prices. The prominent total can
+   * include a viewer-specific Buyer Protection fee, so RAR records both
+   * visible numbers and subtracts the fee on the server before saving.
    */
   async function recordSalePrice(row: OutcomeRow, isBestOffer: boolean) {
     if (!reviewer.trim()) { setMessage("Add your name or initials first."); return; }
-    const input = saleInputs[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false };
+    const input = saleInputs[row.id] ?? { displayedTotal: "", buyerProtectionFee: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false };
     if (!input.confirmed) {
-      setMessage(isBestOffer
-        ? "Confirm that the 130point result matches this exact eBay item number."
-        : "Confirm that you opened this listing and the page shows this sale.");
+      setMessage("Confirm that you opened this exact eBay listing and that the page visibly marks it as sold.");
       return;
     }
     setSaving(`${row.id}:sale-price`);
@@ -330,7 +327,10 @@ export default function ListingOutcomesPanel({
         body: JSON.stringify({
           action: isBestOffer ? "record-best-offer-price" : "record-observed-sale",
           outcomeId: row.id, reviewer, notes: notes[row.id] ?? "",
-          soldPrice: Number(input.price), soldCurrency: input.currency, soldAt: input.soldAt,
+          displayedTotal: Number(input.displayedTotal),
+          buyerProtectionFee: input.buyerProtectionFee.trim() ? Number(input.buyerProtectionFee) : 0,
+          soldCurrency: input.currency,
+          soldAt: input.soldAt,
         }),
       });
       const result = await response.json();
@@ -516,12 +516,10 @@ export default function ListingOutcomesPanel({
 
                     {canRecordSale ? (
                       <div className="best-offer-corroboration">
-                        {isBestOffer
-                          ? <div><strong>It sold — record the accepted price</strong><p>A Best Offer hides what was actually paid, so eBay cannot tell you. Search 130point using the exact item number below; eBay remains the original source.</p></div>
-                          : <div><strong>It sold — record the price</strong><p>Open the original listing and copy the price, currency and date exactly as the page shows them. This saves a sold candidate; you still confirm it is the exact edition afterwards.</p></div>}
-                        {isBestOffer ? <div className="best-offer-tools"><code>{row.externalId}</code><button className="secondary-action" onClick={() => void navigator.clipboard.writeText(row.externalId).then(() => setMessage(`Copied eBay item ${row.externalId}.`))} type="button">Copy item number</button><a className="secondary-action" href="https://130point.com/sales/" rel="noreferrer" target="_blank">Open 130point ↗</a></div> : null}
-                        <div className="best-offer-fields"><label>{isBestOffer ? "Accepted price" : "Sold for"}<input inputMode="decimal" min="0.01" onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { currency: row.currency ?? "USD", soldAt: "", confirmed: false }), price: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={saleInputs[row.id]?.price ?? ""} /></label><label>Currency<select onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", soldAt: "", confirmed: false }), currency: event.target.value } }))} value={saleInputs[row.id]?.currency ?? row.currency ?? "USD"}><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option><option value="JPY">JPY</option><option value="CAD">CAD</option><option value="AUD">AUD</option></select></label><label>Sale date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", confirmed: false }), soldAt: event.target.value } }))} type="date" value={saleInputs[row.id]?.soldAt ?? ""} /></label></div>
-                        <label className="best-offer-confirm"><input checked={saleInputs[row.id]?.confirmed ?? false} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { price: "", currency: row.currency ?? "USD", soldAt: "" }), confirmed: event.target.checked } }))} type="checkbox" /> {isBestOffer ? "I matched this exact eBay item number in 130point." : "I opened this listing myself and the page shows it sold at this price."}</label>
+                        <div><strong>{isBestOffer ? "It sold — record eBay’s accepted price" : "It sold — record the eBay price"}</strong><p>Copy the total shown on the original sold page. If eBay shows a Buyer Protection fee, add it separately; RAR subtracts it so the chart stores only the item price. No 130point check is needed.</p></div>
+                        <div className="best-offer-fields"><label>eBay displayed total<input inputMode="decimal" min="0.01" onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { buyerProtectionFee: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false }), displayedTotal: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={saleInputs[row.id]?.displayedTotal ?? ""} /></label><label>Buyer Protection fee <small>0 or blank if none</small><input inputMode="decimal" min="0" onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { displayedTotal: "", currency: row.currency ?? "USD", soldAt: "", confirmed: false }), buyerProtectionFee: event.target.value } }))} placeholder="0.00" step="0.01" type="number" value={saleInputs[row.id]?.buyerProtectionFee ?? ""} /></label><label>Currency<select onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { displayedTotal: "", buyerProtectionFee: "", soldAt: "", confirmed: false }), currency: event.target.value } }))} value={saleInputs[row.id]?.currency ?? row.currency ?? "USD"}><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option><option value="JPY">JPY</option><option value="CAD">CAD</option><option value="AUD">AUD</option></select></label><label>Sale date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { displayedTotal: "", buyerProtectionFee: "", currency: row.currency ?? "USD", confirmed: false }), soldAt: event.target.value } }))} type="date" value={saleInputs[row.id]?.soldAt ?? ""} /></label></div>
+                        {Number(saleInputs[row.id]?.displayedTotal) > 0 && Number(saleInputs[row.id]?.buyerProtectionFee || 0) >= 0 && Number(saleInputs[row.id]?.buyerProtectionFee || 0) < Number(saleInputs[row.id]?.displayedTotal) ? <p><b>RAR item price:</b> {money(Math.round((Number(saleInputs[row.id]?.displayedTotal) - Number(saleInputs[row.id]?.buyerProtectionFee || 0) + Number.EPSILON) * 100) / 100, saleInputs[row.id]?.currency ?? row.currency ?? "USD")}</p> : null}
+                        <label className="best-offer-confirm"><input checked={saleInputs[row.id]?.confirmed ?? false} onChange={(event) => setSaleInputs((current) => ({ ...current, [row.id]: { ...(current[row.id] ?? { displayedTotal: "", buyerProtectionFee: "", currency: row.currency ?? "USD", soldAt: "" }), confirmed: event.target.checked } }))} type="checkbox" /> I opened this exact eBay listing, confirmed it says “Sold”, and copied the displayed amounts.</label>
                         <button className="catalogue-bulk-approve" disabled={Boolean(saving)} onClick={() => void recordSalePrice(row, isBestOffer)} type="button">{saving === `${row.id}:sale-price` ? "Saving…" : "Save as sold candidate"}</button>
                       </div>
                     ) : null}

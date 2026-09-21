@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 import { probeOutcomeProviders, tradingOutcomeProvider } from "@/lib/listingOutcomeProviders";
-import { validateManualBestOfferEvidence, validateObservedSaleEvidence } from "@/lib/listingOutcome";
+import { ebayItemPrice, validateEbayDisplayedSaleEvidence, validateManualBestOfferEvidence } from "@/lib/listingOutcome";
 import { confirmOutcomeSale, outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeSaleConfirmation";
 import { outcomeHumanSnoozedUntil } from "@/lib/outcomeHumanAttention";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
@@ -26,6 +26,8 @@ type DecisionBody = OutcomeSaleConfirmation & {
   reviewer?: string;
   notes?: string;
   soldPrice?: number;
+  displayedTotal?: number;
+  buyerProtectionFee?: number;
   soldCurrency?: string;
   soldAt?: string;
   pageSignal?: StaffPageSignal;
@@ -287,9 +289,8 @@ export async function POST(request: Request) {
   // ------------------------------------------- staff-observed sale price ----
   // The gap this closes: an ordinary auction or fixed-price listing that
   // plainly sold, with the price printed on the page, but which eBay's API
-  // would not report. Before this, the only manual price form was the 130point
-  // Best Offer one, so those listings could only be kept watching or dismissed
-  // — a sale a human was looking at had nowhere to go.
+  // would not report. eBay's original sold page is the source; a visible Buyer
+  // Protection fee is captured separately and removed from the chart price.
   if (body.action === "record-observed-sale") {
     if (outcomeIsBestOffer(outcome.buying_format, outcome.listing_title)) {
       return Response.json({ error: "Use the accepted Best Offer price check for this listing; its advertised price cannot be used." }, { status: 400 });
@@ -302,16 +303,19 @@ export async function POST(request: Request) {
       return Response.json({ error: "This outcome is already resolved. It was not changed." }, { status: 409 });
     }
 
-    const soldPrice = Number(body.soldPrice);
+    const displayedTotal = Number(body.displayedTotal ?? body.soldPrice);
+    const buyerProtectionFee = Number(body.buyerProtectionFee ?? 0);
     const soldCurrency = (body.soldCurrency ?? "").trim().toUpperCase();
     const soldAt = (body.soldAt ?? "").trim();
-    const validationError = validateObservedSaleEvidence({ soldPrice, soldCurrency, soldAt });
+    const validationError = validateEbayDisplayedSaleEvidence({ displayedTotal, buyerProtectionFee, soldCurrency, soldAt });
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
+    const soldPrice = ebayItemPrice(displayedTotal, buyerProtectionFee);
+    if (soldPrice === null) return Response.json({ error: "RAR could not calculate the item price from the eBay total and fee." }, { status: 400 });
 
     // The audit row says who looked and what RAR had thought, so a later reader
     // can see this was a human overruling the pipeline rather than the
     // pipeline having worked.
-    const detail = `Human ${reviewer} opened eBay item ${outcome.external_id} and recorded the completed sale shown on the page. RAR had this listing as "${outcome.status.replaceAll("_", " ")}".${notes ? ` Note: ${notes}` : ""}`;
+    const detail = `Human ${reviewer} opened eBay item ${outcome.external_id} and recorded the completed sale shown on the page. The displayed total was ${soldCurrency} ${displayedTotal.toFixed(2)}${buyerProtectionFee ? ` including a ${soldCurrency} ${buyerProtectionFee.toFixed(2)} Buyer Protection fee` : " with no separate Buyer Protection fee shown"}; RAR stored the ${soldCurrency} ${soldPrice.toFixed(2)} item price. RAR had this listing as "${outcome.status.replaceAll("_", " ")}".${notes ? ` Note: ${notes}` : ""}`;
     const nextAttempt = (outcome.check_attempts ?? 0) + 1;
     const { error: auditError } = await admin.from("listing_outcome_checks").insert({
       outcome_id: outcome.id,
@@ -324,7 +328,9 @@ export async function POST(request: Request) {
       raw_response: {
         ebay_item_id: outcome.external_id,
         source_listing_url: outcome.source_listing_url,
-        observed_price: soldPrice,
+        displayed_total: displayedTotal,
+        buyer_protection_fee: buyerProtectionFee,
+        item_price_excluding_buyer_fee: soldPrice,
         currency: soldCurrency,
         sold_at: soldAt,
         previous_status: outcome.status,
@@ -361,23 +367,28 @@ export async function POST(request: Request) {
       || (outcome.status === "sold_candidate" && outcome.sold_price && outcome.sold_currency && outcome.sold_at)) {
       return Response.json({ error: "Only an ended Best Offer with an unresolved outcome can use this check." }, { status: 400 });
     }
-    const soldPrice = Number(body.soldPrice);
+    const displayedTotal = Number(body.displayedTotal ?? body.soldPrice);
+    const buyerProtectionFee = Number(body.buyerProtectionFee ?? 0);
     const soldCurrency = (body.soldCurrency ?? "").trim().toUpperCase();
     const soldAt = (body.soldAt ?? "").trim();
+    const displayedValidationError = validateEbayDisplayedSaleEvidence({ displayedTotal, buyerProtectionFee, soldCurrency, soldAt });
+    if (displayedValidationError) return Response.json({ error: displayedValidationError }, { status: 400 });
+    const soldPrice = ebayItemPrice(displayedTotal, buyerProtectionFee);
+    if (soldPrice === null) return Response.json({ error: "RAR could not calculate the item price from the eBay total and fee." }, { status: 400 });
     const validationError = validateManualBestOfferEvidence({ buyingFormat: outcomeIsBestOffer(outcome.buying_format, outcome.listing_title) ? "BEST_OFFER" : outcome.buying_format, soldPrice, soldCurrency, soldAt });
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const detail = `Human ${reviewer} matched eBay item ${outcome.external_id} on 130point and recorded the accepted Best Offer price. 130point corroborates the hidden price; the original sale source remains eBay.${notes ? ` Note: ${notes}` : ""}`;
+    const detail = `Human ${reviewer} opened eBay item ${outcome.external_id} and recorded the accepted Best Offer price now disclosed on the original sold page. The displayed total was ${soldCurrency} ${displayedTotal.toFixed(2)}${buyerProtectionFee ? ` including a ${soldCurrency} ${buyerProtectionFee.toFixed(2)} Buyer Protection fee` : " with no separate Buyer Protection fee shown"}; RAR stored the ${soldCurrency} ${soldPrice.toFixed(2)} item price.${notes ? ` Note: ${notes}` : ""}`;
     const nextAttempt = (outcome.check_attempts ?? 0) + 1;
     const { error: auditError } = await admin.from("listing_outcome_checks").insert({
       outcome_id: outcome.id,
-      provider: "130point manual corroboration",
+      provider: "eBay sold page — staff observed accepted price",
       attempt_number: nextAttempt,
       http_status: null,
       listing_state: "completed_sold",
       resulting_status: "sold_candidate",
       detail,
-      raw_response: { lookup_url: "https://130point.com/sales/", ebay_item_id: outcome.external_id, accepted_price: soldPrice, currency: soldCurrency, sold_at: soldAt, reviewed_by: reviewer },
+      raw_response: { source_listing_url: outcome.source_listing_url, ebay_item_id: outcome.external_id, displayed_total: displayedTotal, buyer_protection_fee: buyerProtectionFee, item_price_excluding_buyer_fee: soldPrice, currency: soldCurrency, sold_at: soldAt, reviewed_by: reviewer },
       checked_at: now,
     });
     if (auditError) return Response.json({ error: "The corroboration audit record could not be saved. Nothing was changed." }, { status: 500 });
@@ -388,7 +399,7 @@ export async function POST(request: Request) {
       sold_currency: soldCurrency,
       sold_at: soldAt,
       outcome_reason: detail,
-      outcome_provider: "130point manual corroboration",
+      outcome_provider: "eBay sold page — staff observed accepted price",
       check_attempts: nextAttempt,
       last_checked_at: now,
       next_check_at: null,

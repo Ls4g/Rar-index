@@ -212,7 +212,10 @@ export async function POST(request: Request) {
     const saleType = text(payload.saleType) || "unknown";
     const printClassification = text(payload.printClassification) || "printing_not_identified";
     const printingProofUrl = text(payload.printingProofUrl);
-    const priceCorroborationUrl = text(payload.priceCorroborationUrl);
+    // eBay now exposes the accepted Best Offer price on the working original
+    // sold page, so that page is both the primary source and price proof. An
+    // explicit URL remains accepted for older/non-eBay imports.
+    const priceCorroborationUrl = text(payload.priceCorroborationUrl) || (saleType === "best_offer" ? sourceListingUrl : "");
     const knownPrintingNumberText = text(payload.knownPrintingNumber);
     const knownPrintingNumber = knownPrintingNumberText ? positiveInteger(knownPrintingNumberText) : null;
     const isGraded = payload.isGraded === true;
@@ -229,7 +232,7 @@ export async function POST(request: Request) {
     if (isGraded && (!gradingCompany || !gradeLabel)) return Response.json({ error: "Confirm both the grading company and exact grade." }, { status: 400 });
     if (printClassification === "first_print_proven" && (!printingProofUrl || !validUrl(printingProofUrl))) return Response.json({ error: "A proven first print requires a direct copyright-page proof URL." }, { status: 400 });
     if (printingProofUrl && !validUrl(printingProofUrl)) return Response.json({ error: "Printing proof must be a valid URL." }, { status: 400 });
-    if (saleType === "best_offer" && (!priceCorroborationUrl || !validUrl(priceCorroborationUrl))) return Response.json({ error: "Best Offer sales require a link confirming the actual accepted price." }, { status: 400 });
+    if (saleType === "best_offer" && (!priceCorroborationUrl || !validUrl(priceCorroborationUrl))) return Response.json({ error: "Best Offer sales require a working source page that shows the accepted price." }, { status: 400 });
     if (priceCorroborationUrl && !validUrl(priceCorroborationUrl)) return Response.json({ error: "Price corroboration must be a valid URL." }, { status: 400 });
     if (knownPrintingNumberText && knownPrintingNumber === null) return Response.json({ error: "Known printing number must be a positive whole number." }, { status: 400 });
 

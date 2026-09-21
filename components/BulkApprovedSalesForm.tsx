@@ -41,7 +41,6 @@ type BatchRow = {
   currency: string;
   quantity: string;
   saleType: SaleType;
-  priceCorroborationUrl: string;
   isGraded: boolean;
   gradingCompany: string;
   gradeLabel: string;
@@ -74,7 +73,6 @@ function rowFromLookup(result: LookupResult): BatchRow {
     currency: evidence?.soldCurrency?.toUpperCase() ?? "GBP",
     quantity: evidence?.quantitySold && evidence.quantitySold > 0 ? String(evidence.quantitySold) : "1",
     saleType: evidence?.bestOffer ? "best_offer" : format.includes("AUCTION") ? "auction" : format ? "fixed_price" : "unknown",
-    priceCorroborationUrl: "",
     isGraded: grading.isGraded,
     gradingCompany: grading.company,
     gradeLabel: grading.grade,
@@ -91,7 +89,6 @@ function rowFromLookup(result: LookupResult): BatchRow {
 function rowIsReady(row: BatchRow) {
   if (!row.listingUrl || !row.externalId || !row.listingTitle || !row.soldDate || !row.salePrice || !/^[A-Z]{3}$/.test(row.currency)) return false;
   if (row.isGraded && (!row.gradingCompany || !row.gradeLabel)) return false;
-  if (row.saleType === "best_offer" && !row.priceCorroborationUrl) return false;
   if (row.printClassification === "first_print_proven" && !row.printingProofUrl) return false;
   return row.status !== "saved";
 }
@@ -194,7 +191,7 @@ export default function BulkApprovedSalesForm({
               submittedText: "", sourceListingUrl: row.listingUrl, externalId: row.externalId,
               listingTitle: row.listingTitle, soldDate: row.soldDate, salePrice: row.salePrice,
               shippingPrice: row.shippingPrice, currency: row.currency, quantity: row.quantity,
-              saleType: row.saleType, priceCorroborationUrl: row.priceCorroborationUrl,
+              saleType: row.saleType, priceCorroborationUrl: row.saleType === "best_offer" ? row.listingUrl : "",
               isGraded: row.isGraded, gradingCompany: row.gradingCompany, gradeLabel: row.gradeLabel,
               printClassification: row.printClassification, printingProofUrl: row.printingProofUrl,
               knownPrintingNumber: row.knownPrintingNumber, intakeNotes: row.intakeNotes,
@@ -241,7 +238,7 @@ export default function BulkApprovedSalesForm({
     </div>
 
     <div className="bulk-sale-links">
-      <span>2</span><label><strong>Paste eBay sold-listing links</strong><small>One per line. Best Offer links are accepted only when you add the true price and 130point corroboration below.</small><textarea value={pastedLinks} onChange={(event) => setPastedLinks(event.target.value)} rows={6} placeholder={'https://www.ebay.co.uk/itm/123456789012\nhttps://www.ebay.com/itm/987654321098'} /></label>
+      <span>2</span><label><strong>Paste eBay sold-listing links</strong><small>One per line. For Best Offers, copy the accepted item price now shown on the original eBay sold page.</small><textarea value={pastedLinks} onChange={(event) => setPastedLinks(event.target.value)} rows={6} placeholder={'https://www.ebay.co.uk/itm/123456789012\nhttps://www.ebay.com/itm/987654321098'} /></label>
       <button type="button" disabled={preparing || !selectedEdition || pastedLinkCount === 0} onClick={prepareBatch}>{preparing ? "Reading links…" : pastedLinkCount ? `Prepare ${pastedLinkCount} link${pastedLinkCount === 1 ? "" : "s"}` : "Paste links to begin"}</button>
     </div>
 
@@ -262,7 +259,7 @@ export default function BulkApprovedSalesForm({
             <label>Print<select value={row.printClassification} onChange={(event) => updateRow(row.key, { printClassification: event.target.value as PrintClassification })}><option value="printing_not_identified">Not identified</option><option value="known_later_print">Later print</option><option value="first_print_proven">First print — proven</option></select></label>
             <label>Copy type<select value={row.isGraded ? "graded" : "raw"} onChange={(event) => updateRow(row.key, { isGraded: event.target.value === "graded" })}><option value="raw">Raw</option><option value="graded">Graded</option></select></label>
             {row.isGraded ? <><label>Grader<input value={row.gradingCompany} onChange={(event) => updateRow(row.key, { gradingCompany: event.target.value.toUpperCase() })} /></label><label>Grade<input value={row.gradeLabel} onChange={(event) => updateRow(row.key, { gradeLabel: event.target.value })} /></label></> : null}
-            {row.saleType === "best_offer" ? <label className="wide attention">130point corroboration link<input type="url" value={row.priceCorroborationUrl} onChange={(event) => updateRow(row.key, { priceCorroborationUrl: event.target.value })} placeholder="Required for the true accepted price" /></label> : null}
+            {row.saleType === "best_offer" ? <p className="wide attention">The original eBay sold page is the accepted-price proof. Enter the item price without Buyer Protection or delivery fees.</p> : null}
             {row.printClassification === "first_print_proven" ? <label className="wide attention">Copyright-page proof link<input type="url" value={row.printingProofUrl} onChange={(event) => updateRow(row.key, { printingProofUrl: event.target.value })} placeholder="Required for this sold copy" /></label> : null}
           </div>
           <details><summary>Optional delivery, quantity and notes</summary><div className="bulk-sale-fields"><label>Delivery<input inputMode="decimal" value={row.shippingPrice} onChange={(event) => updateRow(row.key, { shippingPrice: event.target.value })} /></label><label>Quantity<input min={1} type="number" value={row.quantity} onChange={(event) => updateRow(row.key, { quantity: event.target.value })} /></label><label className="wide">Note<textarea rows={2} value={row.intakeNotes} onChange={(event) => updateRow(row.key, { intakeNotes: event.target.value })} /></label></div></details>

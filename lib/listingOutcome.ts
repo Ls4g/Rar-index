@@ -42,9 +42,9 @@ export type OutcomeSignal = {
   // explicitly never used to infer a sale.
   bidCount: number | null;
   buyingFormat: string | null;
-  // Best Offer accepted price, when the marketplace discloses it. eBay
-  // usually does not: the accepted amount is private between buyer and
-  // seller, which is why Best Offer stays ambiguous.
+  // Best Offer accepted price, when the marketplace discloses it. Trading's
+  // API still does not return that amount, even though eBay's public sold
+  // page now shows it to a person viewing the original listing.
   bestOfferAccepted: boolean | null;
   scheduledEndAt: string | null;
   httpStatus: number | null;
@@ -91,8 +91,36 @@ export type ManualBestOfferEvidence = {
 export function validateManualBestOfferEvidence(input: ManualBestOfferEvidence): string | null {
   if (!isBestOfferFormat(input.buyingFormat)) return "This listing was not captured as a Best Offer listing.";
   if (!Number.isFinite(input.soldPrice) || input.soldPrice <= 0) return "Enter the accepted Best Offer price.";
-  if (!/^[A-Z]{3}$/.test(input.soldCurrency)) return "Choose the currency reported by 130point.";
+  if (!/^[A-Z]{3}$/.test(input.soldCurrency)) return "Choose the currency shown on the eBay sold page.";
   if (!isUsableDate(input.soldAt)) return "Enter a valid completed-sale date that is not in the future.";
+  return null;
+}
+
+export type EbayDisplayedSaleEvidence = {
+  displayedTotal: number;
+  buyerProtectionFee: number;
+  soldCurrency: string;
+  soldAt: string;
+};
+
+/**
+ * eBay UK may show a personalised Buyer Protection fee inside the prominent
+ * sold total. That fee is not money paid to the seller and can vary between
+ * viewers, so it must never enter RAR's market value. The stable item price is
+ * the displayed total minus the separately-labelled fee.
+ */
+export function ebayItemPrice(displayedTotal: number, buyerProtectionFee: number) {
+  if (!Number.isFinite(displayedTotal) || displayedTotal <= 0) return null;
+  if (!Number.isFinite(buyerProtectionFee) || buyerProtectionFee < 0 || buyerProtectionFee >= displayedTotal) return null;
+  return Math.round((displayedTotal - buyerProtectionFee + Number.EPSILON) * 100) / 100;
+}
+
+export function validateEbayDisplayedSaleEvidence(input: EbayDisplayedSaleEvidence): string | null {
+  if (!Number.isFinite(input.displayedTotal) || input.displayedTotal <= 0) return "Enter the total shown on the eBay sold page.";
+  if (!Number.isFinite(input.buyerProtectionFee) || input.buyerProtectionFee < 0) return "Enter the Buyer Protection fee shown by eBay, or 0 when none is shown.";
+  if (input.buyerProtectionFee >= input.displayedTotal) return "The Buyer Protection fee must be lower than the displayed total.";
+  if (!/^[A-Z]{3}$/.test(input.soldCurrency)) return "Choose the currency shown on the eBay sold page.";
+  if (!isUsableDate(input.soldAt)) return "Enter a valid sale date that is not in the future.";
   return null;
 }
 

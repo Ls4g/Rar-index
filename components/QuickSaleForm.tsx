@@ -65,7 +65,6 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   const [currency, setCurrency] = useState("GBP");
   const [quantity, setQuantity] = useState("1");
   const [saleType, setSaleType] = useState<SaleType>("unknown");
-  const [priceCorroborationUrl, setPriceCorroborationUrl] = useState("");
   const [isGraded, setIsGraded] = useState(false);
   const [gradingCompany, setGradingCompany] = useState("");
   const [gradeLabel, setGradeLabel] = useState("");
@@ -190,7 +189,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       const ebaySource = sources.find((source) => source.name === "eBay Sold");
       if (ebaySource) setSourceId(ebaySource.id);
       setMessage(evidence.bestOffer
-        ? "eBay confirmed the sale and filled the listing. Add the accepted price and its 130point link, then approve."
+        ? "eBay confirmed the sale and filled the listing. Copy the accepted item price now shown on the original sold page, then approve."
         : "eBay confirmed the sale and filled the available details. Check the printing choice, then approve once.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "eBay could not load this listing.");
@@ -218,7 +217,6 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     setShippingPrice("");
     setQuantity("1");
     setSaleType("unknown");
-    setPriceCorroborationUrl("");
     setIsGraded(false);
     setGradingCompany("");
     setGradeLabel("");
@@ -262,7 +260,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
           currency,
           quantity,
           saleType,
-          priceCorroborationUrl,
+          priceCorroborationUrl: saleType === "best_offer" ? sourceListingUrl : "",
           isGraded,
           gradingCompany,
           gradeLabel,
@@ -354,7 +352,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
         <label>Currency<input required maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="GBP" /></label>
         <label>Postage / delivery <small>Stored separately; blank is allowed</small><input inputMode="decimal" value={shippingPrice} onChange={(event) => setShippingPrice(event.target.value)} placeholder="0.00" /></label>
         <label>Copies reported sold <small>One listing remains one chart point</small><input required min={1} type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-        {saleType === "best_offer" ? <label className="quick-sale-wide best-offer-proof">Actual-price corroboration link <small>Required because eBay&apos;s displayed price may not be what the buyer paid. A 130point result is acceptable.</small><input required type="url" value={priceCorroborationUrl} onChange={(event) => setPriceCorroborationUrl(event.target.value)} placeholder="https://..." /></label> : null}
+        {saleType === "best_offer" ? <p className="quick-sale-wide best-offer-proof">The original eBay sold page is the accepted-price proof. If its displayed total includes a Buyer Protection fee, subtract that fee before entering the item price.</p> : null}
       </div>
 
       <div className="quick-sale-step"><span>4</span><div><strong>Confirm grading and printing</strong><p>Every company and grade gets its own comparison group. Printing remains separate too.</p></div></div>

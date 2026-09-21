@@ -7,10 +7,12 @@
 // candidate -- and a candidate is still only a queue entry for a human.
 import {
   classifyListingOutcome,
+  ebayItemPrice,
   exhaustedOutcome,
   isDueForCheck,
   nextOutcomeCheckAt,
   MAX_OUTCOME_ATTEMPTS,
+  validateEbayDisplayedSaleEvidence,
   validateManualBestOfferEvidence,
   validateObservedSaleEvidence,
 } from "../lib/listingOutcome.ts";
@@ -32,15 +34,23 @@ const base = {
 };
 const yesterday = new Date(Date.now() - 86_400_000).toISOString();
 
-console.log("\n--- manual Best Offer corroboration ---");
-check("an exact 130point lookup can supply a valid hidden Best Offer price",
+console.log("\n--- eBay-disclosed Best Offer price ---");
+check("the original eBay sold page can supply a valid accepted Best Offer price",
   validateManualBestOfferEvidence({ buyingFormat: "FIXED_PRICE,BEST_OFFER", soldPrice: 72.5, soldCurrency: "USD", soldAt: yesterday }) === null);
-check("a normal fixed-price listing cannot enter through the 130point Best Offer path",
+check("a normal fixed-price listing cannot enter through the Best Offer path",
   Boolean(validateManualBestOfferEvidence({ buyingFormat: "FIXED_PRICE", soldPrice: 72.5, soldCurrency: "USD", soldAt: yesterday })));
 check("manual corroboration rejects a missing or zero accepted price",
   Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 0, soldCurrency: "USD", soldAt: yesterday })));
 check("manual corroboration rejects future dates",
   Boolean(validateManualBestOfferEvidence({ buyingFormat: "BEST_OFFER", soldPrice: 72.5, soldCurrency: "USD", soldAt: new Date(Date.now() + 3 * 86_400_000).toISOString() })));
+check("the buyer fee is removed from eBay's displayed total",
+  ebayItemPrice(40, 2.21) === 37.79);
+check("a changed personalised fee still yields the same underlying item price",
+  ebayItemPrice(39.63, 1.84) === 37.79);
+check("displayed sale evidence accepts a zero fee",
+  validateEbayDisplayedSaleEvidence({ displayedTotal: 72.5, buyerProtectionFee: 0, soldCurrency: "GBP", soldAt: yesterday }) === null);
+check("a fee cannot consume the whole sold total",
+  Boolean(validateEbayDisplayedSaleEvidence({ displayedTotal: 72.5, buyerProtectionFee: 72.5, soldCurrency: "GBP", soldAt: yesterday })));
 
 console.log("\n--- a sale a human read off the listing page ---");
 // The gap this closes: an ordinary auction or fixed-price listing that plainly

@@ -88,7 +88,7 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
   else if (isGraded) reason = "Graded copy detected. Keep it out of the raw-manga evidence workflow.";
   else if (isLot) reason = "Lot or multi-volume listing detected. It cannot price one exact edition.";
   else if (hasEditionConflict) reason = "Edition-matching conflicts need resolving before this can become evidence.";
-  else if (isBestOffer) reason = "The hidden Best Offer price may be recoverable through 130point.";
+  else if (isBestOffer) reason = "The accepted Best Offer price may now be visible on the original eBay sold page.";
   else if (isHighValue) reason = "High-value listing with a useful edition match. Worth a closer look.";
   else if (isStale) reason = "Old unresolved listing with no new sale evidence. Safely parked for now.";
 

@@ -13,7 +13,7 @@ assert.throws(() => outcomeSaleFields(graded, raw), /mentions grading/);
 assert.throws(() => outcomeSaleFields(graded, { ...raw, grading: "graded", gradingCompany: "CGC" }), /exact grade/);
 assert.equal(outcomeSaleFields(graded, { ...raw, grading: "graded", gradingCompany: "CGC", gradeLabel: "9.8" }).grade, "9.8");
 const offer = { ...outcome, buying_format: "FIXED_PRICE,BEST_OFFER" };
-assert.throws(() => outcomeSaleFields(offer, raw), /actual accepted price/);
+assert.equal(outcomeSaleFields(offer, raw).corroboration, outcome.source_listing_url, "the working original eBay sold page is the accepted-price proof");
 assert.equal(outcomeSaleFields({ ...offer, outcome_provider: "130point manual corroboration" }, raw).saleType, "best_offer");
 assert.equal(outcomeSaleFields({ ...outcome, buying_format: null }, raw).saleType, "unknown");
 
@@ -60,6 +60,10 @@ const offerDb = database();
 await confirmOutcomeSale(offerDb, { ...offer, outcome_provider: "130point manual corroboration" }, raw, "SP", null);
 assert.equal(offerDb.state.calls[0].p_sale_type, "best_offer");
 assert.equal(offerDb.state.calls[0].p_price_corroboration_url, "https://130point.com/sales/");
+
+const ebayOfferDb = database();
+await confirmOutcomeSale(ebayOfferDb, { ...offer, outcome_provider: "eBay sold page — staff observed accepted price" }, raw, "SP", null);
+assert.equal(ebayOfferDb.state.calls[0].p_price_corroboration_url, outcome.source_listing_url);
 
 // Both spellings of an eBay listing id resolve to the one uniqueness key.
 const restDb = database();
