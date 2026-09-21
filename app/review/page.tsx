@@ -356,12 +356,11 @@ export default async function HumanDecisionsPage() {
     <main className="review-page human-decisions-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <Link className="header-note" href="/agents">Agent health and settings →</Link>
         <StaffNav current="/review" />
       </header>
 
       <section className="review-hero human-decisions-hero">
-        <div><p className="eyebrow">Human input only</p><h1>Decisions</h1><p>The agents prepare the work. Check the evidence, answer yes or no, and move on.</p></div>
+        <div><p className="eyebrow">Human input only</p><h1>Decisions</h1><p>Check what the agents found, answer once, and move on.</p></div>
         <div className="queue-total"><strong>{actionableCount}</strong><span>decisions needing you</span></div>
       </section>
 

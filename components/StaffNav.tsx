@@ -6,35 +6,35 @@ type NavGroup = { label: string; links: NavLink[] };
 
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/review", label: "Decisions" },
-  { href: "/scout", label: "Scout" },
-  { href: "/add-sale", label: "Add sale" },
-  { href: "/agents", label: "Agents" },
+  { href: "/add-sale", label: "Sales" },
+  { href: "/catalogue-review", label: "Catalogue" },
 ];
 
 const MORE_GROUPS: NavGroup[] = [
   {
-    label: "Add and collect data",
+    label: "Sales tools",
     links: [
+      { href: "/scout", label: "Live listing Scout" },
+      { href: "/listing-outcomes", label: "Listing outcomes" },
       { href: "/price-import", label: "Price batch import" },
-      { href: "/catalogue-import", label: "Catalogue import" },
       { href: "/collection-profiles", label: "Search profiles" },
     ],
   },
   {
-    label: "Review queues",
+    label: "Catalogue tools",
     links: [
-      { href: "/listing-outcomes", label: "Listing outcomes" },
+      { href: "/catalogue-import", label: "Candidate import" },
       { href: "/discovery-backlog", label: "Discovery backlog" },
-      { href: "/catalogue-review", label: "Catalogue candidates" },
       { href: "/cover-review", label: "Cover images" },
       { href: "/catalogue-requests", label: "Edition requests" },
-      { href: "/community-reports", label: "Community reports" },
-      { href: "/agent-learning", label: "Agent reliability" },
     ],
   },
   {
-    label: "Monitor RAR",
+    label: "System and monitoring",
     links: [
+      { href: "/agents", label: "Agent control room" },
+      { href: "/agent-learning", label: "Agent reliability" },
+      { href: "/community-reports", label: "Community reports" },
       { href: "/homepage-spotlight", label: "Homepage spotlight" },
       { href: "/coverage-dashboard", label: "Catalogue coverage" },
       { href: "/data-readiness", label: "Data readiness" },
@@ -58,7 +58,7 @@ export default function StaffNav({ current }: { current: string }) {
         ))}
       </div>
       <details className="staff-nav-menu">
-        <summary>More</summary>
+        <summary>Advanced</summary>
         <div className="staff-nav-panel">
           {MORE_GROUPS.map((group) => (
             <div className="staff-nav-group" key={group.label}>

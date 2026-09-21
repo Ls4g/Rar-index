@@ -156,16 +156,13 @@ export default async function CatalogueReviewPage() {
     <main className="review-page catalogue-page">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
-        <Link className="header-note" href="/catalogue-import">Import candidates →</Link>
-        <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
-        <Link className="header-note" href="/cover-review">Cover review →</Link>
         <StaffNav current="/catalogue-review" />
       </header>
       <section className="review-hero catalogue-hero">
         <div>
-          <p className="eyebrow">Human verification layer</p>
-          <h1>Catalogue review queue</h1>
-          <p>Every candidate keeps its source record. No catalogue import becomes a verified physical edition without an accountable decision.</p>
+          <p className="eyebrow">Catalogue</p>
+          <h1>Approve new editions</h1>
+          <p>Check the source and edition identity once. Approve or dismiss, and RAR handles the rest.</p>
         </div>
         <div className="queue-total"><strong>{records.length}</strong><span>candidates awaiting review</span></div>
       </section>

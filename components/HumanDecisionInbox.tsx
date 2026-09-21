@@ -119,7 +119,7 @@ type CatalogueRequestDecision = {
   notes: string;
 };
 
-type DecisionKind = "sale" | "printing" | "catalogue" | "cover" | "outcome" | "grading" | "request" | "proposal";
+type DecisionLane = "sales" | "catalogue" | "plans";
 type Banner = { tone: "ok" | "error"; text: string };
 
 function DecisionNote({ value, reason, onChange, onReasonChange }: { value: string; reason: string; onChange: (value: string) => void; onReasonChange: (value: string) => void }) {
@@ -167,7 +167,7 @@ export default function HumanDecisionInbox({
   const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<Banner | null>(null);
-  const [filter, setFilter] = useState<"all" | DecisionKind>("all");
+  const [filter, setFilter] = useState<"all" | DecisionLane>("all");
   const [gradingInputs, setGradingInputs] = useState<Record<string, { company: string; grade: string }>>({});
   const [gradingSourceConfirmed, setGradingSourceConfirmed] = useState<Record<string, boolean>>({});
 
@@ -184,21 +184,18 @@ export default function HumanDecisionInbox({
   // verification decision, including suggestions that eventually score 90%+.
   const highConfidenceProposals = visibleProposals.filter((item) => item.confidence !== null && item.confidence >= 0.9);
   const learningProposals = visibleProposals.filter((item) => item.confidence === null || item.confidence < 0.9);
+  const saleReports = visibleCommunityReports.filter((item) => item.reportType === "sale");
+  const catalogueReports = visibleCommunityReports.filter((item) => item.reportType !== "sale");
 
   const counts = {
     all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleGradingConflicts.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
-    sale: visibleSales.length,
-    printing: visiblePrinting.length,
-    catalogue: visibleCatalogue.length,
-    cover: visibleCovers.length,
-    outcome: visibleOutcomes.length,
-    grading: visibleGradingConflicts.length,
-    request: visibleCommunityReports.length + visibleCatalogueRequests.length,
-    proposal: highConfidenceProposals.length,
+    sales: visibleSales.length + visiblePrinting.length + visibleOutcomes.length + visibleGradingConflicts.length + saleReports.length,
+    catalogue: visibleCatalogue.length + visibleCovers.length + visibleCatalogueRequests.length + catalogueReports.length,
+    plans: highConfidenceProposals.length,
   };
 
-  function canShow(kind: DecisionKind) {
-    return filter === "all" || filter === kind;
+  function canShow(lane: DecisionLane) {
+    return filter === "all" || filter === lane;
   }
 
   async function request(key: string, url: string, body: Record<string, unknown>) {
@@ -387,17 +384,17 @@ export default function HumanDecisionInbox({
       {banner ? <p className={`human-decision-banner is-${banner.tone}`} role="status">{banner.text}</p> : null}
 
       <nav className="human-decision-filters" aria-label="Decision categories">
-        {(["all", "sale", "printing", "catalogue", "cover", "outcome", "grading", "request", "proposal"] as const).map((kind) => (
-          <button aria-pressed={filter === kind} key={kind} onClick={() => setFilter(kind)} type="button">
-            {kind === "all" ? "All decisions" : kind === "sale" ? "Sales" : kind === "printing" ? "Printing" : kind === "catalogue" ? "Catalogue" : kind === "cover" ? "Covers" : kind === "outcome" ? "Ended listings" : kind === "grading" ? "Grading conflicts" : kind === "request" ? "Requests" : "Agent plans"}
-            <span>{counts[kind]}</span>
+        {(["all", "sales", "catalogue", "plans"] as const).map((lane) => (
+          <button aria-pressed={filter === lane} key={lane} onClick={() => setFilter(lane)} type="button">
+            {lane === "all" ? "All work" : lane === "sales" ? "Sales" : lane === "catalogue" ? "Catalogue" : "Agent plans"}
+            <span>{counts[lane]}</span>
           </button>
         ))}
       </nav>
 
       {empty ? <div className="review-empty"><strong>No human input is needed.</strong><p>The agents can continue preparing work in the background.</p></div> : null}
 
-      {canShow("sale") && visibleSales.map((item) => (
+      {canShow("sales") && visibleSales.map((item) => (
         <article className="human-decision-card" key={item.observationId}>
           <div className="human-decision-question"><span>Market Scout asks</span><h2>Does this completed sale match the proposed edition?</h2></div>
           <div className="human-decision-facts"><strong>{formatPrice(item.price, item.currency)}</strong><span>{item.soldDate ?? "Sale date not recorded"}</span><p>{item.listingTitle}</p><b>{item.editionLabel}</b>{item.reason ? <small>{item.reason}</small> : null}</div>
@@ -410,7 +407,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("printing") && visiblePrinting.map((item) => (
+      {canShow("sales") && visiblePrinting.map((item) => (
         <article className="human-decision-card" key={item.actionId}>
           <div className="human-decision-question"><span>Evidence Auditor asks · {confidenceLabel(item.confidence)}</span><h2>{item.classification === "first_print_proven" ? "Does this image prove a first printing?" : "Does this image prove a later printing?"}</h2></div>
           <div className="human-decision-facts"><p>{item.listingTitle}</p><b>{item.editionLabel}</b><small>{item.rationale}</small></div>
@@ -437,7 +434,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("cover") && visibleCovers.map((item) => (
+      {canShow("catalogue") && visibleCovers.map((item) => (
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Cover Curator asks · {item.score}% match</span><h2>Is this the correct cover for this exact edition?</h2></div>
           <div className="human-decision-facts"><img alt={item.candidateTitle ?? item.editionLabel} className="human-decision-cover" src={item.imageUrl} /><p>{item.candidateTitle ?? "Cover candidate"}</p><b>{item.editionLabel}</b><small>{item.sourceName}{item.reasons.length ? ` · ${item.reasons.join(" · ")}` : ""}</small></div>
@@ -446,7 +443,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("outcome") && visibleOutcomes.map((item) => (
+      {canShow("sales") && visibleOutcomes.map((item) => (
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Outcome Monitor asks{item.score === null ? "" : ` · ${item.score}% match`}</span><h2>{item.status === "sold_candidate" ? "Did this listing sell as the exact edition shown?" : "Should RAR keep watching this unresolved listing?"}</h2></div>
           <div className="human-decision-facts">{item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}<span>{item.soldAt ?? item.status.replaceAll("_", " ")}</span><p>{item.listingTitle}</p><b>{item.editionLabel}</b></div>
@@ -456,7 +453,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("grading") && visibleGradingConflicts.map((item) => (
+      {canShow("sales") && visibleGradingConflicts.map((item) => (
         <article className="human-decision-card" key={item.observationId}>
           <div className="human-decision-question"><span>Grading conflict</span><h2>Is the copy in this sale raw, or is it in a graded slab?</h2></div>
           <div className="human-decision-facts">
@@ -491,7 +488,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("request") && visibleCommunityReports.map((item) => (
+      {visibleCommunityReports.filter((item) => canShow(item.reportType === "sale" ? "sales" : "catalogue")).map((item) => (
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Community report</span><h2>{item.reportType === "sale" ? "Should this reported sale enter RAR's evidence workflow?" : "Should staff accept this reported issue?"}</h2></div>
           <div className="human-decision-facts">{item.price !== null && item.currency ? <strong>{formatPrice(item.price, item.currency)}</strong> : null}<p>{item.listingTitle ?? item.reportType.replaceAll("_", " ")}</p><b>{item.editionLabel}</b><small>{item.notes}</small></div>
@@ -500,7 +497,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("request") && visibleCatalogueRequests.map((item) => (
+      {canShow("catalogue") && visibleCatalogueRequests.map((item) => (
         <article className="human-decision-card" key={item.id}>
           <div className="human-decision-question"><span>Collector request</span><h2>Should the Catalogue Curator research this requested edition?</h2></div>
           <div className="human-decision-facts"><p>{item.title}</p><b>{item.editionLabel}</b><small>{item.notes}</small></div>
@@ -509,7 +506,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("proposal") && highConfidenceProposals.map((item) => (
+      {canShow("plans") && highConfidenceProposals.map((item) => (
         <article className="human-decision-card is-plan" key={item.id}>
           <div className="human-decision-question"><span>{item.agentKey.replaceAll("_", " ")} asks · {confidenceLabel(item.confidence)}</span><h2>Should RAR act on this recommendation?</h2></div>
           <div className="human-decision-facts"><p>{item.title}</p><small>{item.rationale}</small>{item.canExecute ? <b>Ready to run immediately after approval.</b> : <b>Approval records permission only; execution is not automated yet.</b>}</div>
@@ -522,7 +519,7 @@ export default function HumanDecisionInbox({
         </article>
       ))}
 
-      {canShow("proposal") && learningProposals.length ? (
+      {canShow("plans") && learningProposals.length ? (
         <details className="human-learning-queue">
           <summary>{learningProposals.length} lower-confidence recommendation{learningProposals.length === 1 ? "" : "s"} kept out of the main inbox</summary>
           <p>These remain available for training and investigation, but they do not consume the normal decision queue until they reach 90% confidence.</p>

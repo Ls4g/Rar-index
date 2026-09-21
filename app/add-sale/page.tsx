@@ -68,8 +68,8 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
   const nextSearches = prioritiseSoldSearches(candidates, 10);
 
   return <main className="review-page catalogue-page">
-    <header className="site-header"><Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link><Link className="header-note" href="/review">Review queue →</Link><Link className="header-note" href="/price-import">CSV batch import →</Link><StaffNav current="/add-sale" /></header>
-    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Staff-approved evidence</p><h1>Add verified sales in bulk</h1><p>Choose the edition once, paste the eBay links, and let RAR fill each listing. Correct only what eBay cannot supply, then publish every ready sale together.</p></div></section>
+    <header className="site-header"><Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link><StaffNav current="/add-sale" /></header>
+    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Sales</p><h1>Add confirmed sales</h1><p>Choose an edition, paste the eBay links, and let RAR fill the details. Correct only what eBay cannot supply, then publish the ready sales together.</p></div></section>
     <section className="catalogue-content">
       <div className="section-intro"><p className="eyebrow">One decision, not two queues</p><h2>Check it once. Add it properly.</h2><p className="section-copy">Use this for a sale you personally inspected. Your confirmation writes the verified sale, printing decision and audit history together—there is no second edition-match review.</p></div>
       {nextSearches.length ? <section className="sold-search-priorities" aria-labelledby="sold-search-heading">
