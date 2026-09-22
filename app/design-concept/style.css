@@ -38,8 +38,8 @@
 .rar-concept-button.is-primary:hover { background: #8e291f; }
 .rar-concept-button.is-secondary { border: 1px solid #b9bcbb; }
 .rar-concept-button.is-secondary:hover { border-color: var(--rc-ink); }
-.rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: radial-gradient(circle at 79% 43%, #fffaf2, #f2ece4 68%, #ebe4dc); }
-.rar-concept-hero-feature-ink { position: absolute; inset: 8px -90px 60px 0; z-index: -1; background: url("/rar-one-piece-hero-ink.png") center right / contain no-repeat; opacity: .39; filter: sepia(.13); }
+.rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: transparent; }
+.rar-concept-hero-feature-ink { position: absolute; inset: -8px 0 54px 0; z-index: -1; background: url("/rar-one-piece-cover-sketch-v2.png") center right / contain no-repeat; opacity: .35; filter: grayscale(1); mix-blend-mode: multiply; }
 .rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: #554e47; font-size: 10px; font-weight: 850; letter-spacing: .15em; }
 .rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; }
 .rar-concept-hero-feature-book .edition-cover { height: 350px; }
@@ -124,7 +124,7 @@
   .rar-concept-hero { padding-block: 55px 65px; gap: 35px; }
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
   .rar-concept-hero-feature { min-height: 435px; }
-  .rar-concept-hero-feature-ink { inset: 16px -85px 55px -35px; opacity: .34; }
+  .rar-concept-hero-feature-ink { inset: 12px 0 55px -26px; opacity: .29; }
   .rar-concept-hero-feature-top { top: 17px; right: 16px; left: 16px; }
   .rar-concept-hero-feature-book { top: 62px; left: 12%; width: 188px; height: 270px; }
   .rar-concept-hero-feature-book .edition-cover { height: 260px; }
