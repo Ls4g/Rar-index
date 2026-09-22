@@ -173,9 +173,14 @@ export default async function DesignConceptPage() {
         </section> : null}
 
         <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container">
-          <div className="rar-concept-showcase-intro"><div><p className="rar-concept-kicker">PUBLIC PORTFOLIOS</p><h2>A collection worth looking at.</h2><p>Your favourite covers take centre stage. Visitors can explore the exact editions behind them.</p></div><span>Display preview using catalogue covers<br />No collector ownership implied</span></div>
+          <div className="rar-concept-showcase-intro"><div><p className="rar-concept-kicker">PUBLIC PORTFOLIOS</p><h2>A collection worth looking at.</h2><p>Your favourite covers take centre stage. Visitors can explore the exact editions behind them.</p></div><span>Fictional demo collector · real catalogue covers<br />No collector ownership implied</span></div>
+          <Link className="rar-concept-profile-preview" href="/design-concept/collector">
+            <span className="rar-concept-profile-preview-mark" aria-hidden="true">O</span>
+            <span className="rar-concept-profile-preview-copy"><small>DEMO COLLECTOR PROFILE</small><strong>The Opening Chapter</strong><span>See how a public manga shelf could look and feel.</span></span>
+            <span className="rar-concept-profile-preview-link">Explore the demo profile ↗</span>
+          </Link>
           <div className="rar-concept-showcase-grid">{showcaseCovers.map((edition) => <Link href={`/edition/${edition.id}`} key={edition.id}>{cover(edition)}<strong>{editionName(edition)}</strong><span>{editionMeta(edition)}</span></Link>)}</div>
-          <Link className="rar-concept-showcase-action" href="/collection">Explore public collections ↗</Link>
+          <Link className="rar-concept-showcase-action" href="/design-concept/collector">View the full demo profile ↗</Link>
         </div></section>
 
         <section className="rar-concept-buy rar-concept-container" id="buy"><div><p className="rar-concept-kicker">BUY MANGA</p><h2>See the edition. Then find a copy.</h2><p>Browse copies listed for sale, with their asking prices clearly separate from completed sales.</p></div><Link href={product ? `/edition/${product.id}` : "/browse"}>View available copies ↗</Link></section>

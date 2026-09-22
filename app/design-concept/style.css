@@ -90,6 +90,14 @@
 .rar-concept-showcase-intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 36px; }
 .rar-concept-showcase-intro > div > p:last-child { max-width: 530px; margin: 18px 0 0; color: #b4bab8; font-size: 16px; line-height: 1.5; }
 .rar-concept-showcase-intro > span { color: #919b99; font-size: 11px; text-align: right; line-height: 1.5; }
+.rar-concept-profile-preview { display: flex; align-items: center; gap: 20px; min-height: 122px; margin-bottom: 28px; border-block: 1px solid #535b58; padding: 20px 10px; color: #f8f7f2; }
+.rar-concept-profile-preview-mark { display: grid; flex: none; place-items: center; width: 60px; height: 60px; border: 1px solid #8a9590; border-radius: 50%; font-family: Georgia, serif; font-size: 38px; font-style: italic; }
+.rar-concept-profile-preview-copy { display: grid; gap: 4px; }
+.rar-concept-profile-preview-copy small { color: #e8a899; font-size: 9px; font-weight: 800; letter-spacing: .15em; }
+.rar-concept-profile-preview-copy strong { font-size: 25px; letter-spacing: -.04em; }
+.rar-concept-profile-preview-copy > span { color: #aab4ae; font-size: 12px; }
+.rar-concept-profile-preview-link { margin-left: auto; border-bottom: 1px solid currentColor; padding-bottom: 5px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.rar-concept-profile-preview:hover .rar-concept-profile-preview-link { color: #f0a392; }
 .rar-concept-showcase-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px 16px; }
 .rar-concept-showcase-grid a { display: flex; flex-direction: column; align-items: start; min-width: 0; padding: 10px; }
 .rar-concept-showcase-grid .edition-cover { height: clamp(190px, 20vw, 245px); margin: 0 auto 14px; }
@@ -145,6 +153,10 @@
   .rar-concept-market-heading { align-items: start; flex-direction: column; }
   .rar-concept-showcase-intro { align-items: start; flex-direction: column; }
   .rar-concept-showcase-intro > span { text-align: left; }
+  .rar-concept-profile-preview { flex-wrap: wrap; gap: 14px; padding-inline: 0; }
+  .rar-concept-profile-preview-mark { width: 48px; height: 48px; font-size: 30px; }
+  .rar-concept-profile-preview-copy strong { font-size: 21px; }
+  .rar-concept-profile-preview-link { width: 100%; margin: 0 0 0 62px; }
   .rar-concept-showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .rar-concept-showcase-grid a { padding: 11px; }
   .rar-concept-showcase-grid .edition-cover { height: clamp(160px, 50vw, 220px); }
