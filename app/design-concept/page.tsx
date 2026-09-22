@@ -94,7 +94,7 @@ export default async function DesignConceptPage() {
     .select("rate_date,currency,rate_per_eur,source_name,source_url")
     .order("rate_date", { ascending: true }).limit(1000);
   const rates = (rateData ?? []) as FxRate[];
-  const heroCovers = featured.slice(0, 6);
+  const heroEdition = featured.find((edition) => edition.series?.toLowerCase() === "one piece") ?? null;
   const showcaseCovers = featured.slice(0, 10);
 
   return (
@@ -122,13 +122,17 @@ export default async function DesignConceptPage() {
               <a className="rar-concept-button is-secondary" href="#browse">Explore manga</a>
             </div>
           </div>
-          <div className="rar-concept-hero-gallery" aria-label="Manga covers from the RAR catalogue">
-            <div className="rar-concept-gallery-label"><span>FROM THE RAR CATALOGUE</span><span>01 / 06</span></div>
-            <div className="rar-concept-hero-grid">
-              {heroCovers.map((edition) => <Link href={`/edition/${edition.id}`} key={edition.id} aria-label={`View ${editionName(edition)}`}>{cover(edition)}</Link>)}
+          {heroEdition ? <div className="rar-concept-hero-feature" aria-label="Featured manga edition">
+            <div className="rar-concept-hero-feature-ink" aria-hidden="true" />
+            <div className="rar-concept-hero-feature-top"><span>FEATURED EDITION</span><span>RAR / 01</span></div>
+            <Link className="rar-concept-hero-feature-book" href={`/edition/${heroEdition.id}`} aria-label={`Explore ${editionName(heroEdition)}, volume ${heroEdition.volume_number}`}>
+              {cover(heroEdition)}
+            </Link>
+            <div className="rar-concept-hero-feature-bottom">
+              <div><small>FROM THE RAR CATALOGUE</small><strong>{editionName(heroEdition)}</strong><span>{editionMeta(heroEdition)}</span></div>
+              <Link href={`/edition/${heroEdition.id}`}>Explore edition ↗</Link>
             </div>
-            <p>Real covers. Real editions. Your shelf is the gallery.</p>
-          </div>
+          </div> : null}
         </section>
 
         <section className="rar-concept-catalogue" id="browse">

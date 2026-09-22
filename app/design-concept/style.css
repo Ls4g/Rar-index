@@ -38,12 +38,17 @@
 .rar-concept-button.is-primary:hover { background: #8e291f; }
 .rar-concept-button.is-secondary { border: 1px solid #b9bcbb; }
 .rar-concept-button.is-secondary:hover { border-color: var(--rc-ink); }
-.rar-concept-hero-gallery { padding: 18px 20px 16px; background: #171b1c; color: #f6f5f0; }
-.rar-concept-gallery-label { display: flex; justify-content: space-between; margin-bottom: 17px; color: #c5c7bf; font-size: 10px; font-weight: 750; letter-spacing: .15em; }
-.rar-concept-hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
-.rar-concept-hero-grid a { display: grid; place-items: center; min-width: 0; height: clamp(170px, 17vw, 230px); padding: 8px; }
-.rar-concept-hero-grid .edition-cover { height: clamp(145px, 15vw, 205px); }
-.rar-concept-hero-gallery > p { margin: 16px 0 0; color: #bfc2be; font-size: 12px; }
+.rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: radial-gradient(circle at 79% 43%, #fffaf2, #f2ece4 68%, #ebe4dc); }
+.rar-concept-hero-feature-ink { position: absolute; inset: 8px -90px 60px 0; z-index: -1; background: url("/rar-one-piece-hero-ink.png") center right / contain no-repeat; opacity: .39; filter: sepia(.13); }
+.rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: #554e47; font-size: 10px; font-weight: 850; letter-spacing: .15em; }
+.rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; }
+.rar-concept-hero-feature-book .edition-cover { height: 350px; }
+.rar-concept-hero-feature-bottom { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; display: flex; align-items: end; justify-content: space-between; gap: 15px; border-top: 1px solid rgba(52, 45, 38, .22); padding-top: 14px; }
+.rar-concept-hero-feature-bottom div { display: grid; gap: 2px; }
+.rar-concept-hero-feature-bottom small { margin-bottom: 4px; color: #70665d; font-size: 9px; font-weight: 850; letter-spacing: .15em; }
+.rar-concept-hero-feature-bottom strong { font-size: 23px; line-height: 1.1; }
+.rar-concept-hero-feature-bottom div span { color: #625c56; font-size: 11px; }
+.rar-concept-hero-feature-bottom > a { flex: none; padding-bottom: 3px; border-bottom: 1px solid currentColor; font-size: 11px; font-weight: 800; }
 .rar-concept-catalogue { padding: 82px 0 94px; background: var(--rc-white); border-top: 1px solid var(--rc-line); }
 .rar-concept-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 38px; }
 .rar-concept-section-heading > a { padding-bottom: 7px; color: var(--rc-ink); font-size: 13px; font-weight: 720; white-space: nowrap; }
@@ -103,9 +108,7 @@
 .rar-concept-join-copy > p:not(.rar-concept-kicker) { max-width: 320px; margin: 20px 0 28px; color: var(--rc-muted); line-height: 1.5; }
 @media (max-width: 980px) {
   .rar-concept-hero { grid-template-columns: 1fr; }
-  .rar-concept-hero-gallery { max-width: 640px; }
-  .rar-concept-hero-grid a { height: 210px; }
-  .rar-concept-hero-grid .edition-cover { height: 185px; }
+  .rar-concept-hero-feature { width: min(100%, 640px); }
   .rar-concept-book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rar-concept-showcase-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rar-concept-join { grid-template-columns: 58% 42%; }
@@ -120,9 +123,14 @@
   .rar-concept-header-cta { margin-left: auto; padding: 9px 11px; }
   .rar-concept-hero { padding-block: 55px 65px; gap: 35px; }
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
-  .rar-concept-hero-grid { gap: 8px; }
-  .rar-concept-hero-grid a { height: clamp(135px, 42vw, 190px); padding: 7px; }
-  .rar-concept-hero-grid .edition-cover { height: clamp(112px, 37vw, 166px); }
+  .rar-concept-hero-feature { min-height: 435px; }
+  .rar-concept-hero-feature-ink { inset: 16px -85px 55px -35px; opacity: .34; }
+  .rar-concept-hero-feature-top { top: 17px; right: 16px; left: 16px; }
+  .rar-concept-hero-feature-book { top: 62px; left: 12%; width: 188px; height: 270px; }
+  .rar-concept-hero-feature-book .edition-cover { height: 260px; }
+  .rar-concept-hero-feature-bottom { right: 16px; bottom: 18px; left: 16px; }
+  .rar-concept-hero-feature-bottom strong { font-size: 19px; }
+  .rar-concept-hero-feature-bottom > a { max-width: 85px; text-align: right; line-height: 1.25; }
   .rar-concept-catalogue, .rar-concept-edition, .rar-concept-showcase { padding-block: 60px; }
   .rar-concept-section-heading { align-items: start; flex-direction: column; gap: 16px; margin-bottom: 26px; }
   .rar-concept-browse-layout { display: block; }
