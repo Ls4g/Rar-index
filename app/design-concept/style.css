@@ -41,9 +41,8 @@
 .rar-concept-hero-gallery { padding: 18px 20px 16px; background: #171b1c; color: #f6f5f0; }
 .rar-concept-gallery-label { display: flex; justify-content: space-between; margin-bottom: 17px; color: #c5c7bf; font-size: 10px; font-weight: 750; letter-spacing: .15em; }
 .rar-concept-hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
-.rar-concept-hero-grid a { display: grid; align-items: center; min-width: 0; height: clamp(170px, 17vw, 230px); padding: 12px; background: #272b2c; }
-.rar-concept-hero-grid .edition-cover { width: 100%; height: 100%; background: transparent; box-shadow: 0 10px 18px rgba(0, 0, 0, .3); }
-.rar-concept-hero-grid .edition-cover img { object-fit: contain; }
+.rar-concept-hero-grid a { display: grid; place-items: center; min-width: 0; height: clamp(170px, 17vw, 230px); padding: 8px; }
+.rar-concept-hero-grid .edition-cover { height: clamp(145px, 15vw, 205px); }
 .rar-concept-hero-gallery > p { margin: 16px 0 0; color: #bfc2be; font-size: 12px; }
 .rar-concept-catalogue { padding: 82px 0 94px; background: var(--rc-white); border-top: 1px solid var(--rc-line); }
 .rar-concept-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 38px; }
@@ -57,16 +56,14 @@
 .rar-concept-browse-layout aside span { margin-top: 13px; color: #8a8d8d; font-size: 11px; }
 .rar-concept-book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 38px 25px; }
 .rar-concept-book { display: flex; flex-direction: column; min-width: 0; }
-.rar-concept-book-image { display: grid; place-items: center; height: clamp(180px, 23vw, 270px); margin-bottom: 13px; padding: 14px; background: #f3f4f2; }
-.rar-concept-book .edition-cover { width: 100%; height: 100%; background: transparent; box-shadow: 0 8px 16px rgba(0, 0, 0, .12); }
-.rar-concept-book .edition-cover img { object-fit: contain; }
+.rar-concept-book-image { display: grid; place-items: center; height: clamp(180px, 23vw, 270px); margin-bottom: 13px; padding: 9px; }
+.rar-concept-book .edition-cover { height: clamp(160px, 20vw, 245px); }
 .rar-concept-book strong { margin-bottom: 3px; font-size: 14px; line-height: 1.25; }
 .rar-concept-book > span { color: var(--rc-muted); font-size: 11px; line-height: 1.45; }
 .rar-concept-edition { padding-block: 90px 100px; }
 .rar-concept-product-top { display: grid; grid-template-columns: 55% 1fr; gap: clamp(34px, 6vw, 90px); align-items: center; border-top: 1px solid var(--rc-line); padding-top: 30px; }
-.rar-concept-product-image { display: grid; place-items: center; min-height: 530px; padding: 58px; background: #f1f3f0; }
-.rar-concept-product-image .edition-cover { height: min(420px, 38vw); aspect-ratio: 2 / 3; background: transparent; box-shadow: 12px 18px 28px rgba(0,0,0,.17); }
-.rar-concept-product-image .edition-cover img { object-fit: contain; }
+.rar-concept-product-image { display: grid; place-items: center; min-height: 530px; padding: 58px; }
+.rar-concept-product-image .edition-cover { height: min(420px, 38vw); }
 .rar-concept-product-copy h3 { margin: 0 0 8px; font-size: clamp(38px, 4.2vw, 62px); line-height: 1; }
 .rar-concept-product-volume { margin-bottom: 32px; font-size: 22px; font-weight: 600; }
 .rar-concept-product-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-block: 22px; border-block: 1px solid var(--rc-line); }
@@ -89,9 +86,8 @@
 .rar-concept-showcase-intro > div > p:last-child { max-width: 530px; margin: 18px 0 0; color: #b4bab8; font-size: 16px; line-height: 1.5; }
 .rar-concept-showcase-intro > span { color: #919b99; font-size: 11px; text-align: right; line-height: 1.5; }
 .rar-concept-showcase-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px 16px; }
-.rar-concept-showcase-grid a { display: flex; flex-direction: column; min-width: 0; padding: 16px; background: #1c2122; }
-.rar-concept-showcase-grid .edition-cover { height: clamp(190px, 20vw, 245px); margin-bottom: 14px; background: transparent; }
-.rar-concept-showcase-grid .edition-cover img { object-fit: contain; }
+.rar-concept-showcase-grid a { display: flex; flex-direction: column; align-items: start; min-width: 0; padding: 10px; }
+.rar-concept-showcase-grid .edition-cover { height: clamp(190px, 20vw, 245px); margin: 0 auto 14px; }
 .rar-concept-showcase-grid strong { font-size: 13px; }
 .rar-concept-showcase-grid span { margin-top: 4px; color: #a5aeac; font-size: 10px; line-height: 1.4; }
 .rar-concept-showcase-action { display: inline-block; margin-top: 30px; border-bottom: 1px solid #f8f7f2; padding-bottom: 6px; font-size: 13px; font-weight: 700; }
@@ -100,9 +96,8 @@
 .rar-concept-buy > a { flex: none; border: 1px solid var(--rc-ink); padding: 14px 20px; font-size: 13px; font-weight: 700; }
 .rar-concept-join { display: grid; grid-template-columns: 62% 38%; min-height: 540px; background: #fff; }
 .rar-concept-join-wall { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; align-items: center; overflow: hidden; padding: 24px; background: #9d3029; }
-.rar-concept-join-wall > div { display: grid; place-items: center; height: 205px; padding: 10px; background: rgba(0,0,0,.11); }
-.rar-concept-join-wall .edition-cover { height: 100%; max-width: 100%; aspect-ratio: 2 / 3; background: transparent; box-shadow: 0 10px 22px rgba(0,0,0,.25); }
-.rar-concept-join-wall .edition-cover img { object-fit: contain; }
+.rar-concept-join-wall > div { display: grid; place-items: center; height: 205px; padding: 10px; }
+.rar-concept-join-wall .edition-cover { height: 100%; max-width: 100%; }
 .rar-concept-join-copy { display: flex; flex-direction: column; align-items: start; justify-content: center; padding: clamp(30px, 5vw, 90px); }
 .rar-concept-join-copy h2 { font-size: clamp(40px, 4vw, 65px); }
 .rar-concept-join-copy > p:not(.rar-concept-kicker) { max-width: 320px; margin: 20px 0 28px; color: var(--rc-muted); line-height: 1.5; }
@@ -110,6 +105,7 @@
   .rar-concept-hero { grid-template-columns: 1fr; }
   .rar-concept-hero-gallery { max-width: 640px; }
   .rar-concept-hero-grid a { height: 210px; }
+  .rar-concept-hero-grid .edition-cover { height: 185px; }
   .rar-concept-book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rar-concept-showcase-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rar-concept-join { grid-template-columns: 58% 42%; }
@@ -126,12 +122,14 @@
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
   .rar-concept-hero-grid { gap: 8px; }
   .rar-concept-hero-grid a { height: clamp(135px, 42vw, 190px); padding: 7px; }
+  .rar-concept-hero-grid .edition-cover { height: clamp(112px, 37vw, 166px); }
   .rar-concept-catalogue, .rar-concept-edition, .rar-concept-showcase { padding-block: 60px; }
   .rar-concept-section-heading { align-items: start; flex-direction: column; gap: 16px; margin-bottom: 26px; }
   .rar-concept-browse-layout { display: block; }
   .rar-concept-browse-layout aside { display: none; }
   .rar-concept-book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; }
   .rar-concept-book-image { height: clamp(175px, 55vw, 235px); padding: 9px; }
+  .rar-concept-book .edition-cover { height: clamp(155px, 49vw, 210px); }
   .rar-concept-product-top { grid-template-columns: 1fr; gap: 30px; }
   .rar-concept-product-image { min-height: 350px; padding: 30px; }
   .rar-concept-product-image .edition-cover { height: 310px; }
@@ -147,4 +145,46 @@
   .rar-concept-join-wall { height: 360px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; padding: 10px; }
   .rar-concept-join-wall > div { height: 140px; padding: 3px; }
   .rar-concept-join-copy { padding: 48px 22px 60px; }
+}
+.rar-concept .edition-cover.has-image {
+  --book-depth: clamp(3px, .4vw, 6px);
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: visible;
+  background: transparent;
+  border-radius: 1px 3px 3px 1px;
+  transform: perspective(800px) rotateY(-7deg);
+  transform-origin: left center;
+  box-shadow: 5px 11px 16px rgba(0, 0, 0, .24), 1px 2px 3px rgba(0, 0, 0, .22);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.rar-concept .edition-cover.has-image::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 1px;
+  bottom: 1px;
+  left: calc(-1 * var(--book-depth));
+  width: var(--book-depth);
+  background: linear-gradient(90deg, #1b1e1f, #55595a 55%, #101213);
+  transform: skewY(-7deg);
+  transform-origin: right center;
+}
+.rar-concept .edition-cover.has-image::after {
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(0,0,0,.25), rgba(255,255,255,.06) 5%, transparent 14%, transparent 96%, rgba(0,0,0,.12));
+  box-shadow: inset 1px 0 rgba(255,255,255,.14), inset -1px 0 rgba(0,0,0,.25);
+}
+.rar-concept .edition-cover.has-image img {
+  border-radius: inherit;
+  object-fit: cover;
+}
+.rar-concept a:hover .edition-cover.has-image {
+  transform: perspective(800px) rotateY(-3deg) translateY(-3px);
+  box-shadow: 7px 15px 22px rgba(0, 0, 0, .28), 1px 2px 3px rgba(0, 0, 0, .2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rar-concept .edition-cover.has-image { transition: none; }
 }
