@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
+import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
+import { volumeSortValue } from "@/lib/seriesCompletion";
 import { supabase } from "@/lib/supabase";
+import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "./DemoBookShelf";
 import "../style.css";
 import "./style.css";
 
@@ -28,15 +31,6 @@ const seriesOrder = [
   "Demon Slayer", "Black Clover", "Kagurabachi", "Frieren",
 ];
 
-function editionLabel(edition: DemoEdition) {
-  return edition.series || edition.title || "Manga edition";
-}
-
-function editionDetails(edition: DemoEdition) {
-  return [edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.publisher]
-    .filter(Boolean).join(" · ");
-}
-
 function cover(edition: DemoEdition, priority = false) {
   return <EditionCover
     title={edition.title}
@@ -49,7 +43,7 @@ function cover(edition: DemoEdition, priority = false) {
   />;
 }
 
-function chooseDemoEditions(catalogue: DemoEdition[]) {
+function chooseDemoRepresentatives(catalogue: DemoEdition[]) {
   const chosen: DemoEdition[] = [];
   const usedSeries = new Set<string>();
   const byPreference = [...catalogue].sort((a, b) => {
@@ -72,15 +66,111 @@ function chooseDemoEditions(catalogue: DemoEdition[]) {
   return chosen;
 }
 
+function volumeKey(edition: DemoEdition) {
+  return String(volumeSortValue(edition.volume_number) ?? edition.volume_number?.trim().toLowerCase() ?? edition.id);
+}
+
+function sameSeriesAndLanguage(left: DemoEdition, right: DemoEdition) {
+  return (left.series || left.title || "").toLowerCase() === (right.series || right.title || "").toLowerCase()
+    && left.language?.toLowerCase() === right.language?.toLowerCase();
+}
+
+function orderedVolumes(editions: DemoEdition[]) {
+  return [...editions].sort((a, b) => (volumeSortValue(a.volume_number) ?? 9999) - (volumeSortValue(b.volume_number) ?? 9999)
+    || a.id.localeCompare(b.id));
+}
+
+function publisherAffinity(edition: DemoEdition, representative: DemoEdition) {
+  const normalize = (value: string | null) => (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const publisher = normalize(edition.publisher);
+  const preferred = normalize(representative.publisher);
+  if (publisher && publisher === preferred) return 0;
+  if (publisher && preferred && (publisher.startsWith(preferred) || preferred.startsWith(publisher))) return 1;
+  return 2;
+}
+
+async function loadSeriesCatalogue(seriesNames: string[]): Promise<DemoEdition[]> {
+  if (!seriesNames.length) return [];
+  const catalogue: DemoEdition[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from("manga_editions")
+      .select("id,title,series,volume_number,language,publisher,cover_image_url,cover_verification_status")
+      .eq("is_verified", true).eq("record_kind", "publication")
+      .in("series", seriesNames).order("id").range(offset, offset + 999);
+    if (error) throw new Error("Could not load complete catalogue coverage for the demo profile.");
+    catalogue.push(...(data ?? []) as DemoEdition[]);
+    if (!data || data.length < 1000) return catalogue;
+  }
+}
+
+async function loadConfirmedSales(editionIds: string[]): Promise<Array<CollectorMarketSale & { edition_id: string }>> {
+  if (!editionIds.length) return [];
+  const sales: Array<CollectorMarketSale & { edition_id: string }> = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from("price_observations")
+      .select("id,edition_id,sale_status,match_status,source_listing_url,sold_date,sale_price,currency,grading_company,grade_label,grading_reviewed_at,listing_title,print_classification,printing_proof_url,known_printing_number")
+      .in("edition_id", editionIds).eq("sale_status", "confirmed").eq("match_status", "verified_match")
+      .not("source_listing_url", "is", null).order("id").range(offset, offset + 999);
+    if (error) throw new Error("Could not load complete verified-sale coverage for the demo profile.");
+    sales.push(...(data ?? []) as Array<CollectorMarketSale & { edition_id: string }>);
+    if (!data || data.length < 1000) return sales;
+  }
+}
+
 export default async function DemoCollectorProfilePage() {
   const { data } = await supabase.from("manga_editions")
     .select("id,title,series,volume_number,language,publisher,cover_image_url,cover_verification_status")
     .eq("is_verified", true).eq("record_kind", "publication")
     .eq("cover_verification_status", "verified").not("cover_image_url", "is", null)
     .limit(500);
-  const editions = chooseDemoEditions((data ?? []) as DemoEdition[]);
-  const spotlight = editions.slice(0, 3);
-  const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
+  const representatives = chooseDemoRepresentatives((data ?? []) as DemoEdition[]);
+  const seriesNames = [...new Set(representatives.map((edition) => edition.series).filter((value): value is string => Boolean(value)))];
+  const catalogue = await loadSeriesCatalogue(seriesNames);
+  const sampleBySeries = representatives.map((representative, index) => {
+    const sameSeries = orderedVolumes([representative, ...catalogue.filter((edition) => edition.id !== representative.id && sameSeriesAndLanguage(edition, representative))]);
+    const eligible = sameSeries.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url)
+      .sort((a, b) => (volumeSortValue(a.volume_number) ?? 9999) - (volumeSortValue(b.volume_number) ?? 9999)
+        || publisherAffinity(a, representative) - publisherAffinity(b, representative) || a.id.localeCompare(b.id));
+    const owned = [representative];
+    const selectedVolumes = new Set([volumeKey(representative)]);
+    for (const edition of eligible) {
+      if (owned.length >= (index < 3 ? 4 : 1)) break;
+      const volume = volumeKey(edition);
+      if (selectedVolumes.has(volume)) continue;
+      owned.push(edition);
+      selectedVolumes.add(volume);
+    }
+    return { representative, owned: orderedVolumes(owned), cataloguedVolumes: new Set(sameSeries.map(volumeKey)).size };
+  });
+  const selectedEditions = sampleBySeries.flatMap((series) => series.owned);
+  const selectedIds = selectedEditions.map((edition) => edition.id);
+  const { data: childrenData } = selectedIds.length ? await supabase.from("manga_editions")
+    .select("id,printing_of_edition_id").in("printing_of_edition_id", selectedIds) : { data: [] };
+  const children = (childrenData ?? []) as Array<{ id: string; printing_of_edition_id: string | null }>;
+  const familyIds = [...new Set([...selectedIds, ...children.map((child) => child.id)])];
+  const sales = await loadConfirmedSales(familyIds);
+  const childIdsByPublication = new Map<string, string[]>();
+  for (const child of children) if (child.printing_of_edition_id) childIdsByPublication.set(child.printing_of_edition_id,
+    [...(childIdsByPublication.get(child.printing_of_edition_id) ?? []), child.id]);
+  const toBookEdition = (edition: DemoEdition): DemoBookEdition => {
+    const saleIds = new Set([edition.id, ...(childIdsByPublication.get(edition.id) ?? [])]);
+    return {
+      id: edition.id, title: edition.title, series: edition.series, volumeNumber: edition.volume_number,
+      language: edition.language, publisher: edition.publisher, coverUrl: edition.cover_image_url,
+      coverStatus: edition.cover_verification_status,
+      marketGuide: collectorMarketGuide(sales.filter((sale) => saleIds.has(sale.edition_id))),
+    };
+  };
+  const books: DemoSeriesBook[] = sampleBySeries.map(({ representative, owned, cataloguedVolumes }) => ({
+    key: `${representative.series || representative.title || representative.id}::${representative.language || ""}`,
+    name: representative.series || representative.title || "Manga series",
+    language: representative.language,
+    representative: toBookEdition(representative),
+    owned: owned.map(toBookEdition),
+    cataloguedVolumes,
+  }));
+  const languages = new Set(selectedEditions.map((edition) => edition.language).filter(Boolean));
+  const spotlight = representatives.slice(0, 3);
 
   return (
     <main className="rar-concept rar-demo-profile">
@@ -97,13 +187,13 @@ export default async function DemoCollectorProfilePage() {
             <div className="rar-demo-identity-top"><span className="rar-demo-avatar" aria-hidden="true">O</span><span className="rar-demo-identity-type">PUBLIC SHELF / DESIGN PREVIEW</span></div>
             <p className="rar-demo-handle">@openingchapter <span>· demo profile</span></p>
             <h1 id="demo-profile-title">The Opening<br />Chapter<span>.</span></h1>
-            <p className="rar-demo-bio">A manga shelf made to be explored. Covers lead the way; every book opens to the exact edition behind it.</p>
+            <p className="rar-demo-bio">A manga shelf made to be explored. Open a cover to see its series, selected volumes and the exact editions behind them.</p>
             <div className="rar-demo-stats" aria-label="Demo shelf summary">
-              <div><strong>{editions.length}</strong><span>EDITIONS</span></div>
-              <div><strong>{editions.length}</strong><span>SERIES</span></div>
+              <div><strong>{selectedEditions.length}</strong><span>SAMPLE VOLUMES</span></div>
+              <div><strong>{books.length}</strong><span>SERIES</span></div>
               <div><strong>{languages.size}</strong><span>LANGUAGES</span></div>
             </div>
-            <p className="rar-demo-disclaimer">Fictional collector, using real verified RAR catalogue covers. These are sample selections, not ownership or valuation claims.</p>
+            <p className="rar-demo-disclaimer">Fictional collector, using real verified RAR catalogue covers. The selected volumes are a design sample, not anyone’s actual holdings.</p>
           </div>
           <div className="rar-demo-hero-gallery" aria-hidden="true">
             {spotlight.map((edition, index) => <div className={`rar-demo-hero-book is-${index + 1}`} key={edition.id}>{cover(edition, true)}</div>)}
@@ -112,30 +202,7 @@ export default async function DemoCollectorProfilePage() {
         </div>
       </section>
 
-      <section className="rar-demo-content" id="spotlight">
-        <div className="rar-concept-container">
-          <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Three covers from the sample shelf, given room to breathe. Select a book to inspect its real catalogue record.</p></div>
-          <div className="rar-demo-spotlight-grid">
-            {spotlight.map((edition, index) => <Link className="rar-demo-spotlight-card" href={`/edition/${edition.id}`} key={edition.id}>
-              <span className="rar-demo-spotlight-number">0{index + 1} / SELECTED EDITION</span>
-              <div className="rar-demo-spotlight-image">{cover(edition)}</div>
-              <div className="rar-demo-spotlight-footer"><div><strong>{editionLabel(edition)}</strong><span>{editionDetails(edition)}</span></div><span aria-hidden="true">↗</span></div>
-            </Link>)}
-          </div>
-        </div>
-      </section>
-
-      <section className="rar-demo-shelf" id="shelf"><div className="rar-concept-container">
-        <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE FULL SHELF</p><h2>Every cover has a story.</h2></div><p>{editions.length} sample editions from RAR’s real catalogue. No purchase prices or private notes appear on a public shelf.</p></div>
-        <div className="rar-demo-shelf-grid">
-          {editions.map((edition) => <Link className="rar-demo-shelf-item" href={`/edition/${edition.id}`} key={edition.id}>
-            <div className="rar-demo-shelf-image">{cover(edition)}</div>
-            <strong>{editionLabel(edition)}</strong>
-            <span>{editionDetails(edition)}</span>
-          </Link>)}
-        </div>
-        <div className="rar-demo-shelf-end"><span>END OF SHELF / {String(editions.length).padStart(2, "0")}</span><a href="#demo-profile-title">Back to the top ↑</a></div>
-      </div></section>
+      <DemoBookShelf books={books} />
 
       <section className="rar-demo-join"><div className="rar-concept-container"><div><p className="rar-concept-kicker">MAKE IT YOURS</p><h2>Your manga. Your shelf.</h2><p>Choose what to share. The editions you own can be public; what you paid and your private notes stay yours.</p></div><Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span>↗</span></Link></div></section>
     </main>
