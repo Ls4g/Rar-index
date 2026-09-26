@@ -421,7 +421,8 @@ export async function runAgentObservation(
     if (availabilityResult) {
       // The whole eligible backlog, not this run's slice. Paired with the
       // ceiling so a reader can tell a capped run from a drained queue.
-      metrics.availability_candidates = availabilityResult.queued;
+      if (availabilityResult.queued !== null) metrics.availability_candidates = availabilityResult.queued;
+      metrics.availability_count_known = availabilityResult.queued === null ? 0 : 1;
       metrics.availability_batch_limit = availabilityResult.batchLimit;
       metrics.availability_examined = availabilityResult.examined;
       metrics.availability_confirmed_active = availabilityResult.active;
@@ -429,7 +430,7 @@ export async function runAgentObservation(
       metrics.availability_inconclusive = availabilityResult.inconclusive;
       metrics.availability_race_protected = availabilityResult.protectedByRace;
       metrics.ebay_connection_ok = availabilityResult.connectionStatus === "connected" ? 1 : 0;
-      metrics.availability_skipped = availabilityResult.warning ? 1 : 0;
+      metrics.availability_skipped = availabilityResult.connectionStatus !== "connected" && availabilityResult.connectionStatus !== "not_needed" ? 1 : 0;
     }
     if (feedbackResult) {
       metrics.feedback_human_decisions = feedbackResult.humanDecisions;
@@ -461,7 +462,7 @@ export async function runAgentObservation(
         }
       : planned;
     const runSummary = availabilityResult?.warning
-      ? `${plan.summary} eBay availability checks were skipped safely: ${availabilityResult.warning}`
+      ? `${plan.summary} Availability status: ${availabilityResult.warning}`
       : plan.summary;
     const proposalResult = await reconcileAgentProposals(admin, agentKey, run.id, plan.proposals);
     const finalMetrics = {

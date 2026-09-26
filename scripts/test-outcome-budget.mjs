@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { PGlite } from "@electric-sql/pglite";
+const db = new PGlite();
+await db.exec(`create role anon; create role authenticated; create role service_role;
+  create table listing_outcome_checks(checked_at timestamptz default now());
+  insert into listing_outcome_checks select now() from generate_series(1,2300);`);
+await db.exec(readFileSync(new URL("../supabase/migrations/20260924_outcome_check_budget.sql", import.meta.url), "utf8"));
+const reserve = async (n) => {
+  const id = randomUUID();
+  const data = (await db.query("select reserve_outcome_checks($1,$2) as budget", [id,n])).rows[0].budget;
+  return { id, ...data };
+};
+const first = await reserve(600);
+assert.equal(first.granted, 200);
+assert.equal(first.spent, 2300);
+assert.equal((await reserve(600)).granted, 0, "unsettled work consumes remaining room");
+await db.query("select settle_outcome_checks($1,150)", [first.id]);
+await db.query("select settle_outcome_checks($1,150)", [first.id]);
+assert.equal((await reserve(600)).granted, 50, "settlement refunds once, only unattempted work");
+assert.equal((await reserve(1)).granted, 0);
+await assert.rejects(db.query("select reserve_outcome_checks($1,1)", [first.id]), /already been issued/);
+await assert.rejects(reserve(601), /between 0 and 600/);
+assert.equal((await db.query("select has_function_privilege('anon','reserve_outcome_checks(uuid,integer)','execute') as allowed")).rows[0].allowed, false);
+await db.close();
+console.log("Outcome budget: allocation, audit baseline, crash retention, one-time refund and permissions passed (single session).");

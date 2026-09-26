@@ -4,7 +4,12 @@ import { runOutcomeChecks } from "../lib/watchToSale.ts";
 const base = { id: "outcome", external_id: "v1|123456789012|0", marketplace: "EBAY_GB", listing_title: "Berserk Volume 1 English Dark Horse", status: "ambiguous", scheduled_end_at: "2026-08-01T00:00:00Z", next_check_at: "2026-08-02T00:00:00Z", check_attempts: 1, outcome_provider: "eBay Trading GetItem", reviewed_by: null, resulting_observation_id: null };
 function database({ auditError = false, queueError = false } = {}) {
   const state = { row: { ...base }, audits: 0 };
-  return { state, from(table) {
+  return { state, rpc(name, args) {
+    if (name === "reserve_outcome_checks") return Promise.resolve({ data: { granted: args.p_requested, spent: 0, reserved: args.p_requested, remaining: 2500-args.p_requested, day: new Date().toISOString().slice(0,10) }, error: null });
+    assert.equal(name, "settle_outcome_checks");
+    state.attempted = args.p_attempted;
+    return Promise.resolve({ error: null });
+  }, from(table) {
     let update; let filters = [];
     const result = () => {
       if (table === "listing_outcome_checks") { state.audits++; return { data: null, error: auditError ? { message: "audit unavailable" } : null }; }
@@ -65,6 +70,10 @@ console.log("Outcome worker passed: successful checks, human-decision races, pro
   // A ceiling that is already spent stops the batch without erroring, and
   // without touching the queue.
   const spentDb = {
+    rpc(name) {
+      if (name === "settle_outcome_checks") return Promise.resolve({ error: null });
+      return Promise.resolve({ data: { granted: 0, spent: DAILY_OUTCOME_CHECK_CEILING, reserved: DAILY_OUTCOME_CHECK_CEILING, remaining: 0, day: new Date().toISOString().slice(0,10) }, error: null });
+    },
     from(table) {
       if (table === "listing_outcome_checks") {
         return { select: () => ({ gte: () => Promise.resolve({ count: DAILY_OUTCOME_CHECK_CEILING, error: null }) }) };
@@ -78,8 +87,9 @@ console.log("Outcome worker passed: successful checks, human-decision races, pro
   assert.equal(stopped.dailyRemaining, 0);
   assert.deepEqual(stopped.errors, [], "a spent ceiling is a budget state, not an error");
 
-  // A ceiling that cannot be read must not stop real work.
+  // Unreadable budget must not allow unaccounted provider calls.
   const blindDb = {
+    rpc() { return Promise.resolve({ data: null, error: { message: "offline" } }); },
     from(table) {
       if (table === "listing_outcome_checks") {
         return { select: () => ({ gte: () => Promise.resolve({ count: null, error: { message: "unreadable" } }) }) };
@@ -91,6 +101,12 @@ console.log("Outcome worker passed: successful checks, human-decision races, pro
   assert.equal(blind.ceilingReached, false, "an unreadable count must not be treated as a spent ceiling");
   assert.equal(blind.dailySpent, null);
   assert.equal(blind.dailyRemaining, null);
+  assert.equal(blind.budgetUnavailable, true);
+  assert.match(blind.errors[0], /No provider calls/);
+  const empty = database(); empty.state.row.reviewed_by = "SP";
+  await runOutcomeChecks(empty, 10, async () => { throw new Error("no calls"); });
+  assert.equal(empty.state.attempted, 0, "unused reservation is released");
+  assert.equal(healthy.state.attempted, 1, "provider attempts are charged");
 }
 
-console.log("Outcome daily ceiling passed: spent ceiling halts without error, unreadable count never blocks work.\n");
+console.log("Outcome reservations passed: exhausted/unavailable budget stops calls; only unused capacity is released.\n");

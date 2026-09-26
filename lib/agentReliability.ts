@@ -17,11 +17,8 @@ export const RELIABILITY_EVALUATORS = [
 
 export type ReliabilityEvaluatorKey = (typeof RELIABILITY_EVALUATORS)[number];
 
-/* An incident is for something a person must act on, and only one evaluator
-   here describes automation acting on its own. Scout auto-dismisses: a
-   genuinely useful lead it bins is gone from every screen and nobody can tell
-   it happened, so a critical failure there is a real, silent, unrecoverable
-   loss.
+/* Scout replay identifies potential losses in unattended dismissal or
+   ranking. It does not establish that a production lead was removed.
    The rest are completeness checks feeding a human queue. "eligible" and
    "publishable" mean only that a record has its fields and a person will be
    shown it -- and then a person looked and decided otherwise. That is the
@@ -32,12 +29,12 @@ export type ReliabilityEvaluatorKey = (typeof RELIABILITY_EVALUATORS)[number];
    Those evaluators report a standing figure instead of an alarm. */
 export const UNSUPERVISED_EVALUATORS: ReadonlySet<ReliabilityEvaluatorKey> = new Set(["market_scout_match"]);
 
-/** True when a critical failure means automation acted, not that a person disagreed. */
+/** True when a benchmark failure identifies a risk in unattended handling. */
 export function raisesIncident(evaluatorKey: ReliabilityEvaluatorKey): boolean {
   return UNSUPERVISED_EVALUATORS.has(evaluatorKey);
 }
 
-const EVALUATOR_VERSION = 3;
+const EVALUATOR_VERSION = 4;
 const AUTOMATED_REVIEWER = /(?:agent|scout|curator|auditor|operator|system|auto.?triage)/i;
 
 type Json = Record<string, unknown>;
@@ -464,12 +461,15 @@ export async function runReliabilitySuite(
   const negativeCount = Number(baseMetrics.true_negative) + Number(baseMetrics.false_positive);
   const distinctSubjects = new Set(cases.map(coverageKey)).size;
   const criticalFailures = results.filter((item) => item.criticalFailure).length;
-  // Named for what it actually is on this evaluator, so nothing reports a
-  // person's own decision as a safety regression.
+  // Replay misses are separate from production auto_dismissed_leads metrics.
   const metrics = {
     ...baseMetrics,
     ...(raisesIncident(evaluatorKey)
-      ? { unattended_losses: criticalFailures }
+      ? {
+          benchmark_critical_misses: criticalFailures,
+          benchmark_auto_dismissals: results.filter((item) => item.expectedOutcome === "useful" && item.diagnostics.autoDismiss === true).length,
+          benchmark_low_ranked_useful: results.filter((item) => item.expectedOutcome === "useful" && item.predictedOutcome === "dismiss" && item.diagnostics.autoDismiss !== true).length,
+        }
       : { human_disagreements: criticalFailures }),
   };
   const gates = {
@@ -533,8 +533,8 @@ export async function runReliabilitySuite(
     const incidentValues = {
       incident_type: "rule_regression",
       severity: "critical",
-      title: `${evaluatorKey.replaceAll("_", " ")} dismissed leads a person wanted`,
-      details: { evaluation_run_id: run.id, critical_failures: criticalFailures },
+      title: `${evaluatorKey.replaceAll("_", " ")} would miss useful benchmark leads`,
+      details: { evaluation_run_id: run.id, critical_failures: criticalFailures, evidence_kind: "benchmark_replay", observed_production_losses: null },
       updated_at: createdAt,
     };
     const { error: incidentWriteError } = openIncident

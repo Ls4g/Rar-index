@@ -21,7 +21,7 @@ export type ScoutAvailabilityResult = {
       It used to be leads.length after .limit(CHECK_BATCH_SIZE) had already
       applied, so it could never exceed the batch size and understated a real
       backlog of 241 as 25. Anything reporting a backlog must read this. */
-  queued: number;
+  queued: number | null;
   /** The per-run ceiling, so a reader can tell a full batch from a drained
       queue without knowing the constant. */
   batchLimit: number;
@@ -79,11 +79,9 @@ export async function refreshStaleScoutAvailability(
     .limit(CHECK_BATCH_SIZE);
   if (error) throw new Error(`Market Scout could not load stale availability checks: ${error.message}`);
   const leads = (data ?? []) as AvailabilityLead[];
-  // Same predicate, no limit. Falls back to the batch length rather than
-  // failing the run, so a reporting query can never stop the work.
-  const eligible = await countEligibleLeads(admin, staleBefore);
-  const queued = eligible ?? leads.length;
-  if (!leads.length) return { queued, batchLimit: CHECK_BATCH_SIZE, examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0, connectionStatus: "not_needed", warning: null };
+  const queued = await countEligibleLeads(admin, staleBefore);
+  const countWarning = queued === null ? "Availability backlog total is unknown; its count could not be loaded." : null;
+  if (!leads.length) return { queued, batchLimit: CHECK_BATCH_SIZE, examined: 0, active: 0, unavailable: 0, inconclusive: 0, protectedByRace: 0, connectionStatus: "not_needed", warning: countWarning };
 
   const connection = await checkEbayConnectionHealth();
   if (connection.status !== "connected") {
@@ -96,7 +94,7 @@ export async function refreshStaleScoutAvailability(
       inconclusive: 0,
       protectedByRace: 0,
       connectionStatus: connection.status,
-      warning: `${connection.message} ${leads.length} stale lead${leads.length === 1 ? " was" : "s were"} left untouched.`,
+      warning: `${connection.message} ${leads.length} stale lead${leads.length === 1 ? " was" : "s were"} left untouched.${countWarning ? ` ${countWarning}` : ""}`,
     };
   }
   const token = await getEbayApplicationToken();
@@ -162,7 +160,7 @@ export async function refreshStaleScoutAvailability(
     inconclusive: Number(result.inconclusive ?? 0),
     protectedByRace: Math.max(0, leads.length - appliedTotal),
     connectionStatus: "connected",
-    warning: null,
+    warning: countWarning,
   };
 }
 

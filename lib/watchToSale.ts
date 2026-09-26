@@ -21,11 +21,11 @@ export type OutcomeCheckResult = {
   stillActive: number;
   exhausted: number;
   errors: string[];
-  /** Checks already recorded today, and what is left of the daily ceiling.
-      null when the count could not be read -- the run proceeds on its own
-      per-run bound rather than stopping, and says so. */
+  /** Recorded checks and shared reservations. Unknown accounting stops work. */
   dailySpent: number | null;
   dailyRemaining: number | null;
+  dailyReserved: number | null;
+  budgetUnavailable: boolean;
   ceilingReached: boolean;
 };
 
@@ -37,8 +37,9 @@ export const DEFAULT_OUTCOME_CHECK_LIMIT = 600;
    on staff action as well as the daily cron, so 11 September reached 1,573
    checks at a limit of 160 -- about ten runs. Raising the limit without a
    daily ceiling would turn that same day into roughly 4,000 calls, 80% of the
-   documented budget, in one afternoon. The ceiling counts what has actually
-   been spent today from the audit table and trims the batch to fit. */
+   documented budget, in one afternoon. Shared database reservations include
+   in-flight runs; unused slots are released only after a run stops. This
+   limits outcome resolutions, not total HTTP calls across eBay consumers. */
 export const DAILY_OUTCOME_CHECK_CEILING = 2500;
 export const OUTCOME_CHECK_CONCURRENCY = 6;
 
@@ -183,42 +184,27 @@ export async function promoteEndedListings(admin: SupabaseClient) {
   return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
-/** Checks already recorded since midnight UTC, from the audit table that
-    records every one. Returns null if it cannot be read: a budget guard must
-    never be the reason real work stops. */
-async function countChecksSpentToday(admin: SupabaseClient): Promise<number | null> {
-  try {
-    const midnight = new Date();
-    midnight.setUTCHours(0, 0, 0, 0);
-    const { count, error } = await admin
-      .from("listing_outcome_checks")
-      .select("id", { count: "exact", head: true })
-      .gte("checked_at", midnight.toISOString());
-    if (error || typeof count !== "number") return null;
-    return count;
-  } catch {
-    return null;
-  }
-}
-
 export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT, resolve = resolveListingOutcome): Promise<OutcomeCheckResult> {
-  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [], dailySpent: null, dailyRemaining: null, ceilingReached: false };
-
-  // The per-run bound alone cannot hold a day: this also runs on staff
-  // action, not just the cron. Trim the batch to what the ceiling has left.
-  const spentToday = await countChecksSpentToday(admin);
-  result.dailySpent = spentToday;
-  let effectiveLimit = limit;
-  if (spentToday !== null) {
-    const remaining = Math.max(0, DAILY_OUTCOME_CHECK_CEILING - spentToday);
-    result.dailyRemaining = remaining;
-    if (remaining === 0) {
-      // Not an error. The queue is intact and the next run picks it up.
-      result.ceilingReached = true;
-      return result;
-    }
-    effectiveLimit = Math.min(limit, remaining);
+  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [], dailySpent: null, dailyRemaining: null, dailyReserved: null, budgetUnavailable: false, ceilingReached: false };
+  const reservationId = crypto.randomUUID();
+  let budget: { granted: number; spent: number; reserved: number; remaining: number; day: string };
+  try {
+    const requested = Number.isFinite(limit) ? Math.max(0, Math.min(DEFAULT_OUTCOME_CHECK_LIMIT, Math.floor(limit))) : 0;
+    const { data, error } = await admin.rpc("reserve_outcome_checks", { p_reservation_id: reservationId, p_requested: requested });
+    if (error || !data || !Number.isInteger(data.granted) || data.granted < 0 || data.granted > requested || typeof data.day !== "string") throw new Error("invalid reservation");
+    budget = data;
+  } catch {
+    result.budgetUnavailable = true;
+    result.errors.push("Outcome-check budget is unavailable. No provider calls were made; retry when accounting is restored.");
+    return result;
   }
+  result.dailySpent = budget.spent;
+  result.dailyReserved = budget.reserved;
+  result.dailyRemaining = budget.remaining;
+  const effectiveLimit = budget.granted;
+  let attempted = 0;
+  try {
+  if (!effectiveLimit) { result.ceilingReached = budget.remaining === 0; return result; }
   const nowIso = new Date().toISOString();
 
   const { data, error: queueError } = await admin
@@ -242,11 +228,17 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
   result.due = due.length;
 
   for (let index = 0; index < due.length; index += OUTCOME_CHECK_CONCURRENCY) {
+    // A reservation is for one UTC day. Do not spend yesterday's allocation.
+    if (new Date().toISOString().slice(0, 10) !== budget.day) {
+      result.errors.push("UTC day changed. Remaining checks were left for a new run.");
+      break;
+    }
     const chunk = due.slice(index, index + OUTCOME_CHECK_CONCURRENCY);
     await Promise.all(chunk.map(async (row) => {
     const attempt = row.check_attempts + 1;
     let providerResult;
     try {
+      attempted += 1;
       providerResult = await resolve(row.external_id, row.marketplace, row.listing_title);
     } catch (error) {
       const message = error instanceof Error ? error.message : "outcome provider failed";
@@ -319,6 +311,16 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
   }
 
   return result;
+  } finally {
+    // Refund only work never attempted. Failure retains the allocation,
+    // which is conservative even if a process dies after an external call.
+    try {
+      const { error } = await admin.rpc("settle_outcome_checks", { p_reservation_id: reservationId, p_attempted: attempted });
+      if (error) throw new Error(error.message);
+    } catch {
+      result.errors.push("Unused outcome-check capacity could not be released; its reservation remains charged today.");
+    }
+  }
 }
 
 export async function readWatchToSaleMetrics(admin: SupabaseClient) {

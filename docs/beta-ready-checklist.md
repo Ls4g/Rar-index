@@ -1,5 +1,23 @@
 # RAR staff-supervised beta checklist
 
+## Current implementation status — 26 September 2026
+
+Read [the implementation checkpoint](reliability-implementation-2026-09-26.md) first. It supersedes older settings and task statuses below for the current tranche; the historical audit evidence remains intact.
+
+| Work | Current state |
+| --- | --- |
+| Atomic approval closure and safe snapshot reads | Built and tested locally; closure migration unapplied |
+| Catalogue pagination and focused candidate links | Built and tested; browser verification pending |
+| Honest metrics and shared outcome-budget reservations | Built and tested; budget migration unapplied |
+| Validation | 46 workflow scripts, TypeScript, lint and production build passed |
+| Deployed staff/collector journey verification | Blocked on browser access; not complete |
+| Bookshelf production integration | Pending after deployed verification |
+| Two-connection concurrency tests | Explicitly excluded by SP from this implementation; no concurrency certification |
+| Availability settings | Four days, 100 leads per run; older settings below are historical |
+| Experimental Scout rules | Still in shadow; no activation requested |
+
+Neither new migration has been applied live. Do not deploy dependent code first. Do not reopen completed legacy approval cleanup using old counts; recount current data when access resumes.
+
 Created 15 September 2026 from local HEAD `0bb6489`, current audit documents (including pre-existing uncommitted updates), Git history and targeted source inspection. No live services, credentials or application workflows were accessed for this review. Production state is not freshly verified.
 
 This is the sole active beta-readiness worklist. It supersedes the earlier three-phase implementation prompt and every historical Next/priorities/gaps list in `beta-audit-resume.md` and `beta-audit-findings.md`. Those documents remain evidence/history, not parallel task lists. Update this checklist as work proceeds.

@@ -249,7 +249,8 @@ export default function ListingOutcomesPanel({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "The pipeline could not run.");
       const checks = result.checks ?? {};
-      setMessage(`Watching ${result.captured?.captured ?? 0} new · ${result.promoted ?? 0} queued for status checks · ${checks.checked ?? 0} checked · ${checks.soldCandidates ?? 0} sold candidates · ${checks.unsold ?? 0} unsold · ${checks.ambiguous ?? 0} ambiguous · ${checks.inaccessible ?? 0} inaccessible.${checks.errors?.length ? ` First error: ${checks.errors[0]}` : ""}`);
+      const budgetMessage = checks.budgetUnavailable ? " Budget unavailable; provider checks were not started." : checks.ceilingReached ? " Daily outcome-check allocation is exhausted; the queue is unchanged." : typeof checks.dailyRemaining === "number" ? ` ${checks.dailyRemaining} outcome-check slots unreserved when this run started.` : "";
+      setMessage(`Watching ${result.captured?.captured ?? 0} new · ${result.promoted ?? 0} queued for status checks · ${checks.checked ?? 0} checked · ${checks.soldCandidates ?? 0} sold candidates · ${checks.unsold ?? 0} unsold · ${checks.ambiguous ?? 0} ambiguous · ${checks.inaccessible ?? 0} inaccessible.${budgetMessage}${checks.errors?.length ? ` First error: ${checks.errors[0]}` : ""}`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The pipeline could not run.");

@@ -45,7 +45,8 @@ try {
   // A count is reporting, so a broken count must never stop the work.
   const brokenCount = { ...query, isCount: false, then(resolve) { return resolve({ count: null, error: { message: "count failed" } }); } };
   const degraded = await refreshStaleScoutAvailability({ from: () => brokenCount }, "run-1");
-  assert.equal(degraded.queued, 1, "a failed count falls back to the batch length rather than throwing");
+  assert.equal(degraded.queued, null, "a failed count is unknown, never a smaller invented total");
+  assert.match(degraded.warning, /total is unknown/);
   assert.equal(degraded.connectionStatus, "missing");
 
   process.env.EBAY_CLIENT_ID = "test-client";
