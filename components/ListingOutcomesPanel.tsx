@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { decisionsFor, sharedDecisionsFor } from "@/lib/listingOutcomeDecisions";
 import {
@@ -148,6 +148,22 @@ export default function ListingOutcomesPanel({
   const [dismissReasons, setDismissReasons] = useState<Record<string, DismissalReason>>({});
   const [dismissOpen, setDismissOpen] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => (focusRow ? new Set([focusRow.id]) : new Set()));
+  /* A link from the Decisions page names one listing, and the queue it lives in
+     can hold 25 already-expanded rows. Serving the right page and opening the
+     card is not enough -- without this the reviewer lands mid-list with no idea
+     which row the link was about, which reads as "it just took me to all the
+     listings". Scroll it into view and mark it. */
+  const focusCardRef = useRef<HTMLElement | null>(null);
+  const focusId = focusRow?.id ?? null;
+  useEffect(() => {
+    if (!focusId) return;
+    const card = focusCardRef.current;
+    if (!card) return;
+    // Respect a reviewer who has asked for no motion.
+    const still = typeof window !== "undefined" && typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
+  }, [focusId]);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
@@ -460,7 +476,7 @@ export default function ListingOutcomesPanel({
             // could see had sold had nowhere to go but "keep watching".
             const canRecordSale = !row.reviewedBy && !canConfirm && !["unsold", "review_complete"].includes(row.status);
             return (
-              <article className={`outcome-card status-${row.status}${selected.has(row.id) ? " is-selected" : ""}${isExpanded ? " is-expanded" : ""}`} key={row.id}>
+              <article className={`outcome-card status-${row.status}${selected.has(row.id) ? " is-selected" : ""}${isExpanded ? " is-expanded" : ""}${row.id === focusId ? " is-focused" : ""}`} key={row.id} ref={row.id === focusId ? focusCardRef : null}>
                 <div className="outcome-card-head">
                   {selectable ? <input aria-label={`Select ${row.listingTitle}`} checked={selected.has(row.id)} className="outcome-select" onChange={() => toggleSet(setSelected, row.id)} type="checkbox" /> : null}
                   {row.imageUrl ? (

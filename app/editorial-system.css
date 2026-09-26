@@ -469,3 +469,9 @@ html[data-theme="night"] :is(.home-page, .edition-page) {
   background: color-mix(in srgb, var(--rar-red) 8%, var(--rar-surface));
 }
 .review-page :is(.agent-incident-list span, .agent-last-run em, .agent-workbench-heading > a) { color: var(--rar-red); }
+
+/* The focus ring resolves per theme like the rest of the staff surfaces. */
+.review-page .outcome-card.is-focused {
+  border-color: var(--accent-info-text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-info-text) 55%, transparent);
+}

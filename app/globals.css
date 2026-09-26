@@ -2972,6 +2972,11 @@ html[data-theme="day"] .public-page {
 .outcome-card.status-sold_candidate { border-color: var(--accent-positive-text); }
 .outcome-card.status-review_complete { opacity: .74; }
 .outcome-card.is-selected { border-color: var(--orange); background: var(--surface-card-active); }
+/* The one listing a Decisions link named. The queue it lands in can hold 25
+   already-expanded cards, so the reviewer needs to see which row the link was
+   about without hunting. Ring rather than fill: is-selected already owns the
+   fill, and a card can be both. */
+.outcome-card.is-focused { border-color: var(--accent-info-text); box-shadow: 0 0 0 2px var(--accent-info-text); }
 .outcome-card.is-expanded { border-color: color-mix(in srgb, var(--line) 45%, #315f9e); }
 .outcome-card-head { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: .75rem; align-items: start; }
 .outcome-thumb { width: 52px; height: 68px; object-fit: contain; border: 1px solid var(--line); border-radius: .35rem; background: #221f1b; }
