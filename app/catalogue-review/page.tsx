@@ -8,6 +8,8 @@ import EditionIdentityChecklist from "@/components/EditionIdentityChecklist";
 import StaffNav from "@/components/StaffNav";
 import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { catalogueWindow, CATALOGUE_PAGE_SIZE } from "@/lib/catalogueWindow";
+import { readCompleteRows } from "@/lib/readCompleteRows";
 
 export const dynamic = "force-dynamic";
 
@@ -114,23 +116,24 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
-export default async function CatalogueReviewPage() {
+export default async function CatalogueReviewPage({ searchParams }: { searchParams: Promise<{ page?: string; candidate?: string }> }) {
+  const params = await searchParams;
   const admin = getSupabaseAdmin();
-  const [queueResult, knownEditionResult, discoveryResult, coverResult] = await Promise.all([
-    admin
-      .from("catalogue_review_queue")
-      .select("id, external_id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, candidate_format, candidate_cover_image_url, source_name, source_record_url, raw_payload, imported_at", { count: "exact" })
-      .order("imported_at", { ascending: false })
-      .limit(50),
-    admin.from("manga_editions").select("series,language,publisher").eq("is_verified", true).limit(5000),
+  const columns = "id, external_id, candidate_kind, candidate_title, candidate_series, candidate_volume_number, candidate_author, candidate_publisher, candidate_language, candidate_isbn_13, candidate_release_date, candidate_format, candidate_cover_image_url, source_name, source_record_url, raw_payload, imported_at";
+  const [window, knownEditions, discoveryResult, coverResult] = await Promise.all([
+    catalogueWindow<CatalogueRecord>(params.page, params.candidate,
+      (from, to) => admin.from("catalogue_review_queue").select(columns, { count: "exact" })
+        .order("imported_at", { ascending: false }).order("id").range(from, to),
+      (id) => admin.from("catalogue_review_queue").select(columns).eq("id", id).maybeSingle()),
+    readCompleteRows<KnownCatalogueEdition>("catalogue identity checks", (from, to) => admin.from("manga_editions")
+      .select("series,language,publisher").eq("is_verified", true).order("id").range(from, to)),
     admin.from("catalogue_discovery_targets").select("id", { count: "exact", head: true }).eq("status", "researchable"),
     admin.from("cover_review_queue").select("edition_id", { count: "exact", head: true }),
   ]);
-  const records = (queueResult.data ?? []) as CatalogueRecord[];
-  const queueCount = queueResult.count ?? records.length;
-  const researchableCount = discoveryResult.count ?? 0;
-  const missingCoverCount = coverResult.count ?? 0;
-  const knownEditions = (knownEditionResult.data ?? []) as KnownCatalogueEdition[];
+  const records = window.records;
+  const queueCount = window.total;
+  const researchableCount = discoveryResult.error ? "Unavailable" : discoveryResult.count ?? "Unavailable";
+  const missingCoverCount = coverResult.error ? "Unavailable" : coverResult.count ?? "Unavailable";
   const approvalProblems = new Map(records.map((record) => [record.id, catalogueApprovalProblem(record as unknown as CatalogueApprovalQueueRow, knownEditions)]));
   const bulkRecords: CatalogueBulkRecord[] = records.map((record) => ({
     id: record.id,
@@ -198,6 +201,14 @@ export default async function CatalogueReviewPage() {
         </details>
       </section>
       <section className="review-list-section" id="catalogue-review-queue">
+        <nav className="outcome-pagination" aria-label="Catalogue pages">
+          {window.page > 1 ? <Link href={`/catalogue-review?page=${window.page - 1}#catalogue-review-queue`}>Previous</Link> : null}
+          <span>Page <strong>{window.page}</strong> of {window.pages} · {queueCount ? (window.page - 1) * CATALOGUE_PAGE_SIZE + 1 : 0}–{(window.page - 1) * CATALOGUE_PAGE_SIZE + window.pageRows} of {queueCount} candidates</span>
+          {window.page < window.pages ? <Link href={`/catalogue-review?page=${window.page + 1}#catalogue-review-queue`}>Next</Link> : null}
+          <form action="/catalogue-review"><label>Go to page <input name="page" type="number" min="1" max={window.pages} defaultValue={window.page} aria-label="Catalogue page number" /></label><button type="submit">Go</button></form>
+        </nav>
+        {window.focusedAdded ? <p role="status">The linked candidate is shown first, in addition to this page.</p> : null}
+        {window.focusedMissing ? <p role="status">The linked candidate is no longer in the review queue, or the link is invalid.</p> : null}
         {/* Only magazines need this: a book candidate arrives with a cover
             from its own source, while a magazine's cover art is copyrighted
             and no catalogue source carries a picture at all. */}

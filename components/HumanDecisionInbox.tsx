@@ -428,7 +428,7 @@ export default function HumanDecisionInbox({
           <DecisionNote reason={decisionReasons[`catalogue:${item.id}`] ?? ""} value={decisionNotes[`catalogue:${item.id}`] ?? ""} onReasonChange={(value) => setDecisionReasons((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} onChange={(value) => setDecisionNotes((current) => ({ ...current, [`catalogue:${item.id}`]: value }))} />
           <div className="human-decision-actions">
             <a href={item.sourceUrl} target="_blank" rel="noreferrer">Check source ↗</a>
-            {item.approvalBlocker ? <Link href={`/catalogue-review#candidate-${item.id}`}>Needs detailed review →</Link> : <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button>}
+            {item.approvalBlocker ? <Link href={`/catalogue-review?candidate=${item.id}#candidate-${item.id}`}>Needs detailed review →</Link> : <button disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, true)} type="button">{busyKeys.has(`catalogue:${item.id}`) ? "Saving…" : "Yes — add edition"}</button>}
             <button className="is-no" disabled={busyKeys.has(`catalogue:${item.id}`)} onClick={() => void decideCatalogue(item, false)} type="button">No — reject</button>
           </div>
         </article>
