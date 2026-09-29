@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
+import PhysicalBookDemo from "./PhysicalBookDemo";
 
 export type DemoMarketGuide = {
   currency: string;
@@ -52,6 +53,7 @@ function marketCopy(guide: DemoMarketGuide | null) {
 
 export default function DemoBookShelf({ books }: { books: DemoSeriesBook[] }) {
   const [active, setActive] = useState<DemoSeriesBook | null>(null);
+  const [physicalBook, setPhysicalBook] = useState<DemoSeriesBook | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -73,10 +75,10 @@ export default function DemoBookShelf({ books }: { books: DemoSeriesBook[] }) {
       <div className="rar-concept-container">
         <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Open a cover to explore the sample collector’s volumes, exact editions and source-backed market context.</p></div>
         <div className="rar-demo-spotlight-grid">
-          {books.slice(0, 3).map((book, index) => <button className="rar-demo-spotlight-card" type="button" onClick={() => setActive(book)} aria-haspopup="dialog" key={book.key}>
-            <span className="rar-demo-spotlight-number">0{index + 1} / SAMPLE SERIES</span>
+          {books.slice(0, 3).map((book, index) => <button className="rar-demo-spotlight-card" type="button" onClick={() => index === 0 ? setPhysicalBook(book) : setActive(book)} aria-haspopup="dialog" key={book.key}>
+            <span className="rar-demo-spotlight-number">0{index + 1} / {index === 0 ? "PHYSICAL BOOK DEMO" : "SAMPLE SERIES"}</span>
             <span className="rar-demo-spotlight-image">{cover(book.representative)}</span>
-            <span className="rar-demo-spotlight-footer"><span className="rar-demo-book-caption"><strong>{book.name}</strong><span>Volumes: {book.owned.length} of {book.cataloguedVolumes} catalogued on RAR</span><span className="rar-demo-price-line">{marketCopy(book.representative.marketGuide)}</span></span><span className="rar-demo-open-icon" aria-hidden="true">Open book ↗</span></span>
+            <span className="rar-demo-spotlight-footer"><span className="rar-demo-book-caption"><strong>{book.name}</strong><span>Volumes: {book.owned.length} of {book.cataloguedVolumes} catalogued on RAR</span><span className="rar-demo-price-line">{marketCopy(book.representative.marketGuide)}</span></span><span className="rar-demo-open-icon" aria-hidden="true">{index === 0 ? "Try 3D book ↗" : "Open book ↗"}</span></span>
           </button>)}
         </div>
       </div>
@@ -85,12 +87,12 @@ export default function DemoBookShelf({ books }: { books: DemoSeriesBook[] }) {
     <section className="rar-demo-shelf" id="shelf"><div className="rar-concept-container">
       <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE FULL SHELF</p><h2>Every cover has a story.</h2></div><p>{books.length} sample series. Volume counts show RAR catalogue coverage, not a claim about each series’ complete published run.</p></div>
       <div className="rar-demo-shelf-grid">
-        {books.map((book) => <button className="rar-demo-shelf-item" type="button" onClick={() => setActive(book)} aria-haspopup="dialog" key={book.key}>
+        {books.map((book, index) => <button className="rar-demo-shelf-item" type="button" onClick={() => index === 0 ? setPhysicalBook(book) : setActive(book)} aria-haspopup="dialog" key={book.key}>
           <span className="rar-demo-shelf-image">{cover(book.representative)}</span>
           <strong>{book.name}</strong>
           <span>Volumes: {book.owned.length} of {book.cataloguedVolumes} catalogued on RAR</span>
           <span className="rar-demo-shelf-price">{marketCopy(book.representative.marketGuide)}</span>
-          <span className="rar-demo-shelf-open" aria-hidden="true">Open book ↗</span>
+          <span className="rar-demo-shelf-open" aria-hidden="true">{index === 0 ? "Try 3D book ↗" : "Open book ↗"}</span>
         </button>)}
       </div>
       <div className="rar-demo-shelf-end"><span>END OF SHELF / {String(books.length).padStart(2, "0")} SERIES</span><a href="#demo-profile-title">Back to the top ↑</a></div>
@@ -126,5 +128,6 @@ export default function DemoBookShelf({ books }: { books: DemoSeriesBook[] }) {
         </div>
       </div> : null}
     </dialog>
+    {physicalBook ? <PhysicalBookDemo book={physicalBook} onClose={() => setPhysicalBook(null)} /> : null}
   </>;
 }

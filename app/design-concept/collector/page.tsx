@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "./DemoBookShelf";
 import "../style.css";
 import "./style.css";
+import "./physical-book.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
