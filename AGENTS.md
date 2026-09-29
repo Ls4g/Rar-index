@@ -47,6 +47,34 @@ Automation (Scout auto-triage, matching scorers, etc.) may only ever narrow *wha
 - **Corepack, not a global `pnpm`.** `pnpm` is not on PATH; `corepack pnpm ...` is (after the PATH prepend above).
 - `CLAUDE.md` at the repo root just points here via `@AGENTS.md` — edit this file, not that one.
 
+## Measuring before changing a queue or a limit
+
+Four wrong sizings of the Scout availability queue in two weeks, all the same
+mistake: reasoning from a model instead of from the thing that governs. The
+habits that would have caught each one:
+
+- **Enumerate every clause of the predicate, and measure each arm separately.**
+  The availability query is `review_status = new` AND `last_seen_at < stale`
+  AND `(availability_checked_at IS NULL OR availability_checked_at < stale)`.
+  Sizing it from the pool missed the entry rate; sizing it from the entry rate
+  missed that the last clause **re-qualifies every lead every N days for as long
+  as it stays `new`**. A pool of 418 never-checked sits beside 506 due a
+  re-check. One is intake, the other is a treadmill, and they need separate
+  numbers.
+- **Read a metric's definition before using it as evidence.** `watch_checks_due`
+  is a count of rows due, not calls made. It was quoted as a call rate and put a
+  figure four times too high into a budget.
+- **Grep every consumer before changing a constant, SQL included.** Raising
+  `CHECK_BATCH_SIZE` from 25 to 100 walked into a 25-lead cap inside
+  `apply_scout_agent_availability_results` and failed every Market Scout run
+  for a day. The cap was one grep away.
+- **Verify the last prediction before making the next change.** Each tuning came
+  with a falsifiable number — "the pool will drain to 235 at 12/day". Checking
+  that the following morning would have caught the error immediately; instead
+  three more days of drift went by. A prediction nobody checks is decoration.
+- **Say which numbers were measured and which were inferred.** Reports that mix
+  them at equal confidence are how an estimate becomes a premise.
+
 ## Workflow expectations
 
 - Every DB schema/function change ships as an additive migration file under `supabase/migrations/`, applied live via the SQL editor, and is never destructive to existing columns/data without explicit confirmation.
