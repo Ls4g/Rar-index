@@ -52,14 +52,13 @@
 .rar-physical-feature-cover .edition-cover { height: 100%; }
 .rar-physical-right-page > .rar-physical-market-copy { max-width: none; color: #9c3b2e; font-size: 13px; font-weight: 750; }
 .rar-physical-right-page > small { margin-top: 12px; color: #746e61; font-size: 10px; line-height: 1.45; }
-.rar-physical-turn-leaf { z-index: 5; transform-origin: left center; pointer-events: none; }
-.rar-physical-turn-leaf.is-next { animation: rar-physical-turn-next 780ms ease-in-out forwards; }
-.rar-physical-turn-leaf.is-previous { animation: rar-physical-turn-previous 780ms ease-in-out forwards; }
-.rar-physical-turn-front, .rar-physical-turn-back { position: absolute; inset: 1px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; border-radius: 2px 6px 6px 2px; background: linear-gradient(90deg, #d4c7ad, #f5eddd 18%, #f4ecdc 90%, #d3c4aa); backface-visibility: hidden; color: #a34638; font-family: Georgia, serif; font-size: 15px; letter-spacing: .12em; box-shadow: 5px 4px 13px rgba(0,0,0,.19); }
-.rar-physical-turn-front b, .rar-physical-turn-back b { font-size: 60px; font-weight: 400; letter-spacing: 0; }
-.rar-physical-turn-back { transform: rotateY(180deg); }
-@keyframes rar-physical-turn-next { from { transform: translateZ(13px) rotateY(0); } to { transform: translateZ(13px) rotateY(-180deg); } }
-@keyframes rar-physical-turn-previous { from { transform: translateZ(13px) rotateY(-180deg); } to { transform: translateZ(13px) rotateY(0); } }
+.rar-physical-turn-leaf { z-index: 5; transform: translateZ(13px); pointer-events: none; }
+.rar-physical-turn-strip { position: absolute; top: 0; bottom: 0; left: 0; width: calc(100% / 24 + 1px); transform-origin: left center; transform-style: preserve-3d; will-change: transform; }
+.rar-physical-turn-strip:last-child::after { content: ""; position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: 6px; background: linear-gradient(90deg, transparent, rgba(70, 47, 25, .4)); opacity: var(--curl-depth, 0); pointer-events: none; }
+.rar-physical-turn-surface { position: absolute; inset: 0; overflow: hidden; background: #f4ecdc; backface-visibility: hidden; }
+.rar-physical-turn-surface::after { content: ""; position: absolute; inset: 0; background: rgba(70, 47, 25, var(--strip-shade, 0)); pointer-events: none; }
+.rar-physical-turn-surface.is-back { transform: rotateY(180deg) translateZ(1px); }
+.rar-physical-turn-content { right: auto; width: var(--book-w); height: 100%; transform: none; backface-visibility: visible; box-shadow: none; }
 .rar-physical-controls { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 78px; border-top: 1px solid #4b5750; border-bottom: 1px solid #4b5750; padding: 12px clamp(20px, 4vw, 60px); }
 .rar-physical-controls p { margin: 0; color: #adb8af; font-size: 11px; line-height: 1.5; }
 .rar-physical-controls > div { display: flex; align-items: center; gap: 14px; flex: none; }
@@ -135,5 +134,4 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .rar-physical-book, .rar-physical-front-cover { transition-duration: 1ms; }
-  .rar-physical-turn-leaf.is-next, .rar-physical-turn-leaf.is-previous { animation-duration: 1ms; }
 }

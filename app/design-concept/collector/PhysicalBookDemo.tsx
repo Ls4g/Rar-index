@@ -25,8 +25,34 @@ function guideText(edition: DemoBookEdition) {
     : "No comparable price guide yet";
 }
 
+const TURN_STRIPS = 24;
+const TURN_DURATION_MS = 1450;
+
+function PageTwoContent({ book }: { book: DemoSeriesBook }) {
+  return <>
+    <span className="rar-physical-folio">02 / COLLECTOR VOLUMES</span>
+    <h3>On this shelf<span>.</span></h3>
+    <p>{book.owned.length} sample volumes, each linked to its exact RAR edition.</p>
+    <div className="rar-physical-mini-volumes">
+      {book.owned.map((edition) => <div key={edition.id}><span>{String(edition.volumeNumber || "—").padStart(2, "0")}</span><strong>{edition.title || `${book.name} Vol. ${edition.volumeNumber || "—"}`}</strong></div>)}
+    </div>
+    <span className="rar-physical-page-number">02</span>
+  </>;
+}
+
+function PageThreeContent({ featured }: { featured: DemoBookEdition }) {
+  return <>
+    <span className="rar-physical-folio">03 / A CLOSER LOOK</span>
+    <strong className="rar-physical-inside-title">Volume<br />{featured.volumeNumber || "—"}<span>.</span></strong>
+    <p>{featured.publisher || "Publisher not recorded"}<br />{featured.language || "Language not recorded"}</p>
+    <p>Open the exact edition below for its full catalogue record and verified sales.</p>
+    <span className="rar-physical-page-number">03</span>
+  </>;
+}
+
 export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBook; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const leafRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,6 +76,42 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
     };
   }, []);
 
+  useEffect(() => {
+    if (!turning || !leafRef.current) return;
+    const strips = Array.from(leafRef.current.querySelectorAll<HTMLElement>(".rar-physical-turn-strip"));
+    const stripWidth = leafRef.current.getBoundingClientRect().width / TURN_STRIPS;
+    let frame = 0;
+    let startedAt: number | null = null;
+
+    function animate(now: number) {
+      if (startedAt === null) startedAt = now;
+      const progress = Math.min((now - startedAt) / TURN_DURATION_MS, 1);
+      const eased = (1 - Math.cos(Math.PI * progress)) / 2;
+      const baseAngle = turning === "next" ? -Math.PI * eased : -Math.PI * (1 - eased);
+      const curl = 0.75 * Math.sin(Math.PI * eased) * (turning === "next" ? -1 : 1);
+      let x = 0;
+      let z = 0;
+
+      strips.forEach((strip, index) => {
+        const angle = baseAngle + curl * ((index + 0.5) / TURN_STRIPS);
+        strip.style.transform = `translate3d(${x}px, 0, ${z}px) rotateY(${angle}rad)`;
+        strip.style.setProperty("--curl-depth", `${Math.abs(curl) * (index / TURN_STRIPS)}`);
+        strip.style.setProperty("--strip-shade", `${0.16 * Math.sin(Math.PI * eased) * ((index + 1) / TURN_STRIPS)}`);
+        x += Math.cos(angle) * stripWidth;
+        z -= Math.sin(angle) * stripWidth;
+      });
+
+      if (progress < 1) frame = requestAnimationFrame(animate);
+      else {
+        setSpread(turning === "next" ? 1 : 0);
+        setTurning(null);
+      }
+    }
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [turning]);
+
   function closeBook() {
     if (isClosing) return;
     setIsClosing(true);
@@ -60,9 +122,11 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
 
   function turnPage(direction: "next" | "previous") {
     if (!isOpen || turning || isClosing || (direction === "next" && spread === 1) || (direction === "previous" && spread === 0)) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setSpread(direction === "next" ? 1 : 0);
+      return;
+    }
     setTurning(direction);
-    timers.current.push(window.setTimeout(() => setSpread(direction === "next" ? 1 : 0), 385));
-    timers.current.push(window.setTimeout(() => setTurning(null), 790));
   }
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -86,6 +150,8 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
   }
 
   const featured = book.owned[0];
+  const leftSpread = turning ? 0 : spread;
+  const rightSpread = turning ? 1 : spread;
   const physicalStyle = {
     "--rar-drag-x": `${drag.x}deg`,
     "--rar-drag-y": `${drag.y}deg`,
@@ -123,15 +189,7 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
             <div className="rar-physical-page-block" aria-hidden="true" />
             <div className="rar-physical-spine" aria-hidden="true"><span>{book.name}</span><b>RAR</b></div>
             <div className="rar-physical-right-page">
-              {spread === 0 ? <>
-                <span className="rar-physical-folio">02 / COLLECTOR VOLUMES</span>
-                <h3>On this shelf<span>.</span></h3>
-                <p>Four sample volumes, each linked to its exact RAR edition.</p>
-                <div className="rar-physical-mini-volumes">
-                  {book.owned.map((edition) => <div key={edition.id}><span>{String(edition.volumeNumber || "—").padStart(2, "0")}</span><strong>{edition.title || `${book.name} Vol. ${edition.volumeNumber || "—"}`}</strong></div>)}
-                </div>
-                <span className="rar-physical-page-number">02</span>
-              </> : <>
+              {rightSpread === 0 ? <PageTwoContent book={book} /> : <>
                 <span className="rar-physical-folio">04 / MARKET CONTEXT</span>
                 <h3>Follow the evidence<span>.</span></h3>
                 <div className="rar-physical-feature-cover">{cover(featured)}</div>
@@ -143,22 +201,25 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
             <div className="rar-physical-front-cover">
               <div className="rar-physical-front-face">{cover(book.representative)}<span className="rar-physical-cover-sheen" /></div>
               <div className="rar-physical-inside-face">
-                {spread === 0 ? <>
+                {leftSpread === 0 ? <>
                   <span className="rar-physical-folio">01 / A PERSONAL SHELF</span>
                   <strong className="rar-physical-inside-title">The Opening<br />Chapter<span>.</span></strong>
                   <p>Every collection starts somewhere. This one begins with {book.name}.</p>
                   <div className="rar-physical-inside-stats"><b>{book.owned.length}</b><span>sample volumes selected</span><b>{book.cataloguedVolumes}</b><span>distinct volumes catalogued on RAR</span></div>
                   <span className="rar-physical-page-number">01</span>
-                </> : <>
-                  <span className="rar-physical-folio">03 / A CLOSER LOOK</span>
-                  <strong className="rar-physical-inside-title">Volume<br />{featured.volumeNumber || "—"}<span>.</span></strong>
-                  <p>{featured.publisher || "Publisher not recorded"}<br />{featured.language || "Language not recorded"}</p>
-                  <p>Open the exact edition below for its full catalogue record and verified sales.</p>
-                  <span className="rar-physical-page-number">03</span>
-                </>}
+                </> : <PageThreeContent featured={featured} />}
               </div>
             </div>
-            {turning && <div className={`rar-physical-turn-leaf is-${turning}`} aria-hidden="true"><span className="rar-physical-turn-front">RAR <b>{turning === "next" ? "02" : "04"}</b></span><span className="rar-physical-turn-back">THE OPENING CHAPTER <b>{turning === "next" ? "03" : "01"}</b></span></div>}
+            {turning && <div className="rar-physical-turn-leaf" ref={leafRef} aria-hidden="true">
+              {Array.from({ length: TURN_STRIPS }, (_, index) => <div
+                className="rar-physical-turn-strip"
+                key={index}
+                style={{ transform: turning === "next" ? `translateX(${index * 100}%)` : `translateX(-${(index + 1) * 100}%) rotateY(-180deg)` }}
+              >
+                <div className="rar-physical-turn-surface is-front"><div className="rar-physical-right-page rar-physical-turn-content" style={{ left: `${-index * 100}%` }}><PageTwoContent book={book} /></div></div>
+                <div className="rar-physical-turn-surface is-back"><div className="rar-physical-inside-face rar-physical-turn-content" style={{ left: `${-(TURN_STRIPS - index - 1) * 100}%` }}><PageThreeContent featured={featured} /></div></div>
+              </div>)}
+            </div>}
           </div>
         </div>
       </div>
