@@ -1,5 +1,9 @@
 # RAR staff-supervised beta checklist
 
+## Current blocker — cron recovery, 30 September 2026
+
+Read [Claude's cron handoff](cron-not-firing-handoff.md) and [the current recovery checkpoint](cron-recovery-checkpoint-2026-09-30.md) before the historical status below. Cron invocation recording and honest budget-failure reporting are implemented locally; the new heartbeat migration is unapplied. Production release, earlier migration application and post-redeploy recovery remain unverified in this session. The 26 September deployment claims below describe that earlier session only. Two-connection concurrency testing remains excluded by SP. Do not call the beta ready until release and staff-workflow verification are complete.
+
 ## Current implementation status — 26 September 2026
 
 Read [the implementation checkpoint](reliability-implementation-2026-09-26.md) first. It supersedes older settings and task statuses below for the current tranche; the historical audit evidence remains intact.

@@ -1,5 +1,7 @@
 # Reliability implementation checkpoint — 26 September 2026
 
+**Resume update, 30 September:** read [the cron recovery checkpoint](cron-recovery-checkpoint-2026-09-30.md) first. The deployment/branch statements below are historical. Claude's newer `12013c9` handoff reports a redeploy; current production and migration state need verification before relying on either account.
+
 User requested the review's implementation order, excluding two-connection concurrency tests. The first three implementation steps are built locally. Deployment verification is blocked; bookshelf integration remains behind that step, not silently declared complete.
 
 Work is isolated on `codex/rar-beta-reliability`, pushed to origin. Phase 1 is `1e7b4fc`; phase 2 is `a7ba3cb`; the final metrics/budget commit also carries this checkpoint. `main` has not been advanced. Use `git log -3` on this branch for the complete commit IDs before resuming.

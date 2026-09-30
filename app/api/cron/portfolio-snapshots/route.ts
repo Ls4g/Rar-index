@@ -1,3 +1,4 @@
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { createPortfolioSnapshot, DEFAULT_SNAPSHOT_CURRENCY } from "@/lib/portfolioSnapshot";
 
@@ -18,23 +19,24 @@ function isAuthorizedCron(request: Request) {
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return Response.json({ error: "Unauthorized cron request." }, { status: 401 });
 
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.from("portfolio_holdings").select("user_id");
-  if (error) return Response.json({ error: "Could not load portfolio holders." }, { status: 500 });
+  return runRecordedCron("portfolio-snapshots", getSupabaseAdmin, async (admin) => {
+    const { data, error } = await admin.from("portfolio_holdings").select("user_id");
+    if (error) return Response.json({ error: "Could not load portfolio holders." }, { status: 500 });
 
-  const userIds = [...new Set((data ?? []).map((row) => row.user_id as string))];
-  let created = 0;
-  let skipped = 0;
-  let failed = 0;
+    const userIds = [...new Set((data ?? []).map((row) => row.user_id as string))];
+    let created = 0;
+    let skipped = 0;
+    let failed = 0;
 
-  for (const userId of userIds) {
-    try {
-      const result = await createPortfolioSnapshot(admin, userId, DEFAULT_SNAPSHOT_CURRENCY, "daily_cron");
-      if (result.created) created += 1; else skipped += 1;
-    } catch {
-      failed += 1;
+    for (const userId of userIds) {
+      try {
+        const result = await createPortfolioSnapshot(admin, userId, DEFAULT_SNAPSHOT_CURRENCY, "daily_cron");
+        if (result.created) created += 1; else skipped += 1;
+      } catch {
+        failed += 1;
+      }
     }
-  }
 
-  return Response.json({ usersChecked: userIds.length, created, skipped, failed });
+    return Response.json({ usersChecked: userIds.length, created, skipped, failed });
+  });
 }

@@ -1,3 +1,4 @@
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { captureWatchedListings, promoteEndedListings, runOutcomeChecks } from "@/lib/watchToSale";
 
@@ -16,15 +17,17 @@ export async function GET(request: Request) {
     || new URL(request.url).searchParams.get("secret") === secret;
   if (!secret || !authorised) return Response.json({ error: "Unauthorised." }, { status: 401 });
 
-  const admin = getSupabaseAdmin();
-  try {
-    const captured = await captureWatchedListings(admin);
-    const promoted = await promoteEndedListings(admin);
-    const checks = await runOutcomeChecks(admin);
-    return Response.json({ ok: true, captured, promoted, checks });
-  } catch (error) {
-    // Reported as a failed run rather than thrown, so a broken outcome check
-    // never takes Market Scout's own cron down with it.
-    return Response.json({ ok: false, error: error instanceof Error ? error.message : "Outcome checks failed." }, { status: 500 });
-  }
+  return runRecordedCron("listing-outcomes", getSupabaseAdmin, async (admin) => {
+    try {
+      const captured = await captureWatchedListings(admin);
+      const promoted = await promoteEndedListings(admin);
+      const checks = await runOutcomeChecks(admin);
+      const ok = !checks.budgetUnavailable && checks.errors.length === 0;
+      return Response.json({ ok, captured, promoted, checks }, { status: checks.budgetUnavailable ? 503 : ok ? 200 : 207 });
+    } catch (error) {
+      // Reported as a failed run rather than thrown, so a broken outcome check
+      // never takes Market Scout's own cron down with it.
+      return Response.json({ ok: false, error: error instanceof Error ? error.message : "Outcome checks failed." }, { status: 500 });
+    }
+  });
 }
