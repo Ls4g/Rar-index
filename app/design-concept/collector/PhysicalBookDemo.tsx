@@ -5,6 +5,7 @@ import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
 import type { DemoBookEdition, DemoSeriesBook } from "./DemoBookShelf";
+import type { PageFlip } from "page-flip/dist/js/page-flip.module.js";
 
 function cover(edition: DemoBookEdition) {
   return <EditionCover
@@ -25,10 +26,14 @@ function guideText(edition: DemoBookEdition) {
     : "No comparable price guide yet";
 }
 
-function paintLeaf(leaf: HTMLDivElement | null, progress: number) {
-  if (!leaf) return;
-  leaf.style.transform = `translateZ(13px) rotateY(${-180 * progress}deg)`;
-  leaf.style.setProperty("--fold-shadow", `${0.34 * Math.sin(Math.PI * progress)}`);
+function PageOneContent({ book }: { book: DemoSeriesBook }) {
+  return <>
+    <span className="rar-physical-folio">01 / A PERSONAL SHELF</span>
+    <strong className="rar-physical-inside-title">The Opening<br />Chapter<span>.</span></strong>
+    <p>Every collection starts somewhere. This one begins with {book.name}.</p>
+    <div className="rar-physical-inside-stats"><b>{book.owned.length}</b><span>sample volumes selected</span><b>{book.cataloguedVolumes}</b><span>distinct volumes catalogued on RAR</span></div>
+    <span className="rar-physical-page-number">01</span>
+  </>;
 }
 
 function PageTwoContent({ book }: { book: DemoSeriesBook }) {
@@ -53,18 +58,30 @@ function PageThreeContent({ featured }: { featured: DemoBookEdition }) {
   </>;
 }
 
+function PageFourContent({ featured }: { featured: DemoBookEdition }) {
+  return <>
+    <span className="rar-physical-folio">04 / MARKET CONTEXT</span>
+    <h3>Follow the evidence<span>.</span></h3>
+    <div className="rar-physical-feature-cover">{cover(featured)}</div>
+    <p className="rar-physical-market-copy">{guideText(featured)}</p>
+    <small>Only completed, verified, comparable sales can form a guide. This is not the value of a particular collector’s copy.</small>
+    <span className="rar-physical-page-number">04</span>
+  </>;
+}
+
 export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBook; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const bookRef = useRef<HTMLDivElement>(null);
-  const leafRef = useRef<HTMLDivElement>(null);
+  const flipMountRef = useRef<HTMLDivElement>(null);
+  const pageTemplatesRef = useRef<HTMLDivElement>(null);
+  const flipRef = useRef<PageFlip | null>(null);
+  const pointerStart = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const timers = useRef<number[]>([]);
-  const pointerStart = useRef<{ id: number; x: number; width: number; startProgress: number } | null>(null);
-  const pageProgress = useRef(0);
-  const settleFrame = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [coverSettled, setCoverSettled] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [spread, setSpread] = useState(0);
-  const [turning, setTurning] = useState<"next" | "previous" | null>(null);
+  const [flipError, setFlipError] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -73,109 +90,115 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
     document.body.style.overflow = "hidden";
     dialog.showModal();
     timers.current.push(window.setTimeout(() => setIsOpen(true), 470));
+    timers.current.push(window.setTimeout(() => setCoverSettled(true), 1700));
     return () => {
       timers.current.forEach(window.clearTimeout);
       timers.current = [];
-      if (settleFrame.current !== null) cancelAnimationFrame(settleFrame.current);
       document.body.style.overflow = previousOverflow;
       if (dialog.open) dialog.close();
     };
   }, []);
 
   useEffect(() => {
-    if (turning) paintLeaf(leafRef.current, pageProgress.current);
-  }, [turning]);
+    let disposed = false;
+    let instance: PageFlip | null = null;
+    const mount = flipMountRef.current;
+    const bookElement = bookRef.current;
+    const templates = pageTemplatesRef.current;
+    if (!mount || !bookElement || !templates) return;
+
+    async function createBook() {
+      try {
+        const { PageFlip } = await import("page-flip/dist/js/page-flip.module.js");
+        if (disposed || !mount || !bookElement || !templates) return;
+        const host = document.createElement("div");
+        host.className = "rar-physical-engine";
+        mount.appendChild(host);
+        const pages = Array.from(templates.querySelectorAll<HTMLElement>(".rar-flip-page"), (page) => page.cloneNode(true) as HTMLElement);
+        instance = new PageFlip(host, {
+          width: bookElement.offsetWidth,
+          height: bookElement.offsetHeight,
+          size: "stretch",
+          minWidth: 100,
+          maxWidth: 350,
+          minHeight: 143,
+          maxHeight: 501,
+          usePortrait: false,
+          showCover: false,
+          drawShadow: true,
+          maxShadowOpacity: 0.7,
+          flippingTime: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 120 : 1300,
+          showPageCorners: false,
+          disableFlipByClick: true,
+          mobileScrollSupport: true,
+          useMouseEvents: false,
+        });
+        instance.on("flip", (event) => setSpread(event.data >= 2 ? 1 : 0));
+        instance.loadFromHTML(pages);
+        flipRef.current = instance;
+      } catch (error) {
+        console.error("Could not prepare the collector book", error);
+        if (!disposed) setFlipError(true);
+      }
+    }
+
+    void createBook();
+    return () => {
+      disposed = true;
+      if (flipRef.current === instance) flipRef.current = null;
+      // This library only unregisters its resize listener when its own mouse handlers are enabled.
+      if (instance) window.removeEventListener("resize", instance.getUI().onResize);
+      instance?.destroy();
+      mount.replaceChildren();
+    };
+  }, [book.key]);
 
   function closeBook() {
     if (isClosing) return;
-    if (settleFrame.current !== null) cancelAnimationFrame(settleFrame.current);
-    settleFrame.current = null;
-    pointerStart.current = null;
     setIsClosing(true);
-    setTurning(null);
     setIsOpen(false);
     timers.current.push(window.setTimeout(() => dialogRef.current?.close(), 720));
   }
 
-  function settlePage(target: 0 | 1) {
-    const from = pageProgress.current;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || from === target) {
-      pageProgress.current = target;
-      setSpread(target);
-      setTurning(null);
-      return;
-    }
-    const duration = 260 + Math.abs(target - from) * 750;
-    let startedAt: number | null = null;
-
-    function animate(now: number) {
-      if (startedAt === null) startedAt = now;
-      const elapsed = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - elapsed, 3);
-      pageProgress.current = from + (target - from) * eased;
-      paintLeaf(leafRef.current, pageProgress.current);
-      if (elapsed < 1) settleFrame.current = requestAnimationFrame(animate);
-      else {
-        settleFrame.current = null;
-        setSpread(target);
-        setTurning(null);
-      }
-    }
-
-    settleFrame.current = requestAnimationFrame(animate);
-  }
-
-  function turnPage(direction: "next" | "previous") {
-    if (!isOpen || turning || isClosing || (direction === "next" && spread === 1) || (direction === "previous" && spread === 0)) return;
-    pageProgress.current = spread;
-    setTurning(direction);
-    requestAnimationFrame(() => settlePage(direction === "next" ? 1 : 0));
+  function pointOnBook(event: PointerEvent<HTMLDivElement>) {
+    const rect = flipMountRef.current?.querySelector(".stf__block")?.getBoundingClientRect();
+    return rect ? { x: event.clientX - rect.left, y: event.clientY - rect.top } : null;
   }
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!isOpen || isClosing || turning || settleFrame.current !== null || !bookRef.current) return;
-    const rect = bookRef.current.getBoundingClientRect();
-    const spine = rect.left;
-    const width = rect.width;
-    const onPage = event.clientY >= rect.top && event.clientY <= rect.bottom && (spread === 0
-      ? event.clientX >= spine + width * 0.12 && event.clientX <= spine + width
-      : event.clientX <= spine - width * 0.12 && event.clientX >= spine - width);
-    if (!onPage) return;
+    if (!coverSettled || isClosing || !flipRef.current || pointerStart.current) return;
+    const rect = bookRef.current?.getBoundingClientRect();
+    const point = pointOnBook(event);
+    if (!rect || !point || event.clientY < rect.top || event.clientY > rect.bottom) return;
+    const onOuterPage = spread === 0
+      ? event.clientX > rect.left && event.clientX <= rect.right
+      : event.clientX >= rect.left - rect.width && event.clientX < rect.left;
+    if (!onOuterPage) return;
     event.preventDefault();
-    pageProgress.current = spread;
-    pointerStart.current = { id: event.pointerId, x: event.clientX, width, startProgress: spread };
-    setTurning(spread === 0 ? "next" : "previous");
+    pointerStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+    flipRef.current.startUserTouch(point);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
     const start = pointerStart.current;
-    if (!start || start.id !== event.pointerId) return;
-    pageProgress.current = Math.max(0, Math.min(1, start.startProgress + (start.x - event.clientX) / start.width));
-    paintLeaf(leafRef.current, pageProgress.current);
+    if (!start || start.id !== event.pointerId || !flipRef.current) return;
+    const point = pointOnBook(event);
+    if (!point) return;
+    start.moved ||= Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8;
+    flipRef.current.userMove(point, event.pointerType === "touch");
   }
 
-  function pointerUp(event: PointerEvent<HTMLDivElement>) {
+  function pointerEnd(event: PointerEvent<HTMLDivElement>) {
     const start = pointerStart.current;
-    if (!start || start.id !== event.pointerId) return;
-    pointerMove(event);
+    if (!start || start.id !== event.pointerId || !flipRef.current) return;
+    const point = pointOnBook(event);
     pointerStart.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    settlePage(start.startProgress === 0
-      ? pageProgress.current >= 0.42 ? 1 : 0
-      : pageProgress.current <= 0.58 ? 0 : 1);
-  }
-
-  function pointerCancel(event: PointerEvent<HTMLDivElement>) {
-    const start = pointerStart.current;
-    if (!start || start.id !== event.pointerId) return;
-    pointerStart.current = null;
-    settlePage(start.startProgress as 0 | 1);
+    if (point) flipRef.current.userStop(point, !start.moved);
   }
 
   const featured = book.owned[0];
-  const leftSpread = turning ? 0 : spread;
-  const rightSpread = turning ? 1 : spread;
 
   return <dialog
     ref={dialogRef}
@@ -183,64 +206,42 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
     aria-label={`Explore ${book.name} as a book`}
     onClose={onClose}
     onKeyDown={(event) => {
-      if (event.key === "ArrowRight") turnPage("next");
-      if (event.key === "ArrowLeft") turnPage("previous");
+      if (!coverSettled || !flipRef.current) return;
+      if (event.key === "ArrowRight") { event.preventDefault(); flipRef.current.flipNext(); }
+      if (event.key === "ArrowLeft") { event.preventDefault(); flipRef.current.flipPrev(); }
     }}
   >
-    <div className="rar-physical-shell" data-open={isOpen} data-closing={isClosing} data-spread={spread} data-turning={turning || "none"}>
+    <div className="rar-physical-shell" data-open={isOpen} data-cover-settled={coverSettled} data-closing={isClosing} data-spread={spread}>
       <header className="rar-physical-header">
         <span>RAR / THE OPENING CHAPTER <small>ONE-BOOK INTERACTION STUDY</small></span>
         <button type="button" onClick={closeBook} autoFocus aria-label="Close the book demo">Close <span aria-hidden="true">✕</span></button>
       </header>
 
       <div className="rar-physical-scene">
-        <div className="rar-physical-scene-title"><span>01 / 01</span><strong>{book.name}</strong><small>Drag the outer page across the spine</small></div>
+        <div className="rar-physical-scene-title"><span>01 / 01</span><strong>{book.name}</strong><small>Drag the page corner across the spine</small></div>
         <div className="rar-physical-ground" aria-hidden="true" />
-        <div
-          className="rar-physical-grab-area"
-          onPointerDown={pointerDown}
-          onPointerMove={pointerMove}
-          onPointerUp={pointerUp}
-          onPointerCancel={pointerCancel}
-          onDragStart={(event) => event.preventDefault()}
-          aria-label={`${book.name} book; drag the right page left to advance, or the left page right to go back`}
-        >
+        <div className="rar-physical-grab-area" aria-label={`${book.name} book; drag a page corner to turn`}>
           <div className="rar-physical-book" ref={bookRef}>
             <div className="rar-physical-back-cover" aria-hidden="true" />
             <div className="rar-physical-page-block" aria-hidden="true" />
             <div className="rar-physical-spine" aria-hidden="true"><span>{book.name}</span><b>RAR</b></div>
-            <div className="rar-physical-right-page">
-              {rightSpread === 0 ? <PageTwoContent book={book} /> : <>
-                <span className="rar-physical-folio">04 / MARKET CONTEXT</span>
-                <h3>Follow the evidence<span>.</span></h3>
-                <div className="rar-physical-feature-cover">{cover(featured)}</div>
-                <p className="rar-physical-market-copy">{guideText(featured)}</p>
-                <small>Only completed, verified, comparable sales can form a guide. This is not the value of a particular collector’s copy.</small>
-                <span className="rar-physical-page-number">04</span>
-              </>}
-            </div>
-            <div className="rar-physical-front-cover">
+            <div className="rar-physical-flip-mount" ref={flipMountRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} />
+            <div className="rar-physical-front-cover" aria-hidden="true">
               <div className="rar-physical-front-face">{cover(book.representative)}<span className="rar-physical-cover-sheen" /></div>
-              <div className="rar-physical-inside-face">
-                {leftSpread === 0 ? <>
-                  <span className="rar-physical-folio">01 / A PERSONAL SHELF</span>
-                  <strong className="rar-physical-inside-title">The Opening<br />Chapter<span>.</span></strong>
-                  <p>Every collection starts somewhere. This one begins with {book.name}.</p>
-                  <div className="rar-physical-inside-stats"><b>{book.owned.length}</b><span>sample volumes selected</span><b>{book.cataloguedVolumes}</b><span>distinct volumes catalogued on RAR</span></div>
-                  <span className="rar-physical-page-number">01</span>
-                </> : <PageThreeContent featured={featured} />}
-              </div>
+              <div className="rar-physical-inside-face"><PageOneContent book={book} /></div>
             </div>
-            {turning && <div className="rar-physical-turn-leaf" ref={leafRef} aria-hidden="true" style={{ transform: turning === "next" ? "translateZ(13px) rotateY(0deg)" : "translateZ(13px) rotateY(-180deg)" }}>
-              <div className="rar-physical-turn-surface is-front"><div className="rar-physical-right-page rar-physical-turn-content"><PageTwoContent book={book} /></div></div>
-              <div className="rar-physical-turn-surface is-back"><div className="rar-physical-inside-face rar-physical-turn-content"><PageThreeContent featured={featured} /></div></div>
-            </div>}
           </div>
+        </div>
+        <div className="rar-flip-templates" ref={pageTemplatesRef} hidden aria-hidden="true">
+          <div className="rar-flip-page"><div className="rar-physical-inside-face rar-flip-page-content"><PageOneContent book={book} /></div></div>
+          <div className="rar-flip-page"><div className="rar-physical-right-page rar-flip-page-content"><PageTwoContent book={book} /></div></div>
+          <div className="rar-flip-page"><div className="rar-physical-inside-face rar-flip-page-content"><PageThreeContent featured={featured} /></div></div>
+          <div className="rar-flip-page"><div className="rar-physical-right-page rar-flip-page-content"><PageFourContent featured={featured} /></div></div>
         </div>
       </div>
 
       <div className="rar-physical-controls">
-        <p>{isOpen ? spread === 0 ? "Drag the right page left to turn. Release early to let it fall back." : "Drag the left page right to return. Release early to let it fall back." : "Bringing the book forward…"}</p>
+        <p>{flipError ? "The page turn could not load; the edition links below remain available." : coverSettled ? spread === 0 ? "Drag the right page corner left to turn. Release early to let it fall back." : "Drag the left page corner right to return. Release early to let it fall back." : "Opening the book…"}</p>
         <div><span aria-live="polite">{spread + 1} / 2</span><small>Keyboard: ← / →</small></div>
       </div>
 
