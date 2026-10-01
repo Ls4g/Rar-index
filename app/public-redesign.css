@@ -37,6 +37,10 @@
 .public-page.browse-redesign .browse-hero h1,
 .public-page.browse-redesign .browse-series-header h2 { font-family: var(--font-sans); }
 .public-page.browse-redesign .browse-hero > div > p:last-child { max-width: 670px; color: #656b70; }
+.public-page.browse-redesign .browse-chip { border-color: #e4e6e4; background: #f5f2ea; color: #3f4549; }
+.public-page.browse-redesign .browse-chip:hover { border-color: #ad382c; color: #ad382c; }
+.public-page.browse-redesign .browse-chip.is-active { border-color: #ad382c; background: #f9ebe8; color: #ad382c; }
+.public-page.browse-redesign .browse-search-field input { border-color: #e4e6e4; background: #fff; color: #17191c; }
 .public-page.browse-redesign .queue-total { border-color: #e4e6e4; color: #17191c; }
 .public-page.browse-redesign .browse-content { max-width: 1380px; margin: auto; padding: 3rem 30px 7rem; }
 .public-page.browse-redesign .browse-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; border: 0; background: transparent; }
