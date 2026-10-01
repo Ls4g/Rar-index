@@ -1,6 +1,17 @@
 "use client";
 
 import { FormEvent } from "react";
+import EditionCover from "@/components/EditionCover";
+
+export type AuthCover = {
+  id: string;
+  title: string | null;
+  series: string | null;
+  volume_number: string | null;
+  language: string | null;
+  cover_image_url: string | null;
+  cover_verification_status: string | null;
+};
 
 type Mode = "sign-up" | "sign-in";
 
@@ -14,6 +25,7 @@ type PortfolioAuthProps = {
   authMessage: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   initialEditionId: string;
+  authCovers: AuthCover[];
 };
 
 // Feature preview only — never a numeric mockup. A fabricated "£1,240" or a
@@ -27,10 +39,12 @@ const PREVIEW_TILES = [
   { icon: "◐", title: "Only you see it", copy: "Your books and what you paid for them stay private." },
 ];
 
-export default function PortfolioAuth({ mode, setMode, email, setEmail, password, setPassword, authMessage, onSubmit, initialEditionId }: PortfolioAuthProps) {
+export default function PortfolioAuth({ mode, setMode, email, setEmail, password, setPassword, authMessage, onSubmit, initialEditionId, authCovers }: PortfolioAuthProps) {
   return (
     <section className="portfolio-auth">
       <div className="portfolio-auth-intro">
+        <div className="portfolio-auth-cover-wall" aria-hidden="true">{authCovers.map((edition) => <div key={edition.id}><EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} /></div>)}</div>
+        <div className="portfolio-auth-intro-copy">
         <p className="eyebrow">RAR Portfolio</p>
         <h1>What&apos;s your collection worth?</h1>
         <p className="portfolio-auth-lede">Add the manga you own and see what real copies are selling for. Free, private, and priced from actual completed sales — never guesswork.</p>
@@ -45,6 +59,7 @@ export default function PortfolioAuth({ mode, setMode, email, setEmail, password
               <p>{tile.copy}</p>
             </div>
           ))}
+        </div>
         </div>
       </div>
       <form className="portfolio-auth-form" onSubmit={onSubmit}>

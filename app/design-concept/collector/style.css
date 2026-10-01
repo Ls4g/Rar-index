@@ -1,4 +1,5 @@
 .rar-demo-profile { background: #141819; }
+.rar-public-collector .rar-demo-identity h1 { overflow-wrap: anywhere; }
 .rar-demo-profile .rar-concept-header { border-color: #e5e6e3; }
 .rar-demo-hero { overflow: hidden; background: #141819; color: #f8f6f0; }
 .rar-demo-hero-inner { display: grid; grid-template-columns: minmax(0, 47%) minmax(0, 53%); align-items: center; min-height: 680px; gap: 20px; }

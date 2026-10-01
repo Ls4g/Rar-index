@@ -11,7 +11,7 @@ import {
 } from "@/lib/portfolioValuation";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import PublicHeader from "@/components/PublicHeader";
-import PortfolioAuth from "@/components/portfolio/PortfolioAuth";
+import PortfolioAuth, { type AuthCover } from "@/components/portfolio/PortfolioAuth";
 import PortfolioTabs, { type PortfolioTabKey } from "@/components/portfolio/PortfolioTabs";
 import OverviewTab from "@/components/portfolio/OverviewTab";
 import HoldingsTab from "@/components/portfolio/HoldingsTab";
@@ -28,7 +28,7 @@ const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
 const SNAPSHOT_HISTORY_LIMIT = 400;
 
-export default function PortfolioClient({ initialEditionId = "" }: { initialEditionId?: string }) {
+export default function PortfolioClient({ initialEditionId = "", authCovers = [] }: { initialEditionId?: string; authCovers?: AuthCover[] }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
@@ -366,7 +366,7 @@ export default function PortfolioClient({ initialEditionId = "" }: { initialEdit
     ) : null}
 
     {!userEmail ? (
-      <PortfolioAuth authMessage={authMessage} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />
+      <PortfolioAuth authMessage={authMessage} authCovers={authCovers} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />
     ) : (
       <MarketCurrencyProvider>
         {/* A visual privacy screen, not a security boundary: it blurs every

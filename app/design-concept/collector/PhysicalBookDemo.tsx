@@ -26,24 +26,25 @@ function guideText(edition: DemoBookEdition) {
     : "No comparable price guide yet";
 }
 
-function PageOneContent({ book }: { book: DemoSeriesBook }) {
+function PageOneContent({ book, collectorName, isDemo }: { book: DemoSeriesBook; collectorName: string; isDemo: boolean }) {
   return <>
     <span className="rar-physical-folio">01 / A PERSONAL SHELF</span>
-    <strong className="rar-physical-inside-title">The Opening<br />Chapter<span>.</span></strong>
-    <p>Every collection starts somewhere. This one begins with {book.name}.</p>
-    <div className="rar-physical-inside-stats"><b>{book.owned.length}</b><span>sample volumes selected</span><b>{book.cataloguedVolumes}</b><span>distinct volumes catalogued on RAR</span></div>
+    <strong className="rar-physical-inside-title">{collectorName}<span>.</span></strong>
+    <p>{book.name} on {isDemo ? "this sample shelf" : "this public shelf"}.</p>
+    <div className="rar-physical-inside-stats"><b>{book.ownedVolumeCount ?? book.owned.length}</b><span>{isDemo ? "sample volumes selected" : "volumes on this shelf"}</span><b>{book.cataloguedVolumes}</b><span>distinct volumes catalogued on RAR</span></div>
     <span className="rar-physical-page-number">01</span>
   </>;
 }
 
-function PageTwoContent({ book }: { book: DemoSeriesBook }) {
+function PageTwoContent({ book, isDemo }: { book: DemoSeriesBook; isDemo: boolean }) {
   return <>
     <span className="rar-physical-folio">02 / COLLECTOR VOLUMES</span>
     <h3>On this shelf<span>.</span></h3>
-    <p>{book.owned.length} sample volumes, each linked to its exact RAR edition.</p>
+    <p>{book.ownedVolumeCount ?? book.owned.length} {isDemo ? "sample" : "publicly shared"} volumes, each linked to its exact RAR edition.</p>
     <div className="rar-physical-mini-volumes">
-      {book.owned.map((edition) => <div key={edition.id}><span>{String(edition.volumeNumber || "—").padStart(2, "0")}</span><strong>{edition.title || `${book.name} Vol. ${edition.volumeNumber || "—"}`}</strong></div>)}
+      {book.owned.slice(0, 4).map((edition) => <div key={edition.id}><span>{String(edition.volumeNumber || "—").padStart(2, "0")}</span><strong>{edition.title || `${book.name} Vol. ${edition.volumeNumber || "—"}`}</strong></div>)}
     </div>
+    {book.owned.length > 4 ? <p>Plus {book.owned.length - 4} more below the book.</p> : null}
     <span className="rar-physical-page-number">02</span>
   </>;
 }
@@ -69,7 +70,7 @@ function PageFourContent({ featured }: { featured: DemoBookEdition }) {
   </>;
 }
 
-export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBook; onClose: () => void }) {
+export default function PhysicalBookDemo({ book, onClose, collectorName = "The Opening Chapter", isDemo = true }: { book: DemoSeriesBook; onClose: () => void; collectorName?: string; isDemo?: boolean }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const bookRef = useRef<HTMLDivElement>(null);
   const flipMountRef = useRef<HTMLDivElement>(null);
@@ -213,7 +214,7 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
   >
     <div className="rar-physical-shell" data-open={isOpen} data-cover-settled={coverSettled} data-closing={isClosing} data-spread={spread}>
       <header className="rar-physical-header">
-        <span>RAR / THE OPENING CHAPTER <small>ONE-BOOK INTERACTION STUDY</small></span>
+        <span>RAR / {collectorName.toUpperCase()} <small>{isDemo ? "ONE-BOOK INTERACTION STUDY" : "PUBLIC COLLECTOR SHELF"}</small></span>
         <button type="button" onClick={closeBook} autoFocus aria-label="Close the book demo">Close <span aria-hidden="true">✕</span></button>
       </header>
 
@@ -228,13 +229,13 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
             <div className="rar-physical-flip-mount" ref={flipMountRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} />
             <div className="rar-physical-front-cover" aria-hidden="true">
               <div className="rar-physical-front-face">{cover(book.representative)}<span className="rar-physical-cover-sheen" /></div>
-              <div className="rar-physical-inside-face"><PageOneContent book={book} /></div>
+              <div className="rar-physical-inside-face"><PageOneContent book={book} collectorName={collectorName} isDemo={isDemo} /></div>
             </div>
           </div>
         </div>
         <div className="rar-flip-templates" ref={pageTemplatesRef} hidden aria-hidden="true">
-          <div className="rar-flip-page"><div className="rar-physical-inside-face rar-flip-page-content"><PageOneContent book={book} /></div></div>
-          <div className="rar-flip-page"><div className="rar-physical-right-page rar-flip-page-content"><PageTwoContent book={book} /></div></div>
+          <div className="rar-flip-page"><div className="rar-physical-inside-face rar-flip-page-content"><PageOneContent book={book} collectorName={collectorName} isDemo={isDemo} /></div></div>
+          <div className="rar-flip-page"><div className="rar-physical-right-page rar-flip-page-content"><PageTwoContent book={book} isDemo={isDemo} /></div></div>
           <div className="rar-flip-page"><div className="rar-physical-inside-face rar-flip-page-content"><PageThreeContent featured={featured} /></div></div>
           <div className="rar-flip-page"><div className="rar-physical-right-page rar-flip-page-content"><PageFourContent featured={featured} /></div></div>
         </div>
@@ -246,7 +247,7 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
       </div>
 
       <section className="rar-physical-details" aria-label="Readable collection details">
-        <div><span>THE SAMPLE COLLECTION</span><h3>{spread === 0 ? `${book.name} volumes` : "Edition & market context"}</h3><p>These selections illustrate a fictional shelf. No ownership, purchase price or private notes are claimed.</p></div>
+        <div><span>{isDemo ? "THE SAMPLE COLLECTION" : "THE PUBLIC COLLECTION"}</span><h3>{spread === 0 ? `${book.name} volumes` : "Edition & market context"}</h3><p>{isDemo ? "These selections illustrate a fictional shelf. No ownership, purchase price or private notes are claimed." : "Only editions shared by this collector appear here. Purchase prices, dates and private notes stay private."}</p></div>
         {spread === 0 ? <div className="rar-physical-detail-volumes">{book.owned.map((edition) => <Link href={`/edition/${edition.id}`} key={edition.id}><span>VOL. {edition.volumeNumber || "—"}</span><strong>{edition.title || book.name}</strong><small>{edition.publisher || "Publisher not recorded"} · {edition.language || "Language not recorded"}</small><b aria-hidden="true">↗</b></Link>)}</div>
           : <div className="rar-physical-detail-feature"><div>{cover(featured)}</div><section><span>FEATURED EDITION</span><h4>{featured.title || `${book.name} Vol. ${featured.volumeNumber || "—"}`}</h4><p>{guideText(featured)}</p><Link href={`/edition/${featured.id}`}>Open exact RAR edition ↗</Link></section></div>}
       </section>
