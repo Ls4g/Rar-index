@@ -1,30 +1,19 @@
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+import "@/app/design-concept/style.css";
 
 export default function PublicHeader() {
-  return (
-    <>
-      <header className="site-header public-site-header">
-        <Link className="brand" href="/" aria-label="RAR Index home">
-          <span>RAR</span><em>Index</em><small>For manga collectors</small>
-        </Link>
-        <div className="public-mobile-theme"><ThemeToggle /></div>
-        <nav className="header-links public-header-nav" aria-label="Main navigation">
-          <Link className="header-note" href="/browse">Discover</Link>
-          <Link className="header-note" href="/collection">Collections</Link>
-          <Link className="header-note" href="/request-edition">Community</Link>
-          <Link className="header-note" href="/#about">About</Link>
-          <Link className="header-note public-header-staff" href="/staff-login">Staff access</Link>
-          <Link className="header-search-link" href="/browse" aria-label="Search the manga catalogue">⌕</Link>
-          <ThemeToggle />
-          <Link className="header-shelf-link public-header-collection" href="/portfolio">Your collection <span>→</span></Link>
-        </nav>
-      </header>
-      <nav className="public-mobile-utility" aria-label="Quick links">
-        <Link href="/browse">Browse manga</Link>
-        <Link href="/identify">First-print check</Link>
-        <Link href="/staff-login">Staff access</Link>
-      </nav>
-    </>
-  );
+  return <header className="rar-concept-header rar-public-header">
+    <Link className="rar-concept-logo" href="/" aria-label="RAR Index home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
+    <nav aria-label="Main navigation">
+      <Link href="/browse">Discover</Link>
+      <Link href="/browse?evidence=verified-sales">Editions</Link>
+      <Link href="/collection">Collections</Link>
+      <Link href="/buy-manga">Buy manga</Link>
+      <Link className="rar-public-header-secondary" href="/request-edition">Community</Link>
+      <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>
+      <ThemeToggle />
+    </nav>
+    <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
+  </header>;
 }

@@ -1,6 +1,7 @@
 import BrowseEditions, { type BrowseEdition } from "@/components/BrowseEditions";
 import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
+import "@/app/public-redesign.css";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function BrowsePage() {
   }) as BrowseEdition[];
 
   return (
-    <main className="public-page">
+    <main className="public-page browse-redesign">
       <PublicHeader />
       <section className="browse-hero">
         <div>

@@ -13,6 +13,7 @@ import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, list
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import "@/app/public-redesign.css";
 
 // Valuations are live market intelligence, not deployment-time content.
 export const dynamic = "force-dynamic";
@@ -466,7 +467,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const overviewDetails = details.filter(([label]) => overviewLabels.has(label));
 
   return (
-    <main className="public-page edition-page">
+    <main className="public-page edition-page edition-redesign">
       <PublicHeader />
 
       {/* The book is the page. The cover sits large and undecorated, and its

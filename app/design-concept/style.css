@@ -25,6 +25,13 @@
 .rar-concept-header nav a:hover, .rar-concept-section-heading > a:hover, .rar-concept-product-link:hover { color: var(--rc-accent); }
 .rar-concept-header-cta { padding: 11px 17px; border: 1px solid var(--rc-ink); border-radius: 3px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .rar-concept-header-cta span { margin-left: 10px; }
+.rar-public-header { --rc-ink: #17191c; --rc-line: #e4e6e4; --rc-white: #fff; --rc-accent: #ad382c; color: #17191c; font-family: var(--font-sans); }
+.rar-public-header a { color: inherit; text-decoration: none; }
+.rar-public-header .rar-concept-logo b { color: #fff; }
+.rar-public-header .rar-concept-logo small { color: #ad382c; }
+.rar-public-header-secondary { color: #656b70 !important; font-size: 11px !important; }
+.rar-public-header .theme-toggle { flex: none; }
+.rar-public-header .theme-toggle button { font-size: 10px; }
 .rar-concept-kicker { margin: 0 0 14px; color: var(--rc-accent); font-size: 11px; font-weight: 850; letter-spacing: .15em; }
 .rar-concept h1, .rar-concept h2, .rar-concept h3 { letter-spacing: -.055em; }
 .rar-concept h2 { margin: 0; font-size: clamp(30px, 4vw, 48px); line-height: 1.07; }
@@ -128,7 +135,10 @@
   .rar-concept-header { flex-wrap: wrap; gap: 0; padding: 15px 18px 0; }
   .rar-concept-header nav { order: 3; width: 100%; gap: 19px; margin-top: 15px; overflow-x: auto; padding-bottom: 15px; }
   .rar-concept-header nav a { font-size: 12px; }
+  .rar-public-header nav { justify-content: space-between; gap: 10px; overflow: visible; }
+  .rar-public-header nav a[href="/request-edition"] { display: none; }
   .rar-concept-header-cta { margin-left: auto; padding: 9px 11px; }
+  .rar-public-header .theme-toggle { display: none; }
   .rar-concept-hero { padding-block: 55px 65px; gap: 35px; }
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
   .rar-concept-hero-feature { min-height: 435px; }
