@@ -8,6 +8,18 @@
   --rar-muted: #656b70;
   --rar-line: #e4e6e4;
   --rar-red: #ad382c;
+  --ink: #17191c;
+  --muted: #656b70;
+  --paper: #fffefa;
+  --line: #e4e6e4;
+  --gold: #ad382c;
+  --red: #ad382c;
+  --red-soft: #f9ebe8;
+  --surface-chip: #f5f2ea;
+  --surface-chip-active: #f9ebe8;
+  --canvas-heading: #17191c;
+  --accent-label-text: #ad382c;
+  --accent-chip-active-text: #ad382c;
   background: #fffefa;
   color: #17191c;
 }
