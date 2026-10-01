@@ -1,5 +1,9 @@
 # RAR staff-supervised beta checklist
 
+## Security repair applied — 1 October 2026
+
+Read [the security permissions checkpoint](security-permissions-checkpoint-2026-10-01.md). Direct browser access to privileged staff functions is now blocked in production; backend access is preserved. Legacy `manga` and internal review views are protected. Verified advisor totals are four deliberate public-view exceptions and eight remaining warnings, down from seven errors and 62 warnings. All 48 workflow scripts passed. This does not certify cron recovery, the remaining public availability error, application deployment or desktop/phone workflows.
+
 ## Current blocker — cron recovery, 30 September 2026
 
 Read [Claude's cron handoff](cron-not-firing-handoff.md) and [the current recovery checkpoint](cron-recovery-checkpoint-2026-09-30.md) before the historical status below. Cron invocation recording and honest budget-failure reporting are implemented locally; the new heartbeat migration is unapplied. Production release, earlier migration application and post-redeploy recovery remain unverified in this session. The 26 September deployment claims below describe that earlier session only. Two-connection concurrency testing remains excluded by SP. Do not call the beta ready until release and staff-workflow verification are complete.
