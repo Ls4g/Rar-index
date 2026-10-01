@@ -193,6 +193,11 @@ export default async function CatalogueReviewPage({ searchParams }: { searchPara
           <Link href="/cover-review">Review covers</Link>
         </article>
       </section>
+      <nav className="staff-context-links staff-context-links-catalogue" aria-label="Other catalogue tasks">
+        <Link href="/discovery-backlog">Plan discovery</Link>
+        <Link href="/catalogue-requests">Edition requests</Link>
+        <Link href="/coverage-dashboard">Coverage dashboard</Link>
+      </nav>
       <section className="catalogue-manual-import" id="manual-import">
         <details>
           <summary>Add a specific edition manually</summary>

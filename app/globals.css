@@ -83,7 +83,7 @@ button, input { font: inherit; }
 .staff-nav-menu summary::-webkit-details-marker { display: none; }
 .staff-nav-menu summary::after { content: "▾"; font-size: .6rem; }
 .staff-nav-menu[open] summary { border-color: var(--gold); color: var(--ink); }
-.staff-nav-panel { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 20; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem; min-width: 620px; padding: 1.1rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--paper); box-shadow: 0 18px 40px rgba(33,29,24,.18); }
+.staff-nav-panel { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 20; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; min-width: 360px; padding: 1.1rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--paper); box-shadow: 0 18px 40px rgba(33,29,24,.18); }
 .staff-nav-group { display: grid; gap: .3rem; align-content: start; }
 .staff-nav-group-label { margin-bottom: .2rem; color: var(--gold); font-size: .6rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .staff-nav-panel a { padding: .42rem .5rem; border-radius: .35rem; color: var(--ink); font-size: .82rem; }
@@ -4143,6 +4143,18 @@ html[data-theme="day"] .shelf {
   background: rgba(255, 255, 255, .52);
 }
 .sold-search-priorities > div:first-child p:last-child { max-width: 720px; color: var(--staff-muted, #756b5e); }
+.sold-search-disclosure { margin-top: 1.5rem; }
+.sold-search-disclosure > summary { cursor: pointer; color: var(--canvas-heading); font-weight: 800; }
+.sold-search-disclosure[open] > summary { margin-bottom: 1.2rem; }
+.staff-context-links { display: flex; flex-wrap: wrap; gap: .55rem; margin: 0 0 2rem; }
+.staff-context-links a, .staff-health-link { display: inline-flex; align-items: center; min-height: 2.5rem; padding: .55rem .8rem; border: 1px solid var(--line); border-radius: .45rem; color: var(--ink); font-size: .78rem; font-weight: 700; text-decoration: none; }
+.staff-context-links a:hover, .staff-health-link:hover { border-color: var(--action); color: var(--action); }
+.staff-context-links-catalogue { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem 1.5rem; }
+.staff-health-link { margin-top: .85rem; }
+.staff-health-alert { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem 1rem; max-width: 1120px; margin: 1rem auto 0; padding: .85rem 1rem; border: 1px solid var(--rar-red, #ac372c); border-radius: .45rem; color: var(--rar-ink, #1e1b18); }
+.staff-health-alert strong { color: var(--rar-red, #ac372c); }
+.staff-health-alert a { margin-left: auto; color: var(--rar-red, #ac372c); font-weight: 800; }
+@media (max-width: 600px) { .staff-health-alert { margin-inline: 1rem; } .staff-health-alert a { margin-left: 0; } }
 .sold-search-priority-list { display: grid; gap: .65rem; margin-top: 1.1rem; }
 .sold-search-priority-list article {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
