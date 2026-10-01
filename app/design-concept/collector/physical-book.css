@@ -17,9 +17,8 @@
 .rar-physical-grab-area { position: absolute; z-index: 2; inset: 0; }
 .rar-physical-book { position: absolute; top: 52%; left: 50%; width: var(--book-w); height: var(--book-h); transform-style: preserve-3d; transform: translate(-50%, -50%) rotateX(8deg) rotateY(-17deg) rotateZ(-2deg) scale(.8); transition: transform 1050ms cubic-bezier(.18,.8,.22,1), filter 1050ms ease; filter: drop-shadow(23px 23px 26px rgba(0,0,0,.6)); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .rar-physical-book img { -webkit-user-drag: none; }
-.rar-physical-shell[data-turning="next"] .rar-physical-book, .rar-physical-shell[data-turning="previous"] .rar-physical-book { cursor: grabbing; }
 .rar-physical-shell[data-open="true"] .rar-physical-book { transform: translate(calc(-50% + var(--book-w) / 2), -50%) rotateX(0) rotateY(0) rotateZ(0) scale(1); filter: drop-shadow(18px 26px 34px rgba(0,0,0,.64)); }
-.rar-physical-back-cover, .rar-physical-page-block, .rar-physical-right-page, .rar-physical-front-cover, .rar-physical-spine, .rar-physical-turn-leaf { position: absolute; inset: 0; transform-style: preserve-3d; }
+.rar-physical-back-cover, .rar-physical-page-block, .rar-physical-right-page, .rar-physical-front-cover, .rar-physical-spine { position: absolute; inset: 0; transform-style: preserve-3d; }
 .rar-physical-back-cover { border-radius: 2px 8px 8px 2px; background: #9d382f; box-shadow: inset -15px 0 10px rgba(0,0,0,.25); transform: translateZ(-22px); }
 .rar-physical-page-block { inset: 7px 5px 7px 4px; border-radius: 2px 7px 7px 2px; background: repeating-linear-gradient(180deg, #ede5d2 0 2px, #cfc3ad 2px 3px); box-shadow: 7px 7px 8px rgba(0,0,0,.33), inset -13px 0 9px #c9bda7; transform: translateZ(-7px); }
 .rar-physical-page-block::after { content: ""; position: absolute; top: 1px; right: 1px; bottom: 1px; left: 0; border-radius: inherit; background: linear-gradient(90deg, #9f8c6c, #ded1b9 13%, #f4ecdc 38%); transform: translateZ(6px); }
@@ -38,6 +37,7 @@
 .rar-physical-page-number { position: absolute; right: 20px; bottom: 13px; color: #8d806c; font-family: Georgia, serif; font-size: 11px; }
 .rar-physical-front-cover { z-index: 4; transform-origin: left center; transform: translateZ(16px) rotateY(0); transition: transform 1150ms cubic-bezier(.22,.72,.18,1); }
 .rar-physical-shell[data-open="true"] .rar-physical-front-cover { transform: translateZ(16px) rotateY(-177deg); }
+.rar-physical-shell[data-cover-settled="true"] .rar-physical-front-cover { visibility: hidden; }
 .rar-physical-front-face, .rar-physical-inside-face { position: absolute; inset: 0; overflow: hidden; border-radius: 2px 8px 8px 2px; backface-visibility: hidden; }
 .rar-physical-front-face { background: #9d382f; box-shadow: inset 11px 0 9px rgba(0,0,0,.45), 8px 7px 18px rgba(0,0,0,.37); transform: translateZ(2px); }
 .rar-physical-front-face .edition-cover { width: 100%; height: 100%; border-radius: inherit; }
@@ -53,11 +53,13 @@
 .rar-physical-feature-cover .edition-cover { height: 100%; }
 .rar-physical-right-page > .rar-physical-market-copy { max-width: none; color: #9c3b2e; font-size: 13px; font-weight: 750; }
 .rar-physical-right-page > small { margin-top: 12px; color: #746e61; font-size: 10px; line-height: 1.45; }
-.rar-physical-turn-leaf { z-index: 5; transform-origin: left center; will-change: transform; pointer-events: none; }
-.rar-physical-turn-surface { position: absolute; inset: 0; overflow: hidden; border-radius: 2px 7px 7px 2px; background: #f4ecdc; backface-visibility: hidden; }
-.rar-physical-turn-surface::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(70, 47, 25, .08), transparent 30%, transparent 60%, rgba(70, 47, 25, var(--fold-shadow, 0))); pointer-events: none; }
-.rar-physical-turn-surface.is-back { transform: rotateY(180deg) translateZ(1px); }
-.rar-physical-turn-content { width: 100%; height: 100%; transform: none; backface-visibility: visible; box-shadow: none; }
+.rar-physical-flip-mount { position: absolute; z-index: 3; top: 0; left: -100%; width: 200%; height: 100%; pointer-events: none; }
+.rar-physical-shell[data-cover-settled="true"] .rar-physical-flip-mount { pointer-events: auto; }
+.rar-physical-engine { width: 100%; height: 100%; }
+.rar-flip-page { background: #f4ecdc; overflow: hidden; }
+.rar-flip-page-content { inset: 0; width: 100%; height: 100%; transform: none; backface-visibility: visible; border-radius: 0; box-shadow: none; }
+.rar-flip-page .rar-physical-inside-face { background: linear-gradient(90deg, #d6c9b4, #f0e8d7 11%, #f6efdf 82%, #e6d8c2); }
+.rar-flip-page .rar-physical-right-page { background: linear-gradient(90deg, #d3c6ad 0%, #eee4d1 7%, #f4ecdc 19%, #f4eddf 88%, #d6c8b2 100%); }
 .rar-physical-controls { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 78px; border-top: 1px solid #4b5750; border-bottom: 1px solid #4b5750; padding: 12px clamp(20px, 4vw, 60px); }
 .rar-physical-controls p { margin: 0; color: #adb8af; font-size: 11px; line-height: 1.5; }
 .rar-physical-controls > div { display: flex; align-items: center; gap: 14px; flex: none; }
