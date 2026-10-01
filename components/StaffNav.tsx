@@ -12,31 +12,17 @@ const PRIMARY_LINKS: NavLink[] = [
 
 const MORE_GROUPS: NavGroup[] = [
   {
-    label: "Sales tools",
+    label: "Operations",
     links: [
       { href: "/scout", label: "Live listing Scout" },
-      { href: "/listing-outcomes", label: "Listing outcomes" },
-      { href: "/price-import", label: "Price batch import" },
-      { href: "/collection-profiles", label: "Search profiles" },
+      { href: "/agents", label: "Agent runs and health" },
     ],
   },
   {
-    label: "Catalogue tools",
+    label: "Other work",
     links: [
-      { href: "/discovery-backlog", label: "Discovery backlog" },
-      { href: "/cover-review", label: "Cover images" },
-      { href: "/catalogue-requests", label: "Edition requests" },
-    ],
-  },
-  {
-    label: "System and monitoring",
-    links: [
-      { href: "/agents", label: "Agent control room" },
-      { href: "/agent-learning", label: "Agent reliability" },
       { href: "/community-reports", label: "Community reports" },
       { href: "/homepage-spotlight", label: "Homepage spotlight" },
-      { href: "/coverage-dashboard", label: "Catalogue coverage" },
-      { href: "/data-readiness", label: "Data readiness" },
     ],
   },
 ];

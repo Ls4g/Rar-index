@@ -141,6 +141,7 @@ function confidenceLabel(value: number | null) {
 }
 
 export default function HumanDecisionInbox({
+  initialFilter = "all",
   sales,
   printing,
   catalogue,
@@ -151,6 +152,7 @@ export default function HumanDecisionInbox({
   catalogueRequests,
   proposals,
 }: {
+  initialFilter?: "all" | DecisionLane;
   sales: SaleDecision[];
   printing: PrintDecision[];
   catalogue: CatalogueDecision[];
@@ -167,7 +169,7 @@ export default function HumanDecisionInbox({
   const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<Banner | null>(null);
-  const [filter, setFilter] = useState<"all" | DecisionLane>("all");
+  const [filter, setFilter] = useState<"all" | DecisionLane>(initialFilter);
   const [gradingInputs, setGradingInputs] = useState<Record<string, { company: string; grade: string }>>({});
   const [gradingSourceConfirmed, setGradingSourceConfirmed] = useState<Record<string, boolean>>({});
 

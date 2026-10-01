@@ -69,21 +69,27 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
 
   return <main className="review-page catalogue-page">
     <header className="site-header"><Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link><StaffNav current="/add-sale" /></header>
-    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Sales</p><h1>Add confirmed sales</h1><p>Choose an edition, paste the eBay links, and let RAR fill the details. Correct only what eBay cannot supply, then publish the ready sales together.</p></div></section>
+    <section className="review-hero catalogue-hero"><div><p className="eyebrow">Sales</p><h1>Add confirmed sales</h1><p>Already checked a completed eBay listing? Paste its link below. RAR fills what it can; you correct only missing facts and approve once. Other sources are under “Add one sale instead.”</p></div></section>
     <section className="catalogue-content">
+      <nav className="staff-context-links" aria-label="Other sales tasks">
+        <Link href="/review?lane=sales">Review possible sales</Link>
+        <Link href="/listing-outcomes?view=attention&queue=worth_checking">Investigate watched listings</Link>
+        <Link href="/price-import">Preflight a sales file</Link>
+      </nav>
       <div className="section-intro"><p className="eyebrow">One decision, not two queues</p><h2>Check it once. Add it properly.</h2><p className="section-copy">Use this for a sale you personally inspected. Your confirmation writes the verified sale, printing decision and audit history together—there is no second edition-match review.</p></div>
-      {nextSearches.length ? <section className="sold-search-priorities" aria-labelledby="sold-search-heading">
-        <div><p className="eyebrow">Search where the next sale matters</p><h2 id="sold-search-heading">Next completed-listing searches</h2><p>Manga one sale from strong coverage come first, followed by manga one sale from unlocking a chart. Magazines and specialist formats follow. Editions with five comparable raw sales are left out.</p></div>
-        <div className="sold-search-priority-list">{nextSearches.map((candidate) => <article key={candidate.profileId}>
-          <div><strong>{candidate.title}{candidate.volumeNumber ? ` · Vol. ${candidate.volumeNumber}` : ""}</strong><span>{[candidate.collectibleType === "zasshi" ? "Magazine issue" : candidate.collectibleType === "tankobon" || !candidate.collectibleType ? "Manga" : candidate.collectibleType.replaceAll("_", " "), candidate.language, `${candidate.comparableRawSales} comparable raw sale${candidate.comparableRawSales === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span><small>{soldSearchReason(candidate.comparableRawSales, candidate.collectibleType)}</small></div>
-          <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}#bulk-approved-sales`}>Select edition</Link></div>
-        </article>)}</div>
-      </section> : null}
       <BulkApprovedSalesForm key={initialEditionId || "manual-selection"} initialEditionId={initialEditionId} editions={verifiedEditions ?? []} sources={activeSources ?? []} />
       <details className="single-approved-sale">
         <summary>Add one sale instead</summary>
         <QuickSaleForm initialEditionId={initialEditionId} />
       </details>
+      {nextSearches.length ? <details className="sold-search-priorities sold-search-disclosure">
+        <summary>Find your next sale · {nextSearches.length} useful searches</summary>
+        <div><p className="eyebrow">Search where the next sale matters</p><h2>Next completed-listing searches</h2><p>Manga one sale from strong coverage come first, followed by manga one sale from unlocking a chart. Magazines and specialist formats follow. Editions with five comparable raw sales are left out.</p></div>
+        <div className="sold-search-priority-list">{nextSearches.map((candidate) => <article key={candidate.profileId}>
+          <div><strong>{candidate.title}{candidate.volumeNumber ? ` · Vol. ${candidate.volumeNumber}` : ""}</strong><span>{[candidate.collectibleType === "zasshi" ? "Magazine issue" : candidate.collectibleType === "tankobon" || !candidate.collectibleType ? "Manga" : candidate.collectibleType.replaceAll("_", " "), candidate.language, `${candidate.comparableRawSales} comparable raw sale${candidate.comparableRawSales === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span><small>{soldSearchReason(candidate.comparableRawSales, candidate.collectibleType)}</small></div>
+          <div><a href={ebayCompletedSearchUrl(candidate.query)} target="_blank" rel="noreferrer">Search sold listings ↗</a><Link href={`/add-sale?editionId=${candidate.editionId}#bulk-approved-sales`}>Select edition</Link></div>
+        </article>)}</div>
+      </details> : null}
       <section className="catalogue-rules" aria-label="Approved listing safeguards"><div><span>1</span><strong>eBay fills the facts</strong><p>One staff-triggered lookup supplies the title, price, date, format and available listing photos.</p></div><div><span>2</span><strong>Markets stay separate</strong><p>Printing, raw copies and every grading company and grade remain distinct.</p></div><div><span>3</span><strong>Your decision teaches</strong><p>RAR retains its detection and your corrections as controlled-learning evidence.</p></div></section>
     </section>
   </main>;
