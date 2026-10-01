@@ -79,6 +79,18 @@
 .public-page.edition-redesign .edition-breadcrumb,
 .public-page.edition-redesign .edition-byline,
 .public-page.edition-redesign .edition-reader-synopsis { color: #656b70; }
+.public-page.edition-redesign .edition-reader-intro {
+  display: block;
+  max-width: 620px;
+  margin-top: 28px;
+  border-top: 1px solid #e4e6e4;
+  padding-top: 20px;
+}
+.public-page.edition-redesign .edition-reader-label { margin: 0 0 10px; color: #ad382c; font-size: 11px; font-weight: 800; letter-spacing: .15em; }
+.public-page.edition-redesign .edition-reader-tagline { display: block; margin: 0 0 9px; color: #17191c; font-size: clamp(18px, 2vw, 24px); font-weight: 750; line-height: 1.2; }
+.public-page.edition-redesign .edition-reader-synopsis { max-width: 57ch; margin: 0; font-size: clamp(15px, 1.35vw, 17px); line-height: 1.6; }
+.public-page.edition-redesign .edition-reader-source { display: inline-block; margin-top: 12px; border-bottom: 1px solid #c6c9c8; color: #656b70; font-size: 11px; text-decoration: none; }
+.public-page.edition-redesign .edition-reader-source:hover { border-color: #ad382c; color: #ad382c; }
 .public-page.buy-redesign { min-height: 100vh; background: #fffefa; color: #17191c; }
 .buy-redesign-hero { display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: clamp(65px, 7vw, 110px) max(30px, calc((100vw - 1320px)/2)); border-bottom: 1px solid #e4e6e4; }
 .buy-redesign-hero > div { max-width: 740px; }
@@ -122,4 +134,5 @@
   .public-page.edition-redesign .edition-stage-inner { min-height: 0; padding: 2.5rem 18px 3.5rem; }
   .public-page.edition-redesign .edition-stage-book { min-height: 0; }
   .public-page.edition-redesign .edition-stage .edition-hero-cover { width: min(62vw, 270px); }
+  .public-page.edition-redesign .edition-reader-intro { margin-top: 24px; padding-top: 18px; }
 }

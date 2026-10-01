@@ -432,6 +432,11 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const editionIntro = isMagazine
     ? [edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ")
     : [edition.language, edition.format, edition.volume_number ? `Volume ${edition.volume_number}` : null, publisherDisplayName(edition.publisher)].filter(Boolean).join(" · ");
+  const publicationKind = [edition.language ? `${edition.language}-language` : null, edition.format?.toLowerCase(), "edition"].filter(Boolean).join(" ");
+  const publicationArticle = /^[aeiou]/i.test(publicationKind) ? "an" : "a";
+  const factualIntro = isMagazine
+    ? `This ${edition.language ? `${edition.language}-language ` : ""}issue of ${displayTitle || "the magazine"}${issueLabel ? ` (${issueLabel})` : ""}${edition.publisher ? ` was published by ${publisherDisplayName(edition.publisher)}` : ""}${edition.release_date ? ` on ${formatDate(edition.release_date)}` : ""}.`
+    : `${edition.series && edition.volume_number ? `Volume ${edition.volume_number} of ${edition.series}` : displayTitle || "This manga publication"} is ${publicationArticle} ${publicationKind}${edition.publisher ? ` from ${publisherDisplayName(edition.publisher)}` : ""}${edition.release_date ? `, released ${formatDate(edition.release_date)}` : ""}.`;
   const profileSourceIsSeparate = Boolean(seriesProfile?.source_url && !sourceLinks.some((source) => source.source_record_url === seriesProfile.source_url));
   const catalogueSourceCount = sourceLinks.length + Number(profileSourceIsSeparate);
   const details = (isMagazine ? [
@@ -505,13 +510,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 .filter(Boolean)
                 .join(" · ")}
             </p>
-            {readerSynopsis ? (
-              <div className="edition-reader-intro" aria-label="About this publication">
+            <div className="edition-reader-intro" aria-label="About this publication">
+                <p className="edition-reader-label">{readerSynopsis && !isMagazine ? "THE SERIES" : "ABOUT THIS PUBLICATION"}</p>
                 {readerTagline ? <p className="edition-reader-tagline">{readerTagline}</p> : null}
-                <p className="edition-reader-synopsis">{readerSynopsis}</p>
+                <p className="edition-reader-synopsis">{readerSynopsis || factualIntro}</p>
+                {readerSynopsis && seriesProfile ? <a className="edition-reader-source" href={seriesProfile.source_url} target="_blank" rel="noopener noreferrer">Series summary: {seriesProfile.source_name} ↗</a> : null}
                 {editionIntro ? <p className="edition-reader-edition">{editionIntro}</p> : null}
-              </div>
-            ) : null}
+            </div>
             <EditionHeroActions editionId={String(edition.id)} title={displayTitle} />
             {previousVolume || nextVolume ? (
               <nav aria-label="Volume navigation" className="volume-nav">
