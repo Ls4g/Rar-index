@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
@@ -25,8 +25,11 @@ function guideText(edition: DemoBookEdition) {
     : "No comparable price guide yet";
 }
 
-const TURN_STRIPS = 24;
-const TURN_DURATION_MS = 1450;
+function paintLeaf(leaf: HTMLDivElement | null, progress: number) {
+  if (!leaf) return;
+  leaf.style.transform = `translateZ(13px) rotateY(${-180 * progress}deg)`;
+  leaf.style.setProperty("--fold-shadow", `${0.34 * Math.sin(Math.PI * progress)}`);
+}
 
 function PageTwoContent({ book }: { book: DemoSeriesBook }) {
   return <>
@@ -52,14 +55,16 @@ function PageThreeContent({ featured }: { featured: DemoBookEdition }) {
 
 export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBook; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const bookRef = useRef<HTMLDivElement>(null);
   const leafRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
-  const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const pointerStart = useRef<{ id: number; x: number; width: number; startProgress: number } | null>(null);
+  const pageProgress = useRef(0);
+  const settleFrame = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [spread, setSpread] = useState(0);
   const [turning, setTurning] = useState<"next" | "previous" | null>(null);
-  const [drag, setDrag] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -71,91 +76,106 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
     return () => {
       timers.current.forEach(window.clearTimeout);
       timers.current = [];
+      if (settleFrame.current !== null) cancelAnimationFrame(settleFrame.current);
       document.body.style.overflow = previousOverflow;
       if (dialog.open) dialog.close();
     };
   }, []);
 
   useEffect(() => {
-    if (!turning || !leafRef.current) return;
-    const strips = Array.from(leafRef.current.querySelectorAll<HTMLElement>(".rar-physical-turn-strip"));
-    const stripWidth = leafRef.current.getBoundingClientRect().width / TURN_STRIPS;
-    let frame = 0;
-    let startedAt: number | null = null;
-
-    function animate(now: number) {
-      if (startedAt === null) startedAt = now;
-      const progress = Math.min((now - startedAt) / TURN_DURATION_MS, 1);
-      const eased = (1 - Math.cos(Math.PI * progress)) / 2;
-      const baseAngle = turning === "next" ? -Math.PI * eased : -Math.PI * (1 - eased);
-      const curl = 0.75 * Math.sin(Math.PI * eased) * (turning === "next" ? -1 : 1);
-      let x = 0;
-      let z = 0;
-
-      strips.forEach((strip, index) => {
-        const angle = baseAngle + curl * ((index + 0.5) / TURN_STRIPS);
-        strip.style.transform = `translate3d(${x}px, 0, ${z}px) rotateY(${angle}rad)`;
-        strip.style.setProperty("--curl-depth", `${Math.abs(curl) * (index / TURN_STRIPS)}`);
-        strip.style.setProperty("--strip-shade", `${0.16 * Math.sin(Math.PI * eased) * ((index + 1) / TURN_STRIPS)}`);
-        x += Math.cos(angle) * stripWidth;
-        z -= Math.sin(angle) * stripWidth;
-      });
-
-      if (progress < 1) frame = requestAnimationFrame(animate);
-      else {
-        setSpread(turning === "next" ? 1 : 0);
-        setTurning(null);
-      }
-    }
-
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
+    if (turning) paintLeaf(leafRef.current, pageProgress.current);
   }, [turning]);
 
   function closeBook() {
     if (isClosing) return;
+    if (settleFrame.current !== null) cancelAnimationFrame(settleFrame.current);
+    settleFrame.current = null;
+    pointerStart.current = null;
     setIsClosing(true);
     setTurning(null);
     setIsOpen(false);
     timers.current.push(window.setTimeout(() => dialogRef.current?.close(), 720));
   }
 
-  function turnPage(direction: "next" | "previous") {
-    if (!isOpen || turning || isClosing || (direction === "next" && spread === 1) || (direction === "previous" && spread === 0)) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setSpread(direction === "next" ? 1 : 0);
+  function settlePage(target: 0 | 1) {
+    const from = pageProgress.current;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || from === target) {
+      pageProgress.current = target;
+      setSpread(target);
+      setTurning(null);
       return;
     }
+    const duration = 260 + Math.abs(target - from) * 750;
+    let startedAt: number | null = null;
+
+    function animate(now: number) {
+      if (startedAt === null) startedAt = now;
+      const elapsed = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - elapsed, 3);
+      pageProgress.current = from + (target - from) * eased;
+      paintLeaf(leafRef.current, pageProgress.current);
+      if (elapsed < 1) settleFrame.current = requestAnimationFrame(animate);
+      else {
+        settleFrame.current = null;
+        setSpread(target);
+        setTurning(null);
+      }
+    }
+
+    settleFrame.current = requestAnimationFrame(animate);
+  }
+
+  function turnPage(direction: "next" | "previous") {
+    if (!isOpen || turning || isClosing || (direction === "next" && spread === 1) || (direction === "previous" && spread === 0)) return;
+    pageProgress.current = spread;
     setTurning(direction);
+    requestAnimationFrame(() => settlePage(direction === "next" ? 1 : 0));
   }
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
-    pointerStart.current = { x: event.clientX, y: event.clientY };
+    if (!isOpen || isClosing || turning || settleFrame.current !== null || !bookRef.current) return;
+    const rect = bookRef.current.getBoundingClientRect();
+    const spine = rect.left;
+    const width = rect.width;
+    const onPage = event.clientY >= rect.top && event.clientY <= rect.bottom && (spread === 0
+      ? event.clientX >= spine + width * 0.12 && event.clientX <= spine + width
+      : event.clientX <= spine - width * 0.12 && event.clientX >= spine - width);
+    if (!onPage) return;
+    event.preventDefault();
+    pageProgress.current = spread;
+    pointerStart.current = { id: event.pointerId, x: event.clientX, width, startProgress: spread };
+    setTurning(spread === 0 ? "next" : "previous");
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (!pointerStart.current) return;
-    const dx = event.clientX - pointerStart.current.x;
-    const dy = event.clientY - pointerStart.current.y;
-    setDrag({ x: Math.max(-14, Math.min(14, dx / 11)), y: Math.max(-7, Math.min(7, -dy / 16)) });
+    const start = pointerStart.current;
+    if (!start || start.id !== event.pointerId) return;
+    pageProgress.current = Math.max(0, Math.min(1, start.startProgress + (start.x - event.clientX) / start.width));
+    paintLeaf(leafRef.current, pageProgress.current);
   }
 
   function pointerUp(event: PointerEvent<HTMLDivElement>) {
-    if (!pointerStart.current) return;
-    const dx = event.clientX - pointerStart.current.x;
+    const start = pointerStart.current;
+    if (!start || start.id !== event.pointerId) return;
+    pointerMove(event);
     pointerStart.current = null;
-    setDrag({ x: 0, y: 0 });
-    if (Math.abs(dx) > 65 && event.pointerType === "touch") turnPage(dx < 0 ? "next" : "previous");
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    settlePage(start.startProgress === 0
+      ? pageProgress.current >= 0.42 ? 1 : 0
+      : pageProgress.current <= 0.58 ? 0 : 1);
+  }
+
+  function pointerCancel(event: PointerEvent<HTMLDivElement>) {
+    const start = pointerStart.current;
+    if (!start || start.id !== event.pointerId) return;
+    pointerStart.current = null;
+    settlePage(start.startProgress as 0 | 1);
   }
 
   const featured = book.owned[0];
   const leftSpread = turning ? 0 : spread;
   const rightSpread = turning ? 1 : spread;
-  const physicalStyle = {
-    "--rar-drag-x": `${drag.x}deg`,
-    "--rar-drag-y": `${drag.y}deg`,
-  } as CSSProperties;
 
   return <dialog
     ref={dialogRef}
@@ -174,17 +194,18 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
       </header>
 
       <div className="rar-physical-scene">
-        <div className="rar-physical-scene-title"><span>01 / 01</span><strong>{book.name}</strong><small>Drag to tilt · turn a page · inspect an edition</small></div>
+        <div className="rar-physical-scene-title"><span>01 / 01</span><strong>{book.name}</strong><small>Drag the outer page across the spine</small></div>
         <div className="rar-physical-ground" aria-hidden="true" />
         <div
           className="rar-physical-grab-area"
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}
-          onPointerCancel={pointerUp}
-          aria-label={`${book.name} physical book preview`}
+          onPointerCancel={pointerCancel}
+          onDragStart={(event) => event.preventDefault()}
+          aria-label={`${book.name} book; drag the right page left to advance, or the left page right to go back`}
         >
-          <div className="rar-physical-book" style={physicalStyle}>
+          <div className="rar-physical-book" ref={bookRef}>
             <div className="rar-physical-back-cover" aria-hidden="true" />
             <div className="rar-physical-page-block" aria-hidden="true" />
             <div className="rar-physical-spine" aria-hidden="true"><span>{book.name}</span><b>RAR</b></div>
@@ -210,23 +231,17 @@ export default function PhysicalBookDemo({ book, onClose }: { book: DemoSeriesBo
                 </> : <PageThreeContent featured={featured} />}
               </div>
             </div>
-            {turning && <div className="rar-physical-turn-leaf" ref={leafRef} aria-hidden="true">
-              {Array.from({ length: TURN_STRIPS }, (_, index) => <div
-                className="rar-physical-turn-strip"
-                key={index}
-                style={{ transform: turning === "next" ? `translateX(${index * 100}%)` : `translateX(-${(index + 1) * 100}%) rotateY(-180deg)` }}
-              >
-                <div className="rar-physical-turn-surface is-front"><div className="rar-physical-right-page rar-physical-turn-content" style={{ left: `${-index * 100}%` }}><PageTwoContent book={book} /></div></div>
-                <div className="rar-physical-turn-surface is-back"><div className="rar-physical-inside-face rar-physical-turn-content" style={{ left: `${-(TURN_STRIPS - index - 1) * 100}%` }}><PageThreeContent featured={featured} /></div></div>
-              </div>)}
+            {turning && <div className="rar-physical-turn-leaf" ref={leafRef} aria-hidden="true" style={{ transform: turning === "next" ? "translateZ(13px) rotateY(0deg)" : "translateZ(13px) rotateY(-180deg)" }}>
+              <div className="rar-physical-turn-surface is-front"><div className="rar-physical-right-page rar-physical-turn-content"><PageTwoContent book={book} /></div></div>
+              <div className="rar-physical-turn-surface is-back"><div className="rar-physical-inside-face rar-physical-turn-content"><PageThreeContent featured={featured} /></div></div>
             </div>}
           </div>
         </div>
       </div>
 
       <div className="rar-physical-controls">
-        <p>{isOpen ? "A fictional collector, using real verified RAR catalogue covers." : "Bringing the book forward…"}</p>
-        <div><button type="button" onClick={() => turnPage("previous")} disabled={!isOpen || spread === 0 || Boolean(turning)}>← Previous</button><span>{spread + 1} / 2</span><button type="button" onClick={() => turnPage("next")} disabled={!isOpen || spread === 1 || Boolean(turning)}>Next page →</button></div>
+        <p>{isOpen ? spread === 0 ? "Drag the right page left to turn. Release early to let it fall back." : "Drag the left page right to return. Release early to let it fall back." : "Bringing the book forward…"}</p>
+        <div><span aria-live="polite">{spread + 1} / 2</span><small>Keyboard: ← / →</small></div>
       </div>
 
       <section className="rar-physical-details" aria-label="Readable collection details">
