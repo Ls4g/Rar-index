@@ -10,6 +10,7 @@ import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 import { ensurePriorityMarketplaceProfiles, type PriorityProfileResult } from "@/lib/priorityCoverage";
 import { approvalStillCoversProposal, indexOpenAgentActions, type OpenAgentAction } from "@/lib/agentProposalLifecycle";
+import { priorShadowRuleForAction, type PriorScoutRule } from "@/lib/scoutRuleEvaluation";
 
 type TriggerSource = "manual" | "schedule" | "system";
 type AgentControl = { agent_key: AgentKey; mode: string; is_paused: boolean };
@@ -156,11 +157,37 @@ async function reconcileAgentProposals(
     .order("reviewed_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(`Could not reconcile agent proposals: ${error.message}`);
 
+  // Do not re-ask for an identical shadow rule after staff already ran it.
+  // Re-evaluation belongs to the existing version so new human decisions can
+  // form its prospective holdout rather than starting the clock over.
+  const shadowProposals = allProposals.filter((item) => item.actionType.startsWith("shadow_test_"));
+  let priorRules: PriorScoutRule[] = [];
+  if (shadowProposals.length) {
+    const { data: versions, error: versionError } = await admin.from("scout_rule_versions")
+      .select("id,rule_key,rule_type,version,config,status")
+      .in("rule_key", ["first-print-proof", "multi-volume-language", "edition-conflict-language"])
+      .order("created_at", { ascending: false }).limit(1000);
+    if (versionError) throw new Error(`Could not check prior Scout tests: ${versionError.message}`);
+    priorRules = (versions ?? []) as PriorScoutRule[];
+  }
+  const coveredShadowKeys = new Set<string>();
+  const unbuildableShadowKeys = new Set<string>();
+  for (const item of shadowProposals) {
+    try {
+      if (priorShadowRuleForAction({ action_type: item.actionType, evidence: item.evidence }, priorRules)) {
+        coveredShadowKeys.add(item.dedupeKey);
+      }
+    } catch {
+      // A title-only phrase cannot be derived from these examples. This is
+      // research for a person, not an executable one-click approval.
+      unbuildableShadowKeys.add(item.dedupeKey);
+    }
+  }
   // A standing queue is reported, never raised as a decision. The plan still
-  // carries it, so the run's summary and metrics are unchanged and the count
-  // survives -- it simply stops becoming an approval nobody can close.
-  const proposals = allProposals.filter((proposal) => needsHumanApproval(proposal.actionType));
-  const briefed = allProposals.length - proposals.length;
+  // carries its count; only a genuinely new executable rule needs approval.
+  const proposals = allProposals.filter((item) => needsHumanApproval(item.actionType)
+    && !coveredShadowKeys.has(item.dedupeKey) && !unbuildableShadowKeys.has(item.dedupeKey));
+  const briefed = allProposals.filter((item) => !needsHumanApproval(item.actionType)).length;
 
   // Ones already on the board from before this rule. Only untouched proposals
   // are retired here: an approval is a decision a person made, and closing it
@@ -183,8 +210,20 @@ async function reconcileAgentProposals(
   const remaining = ((current ?? []) as OpenAgentAction[]).filter((action) => !retiredIds.includes(action.id));
   const { proposedByDedupe, approvedByDedupe } = indexOpenAgentActions(remaining);
   const activeKeys = new Set(proposals.map((proposal) => proposal.dedupeKey));
-  const staleIds = [...proposedByDedupe.values()].filter((action) => !activeKeys.has(action.dedupe_key)).map((action) => action.id);
+  const staleActions = [...proposedByDedupe.values()].filter((action) => !activeKeys.has(action.dedupe_key));
+  const testedIds = staleActions.filter((action) => coveredShadowKeys.has(action.dedupe_key)).map((action) => action.id);
+  const staleIds = staleActions.filter((action) => !coveredShadowKeys.has(action.dedupe_key)).map((action) => action.id);
   let cancelled = 0;
+  if (testedIds.length) {
+    const { data: retired, error: retireError } = await admin.from("agent_actions").update({
+      status: "cancelled",
+      reviewed_by: `${AGENT_LABELS[agentKey]} system`,
+      review_notes: "An identical Scout shadow rule already exists. Inspect that version in Agent learning instead of creating it again.",
+      reviewed_at: new Date().toISOString(),
+    }).in("id", testedIds).eq("status", "proposed").select("id");
+    if (retireError) throw new Error(`Could not retire repeated Scout tests: ${retireError.message}`);
+    cancelled += retired?.length ?? 0;
+  }
   if (staleIds.length) {
     const { data: stale, error: staleError } = await admin.from("agent_actions").update({
       status: "cancelled",
@@ -193,7 +232,7 @@ async function reconcileAgentProposals(
       reviewed_at: new Date().toISOString(),
     }).in("id", staleIds).eq("status", "proposed").select("id");
     if (staleError) throw new Error(`Could not close stale agent proposals: ${staleError.message}`);
-    cancelled = stale?.length ?? 0;
+    cancelled += stale?.length ?? 0;
   }
 
   let created = 0;
@@ -231,7 +270,8 @@ async function reconcileAgentProposals(
     if (!insertError) created += 1;
     else if (insertError.code !== "23505") throw new Error(`Could not record agent proposal: ${insertError.message}`);
   }
-  return { created, refreshed, cancelled, coveredByApproval, briefed, retired };
+  return { created, refreshed, cancelled, coveredByApproval, briefed, retired,
+    shadowTestsAlreadyExist: coveredShadowKeys.size, shadowTestsNeedResearch: unbuildableShadowKeys.size };
 }
 
 export async function runAgentObservation(
@@ -475,6 +515,8 @@ export async function runAgentObservation(
       // a decision, so the count is still on the record for this run.
       queues_reported_not_raised: proposalResult.briefed,
       standing_queue_proposals_retired: proposalResult.retired,
+      shadow_tests_already_exist: proposalResult.shadowTestsAlreadyExist,
+      shadow_tests_need_research: proposalResult.shadowTestsNeedResearch,
     };
     const { data: finished, error } = await admin.from("agent_runs").update({
       status: "succeeded",

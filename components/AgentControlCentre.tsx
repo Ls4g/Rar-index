@@ -87,6 +87,34 @@ type EbayConnectionHealth = {
   checkedAt: string;
 };
 
+type LearningTest = {
+  ruleKey: string;
+  version: number;
+  status: string;
+  testedAt: string | null;
+  passed: boolean | null;
+  gates: Record<string, { passed: boolean; actual: number; required: number }>;
+};
+
+const LEARNING_TEST_NAMES: Record<string, string> = {
+  "first-print-proof": "First-print proof",
+  "multi-volume-language": "Multi-volume listings",
+  "edition-conflict-language": "Wrong-edition clues",
+};
+
+function learningTestFindings(test: LearningTest) {
+  const findings: string[] = [];
+  const sample = test.gates.sample_size;
+  const coverage = test.gates.target_coverage;
+  const regressions = test.gates.exact_match_regressions;
+  const holdout = test.gates.unseen_sample_size;
+  if (sample && !sample.passed) findings.push(`Only ${sample.actual} of ${sample.required} comparable labels`);
+  if (coverage && !coverage.passed) findings.push(`Caught ${Math.round(coverage.actual * 100)}% of labelled misses; needs ${Math.round(coverage.required * 100)}%`);
+  if (regressions && !regressions.passed) findings.push(`Would miss ${regressions.actual} previously correct match${regressions.actual === 1 ? "" : "es"}`);
+  if (holdout && !holdout.passed) findings.push(`${holdout.actual} of ${holdout.required} fresh holdout labels`);
+  return findings.slice(0, 3);
+}
+
 const ACTION_LINKS: Record<string, { href: string; label: string }> = {
   stage_catalogue_candidates: { href: "/catalogue-review", label: "Review staged candidates" },
   review_catalogue_queue: { href: "/catalogue-review", label: "Open catalogue review" },
@@ -171,6 +199,8 @@ export default function AgentControlCentre({
   autopilot,
   ebayHealth: initialEbayHealth,
   scoutPriorityCount,
+  learningTests,
+  learningResultsError,
 }: {
   controls: Control[];
   runs: Run[];
@@ -180,11 +210,14 @@ export default function AgentControlCentre({
   autopilot: AutopilotDashboard;
   ebayHealth: EbayConnectionHealth;
   scoutPriorityCount: number | null;
+  learningTests: LearningTest[];
+  learningResultsError: string | null;
 }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useStaffReviewer();
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [actionMessages, setActionMessages] = useState<Record<string, string>>({});
   const [rulePhrases, setRulePhrases] = useState<Record<string, string>>({});
   const [closeReasons, setCloseReasons] = useState<Record<string, string>>({});
   const [resolvedActionIds, setResolvedActionIds] = useState<Set<string>>(() => new Set());
@@ -215,12 +248,15 @@ export default function AgentControlCentre({
   }
 
   async function command(key: string, body: Record<string, unknown>) {
+    const actionId = typeof body.actionId === "string" ? body.actionId : null;
     if (!reviewer.trim()) {
-      setMessage("Enter your staff name first.");
+      if (actionId) setActionMessages((current) => ({ ...current, [actionId]: "Enter your staff name above first." }));
+      else setMessage("Enter your staff name first.");
       return;
     }
     setBusy(key);
     setMessage("");
+    if (actionId) setActionMessages((current) => ({ ...current, [actionId]: "" }));
     try {
       const response = await fetch("/api/agents", {
         method: "POST",
@@ -232,10 +268,14 @@ export default function AgentControlCentre({
       if ((body.command === "review_action" || body.command === "close_action") && typeof body.actionId === "string") {
         setResolvedActionIds((current) => new Set(current).add(body.actionId as string));
       }
-      setMessage(typeof result.message === "string" ? result.message : "Agents updated.");
+      const resultMessage = typeof result.message === "string" ? result.message : "Agents updated.";
+      if (actionId) setActionMessages((current) => ({ ...current, [actionId]: resultMessage }));
+      else setMessage(resultMessage);
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "The command failed.");
+      const errorMessage = caught instanceof Error ? caught.message : "The command failed.";
+      if (actionId) setActionMessages((current) => ({ ...current, [actionId]: errorMessage }));
+      else setMessage(errorMessage);
     } finally {
       setBusy("");
     }
@@ -366,6 +406,15 @@ export default function AgentControlCentre({
           <span><b>{feedbackExceptions}</b>exceptions to inspect</span>
         </div>
         {plannedFeedback.length ? <div className="agent-feedback-planned"><strong>Approved investigations</strong>{plannedFeedback.map((action) => <span key={action.id}>{action.title}</span>)}</div> : null}
+        <div className="agent-learning-results">
+          <h3>Latest Scout learning tests</h3>
+          {learningResultsError ? <p>Results could not be loaded: {learningResultsError}</p> : learningTests.length ? <div className="agent-learning-result-grid">{learningTests.map((test) => <article key={test.ruleKey}>
+            <strong>{LEARNING_TEST_NAMES[test.ruleKey] ?? test.ruleKey}</strong>
+            <span>{test.status === "rejected" ? "Rejected by staff" : test.passed ? "Passed shadow checks; still needs human activation" : test.testedAt ? "Tested — not ready to use" : "Waiting for its first test"}</span>
+            {learningTestFindings(test).length ? <ul>{learningTestFindings(test).map((finding) => <li key={finding}>{finding}</li>)}</ul> : null}
+            <small>Version {test.version}{test.testedAt ? ` · checked ${formatTime(test.testedAt)}` : ""}</small>
+          </article>)}</div> : <p>No Scout rule tests yet.</p>}
+        </div>
         <Link className="agent-queue-link" href="/agent-learning">Open learning workspace →</Link>
       </section>
 
@@ -377,7 +426,11 @@ export default function AgentControlCentre({
           const acceptsExtraPhrases = ["shadow_test_multi_volume_detection", "shadow_test_edition_conflicts"].includes(action.action_type);
           const canExecute = isExecutableAgentAction(action.action_type);
           const isRunning = busy === `approve-${action.id}`;
-          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{acceptsExtraPhrases ? <label className="agent-rule-phrases"><span>Optional extra phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder="RAR will derive safe phrases from the examples" value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: canExecute, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isRunning ? canExecute ? "Running…" : "Saving…" : canExecute ? "Approve and run" : isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button></div></article>;
+          const sampleSize = action.evidence?.sample_size;
+          const descriptor = action.action_type.startsWith("shadow_test_")
+            ? typeof sampleSize === "number" ? `${sampleSize} labelled examples` : "Uncalibrated experiment"
+            : action.confidence == null ? "unscored" : `${Math.round(action.confidence * 100)}% confidence`;
+          return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {descriptor}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{acceptsExtraPhrases ? <label className="agent-rule-phrases"><span>Optional extra phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder="RAR will derive safe phrases from the examples" value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: canExecute, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isRunning ? canExecute ? "Running…" : "Saving…" : canExecute ? "Approve and run" : isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button>{actionMessages[action.id] ? <p className="agent-action-message" role="alert">{actionMessages[action.id]}</p> : null}</div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
       </section>
 
@@ -394,6 +447,7 @@ export default function AgentControlCentre({
         {openApprovals.length ? <div className="agent-proposal-list">{openApprovals.map((action) => {
           const workQueue = ACTION_LINKS[action.action_type];
           const canExecute = isExecutableAgentAction(action.action_type);
+          const scheduledScoutWork = action.action_type === "scan_stale_profiles";
           const reason = closeReasons[action.id] ?? "";
           return (
             <article key={action.id}>
@@ -401,11 +455,12 @@ export default function AgentControlCentre({
                 <span>{action.agent_key.replaceAll("_", " ")} · approved</span>
                 <h3>{action.title}</h3>
                 <p>{action.rationale}</p>
+                {scheduledScoutWork ? <p className="agent-scheduled-note">Scout already scans up to 50 search profiles daily. This old one-off run has timed out and does not control the schedule.</p> : null}
                 <small>{formatTime(action.created_at)}</small>
               </div>
               <div>
                 {workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}
-                {canExecute ? (
+                {canExecute && !scheduledScoutWork ? (
                   <button disabled={Boolean(busy)} onClick={() => command(`run-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: true, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">
                     {busy === `run-${action.id}` ? "Running…" : "Run now"}
                   </button>
@@ -413,17 +468,18 @@ export default function AgentControlCentre({
                 {/* The reason is required by the API, so the button stays dead
                     until there is one. A closed approval is the only record of
                     what happened to the work. */}
-                <label className="agent-close-reason">
+                {!scheduledScoutWork ? <label className="agent-close-reason">
                   <span>Why is this closed?</span>
                   <input
                     onChange={(event) => setCloseReasons((current) => ({ ...current, [action.id]: event.target.value }))}
                     placeholder="Superseded by a newer approval, or the queue is already clear"
                     value={reason}
                   />
-                </label>
-                <button className="secondary" disabled={Boolean(busy) || reason.trim().length < 3} onClick={() => command(`close-${action.id}`, { command: "close_action", actionId: action.id, reason: reason.trim() })} type="button">
-                  {busy === `close-${action.id}` ? "Closing…" : "Close as done"}
+                </label> : null}
+                <button className="secondary" disabled={Boolean(busy) || (!scheduledScoutWork && reason.trim().length < 3)} onClick={() => command(`close-${action.id}`, { command: "close_action", actionId: action.id, reason: scheduledScoutWork ? "Superseded by scheduled eBay Scout; this one-off refresh is no longer needed." : reason.trim() })} type="button">
+                  {busy === `close-${action.id}` ? "Closing…" : scheduledScoutWork ? "Close obsolete approval" : "Close as done"}
                 </button>
+                {actionMessages[action.id] ? <p className="agent-action-message" role="alert">{actionMessages[action.id]}</p> : null}
               </div>
             </article>
           );

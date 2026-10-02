@@ -2604,6 +2604,15 @@ html[data-theme="day"] .public-page {
 .agent-feedback-planned { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; padding-top: .75rem; border-top: 1px solid rgba(255,255,255,.08); }
 .agent-feedback-planned strong { color: #ddd3c7; font-size: .7rem; text-transform: uppercase; }
 .agent-feedback-planned span { padding: .35rem .5rem; border-radius: 999px; background: rgba(93,204,159,.1); color: #7fe0b9; font-size: .7rem; }
+.agent-learning-results { grid-column: 1 / -1; padding-top: .8rem; border-top: 1px solid rgba(255,255,255,.08); }
+.agent-learning-results h3 { margin: 0 0 .65rem; color: #f5eee4; font-size: .9rem; }
+.agent-learning-results > p { margin: 0; color: #bdb4a9; font-size: .8rem; }
+.agent-learning-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.agent-learning-result-grid article { display: grid; align-content: start; gap: .35rem; padding: .75rem; border: 1px solid rgba(255,255,255,.1); border-radius: .5rem; background: rgba(0,0,0,.18); }
+.agent-learning-result-grid strong { color: #f5eee4; font-size: .8rem; }
+.agent-learning-result-grid span { color: #e8a193; font-size: .74rem; }
+.agent-learning-result-grid ul { margin: .2rem 0; padding-left: 1.1rem; color: #bdb4a9; font-size: .73rem; line-height: 1.5; }
+.agent-learning-result-grid small { color: #91877d; font-size: .68rem; }
 .agent-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .agent-team-section { display: grid; gap: 1rem; padding-top: .4rem; }
 .agent-card { display: grid; align-content: start; gap: .85rem; padding: 1.2rem; border: 1px solid rgba(255,255,255,.11); border-radius: .85rem; background: linear-gradient(145deg, #211e1a, #181613); }
@@ -2714,6 +2723,8 @@ html[data-theme="day"] .public-page {
 .agent-close-reason span { color: #bdb4a9; font-size: .65rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .agent-close-reason input { width: min(20rem, 100%); padding: .6rem .7rem; border: 1px solid rgba(255,255,255,.16); border-radius: .4rem; background: #11100e; color: #f5eee4; }
 .agent-open-approvals .agent-proposal-list article { border-color: rgba(223,118,95,.22); }
+.agent-open-approvals .agent-proposal-list .agent-scheduled-note { margin-top: .55rem; padding: .55rem .7rem; border-left: 2px solid #7fe0b9; color: #d4c9b9; background: rgba(93,204,159,.07); }
+.agent-proposal-list .agent-action-message { flex-basis: 100%; color: #e8a193; font-size: .75rem; }
 .agent-feedback-examples { margin: .7rem 0; }
 .agent-feedback-examples summary { color: #7fe0b9; cursor: pointer; font-size: .72rem; font-weight: 800; }
 .agent-feedback-examples ul { display: grid; gap: .45rem; margin: .55rem 0 0; padding: 0; list-style: none; }
@@ -2753,6 +2764,7 @@ html[data-theme="day"] .public-page {
   .agent-identity-bar label { min-width: 0; }
   .agent-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .agent-feedback-panel { grid-template-columns: 1fr; }
+  .agent-learning-result-grid { grid-template-columns: 1fr; }
   .agent-feedback-metrics { grid-template-columns: 1fr; }
   .agent-rule-list > article { grid-template-columns: 1fr; }
   .agent-label-toolbar { align-items: stretch; flex-direction: column; }

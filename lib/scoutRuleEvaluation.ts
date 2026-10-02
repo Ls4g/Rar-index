@@ -178,6 +178,41 @@ export function ruleCandidateForAction(
   return { ...definition, config: defaultRuleConfig(definition.type, configuredPhrases) };
 }
 
+export type PriorScoutRule = {
+  id: string;
+  rule_key: string;
+  rule_type: string;
+  version: number;
+  config: Record<string, unknown>;
+  status: string;
+};
+
+function sameRuleConfig(left: Record<string, unknown>, right: Record<string, unknown>) {
+  const keys = Object.keys(left).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(Object.keys(right).sort())) return false;
+  return keys.every((key) => {
+    if (key !== "phrases") return JSON.stringify(left[key]) === JSON.stringify(right[key]);
+    const phrases = (config: Record<string, unknown>) =>
+      (Array.isArray(config.phrases) ? config.phrases.filter((item): item is string => typeof item === "string") : [])
+        .map((item) => item.trim().toLowerCase()).sort();
+    return JSON.stringify(phrases(left)) === JSON.stringify(phrases(right));
+  });
+}
+
+// A newer count of the same labelled pattern is not a new experiment. Keep
+// evaluating the existing version against fresh decisions; do not ask staff
+// to approve an identical candidate and reset its prospective holdout clock.
+export function priorShadowRuleForAction(
+  action: { action_type: string; evidence?: Record<string, unknown> | null },
+  rules: PriorScoutRule[],
+) {
+  const candidate = ruleCandidateForAction(action.action_type, [], action.evidence);
+  if (!candidate) return null;
+  return rules.find((rule) => rule.rule_key === candidate.key
+    && rule.rule_type === candidate.type
+    && sameRuleConfig(rule.config, candidate.config)) ?? null;
+}
+
 export async function createAndEvaluateScoutRule(
   admin: SupabaseClient,
   action: { id: string; action_type: string; evidence?: Record<string, unknown> | null },

@@ -82,20 +82,22 @@ console.log("\n7. A standing queue is reported, not raised as a decision");
 const runtime = fs.readFileSync(new URL("../lib/agentRuntime.ts", import.meta.url), "utf8");
 // The fifteen of September 2026's twenty-six open approvals that were only
 // ever "this queue has N items in it".
-for (const actionType of ["triage_scout_leads", "review_catalogue_queue", "source_missing_covers", "review_sales_evidence", "resolve_readiness_bottleneck"]) {
+for (const actionType of ["triage_scout_leads", "scan_stale_profiles", "review_catalogue_queue", "source_missing_covers", "review_sales_evidence", "resolve_readiness_bottleneck"]) {
   check(`${actionType} no longer needs a decision`, !needsHumanApproval(actionType));
 }
 // Anything a machine carries out must still be a decision -- that is the
 // entire point of the approval gate, and quietly auto-running work would be
 // the worst possible reading of "fewer approvals".
-for (const actionType of ["scan_stale_profiles", "shadow_test_multi_volume_detection", "shadow_test_first_print_proof_gate"]) {
+for (const actionType of ["shadow_test_multi_volume_detection", "shadow_test_first_print_proof_gate"]) {
   check(`${actionType} still needs a decision`, needsHumanApproval(actionType));
   check(`${actionType} is genuinely machine-executable`, isExecutableAgentAction(actionType));
 }
-check("no executable action was retired by mistake", [...STANDING_QUEUE_ACTIONS].every((actionType) => !isExecutableAgentAction(actionType)));
+check("the only executable standing queue has its own daily scheduled worker", [...STANDING_QUEUE_ACTIONS].filter(isExecutableAgentAction).join() === "scan_stale_profiles");
+check("the old approved scan cannot be manually retried", /canExecute && !scheduledScoutWork/.test(centre));
+check("closing the old approval still needs a recorded reason", /Superseded by scheduled eBay Scout/.test(centre));
 check("a proposed change of behaviour still needs a decision", needsHumanApproval("review_scout_rule_regression") && needsHumanApproval("review_scout_feedback_precision"));
 
-check("the runtime filters before creating anything", /allProposals\.filter\(\(proposal\) => needsHumanApproval\(proposal\.actionType\)\)/.test(runtime));
+check("the runtime filters before creating anything", /allProposals\.filter\(\(item\) => needsHumanApproval\(item\.actionType\)/.test(runtime));
 // The plan is filtered at the point of writing, not at the point of planning,
 // so each run's summary and metrics still carry the counts.
 check("the count survives on the run", /queues_reported_not_raised/.test(runtime));

@@ -49,6 +49,9 @@ export type AgentMetrics = Record<string, number>;
 // incident panel's own Resolve button.
 export const STANDING_QUEUE_ACTIONS = new Set([
   "triage_scout_leads",
+  // The scheduled eBay Scout already scans profiles daily. A second,
+  // sequential manual scan is a standing queue, not a decision to approve.
+  "scan_stale_profiles",
   "review_catalogue_queue",
   "research_catalogue_requests",
   "source_missing_covers",
