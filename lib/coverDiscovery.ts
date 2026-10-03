@@ -1,5 +1,6 @@
 import { assessCoverCandidate, normalizeIsbn, type CoverMatchTarget } from "@/lib/coverCandidateMatch";
 import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
+import { findDirectOpenLibraryCover } from "@/lib/openLibraryCover";
 
 export type DiscoveredCoverCandidate = {
   sourceName: "Google Books" | "Open Library";
@@ -26,6 +27,8 @@ export type CoverDiscoveryResult = {
   }>;
 };
 
+type ProviderCheck = { candidates: DiscoveredCoverCandidate[]; emptyReason?: string };
+
 type GoogleVolume = {
   id?: string;
   volumeInfo?: {
@@ -48,19 +51,26 @@ function googleImage(volume: GoogleVolume) {
   return secureImageUrl(images.extraLarge ?? images.large ?? images.medium ?? images.small ?? images.thumbnail ?? images.smallThumbnail);
 }
 
-async function findGoogleBooks(target: CoverMatchTarget, apiKey: string): Promise<DiscoveredCoverCandidate[]> {
+async function findGoogleBooks(target: CoverMatchTarget, apiKey: string): Promise<ProviderCheck> {
   const isbn = normalizeIsbn(target.isbn13);
-  if (!isbn) return [];
+  if (!isbn) return { candidates: [], emptyReason: "No ISBN is available for Google Books." };
   const response = await fetch(googleBooksRequestUrl(isbn, apiKey), {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": "RAR-Index-Cover-Research/1.0" },
   });
   if (!response.ok) throw new Error(`Google Books returned ${response.status}`);
   const payload = await response.json() as { items?: GoogleVolume[] };
-  return (payload.items ?? []).flatMap((volume) => {
+  const items = payload.items ?? [];
+  let exactRecordFound = false;
+  let exactRecordHasImage = false;
+  const candidates = items.flatMap((volume) => {
     const info = volume.volumeInfo ?? {};
     const candidateIsbn = normalizeIsbn(info.industryIdentifiers?.find((entry) => entry.type === "ISBN_13")?.identifier);
     const coverImageUrl = googleImage(volume);
+    if (candidateIsbn === isbn) {
+      exactRecordFound = true;
+      if (coverImageUrl) exactRecordHasImage = true;
+    }
     const sourceRecordUrl = info.infoLink ?? (volume.id ? `https://books.google.com/books?id=${encodeURIComponent(volume.id)}` : "");
     const title = [info.title, info.subtitle].filter(Boolean).join(": ") || null;
     const assessment = assessCoverCandidate(target, {
@@ -85,6 +95,16 @@ async function findGoogleBooks(target: CoverMatchTarget, apiKey: string): Promis
       rawPayload: volume as Record<string, unknown>,
     }];
   });
+  return {
+    candidates,
+    emptyReason: candidates.length ? undefined : !items.length
+      ? "No book record was found for this ISBN."
+      : !exactRecordFound
+        ? "Book records were found, but none carried the exact ISBN."
+        : !exactRecordHasImage
+          ? "An exact-ISBN book record exists, but it has no cover image."
+          : "An image exists, but its volume, language, or record link did not pass the exact-edition checks.",
+  };
 }
 
 type OpenLibraryBook = {
@@ -97,9 +117,9 @@ type OpenLibraryBook = {
   languages?: Array<{ key?: string }>;
 };
 
-async function findOpenLibrary(target: CoverMatchTarget): Promise<DiscoveredCoverCandidate[]> {
+async function findOpenLibrary(target: CoverMatchTarget): Promise<ProviderCheck> {
   const isbn = normalizeIsbn(target.isbn13);
-  if (!isbn) return [];
+  if (!isbn) return { candidates: [], emptyReason: "No ISBN is available for Open Library." };
   const bibKey = `ISBN:${isbn}`;
   const response = await fetch(`https://openlibrary.org/api/books?bibkeys=${encodeURIComponent(bibKey)}&format=json&jscmd=data`, {
     cache: "no-store",
@@ -108,9 +128,8 @@ async function findOpenLibrary(target: CoverMatchTarget): Promise<DiscoveredCove
   if (!response.ok) throw new Error(`Open Library returned ${response.status}`);
   const payload = await response.json() as Record<string, OpenLibraryBook>;
   const book = payload[bibKey];
-  if (!book) return [];
+  if (!book) return { candidates: [], emptyReason: "No book record was found for this ISBN." };
   const candidateIsbn = normalizeIsbn(book.identifiers?.isbn_13?.[0] ?? isbn);
-  const coverImageUrl = secureImageUrl(book.cover?.large ?? book.cover?.medium ?? book.cover?.small);
   const sourceRecordUrl = book.url ? new URL(book.url, "https://openlibrary.org").toString() : `https://openlibrary.org/isbn/${isbn}`;
   const candidateLanguage = book.languages?.[0]?.key?.split("/").pop() ?? null;
   const assessment = assessCoverCandidate(target, {
@@ -119,8 +138,12 @@ async function findOpenLibrary(target: CoverMatchTarget): Promise<DiscoveredCove
     language: candidateLanguage,
     isbn13: candidateIsbn,
   });
-  if (!coverImageUrl || !assessment.eligible) return [];
-  return [{
+  if (!assessment.eligible) return { candidates: [], emptyReason: `The book record conflicts with this exact edition: ${assessment.conflicts.join("; ") || "insufficient metadata"}.` };
+  const coverImageUrl = secureImageUrl(book.cover?.large ?? book.cover?.medium ?? book.cover?.small)
+    || await findDirectOpenLibraryCover(isbn);
+  if (!coverImageUrl) return { candidates: [], emptyReason: "The book record exists, but neither Open Library image endpoint has a cover." };
+  const directImage = !book.cover?.large && !book.cover?.medium && !book.cover?.small;
+  return { candidates: [{
     sourceName: "Open Library",
     externalId: book.identifiers?.openlibrary?.[0] ?? book.key ?? isbn,
     coverImageUrl,
@@ -131,16 +154,16 @@ async function findOpenLibrary(target: CoverMatchTarget): Promise<DiscoveredCove
     candidateIsbn13: candidateIsbn,
     matchScore: assessment.score,
     matchConfidence: assessment.confidence as "strong" | "partial",
-    matchReasons: assessment.reasons,
+    matchReasons: directImage ? [...assessment.reasons, "Direct ISBN image found despite missing book-record cover"] : assessment.reasons,
     rawPayload: book as Record<string, unknown>,
-  }];
+  }] };
 }
 
 export async function discoverCoverCandidates(target: CoverMatchTarget, googleBooksGate?: GoogleBooksBatchGate): Promise<CoverDiscoveryResult> {
   const candidates: DiscoveredCoverCandidate[] = [];
   const errors: string[] = [];
   const providerStates: CoverDiscoveryResult["providerStates"] = [];
-  const jobs: Array<{ sourceName: "Google Books" | "Open Library"; promise: Promise<DiscoveredCoverCandidate[]> }> = [
+  const jobs: Array<{ sourceName: "Google Books" | "Open Library"; promise: Promise<ProviderCheck> }> = [
     { sourceName: "Open Library", promise: findOpenLibrary(target) },
   ];
   if (googleBooksGate?.canRequest() && googleBooksGate.apiKey) {
@@ -157,8 +180,8 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
   results.forEach((result, index) => {
     const sourceName = jobs[index].sourceName;
     if (result.status === "fulfilled") {
-      candidates.push(...result.value);
-      providerStates.push({ sourceName, status: "checked" });
+      candidates.push(...result.value.candidates);
+      providerStates.push({ sourceName, status: "checked", message: result.value.emptyReason });
       return;
     }
     const message = result.reason instanceof Error ? result.reason.message : "A cover source could not be checked";

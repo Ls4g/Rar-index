@@ -144,15 +144,24 @@ export default async function CoverReviewPage({
     : null;
 
   const editionIds = [...new Set([...queueRows.map((row) => row.editionId), ...(focusedRow ? [focusedRow.editionId] : [])])];
-  const { data: candidateData } = editionIds.length
-    ? await admin
+  const [{ data: candidateData }, { data: scanData }] = await Promise.all(editionIds.length ? [
+    admin
       .from("cover_candidates")
       .select("id,edition_id,source_name,cover_image_url,source_record_url,candidate_title,candidate_publisher,candidate_language,candidate_isbn_13,match_score,match_confidence,match_reasons,discovered_at")
       .in("edition_id", editionIds)
       .eq("status", "pending")
       .order("match_score", { ascending: false })
-      .order("discovered_at", { ascending: false })
-    : { data: [] };
+      .order("discovered_at", { ascending: false }),
+    admin.from("cover_candidate_scans").select("edition_id,scanned_at,source_warnings")
+      .in("edition_id", editionIds).order("scanned_at", { ascending: false }).limit(1000),
+  ] : [Promise.resolve({ data: [] }), Promise.resolve({ data: [] })]);
+
+  const lastScan = new Map<string, { scanned_at: string; source_warnings: string[] | null }>();
+  for (const scan of scanData ?? []) if (!lastScan.has(scan.edition_id)) lastScan.set(scan.edition_id, scan);
+  for (const row of [...queueRows, ...(focusedRow ? [focusedRow] : [])]) {
+    row.lastScanAt = lastScan.get(row.editionId)?.scanned_at ?? null;
+    row.lastScanNotes = lastScan.get(row.editionId)?.source_warnings ?? [];
+  }
 
   const candidates: CoverCandidateRow[] = ((candidateData ?? []) as CandidateRow[]).map((candidate) => ({
     id: candidate.id,
@@ -188,13 +197,8 @@ export default async function CoverReviewPage({
         <div className="queue-total"><strong>{queueRows.length}</strong><span>editions without a verified cover</span></div>
       </section>
       <section className="catalogue-content">
-        {/* Magazines can never reach this queue's normal conclusion. Cover
-            discovery searches by ISBN and a magazine has none, and no licensed
-            source publishes Jump cover art at all -- so a magazine issue sits
-            here permanently with nothing to review. This fetches a photograph
-            of a copy on sale instead, shown in the cover slot under a "For
-            sale copy" badge. It is not a cover and does not clear anything
-            from this queue; it only stops the page being blank. */}
+        {/* The ISBN-based book-cover finder does not apply to magazine issues.
+            Keep current seller photos separate from catalogue cover decisions. */}
         <CataloguePhotoButton />
         <CoverReviewClient rows={queueRows} focusedRow={focusedRow} candidates={candidates} />
       </section>

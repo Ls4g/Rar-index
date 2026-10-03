@@ -209,13 +209,16 @@ h1 span { display: block; color: var(--gold-light); font-style: normal; }
 }
 .edition-cover { position: relative; overflow: hidden; background: linear-gradient(150deg, #2c2924, #4a453c); }
 .edition-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* A seller's photograph standing in for cover art that does not exist in any
-   licensed source. It is contained rather than cropped -- a listing photo is
-   shot at whatever angle and margin the seller chose, and cropping to fill
-   would cut the magazine in half -- and it sits on a neutral ground so it
-   never passes for publisher artwork. */
-.edition-cover.is-listing-photo img { object-fit: contain; background: #221f1b; }
-.edition-cover-listing-badge { position: absolute; right: .4rem; bottom: .4rem; z-index: 2; padding: .16rem .42rem; border-radius: .28rem; background: rgba(26,23,20,.82); color: rgba(244,240,232,.92); font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.edition-live-copy { padding: 1rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--surface-card); }
+.edition-live-copy a { display: flex; align-items: center; gap: 1rem; color: inherit; text-decoration: none; }
+.edition-live-copy img { width: 72px; max-height: 108px; object-fit: contain; flex: 0 0 auto; }
+.edition-live-copy span { display: grid; gap: .3rem; }
+.edition-live-copy small { color: var(--muted); line-height: 1.5; }
+.cover-search-reasons { margin-top: .8rem; font-size: .8rem; }
+.cover-search-reasons summary { cursor: pointer; font-weight: 700; }
+.cover-search-reasons ul { margin: .6rem 0 0; padding-left: 1.1rem; }
+.cover-search-reasons li { margin: .45rem 0; }
+.cover-search-reasons li span { display: block; color: var(--muted); line-height: 1.5; }
 /* Real artwork gets a printed-object edge: a warm hairline plus a hint of
    depth down the spine side, so a cover reads as a book rather than an
    image in a cell. Deliberately scoped to .has-image -- giving a
@@ -4446,6 +4449,7 @@ html[data-theme="day"] .edition-page {
 .edition-page .valuation-panel-live-teaser { margin-top: 1rem; border: 0; background: transparent; color: var(--rar-ink); }
 .edition-page .valuation-panel-live-teaser a { padding: .65rem .9rem; background: var(--rar-red); color: #fff; text-decoration: none; }
 .edition-page .catalogue-details-disclosure { display: none; }
+.edition-page .edition-live-copy { max-width: 480px; margin: 1.25rem 3.3vw; }
 
 .edition-series-rail { padding: 1.2rem 3.3vw 2rem; border-top: 1px solid var(--rar-line); border-bottom: 1px solid var(--rar-line); overflow: hidden; }
 .edition-series-heading { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 1rem; }

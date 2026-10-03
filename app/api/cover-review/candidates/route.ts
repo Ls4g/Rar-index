@@ -1,8 +1,8 @@
 import { discoverCoverCandidates } from "@/lib/coverDiscovery";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
-import { compareCoverResearchPriority } from "@/lib/coveragePriority";
 import { createGoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
+import { chooseCoverResearchBatch } from "@/lib/coverResearchSchedule";
 
 const MAX_BATCH_SIZE = 20;
 
@@ -60,23 +60,20 @@ export async function POST(request: Request) {
 
   const queue = (data ?? []) as QueueEdition[];
   const queueIds = queue.map((edition) => edition.edition_id);
-  const { data: scanData, error: scanError } = queueIds.length
-    ? await admin
-      .from("cover_candidate_scans")
-      .select("edition_id,scanned_at")
-      .in("edition_id", queueIds)
-      .order("scanned_at", { ascending: false })
-    : { data: [], error: null };
-  if (scanError) return Response.json({ error: scanError.message || "Previous cover checks could not be loaded." }, { status: 500 });
+  const [scanResult, pendingResult] = await Promise.all(queueIds.length ? [
+    admin.from("cover_candidate_scans").select("edition_id,scanned_at")
+      .in("edition_id", queueIds).order("scanned_at", { ascending: false }),
+    admin.from("cover_candidates").select("edition_id").in("edition_id", queueIds).eq("status", "pending"),
+  ] : [Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null })]);
+  if (scanResult.error || pendingResult.error) return Response.json({
+    error: scanResult.error?.message || pendingResult.error?.message || "Previous cover checks could not be loaded.",
+  }, { status: 500 });
 
   const lastScan = new Map<string, string>();
-  for (const scan of scanData ?? []) if (!lastScan.has(scan.edition_id)) lastScan.set(scan.edition_id, scan.scanned_at);
-  const editions = [...queue]
-    .sort((left, right) => compareCoverResearchPriority(
-      { series: left.series, verified_sale_count: left.verified_sale_count, lastScan: lastScan.get(left.edition_id) ?? null },
-      { series: right.series, verified_sale_count: right.verified_sale_count, lastScan: lastScan.get(right.edition_id) ?? null },
-    ))
-    .slice(0, limit);
+  for (const scan of scanResult.data ?? []) if (!lastScan.has(scan.edition_id)) lastScan.set(scan.edition_id, scan.scanned_at);
+  const pendingIds = new Set((pendingResult.data ?? []).map((candidate) => candidate.edition_id));
+  const schedule = chooseCoverResearchBatch(queue, pendingIds, lastScan, limit);
+  const editions = schedule.editions;
   const googleBooksGate = createGoogleBooksBatchGate(process.env.GOOGLE_BOOKS_API_KEY);
   const discovered = await mapWithConcurrency(editions, 4, async (edition) => {
     const result = await discoverCoverCandidates({
@@ -107,10 +104,14 @@ export async function POST(request: Request) {
   })));
 
   if (discovered.length) {
-    const { error: scanInsertError } = await admin.from("cover_candidate_scans").insert(discovered.map(({ edition, candidates, errors }) => ({
+    const { error: scanInsertError } = await admin.from("cover_candidate_scans").insert(discovered.map(({ edition, candidates, errors, providerStates }) => ({
       edition_id: edition.edition_id,
       candidates_found: candidates.length,
-      source_warnings: errors,
+      source_warnings: candidates.length ? errors : [
+        ...errors,
+        ...providerStates.filter((state) => state.message && state.status !== "failed")
+          .map((state) => `${state.sourceName}: ${state.message}`),
+      ],
     })));
     if (scanInsertError) return Response.json({ error: scanInsertError.message || "The cover scan audit could not be saved." }, { status: 500 });
   }
@@ -130,6 +131,13 @@ export async function POST(request: Request) {
     editionsScanned: editions.length,
     candidatesFound: rows.length,
     candidatesQueued: queued,
+    awaitingReview: schedule.awaitingReview,
+    recentlyChecked: schedule.recentlyChecked,
+    dueRemaining: schedule.due - editions.length,
+    noCandidateReasons: discovered.filter(({ candidates }) => candidates.length === 0).map(({ edition, providerStates }) => ({
+      title: edition.title ?? edition.series ?? edition.edition_id,
+      reasons: providerStates.map((state) => `${state.sourceName}: ${state.message ?? state.status}`),
+    })),
     sourceWarnings: discovered.flatMap(({ edition, errors }) => errors.map((message) => `${edition.title ?? edition.edition_id}: ${message}`)),
     providerSummary: {
       googleBooks: googleBooksGate.skipReason() ?? "checked",

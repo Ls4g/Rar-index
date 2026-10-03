@@ -2,27 +2,24 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
 import { looksGraded, parseIssueReference, splitIssueNumbers } from "@/lib/editionMatch";
+import { isFreshListingPhoto } from "@/lib/listingPhotoPolicy";
 
 // Attaches a photograph of a real copy to a pending magazine candidate, so a
 // reviewer can see the issue on the review page instead of taking the record
 // on trust.
 //
-// This exists because a magazine cannot be seen any other way. Jump cover art
-// is Shueisha's copyright, so no bibliographic source publishes a picture:
-// the Media Arts Database has no image field at all, and cover discovery is
-// keyed on ISBN, which a magazine has none of. Every external link tried so
-// far failed for the reviewer -- a page that renders blank, a library holding
-// an exact record for 1 issue in 13, and a marketplace that refuses EU and UK
-// visitors. A photo held here depends on none of that.
+// The Media Arts Database has no image field and the book-cover finder needs
+// an ISBN, which a magazine issue normally lacks. An eBay photograph is only
+// a short-lived visual lead for staff and a current listing link, never a
+// permanent issue cover or proof that the photographed copy is authentic.
 //
 // What this is NOT: a cover. Marketplace listing photos are explicitly
 // excluded from cover verification (see 20260731_cover_image_provenance.sql),
 // and nothing here touches cover_image_url or any cover column. It is a
 // review aid and is stored as one.
 //
-// It also never guesses. A photo is only attached when the listing's own
-// title names the same magazine year and issue number as the candidate, so a
-// wrong picture -- worse than none -- cannot be attached by a near miss.
+// The title must name the same year and issue before a photo can be attached,
+// but staff still needs to inspect the photograph itself.
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +29,7 @@ type Candidate = {
   raw_payload: {
     review_metadata?: { issue_year?: string; issue_number_label?: string; cumulative_issue_no?: string };
     catalogue_series_matched?: string[] | null;
-    listing_photo?: unknown;
+    listing_photo?: { graded?: boolean; captured_at?: string } | null;
   } | null;
 };
 
@@ -117,6 +114,8 @@ export async function POST(request: Request) {
   const attached: Attached[] = [];
   const unmatched: string[] = [];
   const errors: string[] = [];
+  let alreadyFresh = 0;
+  let expiredWithoutReplacement = 0;
   let applicationToken: string;
   try {
     applicationToken = await getEbayApplicationToken();
@@ -134,11 +133,8 @@ export async function POST(request: Request) {
       unmatched.push(`${label} — no usable year/issue on the candidate`);
       continue;
     }
-    // Already has a raw photo -- leave it alone. A graded one is retried, so
-    // an earlier run that could only find a slab gets upgraded if a loose
-    // copy has since been listed.
-    const existing = candidate.raw_payload?.listing_photo as { graded?: boolean } | undefined;
-    if (existing && existing.graded === false) continue;
+    const existing = candidate.raw_payload?.listing_photo;
+    if (existing && !existing.graded && isFreshListingPhoto(existing.captured_at)) { alreadyFresh += 1; continue; }
 
     const queries = buildQueries(year, issueLabel, candidate.raw_payload?.catalogue_series_matched ?? []);
     // A raw copy is a better look at a magazine than a slab, where the cover
@@ -169,7 +165,11 @@ export async function POST(request: Request) {
     }
     const match = confirmed.find((candidateMatch) => !candidateMatch.graded) ?? confirmed[0] ?? null;
 
-    if (!match) { unmatched.push(label); continue; }
+    if (!match) {
+      unmatched.push(label);
+      if (existing) expiredWithoutReplacement += 1;
+      continue;
+    }
 
     const payload = {
       ...(candidate.raw_payload ?? {}),
@@ -189,17 +189,11 @@ export async function POST(request: Request) {
     else attached.push(match);
   }
 
-  // Catalogued magazines get one too, shown where a cover would be. A
-  // magazine has no cover art in any licensed source, so without this its
-  // page is permanently blank where every book has a picture.
-  //
-  // It is never written to a cover column. cover_verification_status stays
-  // whatever it was -- 'missing', for every magazine -- so coverage figures
-  // stay honest and the rule excluding marketplace photos from cover
-  // verification is untouched.
+  // Catalogued issues may show a fresh listing photograph in an isolated eBay
+  // listing card. It never occupies the publication-cover slot.
   const { data: editionData } = await admin
     .from("manga_editions")
-    .select("id, volume_number, issue_year, issue_number_label, listing_photo_url, listing_photo_is_graded")
+    .select("id, volume_number, issue_year, issue_number_label, listing_photo_url, listing_photo_is_graded, listing_photo_captured_at")
     .eq("collectible_type", "zasshi")
     .limit(200);
 
@@ -225,9 +219,10 @@ export async function POST(request: Request) {
     const issueNumbers = splitIssueNumbers(String(record.issue_number_label ?? ""));
     const label = record.volume_number ?? record.id;
     if (!Number.isInteger(year) || !issueNumbers.length) continue;
-    // A raw photo already in place is left alone; a graded one is retried, so
-    // a slab gets replaced once a loose copy is listed.
-    if (record.listing_photo_url && record.listing_photo_is_graded === false) continue;
+    if (record.listing_photo_url && record.listing_photo_is_graded === false && isFreshListingPhoto(record.listing_photo_captured_at)) {
+      alreadyFresh += 1;
+      continue;
+    }
 
     const queries = buildQueries(year, String(record.issue_number_label ?? ""), debutsByEdition.get(record.id) ?? []);
     const found: Attached[] = [];
@@ -253,6 +248,7 @@ export async function POST(request: Request) {
       unmatched.push(seen === 0
         ? `${label} — nothing on eBay for any of ${queries.length} searches`
         : `${label} — ${seen} listings found, none confirmed the year and issue number`);
+      if (record.listing_photo_url) expiredWithoutReplacement += 1;
       continue;
     }
 
@@ -269,6 +265,8 @@ export async function POST(request: Request) {
   return Response.json({
     checked: candidates.length + (editionData?.length ?? 0),
     attached: attached.length,
+    alreadyFresh,
+    expiredWithoutReplacement,
     // Reported so a run that could only find slabs is visible rather than
     // silently producing hard-to-read thumbnails.
     graded: attached.filter((photo) => photo.graded).length,

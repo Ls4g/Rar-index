@@ -5,6 +5,7 @@ import EditionHeroActions from "@/components/EditionHeroActions";
 import CommunityReportForm from "@/components/CommunityReportForm";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import EditionCover from "@/components/EditionCover";
+import { isFreshListingPhoto } from "@/lib/listingPhotoPolicy";
 import PublicHeader from "@/components/PublicHeader";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
@@ -186,7 +187,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const { data: edition } = await supabase
     .from("manga_editions")
     .select(
-      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id, magazine_title_id, issue_year, issue_number_label, cumulative_issue_no, madb_id, listing_photo_url, listing_photo_listing_url"
+      "id, title, series, volume_number, author, publisher, imprint, language, country, isbn_10, isbn_13, release_date, format, edition_statement, printing_number, variant_name, historical_notes, importance_tags, is_verified, collectible_type, cover_image_url, cover_source_url, cover_source_name, cover_verification_status, printing_of_edition_id, magazine_title_id, issue_year, issue_number_label, cumulative_issue_no, madb_id, listing_photo_url, listing_photo_listing_url, listing_photo_captured_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -487,7 +488,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         <div aria-hidden="true" className="edition-stage-veil" />
         <div className="edition-hero-inner edition-stage-inner">
           <div className="edition-stage-book">
-            <EditionCover listingPhotoUrl={edition.listing_photo_url} title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
+            <EditionCover title={edition.title} series={edition.series} volumeNumber={edition.volume_number} descriptor={isMagazine ? issueLabel : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="edition-hero-cover" priority />
           </div>
           <div className="edition-stage-copy">
             <nav className="edition-breadcrumb" aria-label="Breadcrumb">
@@ -636,6 +637,17 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
             <Link className="portfolio-add-button" href={`/portfolio?edition=${edition.id}`}>Add to portfolio — free account →</Link>
           </aside>
         </div>
+
+        {isMagazine && edition.listing_photo_url && edition.listing_photo_listing_url && isFreshListingPhoto(edition.listing_photo_captured_at) ? (
+          <aside className="edition-live-copy" aria-label="Current eBay listing">
+            <a href={edition.listing_photo_listing_url} target="_blank" rel="noopener noreferrer">
+              {/* eBay hosts this short-lived listing image; it is never a RAR cover asset. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={edition.listing_photo_url} alt="Seller's photograph of a recently seen magazine listing" loading="lazy" referrerPolicy="no-referrer" />
+              <span><strong>See a copy listed on eBay ↗</strong><small>Seller photograph, checked recently. This is a listing, not RAR&apos;s verified issue cover.</small></span>
+            </a>
+          </aside>
+        ) : null}
 
         {!isMagazine && siblingVolumes.some((volume) => volume.cover_image_url && volume.id !== edition.id) ? (
           <section className="edition-series-rail" aria-labelledby="more-series-heading">

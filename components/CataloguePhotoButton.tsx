@@ -6,16 +6,15 @@ import { useRouter } from "next/navigation";
 type PhotoResult = {
   checked?: number;
   attached?: number;
+  alreadyFresh?: number;
+  expiredWithoutReplacement?: number;
   graded?: number;
   noListingFound?: string[];
   errors?: string[];
   error?: string;
 };
 
-// A magazine issue has no cover picture in any catalogue source -- the art is
-// copyrighted -- so the only way to see one is a photo of a copy on sale.
-// This fetches those. It exists as a button rather than an endpoint to call
-// by hand because the reviewer works on a phone, where there is no console.
+// Seller photos are short-lived issue-identification aids, not catalogue art.
 export default function CataloguePhotoButton() {
   const router = useRouter();
   const [working, setWorking] = useState(false);
@@ -31,6 +30,8 @@ export default function CataloguePhotoButton() {
       const attached = result.attached ?? 0;
       const missed = result.noListingFound?.length ?? 0;
       const parts = [`${attached} photo${attached === 1 ? "" : "s"} attached`];
+      if (result.alreadyFresh) parts.push(`${result.alreadyFresh} still current`);
+      if (result.expiredWithoutReplacement) parts.push(`${result.expiredWithoutReplacement} old photo${result.expiredWithoutReplacement === 1 ? "" : "s"} with no current replacement (hidden publicly)`);
       // Worth saying out loud: a graded copy is a poorer look at the issue,
       // and those are only used when no loose copy was listed.
       if (result.graded) parts.push(`${result.graded} only available as a graded copy`);
@@ -55,7 +56,7 @@ export default function CataloguePhotoButton() {
         {working ? "Looking for copies…" : "Find photos of magazine issues"}
       </button>
       <p className="catalogue-photo-note">
-        Magazine cover art is copyrighted and appears in no licensed catalogue, so these issues can never get a verified cover here. This finds a photograph of a copy currently on sale and shows it in the cover slot, badged “For sale copy”. It is not a cover and does not clear anything from this queue.
+        Checks active eBay listings for a photograph of the exact year and issue. A recently checked seller photo can appear in a separate eBay listing card, never as RAR’s catalogue cover. Old photos stop appearing publicly; staff can still verify an exact-issue image from a source with suitable reuse rights below.
       </p>
       {message ? <p role="status">{message}</p> : null}
     </div>

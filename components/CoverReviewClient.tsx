@@ -25,6 +25,8 @@ export type CoverQueueRow = {
   coverVerifiedAt: string | null;
   printingOfEditionId: string | null;
   verifiedSaleCount: number;
+  lastScanAt?: string | null;
+  lastScanNotes?: string[];
 };
 
 export type CoverCandidateRow = {
@@ -342,7 +344,18 @@ function CoverQueueRowCard({ edition, candidates, reviewer, onReviewerChange }: 
             {candidates.map((candidate) => <CoverCandidateCard candidate={candidate} edition={edition} key={candidate.id} reviewer={reviewer} />)}
           </div>
         </section>
-      ) : <p className="cover-candidate-empty">No automated candidate found yet. Run the finder above or use manual entry.</p>}
+      ) : (
+        <div className="cover-candidate-empty">
+          {edition.collectibleType === "zasshi" ? (
+            <p>Magazine issues have no ISBN, so this book-cover finder cannot check them. An exact-issue image with suitable reuse rights can still be entered below.</p>
+          ) : edition.lastScanAt ? (
+            <>
+              <p>Last checked {new Date(edition.lastScanAt).toLocaleDateString("en-GB")}; no cover is awaiting review.</p>
+              {edition.lastScanNotes?.length ? <ul>{edition.lastScanNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul> : null}
+            </>
+          ) : <p>Not checked yet. Run the finder above or use manual entry.</p>}
+        </div>
+      )}
       <details className="cover-manual-review">
         <summary>Manual cover entry or correction</summary>
         <CoverDecisionForm edition={edition} reviewer={reviewer} onReviewerChange={onReviewerChange} />
@@ -355,10 +368,12 @@ function CandidateFinder() {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
+  const [noCandidateReasons, setNoCandidateReasons] = useState<Array<{ title: string; reasons: string[] }>>([]);
 
   async function findCandidates() {
     setRunning(true);
     setMessage("");
+    setNoCandidateReasons([]);
     try {
       const response = await fetch("/api/cover-review/candidates", {
         method: "POST",
@@ -372,6 +387,10 @@ function CandidateFinder() {
         candidatesQueued?: number;
         sourceWarnings?: string[];
         providerSummary?: { googleBooks?: string; openLibrary?: string };
+        awaitingReview?: number;
+        recentlyChecked?: number;
+        dueRemaining?: number;
+        noCandidateReasons?: Array<{ title: string; reasons: string[] }>;
       };
       if (!response.ok) {
         setMessage(result.error ?? "The candidate search could not run.");
@@ -383,7 +402,9 @@ function CandidateFinder() {
           ? " Google Books reached its limit and was paused for the rest of this batch; Open Library still ran."
           : "";
       const warningNote = result.sourceWarnings?.length ? ` ${result.sourceWarnings.length} source check${result.sourceWarnings.length === 1 ? "" : "s"} reported a warning.` : "";
-      setMessage(`Checked ${result.editionsScanned ?? 0} editions. Found ${result.candidatesFound ?? 0} matching covers; ${result.candidatesQueued ?? 0} were new.${googleNote}${warningNote}`);
+      const queueNote = ` ${result.awaitingReview ?? 0} already have candidates for you to review; ${result.recentlyChecked ?? 0} were checked within 24 hours; ${result.dueRemaining ?? 0} remain due.`;
+      setNoCandidateReasons(result.noCandidateReasons ?? []);
+      setMessage(`Checked ${result.editionsScanned ?? 0} editions. Found ${result.candidatesFound ?? 0} matching covers; ${result.candidatesQueued ?? 0} were new.${queueNote}${googleNote}${warningNote}`);
       router.refresh();
     } catch {
       setMessage("The candidate search could not run. Check the connection and try again.");
@@ -394,8 +415,17 @@ function CandidateFinder() {
 
   return (
     <section className="cover-candidate-finder">
-      <div><p className="eyebrow">Automated research, human approval</p><h2>Find the next cover batch</h2><p>Checks configured sources by exact ISBN for the 20 highest-priority gaps. Open Library always runs; Google Books runs when its server-side API key is configured. Results stay staff-only until you verify them.</p></div>
-      <div><button disabled={running} onClick={findCandidates} type="button">{running ? "Checking sources…" : "Find covers for next 20"}</button>{message ? <p role="status">{message}</p> : null}</div>
+      <div><p className="eyebrow">Automated research, human approval</p><h2>Find the next cover batch</h2><p>Checks up to 20 exact-ISBN gaps that have no pending candidate and have not been checked in the last 24 hours. Open Library checks both its book record and, if needed, its direct ISBN cover image; Google Books runs when configured. Results stay staff-only until you verify them.</p></div>
+      <div>
+        <button disabled={running} onClick={findCandidates} type="button">{running ? "Checking sources…" : "Find covers for next 20"}</button>
+        {message ? <p role="status">{message}</p> : null}
+        {noCandidateReasons.length ? (
+          <details className="cover-search-reasons">
+            <summary>Why {noCandidateReasons.length} edition{noCandidateReasons.length === 1 ? "" : "s"} found no cover</summary>
+            <ul>{noCandidateReasons.map((item, index) => <li key={`${index}-${item.title}`}><strong>{item.title}</strong><span>{item.reasons.join(" · ")}</span></li>)}</ul>
+          </details>
+        ) : null}
+      </div>
     </section>
   );
 }
