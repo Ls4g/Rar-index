@@ -42,6 +42,13 @@ export const DEFAULT_OUTCOME_CHECK_LIMIT = 600;
 export const DAILY_OUTCOME_CHECK_CEILING = 2500;
 export const OUTCOME_CHECK_CONCURRENCY = 6;
 
+// An exhausted ambiguous listing has no next check. Those rows used to sort
+// ahead of every due listing and fill the 600-row batch before the in-memory
+// due guard ran. A null date is due only for an unattempted pending check.
+export function outcomeCheckQueueFilter(nowIso: string) {
+  return `and(status.eq.ended_pending_check,next_check_at.is.null),next_check_at.lte.${nowIso}`;
+}
+
 type LeadRow = {
   id: string;
   profile_id: string;
@@ -227,7 +234,7 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
     .in("status", ["ended_pending_check", "ambiguous"])
     .is("reviewed_by", null)
     .is("resulting_observation_id", null)
-    .or(`next_check_at.is.null,next_check_at.lte.${nowIso}`)
+    .or(outcomeCheckQueueFilter(nowIso))
     .order("next_check_at", { ascending: true, nullsFirst: true })
     .limit(effectiveLimit);
   if (queueError) throw new Error("RAR could not load outcome checks. Retry the pipeline; no listings were changed.");

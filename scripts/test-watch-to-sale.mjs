@@ -136,6 +136,8 @@ check("outcome provider requests use bounded concurrency", OUTCOME_CHECK_CONCURR
 const future = new Date(Date.now() + 3_600_000).toISOString();
 check("a listing that has not ended is never checked", !isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: future }));
 check("an ended listing with no scheduled check is due", isDueForCheck({ status: "ended_pending_check", next_check_at: null, scheduled_end_at: yesterday }));
+check("an exhausted ambiguous listing with no next check is not due",
+  !isDueForCheck({ status: "ambiguous", next_check_at: null, scheduled_end_at: yesterday }));
 check("a resolved listing is never rechecked", !isDueForCheck({ status: "unsold", next_check_at: null, scheduled_end_at: yesterday }));
 check("a confirmed sale is never rechecked", !isDueForCheck({ status: "review_complete", next_check_at: null, scheduled_end_at: yesterday }));
 check("a sold candidate awaiting review is not rechecked", !isDueForCheck({ status: "sold_candidate", next_check_at: null, scheduled_end_at: yesterday }));

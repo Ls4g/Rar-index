@@ -4,6 +4,7 @@ import { buildScoutLeadRow, storeScoutLeads } from "./scoutIngest.ts";
 import { loadActiveScoutRules } from "./scoutRules.ts";
 import { recordAutomaticCollectionRun } from "./collectionRunAudit.ts";
 import { SCOUT_PUBLIC_FRESHNESS_HOURS, selectScoutProfiles, type ScoutCoverageLead } from "./scoutCoverage.ts";
+import { mapScoutBatch } from "./scoutBatchConcurrency.ts";
 
 type Profile = {
   id: string;
@@ -99,12 +100,9 @@ export async function runScoutBatch(
     throw new Error("eBay did not issue RAR an application token.");
   }
 
-  let activeLeads = 0;
-  let failures = 0;
-  let scannedProfiles = 0;
   const rules = await loadActiveScoutRules(admin);
 
-  for (const profile of profiles) {
+  const scanProfile = async (profile: Profile) => {
     try {
       const listings = await findActiveEbayListings(profile.search_query, applicationToken);
       const checkedAt = new Date().toISOString();
@@ -121,14 +119,18 @@ export async function runScoutBatch(
         .eq("id", profile.id);
       if (checkedError) throw new Error("RAR could not record when this profile was checked.");
 
-      scannedProfiles += 1;
-      activeLeads += builds.length;
+      return { scannedProfiles: 1, activeLeads: builds.length, failures: 0 };
     } catch (caught) {
-      failures += 1;
       const message = caught instanceof Error ? caught.message : "Scout could not complete this scan.";
       await admin.from("scout_scans").insert({ profile_id: profile.id, provider: "ebay_browse", status: "failed", result_count: 0, error_message: message });
+      return { scannedProfiles: 0, activeLeads: 0, failures: 1 };
     }
-  }
+  };
+
+  const results = await mapScoutBatch(profiles, scanProfile);
+  const activeLeads = results.reduce((total, result) => total + result.activeLeads, 0);
+  const failures = results.reduce((total, result) => total + result.failures, 0);
+  const scannedProfiles = results.reduce((total, result) => total + result.scannedProfiles, 0);
 
   return {
     scannedProfiles,

@@ -9,7 +9,7 @@ import { agentActionExecutionKind, preflightAgentAction } from "@/lib/agentActio
 import { runScoutBatch } from "@/lib/scoutBatch";
 import { recordAgentHumanFeedback } from "@/lib/agentHumanFeedback";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

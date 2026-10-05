@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { runOutcomeChecks } from "../lib/watchToSale.ts";
+import { outcomeCheckQueueFilter, runOutcomeChecks } from "../lib/watchToSale.ts";
 
 const base = { id: "outcome", external_id: "v1|123456789012|0", marketplace: "EBAY_GB", listing_title: "Berserk Volume 1 English Dark Horse", status: "ambiguous", scheduled_end_at: "2026-08-01T00:00:00Z", next_check_at: "2026-08-02T00:00:00Z", check_attempts: 1, outcome_provider: "eBay Trading GetItem", reviewed_by: null, resulting_observation_id: null };
 function database({ auditError = false, queueError = false } = {}) {
-  const state = { row: { ...base }, audits: 0 };
+  const state = { row: { ...base }, audits: 0, queueFilter: null };
   return { state, from(table) {
     let update; let filters = [];
     const result = () => {
@@ -18,13 +18,17 @@ function database({ auditError = false, queueError = false } = {}) {
       }
       return { data: matches ? [{ ...state.row }] : [], error: queueError ? { message: "offline" } : null };
     };
-    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, is(k,v) { filters.push([k,v]); return q; }, in() { return q; }, or() { return q; }, order() { return q; }, limit() { return q; },
+    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, is(k,v) { filters.push([k,v]); return q; }, in() { return q; }, or(v) { state.queueFilter = v; return q; }, order() { return q; }, limit() { return q; },
       update(v) { update=v; return q; }, insert() { return q; }, maybeSingle: async () => result(), then(a,b) { return Promise.resolve(result()).then(a,b); } }; return q;
   }};
 }
 const signal = { signal: { provider: "eBay Trading GetItem", listingState: "completed_unsold", soldPrice: null, soldCurrency: null, soldAt: null, bidCount: 0, buyingFormat: "AUCTION", bestOfferAccepted: null, scheduledEndAt: base.scheduled_end_at, httpStatus: 200, detail: "Completed with zero quantity sold" }, httpStatus: 200, rawResponse: {} };
 const healthy = database();
 const completed = await runOutcomeChecks(healthy, 1, async () => signal);
+assert.equal(outcomeCheckQueueFilter("2026-10-05T00:00:00.000Z"),
+  "and(status.eq.ended_pending_check,next_check_at.is.null),next_check_at.lte.2026-10-05T00:00:00.000Z");
+assert.match(healthy.state.queueFilter, /^and\(status\.eq\.ended_pending_check,next_check_at\.is\.null\),next_check_at\.lte\./,
+  "resolved ambiguous rows with no next check must not fill the capped batch");
 assert.equal(healthy.state.row.status, "unsold");
 assert.equal(completed.unsold, 1);
 assert.equal(healthy.state.audits, 1);

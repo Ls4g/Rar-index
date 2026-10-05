@@ -2,6 +2,20 @@ import assert from "node:assert/strict";
 import { buildMarketplaceQuery } from "../lib/marketplaceQuery.ts";
 import { canSeedScoutProfile } from "../lib/scoutProfileSeed.ts";
 import { publicListingCoverage, SCOUT_MAINTENANCE_SLOTS, selectScoutProfiles, surplusScoutLeadIds } from "../lib/scoutCoverage.ts";
+import { mapScoutBatch, SCOUT_BATCH_CONCURRENCY } from "../lib/scoutBatchConcurrency.ts";
+
+let runningScans = 0;
+let peakScans = 0;
+const scannedIds = await mapScoutBatch(Array.from({ length: 9 }, (_, index) => index), async (index) => {
+  runningScans += 1;
+  peakScans = Math.max(peakScans, runningScans);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  runningScans -= 1;
+  return index;
+});
+assert.equal(SCOUT_BATCH_CONCURRENCY, 4, "staff scans use the proven daily Scout parallelism");
+assert.equal(peakScans, 4, "the manual batch makes progress without exceeding its concurrency bound");
+assert.deepEqual(scannedIds, Array.from({ length: 9 }, (_, index) => index), "each profile is scanned once, in its selected order");
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 const edition = { title: "One Piece 1", series: "One Piece", volume_number: 1, language: "Japanese", isbn_13: "9784088725093", publisher: "Shueisha", format: "Paperback" };
