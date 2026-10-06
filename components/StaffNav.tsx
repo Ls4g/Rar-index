@@ -15,6 +15,7 @@ const MORE_GROUPS: NavGroup[] = [
     label: "Operations",
     links: [
       { href: "/scout", label: "Live listing Scout" },
+      { href: "/graded-revisit", label: "Graded copies to revisit" },
       { href: "/agents", label: "Agent runs and health" },
     ],
   },
