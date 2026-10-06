@@ -4695,6 +4695,8 @@ html .edition-page .price-history-multi {
 .graded-revisit-edition strong a { color: var(--ink); }
 .graded-revisit-edition small { max-width: 680px; margin-top: .3rem; color: var(--muted); font-size: .7rem; line-height: 1.4; overflow-wrap: anywhere; }
 .graded-revisit-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.graded-revisit-sale { display: inline-flex; align-items: center; min-height: 2.6rem; border: 1px solid var(--action); border-radius: .45rem; padding: .55rem .7rem; background: var(--action); color: #fff; font-size: .72rem; font-weight: 800; text-decoration: none; }
+.graded-revisit-sale:hover { filter: brightness(.9); }
 .graded-revisit-actions input { width: 170px; }
 .graded-revisit-actions button { min-height: 2.6rem; border: 1px solid var(--action); border-radius: .45rem; padding: .55rem .7rem; background: var(--action); color: #fff; font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .graded-revisit-actions button:last-child { border-color: var(--line); background: transparent; color: var(--ink); }
@@ -4702,13 +4704,15 @@ html .edition-page .price-history-multi {
 .graded-revisit-done { color: var(--muted); font-size: .72rem; font-weight: 700; }
 .graded-revisit-message, .graded-revisit-empty, .graded-revisit-footer { padding: .8rem 0; color: var(--ink); font-size: .8rem; line-height: 1.5; }
 .graded-revisit-footer { margin-top: 1.3rem; color: var(--muted); }
+.graded-revisit-confirmation { max-width: 1120px; margin: 0 auto 1.25rem; padding: .85rem 1.5rem; border-left: 4px solid #267655; background: rgba(38, 118, 85, .09); color: var(--ink); font-size: .83rem; font-weight: 700; }
 @media (max-width: 700px) {
   .graded-revisit-workspace { padding: 0 1rem 3rem; }
   .graded-revisit-toolbar, .graded-revisit-card-top { display: grid; }
   .graded-revisit-reviewer, .graded-revisit-reviewer input { width: 100%; }
   .graded-revisit-card { padding: 1rem; }
   .graded-revisit-source { width: fit-content; }
-  .graded-revisit-actions, .graded-revisit-actions input, .graded-revisit-actions button { width: 100%; }
+  .graded-revisit-actions, .graded-revisit-actions input, .graded-revisit-actions button, .graded-revisit-sale { width: 100%; }
+  .graded-revisit-confirmation { margin-inline: 1rem; }
 }
 
 @media (max-width: 760px) {

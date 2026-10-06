@@ -21,6 +21,7 @@ export type GradedRevisitGroup = {
   currency: string | null;
   lastSeenAt: string;
   outcomeStatus: string | null;
+  recordedSaleEditionId: string | null;
   leads: GradedRevisitLead[];
 };
 
@@ -114,24 +115,31 @@ export default function GradedRevisitQueue({ initialGroups }: { initialGroups: G
               </div>
               <a className="graded-revisit-source" href={group.url} rel="noreferrer" target="_blank">Open original eBay listing ↗</a>
             </div>
-            <p className="graded-revisit-outcome">{outcomeLabel(group.outcomeStatus)}. A missing or uncertain outcome is not proof of a sale.</p>
+            <p className="graded-revisit-outcome">{group.recordedSaleEditionId
+              ? "A verified sale has already been recorded for this eBay listing. It has left the revisit queue."
+              : `${outcomeLabel(group.outcomeStatus)}. A missing or uncertain outcome is not proof of a sale.`}</p>
             {group.leads.filter((lead) => view === "pending" ? lead.pending : !lead.pending).map((lead) => (
               <div className="graded-revisit-edition" key={lead.id}>
                 <div>
                   <strong>{lead.editionId ? <Link href={`/edition/${lead.editionId}`} target="_blank">{lead.editionTitle} ↗</Link> : lead.editionTitle}</strong>
                   <small>Original decision: dismissed as graded{lead.originalNote ? ` · ${lead.originalNote}` : ""}</small>
                 </div>
-                {lead.pending ? <div className="graded-revisit-actions">
-                  <input aria-label={`Optional note for ${lead.editionTitle}`} onChange={(event) => setNotes((current) => ({ ...current, [lead.id]: event.target.value }))} placeholder="Optional note" value={notes[lead.id] ?? ""} />
-                  <button disabled={savingId !== null || group.outcomeStatus === "unsold" || group.outcomeStatus === "review_complete"} onClick={() => decide(lead.id, "watching")} type="button">Reopen in Scout if still live</button>
-                  <button disabled={savingId !== null} onClick={() => decide(lead.id, "dismissed")} type="button">Keep archived</button>
-                </div> : <span className="graded-revisit-done">{lead.reviewStatus === "watching" ? "Reopened in Scout" : "Kept archived"}</span>}
+                <div className="graded-revisit-actions">
+                  {!group.recordedSaleEditionId && lead.editionId ? <Link className="graded-revisit-sale" href={`/add-sale?gradedLeadId=${encodeURIComponent(lead.id)}#graded-approved-sale`}>Record graded sale →</Link> : null}
+                  {lead.pending ? <>
+                    <input aria-label={`Optional note for ${lead.editionTitle}`} onChange={(event) => setNotes((current) => ({ ...current, [lead.id]: event.target.value }))} placeholder="Optional note for Scout decision" value={notes[lead.id] ?? ""} />
+                    <button disabled={savingId !== null || group.outcomeStatus === "unsold" || group.outcomeStatus === "review_complete"} onClick={() => decide(lead.id, "watching")} type="button">Reopen in Scout if still live</button>
+                    <button disabled={savingId !== null} onClick={() => decide(lead.id, "dismissed")} type="button">Keep archived</button>
+                  </> : <span className="graded-revisit-done">{group.recordedSaleEditionId
+                    ? lead.editionId === group.recordedSaleEditionId ? "Sale recorded for this edition" : "Sale recorded for another edition"
+                    : lead.reviewStatus === "watching" ? "Reopened in Scout" : "Kept archived"}</span>}
+                </div>
               </div>
             ))}
           </article>
         ))}
       </div>
-      <p className="graded-revisit-footer">If the eBay page proves a completed sale, use <Link href="/add-sale">Add sale</Link> with the exact edition, grade, sold price and original source. Reopening here never creates a sale or chart point.</p>
+      <p className="graded-revisit-footer">Record graded sale opens the existing one-step sales form with this listing and edition filled in. Confirm the completed sale, actual paid price and exact grade there. The saved asking price is never used as a sale price.</p>
     </section>
   );
 }

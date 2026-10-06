@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- staff-only eBay evidence URLs are arbitrary and short-lived */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
 import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
@@ -36,6 +36,7 @@ type EbayEvidence = {
   bestOffer: boolean;
   detail: string;
 };
+type GradedLeadPrefill = { leadId: string; editionId: string; sourceListingUrl: string; externalId: string; listingTitle: string };
 
 function editionLabel(edition: Edition) {
   return [
@@ -48,26 +49,27 @@ function editionLabel(edition: Edition) {
   ].filter(Boolean).join(" | ");
 }
 
-export default function QuickSaleForm({ initialEditionId = "" }: { initialEditionId?: string }) {
+export default function QuickSaleForm({ initialEditionId = "", initialGradedLead = null }: { initialEditionId?: string; initialGradedLead?: GradedLeadPrefill | null }) {
   const router = useRouter();
+  const initialLookupStarted = useRef(false);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Edition[]>([]);
   const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [sourceId, setSourceId] = useState("");
   const [submittedText, setSubmittedText] = useState("");
-  const [sourceListingUrl, setSourceListingUrl] = useState("");
-  const [externalId, setExternalId] = useState("");
-  const [listingTitle, setListingTitle] = useState("");
+  const [sourceListingUrl, setSourceListingUrl] = useState(initialGradedLead?.sourceListingUrl ?? "");
+  const [externalId, setExternalId] = useState(initialGradedLead?.externalId ?? "");
+  const [listingTitle, setListingTitle] = useState(initialGradedLead?.listingTitle ?? "");
   const [soldDate, setSoldDate] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [shippingPrice, setShippingPrice] = useState("");
   const [currency, setCurrency] = useState("GBP");
   const [quantity, setQuantity] = useState("1");
   const [saleType, setSaleType] = useState<SaleType>("unknown");
-  const [isGraded, setIsGraded] = useState(false);
-  const [gradingCompany, setGradingCompany] = useState("");
-  const [gradeLabel, setGradeLabel] = useState("");
+  const [isGraded, setIsGraded] = useState(Boolean(initialGradedLead));
+  const [gradingCompany, setGradingCompany] = useState(() => detectGrading(initialGradedLead?.listingTitle ?? "").company);
+  const [gradeLabel, setGradeLabel] = useState(() => detectGrading(initialGradedLead?.listingTitle ?? "").grade);
   const [printClassification, setPrintClassification] = useState<PrintClassification>("printing_not_identified");
   const [printingProofUrl, setPrintingProofUrl] = useState("");
   const [knownPrintingNumber, setKnownPrintingNumber] = useState("");
@@ -131,7 +133,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
   function resetEdition() {
     setSelectedEdition(null);
     setQuery("");
-    if (initialEditionId) router.replace("/add-sale", { scroll: false });
+    if (initialEditionId && !initialGradedLead) router.replace("/add-sale", { scroll: false });
   }
 
   function changeListingUrl(value: string) {
@@ -160,15 +162,15 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     setMessage("RAR filled what it could from your pasted evidence. Check every field before approval.");
   }
 
-  async function fillFromEbay() {
-    if (!sourceListingUrl.trim()) {
+  const fillFromEbay = useCallback(async (listingUrl = sourceListingUrl) => {
+    if (!listingUrl.trim()) {
       setMessage("Paste the eBay sold-listing link first.");
       return;
     }
     setLookupLoading(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/add-sale?listingUrl=${encodeURIComponent(sourceListingUrl.trim())}`);
+      const response = await fetch(`/api/add-sale?listingUrl=${encodeURIComponent(listingUrl.trim())}`);
       const data = await response.json() as { evidence?: EbayEvidence; error?: string };
       if (!response.ok || !data.evidence) throw new Error(data.error ?? "eBay could not load this listing.");
       const evidence = data.evidence;
@@ -182,12 +184,10 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       setEvidenceImages(evidence.imageUrls);
       const format = (evidence.buyingFormat ?? "").toUpperCase();
       setSaleType(evidence.bestOffer ? "best_offer" : format.includes("AUCTION") ? "auction" : format ? "fixed_price" : "unknown");
-      const grading = detectGrading(evidence.title);
-      setIsGraded(grading.isGraded);
+      const grading = detectGrading(`${evidence.title}\n${initialGradedLead?.listingTitle ?? ""}`);
+      setIsGraded(Boolean(initialGradedLead) || grading.isGraded);
       setGradingCompany(grading.company ?? "");
       setGradeLabel(grading.grade ?? "");
-      const ebaySource = sources.find((source) => source.name === "eBay Sold");
-      if (ebaySource) setSourceId(ebaySource.id);
       setMessage(evidence.bestOffer
         ? "eBay confirmed the sale and filled the listing. Copy the accepted item price now shown on the original sold page, then approve."
         : "eBay confirmed the sale and filled the available details. Check the printing choice, then approve once.");
@@ -196,7 +196,13 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
     } finally {
       setLookupLoading(false);
     }
-  }
+  }, [sourceListingUrl, initialGradedLead]);
+
+  useEffect(() => {
+    if (!initialGradedLead || initialLookupStarted.current) return;
+    initialLookupStarted.current = true;
+    void fillFromEbay(initialGradedLead.sourceListingUrl);
+  }, [initialGradedLead, fillFromEbay]);
 
   function applyTitleSignals() {
     if (liveDetection.grading.isGraded) {
@@ -272,6 +278,10 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       });
       const data = await response.json() as { observationId?: string; error?: string };
       if (!response.ok) throw new Error(data.error ?? "The approved listing could not be saved.");
+      if (initialGradedLead) {
+        router.push("/graded-revisit?recorded=1");
+        return;
+      }
       setMessage("Approved sale added as verified market evidence. No second review is required.");
       clearSale();
     } catch (error) {
@@ -324,7 +334,7 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
       <div className="quick-sale-step"><span>2</span><div><strong>Paste the eBay sold-listing link</strong><p>RAR makes one targeted eBay request and fills everything the marketplace exposes.</p></div></div>
       <div className="quick-sale-grid">
         <label className="quick-sale-wide">eBay sold-listing link<input required type="url" value={sourceListingUrl} onChange={(event) => changeListingUrl(event.target.value)} placeholder="https://www.ebay.co.uk/itm/..." /></label>
-        <div className="quick-sale-wide submitted-evidence-action"><button type="button" disabled={lookupLoading} onClick={fillFromEbay}>{lookupLoading ? "Reading eBay..." : "Fill details from eBay"}</button><p>One request for this listing only. No background item-page scraping.</p></div>
+        <div className="quick-sale-wide submitted-evidence-action"><button type="button" disabled={lookupLoading} onClick={() => void fillFromEbay()}>{lookupLoading ? "Reading eBay..." : "Fill details from eBay"}</button><p>One request for this listing only. No background item-page scraping.</p></div>
         {evidenceImages.length ? <div className="quick-sale-wide ebay-evidence-images"><strong>Listing photos</strong><div>{evidenceImages.slice(0, 12).map((imageUrl) => <button className={printingProofUrl === imageUrl ? "selected" : ""} type="button" key={imageUrl} onClick={() => setPrintingProofUrl(imageUrl)} title="Use this as printing proof"><img src={imageUrl} alt="eBay listing evidence" /><span>{printingProofUrl === imageUrl ? "Selected as proof" : "Use as print proof"}</span></button>)}</div></div> : null}
         <label>Marketplace source<select required value={sourceId} onChange={(event) => setSourceId(event.target.value)}><option value="">Choose source</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.name ?? "Unnamed marketplace"}</option>)}</select></label>
         <label>Marketplace listing ID<input value={externalId} onChange={(event) => setExternalId(event.target.value)} placeholder="Read from eBay URL when possible" /></label>
@@ -367,10 +377,10 @@ export default function QuickSaleForm({ initialEditionId = "" }: { initialEditio
 
       <div className="quick-sale-submit approved-listing-submit"><button type="submit" disabled={loading}>{loading ? "Saving decision..." : "Approve listing and add verified sale"}</button><p>This button is the confirmation. It creates the verified sale, printing decision and audit record in one step.</p></div>
 
-      <details className="reject-submitted-listing">
+      {!initialGradedLead ? <details className="reject-submitted-listing">
         <summary>Not suitable? Record a rejection for agent learning</summary>
         <div><label>Reason<select value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)}><option value="">Choose reason</option><option value="wrong_edition">Wrong edition or volume</option><option value="not_completed">Not a completed sale</option><option value="best_offer_unconfirmed">Best Offer price unconfirmed</option><option value="multi_volume_lot">Multi-volume lot</option><option value="duplicate_listing">Already recorded</option><option value="insufficient_evidence">Not enough evidence</option><option value="other">Other</option></select></label><button type="button" disabled={loading || !rejectionReason} onClick={rejectCandidate}>Record rejection</button></div>
-      </details>
+      </details> : null}
     </> : null}
     {message ? <p className="quick-sale-message" role="status">{message}</p> : null}
   </form>;

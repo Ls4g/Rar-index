@@ -15,12 +15,14 @@ type LeadRow = {
 type DecisionRow = { id: string; lead_id: string; decision_notes: string | null; created_at: string };
 type ProfileRow = { id: string; edition_id: string; edition: { title: string | null; series: string | null; volume_number: number | null; language: string | null } | null };
 type OutcomeRow = { external_id: string; status: string };
+type SaleRow = { external_id: string; edition_id: string };
 
 function later(a: { created_at: string; id: string }, b: { created_at: string; id: string }) {
   return a.created_at > b.created_at || (a.created_at === b.created_at && a.id > b.id);
 }
 
-export default async function GradedRevisitPage() {
+export default async function GradedRevisitPage({ searchParams }: { searchParams: Promise<{ recorded?: string }> }) {
+  const { recorded } = await searchParams;
   const admin = getSupabaseAdmin();
   const { data: labelData, error: labelError } = await admin
     .from("scout_decision_labels")
@@ -41,14 +43,24 @@ export default async function GradedRevisitPage() {
   const decisions = (decisionResult.data ?? []) as DecisionRow[];
   const profileIds = [...new Set(leads.map((row) => row.profile_id))];
   const externalIds = [...new Set(leads.map((row) => row.external_id))];
-  const [profileResult, outcomeResult] = await Promise.all([
+  const [profileResult, outcomeResult, soldSourceResult] = await Promise.all([
     profileIds.length ? admin.from("marketplace_search_profiles")
       .select("id,edition_id,edition:manga_editions(title,series,volume_number,language)")
       .in("id", profileIds) : Promise.resolve({ data: [], error: null }),
     externalIds.length ? admin.from("listing_outcomes").select("external_id,status").in("external_id", externalIds) : Promise.resolve({ data: [], error: null }),
+    admin.from("sources").select("id").eq("name", "eBay Sold").maybeSingle(),
   ]);
+  const saleResult = externalIds.length && soldSourceResult.data?.id
+    ? await admin.from("price_observations")
+      .select("external_id,edition_id")
+      .eq("source_id", soldSourceResult.data.id)
+      .in("external_id", externalIds)
+      .eq("is_verified", true)
+      .eq("match_status", "verified_match")
+      .eq("sale_status", "confirmed")
+    : { data: [], error: null };
 
-  const error = labelError || leadResult.error || decisionResult.error || profileResult.error || outcomeResult.error;
+  const error = labelError || leadResult.error || decisionResult.error || profileResult.error || outcomeResult.error || soldSourceResult.error || saleResult.error;
   const latestLabel = new Map<string, LabelRow>();
   for (const label of labels) {
     const current = latestLabel.get(label.lead_id);
@@ -62,6 +74,7 @@ export default async function GradedRevisitPage() {
   }
   const profiles = new Map(((profileResult.data ?? []) as unknown as ProfileRow[]).map((row) => [row.id, row]));
   const outcomes = new Map(((outcomeResult.data ?? []) as OutcomeRow[]).map((row) => [row.external_id, row.status]));
+  const recordedSales = new Map(((saleResult.data ?? []) as SaleRow[]).map((row) => [row.external_id, row.edition_id]));
   const groupMap = new Map<string, GradedRevisitGroup>();
   for (const lead of leads) {
     const label = latestLabel.get(lead.id);
@@ -77,6 +90,7 @@ export default async function GradedRevisitPage() {
       currency: lead.currency,
       lastSeenAt: lead.last_seen_at,
       outcomeStatus: outcomes.get(lead.external_id) ?? null,
+      recordedSaleEditionId: recordedSales.get(lead.external_id) ?? null,
       leads: [],
     };
     if (lead.last_seen_at > group.lastSeenAt) {
@@ -91,7 +105,7 @@ export default async function GradedRevisitPage() {
       editionId: profile?.edition_id ?? null,
       editionTitle: [edition?.series || edition?.title || "Edition", edition?.volume_number ? `Vol. ${edition.volume_number}` : null, edition?.language].filter(Boolean).join(" · "),
       reviewStatus: lead.review_status,
-      pending: lead.review_status === "dismissed" && latestDecision.get(lead.id)?.id === label.decision_id,
+      pending: !recordedSales.has(lead.external_id) && lead.review_status === "dismissed" && latestDecision.get(lead.id)?.id === label.decision_id,
       originalNote: decisionById.get(label.decision_id)?.decision_notes ?? null,
     });
     groupMap.set(key, group);
@@ -113,11 +127,12 @@ export default async function GradedRevisitPage() {
         <div>
           <p className="eyebrow">Scout · separate research queue</p>
           <h1>Graded copies to revisit</h1>
-          <p>These are the listings you dismissed because they were graded, not raw. Recheck each original listing when you have time. An asking price or a missing listing is never a verified sale.</p>
+          <p>These are the listings you dismissed because they were graded, not raw. If the original eBay page proves a completed sale, record it directly; you do not need to reopen a live listing first. An asking price or a missing listing is never sale evidence.</p>
           <Link className="header-note" href="/scout">← Back to live listing Scout</Link>
         </div>
         <div className="queue-total"><strong>{groups.length}</strong><span>distinct graded listings saved · {leads.length} edition decisions retained</span></div>
       </section>
+      {recorded === "1" ? <p className="graded-revisit-confirmation" role="status">Graded sale recorded. Its listing has moved out of “To revisit”; the original Scout dismissal remains in the audit history.</p> : null}
       {error ? <section className="catalogue-content"><p role="alert">The graded queue could not load fully. Please refresh before making decisions.</p></section> : <GradedRevisitQueue initialGroups={groups} />}
     </main>
   );
