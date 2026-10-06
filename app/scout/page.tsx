@@ -175,6 +175,7 @@ export default async function ScoutPage() {
         <Link className="brand" href="/" aria-label="RAR Index home"><span className="brand-mark">R</span><span>RAR</span><em>Index</em></Link>
         <Link className="header-note" href="/coverage-dashboard">Coverage dashboard →</Link>
         <Link className="header-note" href="/collection-profiles">Collection profiles →</Link>
+        <Link className="header-note" href="/graded-revisit">Graded copies to revisit →</Link>
         <StaffNav current="/scout" />
       </header>
       <section className="review-hero">
@@ -182,6 +183,7 @@ export default async function ScoutPage() {
           <p className="eyebrow">RAR Scout</p>
           <h1>Scout triage inbox</h1>
           <p>Scout finds currently available listings using the official eBay Browse API. These are research leads only: they never enter sales history, valuation, or charts. Definitive edition conflicts are safely archived, stale leads are separated from the current queue, and a bounded availability refresh rechecks old records directly with eBay. No agent can verify a sale or overwrite a staff decision ({autoDismissedCount ?? 0} earlier ingestion conflicts archived).</p>
+          <Link className="staff-health-link" href="/graded-revisit">Review previously dismissed graded copies →</Link>
           <ScoutBatchRunButton />
         </div>
         {/* Dismissed leads are decisions already made, not work outstanding.
