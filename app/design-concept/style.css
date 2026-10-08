@@ -11,6 +11,39 @@
   min-height: 100vh;
   font-family: var(--font-sans);
 }
+html[data-theme="night"] .rar-concept {
+  --rc-ink: var(--rar-ink);
+  --rc-muted: var(--rar-muted);
+  --rc-paper: var(--rar-canvas);
+  --rc-white: var(--rar-surface);
+  --rc-line: var(--rar-line);
+  --rc-accent: var(--rar-red);
+  --ink: var(--rc-ink);
+  --muted: var(--rc-muted);
+  --paper: var(--rc-paper);
+  --line: var(--rc-line);
+  --canvas-heading: var(--rc-ink);
+  --surface-card: var(--rc-white);
+  --surface-chip: var(--rc-white);
+  --red: var(--rc-accent);
+  --gold: var(--rc-accent);
+  --accent-positive-text: #80d9b6;
+}
+html[data-theme="night"] .rar-concept .price-chart-wrap,
+html[data-theme="night"] .rar-concept .ghost-chart {
+  background: var(--rc-white);
+  border-color: var(--rc-line);
+}
+html[data-theme="night"] .rar-concept .chart-tooltip,
+html[data-theme="night"] .rar-concept .price-things-to-know {
+  background: var(--rc-white);
+  border-color: var(--rc-line);
+  color: var(--rc-ink);
+}
+html[data-theme="night"] .rar-concept .price-things-to-know summary,
+html[data-theme="night"] .rar-concept .price-things-to-know ul {
+  color: var(--rc-muted);
+}
 .rar-concept * { box-sizing: border-box; }
 .rar-concept-container { width: min(1320px, calc(100% - 88px)); margin-inline: auto; }
 .rar-concept a { text-decoration: none; }
@@ -21,15 +54,16 @@
 .rar-concept-logo b { display: grid; place-items: center; width: 29px; height: 29px; margin-right: 4px; background: var(--rc-accent); color: #fff; font-size: 19px; }
 .rar-concept-logo small { align-self: flex-end; margin-bottom: 3px; color: var(--rc-accent); font-size: 11px; font-weight: 800; letter-spacing: .15em; }
 .rar-concept-header nav { display: flex; align-items: center; gap: clamp(16px, 2.4vw, 34px); }
+.rar-concept-header nav .theme-toggle { flex: none; }
 .rar-concept-header nav a { font-size: 13px; font-weight: 650; white-space: nowrap; }
 .rar-concept-header nav a:hover, .rar-concept-section-heading > a:hover, .rar-concept-product-link:hover { color: var(--rc-accent); }
 .rar-concept-header-cta { padding: 11px 17px; border: 1px solid var(--rc-ink); border-radius: 3px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .rar-concept-header-cta span { margin-left: 10px; }
-.rar-public-header { --rc-ink: #17191c; --rc-line: #e4e6e4; --rc-white: #fff; --rc-accent: #ad382c; color: #17191c; font-family: var(--font-sans); }
+.rar-public-header { --rc-ink: var(--rar-ink); --rc-line: var(--rar-line); --rc-white: var(--rar-surface); --rc-accent: var(--rar-red); color: var(--rc-ink); font-family: var(--font-sans); }
 .rar-public-header a { color: inherit; text-decoration: none; }
 .rar-public-header .rar-concept-logo b { color: #fff; }
-.rar-public-header .rar-concept-logo small { color: #ad382c; }
-.rar-public-header-secondary { color: #656b70 !important; font-size: 11px !important; }
+.rar-public-header .rar-concept-logo small { color: var(--rc-accent); }
+.rar-public-header-secondary { color: var(--rar-muted) !important; font-size: 11px !important; }
 .rar-public-header .theme-toggle { flex: none; }
 .rar-public-header .theme-toggle button { font-size: 10px; }
 .rar-concept-kicker { margin: 0 0 14px; color: var(--rc-accent); font-size: 11px; font-weight: 850; letter-spacing: .15em; }
@@ -38,7 +72,7 @@
 .rar-concept-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(430px, 48%); gap: clamp(36px, 5vw, 76px); align-items: center; padding-block: 80px 96px; }
 .rar-concept-hero-copy h1 { margin: 0 0 24px; font-size: clamp(52px, 5.5vw, 88px); line-height: .98; }
 .rar-concept-hero-copy h1 em { color: var(--rc-accent); font-style: normal; }
-.rar-concept-hero-copy > p:not(.rar-concept-kicker) { max-width: 530px; margin-bottom: 30px; color: #555c5f; font-size: clamp(16px, 1.4vw, 19px); line-height: 1.55; }
+.rar-concept-hero-copy > p:not(.rar-concept-kicker) { max-width: 530px; margin-bottom: 30px; color: var(--rc-muted); font-size: clamp(16px, 1.4vw, 19px); line-height: 1.55; }
 .rar-concept-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .rar-concept-button { display: inline-flex; justify-content: center; align-items: center; gap: 20px; min-height: 48px; padding: 12px 22px; border-radius: 3px; font-size: 13px; font-weight: 750; }
 .rar-concept-button.is-primary { background: var(--rc-accent); color: #fff; }
@@ -47,14 +81,14 @@
 .rar-concept-button.is-secondary:hover { border-color: var(--rc-ink); }
 .rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: transparent; }
 .rar-concept-hero-feature-ink { position: absolute; inset: -8px 0 54px 0; z-index: -1; background: url("/rar-one-piece-cover-sketch-v2.png") center right / contain no-repeat; opacity: .35; filter: grayscale(1); mix-blend-mode: multiply; }
-.rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: #554e47; font-size: 10px; font-weight: 850; letter-spacing: .15em; }
+.rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: var(--rc-muted); font-size: 10px; font-weight: 850; letter-spacing: .15em; }
 .rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; }
 .rar-concept-hero-feature-book .edition-cover { height: 350px; }
 .rar-concept-hero-feature-bottom { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; display: flex; align-items: end; justify-content: space-between; gap: 15px; border-top: 1px solid rgba(52, 45, 38, .22); padding-top: 14px; }
 .rar-concept-hero-feature-bottom div { display: grid; gap: 2px; }
-.rar-concept-hero-feature-bottom small { margin-bottom: 4px; color: #70665d; font-size: 9px; font-weight: 850; letter-spacing: .15em; }
+.rar-concept-hero-feature-bottom small { margin-bottom: 4px; color: var(--rc-muted); font-size: 9px; font-weight: 850; letter-spacing: .15em; }
 .rar-concept-hero-feature-bottom strong { font-size: 23px; line-height: 1.1; }
-.rar-concept-hero-feature-bottom div span { color: #625c56; font-size: 11px; }
+.rar-concept-hero-feature-bottom div span { color: var(--rc-muted); font-size: 11px; }
 .rar-concept-hero-feature-bottom > a { flex: none; padding-bottom: 3px; border-bottom: 1px solid currentColor; font-size: 11px; font-weight: 800; }
 .rar-concept-catalogue { padding: 82px 0 94px; background: var(--rc-white); border-top: 1px solid var(--rc-line); }
 .rar-concept-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 38px; }
@@ -63,9 +97,9 @@
 .rar-concept-browse-layout { display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 44px; }
 .rar-concept-browse-layout aside { display: flex; flex-direction: column; align-items: start; gap: 16px; border-top: 1px solid var(--rc-line); padding-top: 17px; }
 .rar-concept-browse-layout aside p { margin-bottom: 3px; font-size: 11px; font-weight: 850; letter-spacing: .14em; }
-.rar-concept-browse-layout aside a { font-size: 13px; color: #4b5052; }
+.rar-concept-browse-layout aside a { font-size: 13px; color: var(--rc-muted); }
 .rar-concept-browse-layout aside a[aria-current] { color: var(--rc-accent); font-weight: 800; }
-.rar-concept-browse-layout aside span { margin-top: 13px; color: #8a8d8d; font-size: 11px; }
+.rar-concept-browse-layout aside span { margin-top: 13px; color: var(--rc-muted); font-size: 11px; }
 .rar-concept-book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 38px 25px; }
 .rar-concept-book { display: flex; flex-direction: column; min-width: 0; }
 .rar-concept-book-image { display: grid; place-items: center; height: clamp(180px, 23vw, 270px); margin-bottom: 13px; padding: 9px; }
@@ -114,7 +148,7 @@
 .rar-concept-buy { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding-block: 88px; }
 .rar-concept-buy > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
 .rar-concept-buy > a { flex: none; border: 1px solid var(--rc-ink); padding: 14px 20px; font-size: 13px; font-weight: 700; }
-.rar-concept-join { display: grid; grid-template-columns: 62% 38%; min-height: 540px; background: #fff; }
+.rar-concept-join { display: grid; grid-template-columns: 62% 38%; min-height: 540px; background: var(--rc-white); }
 .rar-concept-join-wall { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; align-items: center; overflow: hidden; padding: 24px; background: #9d3029; }
 .rar-concept-join-wall > div { display: grid; place-items: center; height: 205px; padding: 10px; }
 .rar-concept-join-wall .edition-cover { height: 100%; max-width: 100%; }
@@ -133,12 +167,13 @@
   .rar-concept-container { width: min(100% - 36px, 560px); }
   .rar-concept-previewbar { padding: 8px 18px; font-size: 10px; }
   .rar-concept-header { flex-wrap: wrap; gap: 0; padding: 15px 18px 0; }
-  .rar-concept-header nav { order: 3; width: 100%; gap: 19px; margin-top: 15px; overflow-x: auto; padding-bottom: 15px; }
+  .rar-concept-header nav { order: 3; width: 100%; flex-wrap: wrap; gap: 12px 19px; margin-top: 15px; overflow: visible; padding-bottom: 15px; }
+  .rar-concept-header nav .theme-toggle { margin-left: auto; }
   .rar-concept-header nav a { font-size: 12px; }
-  .rar-public-header nav { justify-content: space-between; gap: 10px; overflow: visible; }
+  .rar-public-header nav { justify-content: flex-start; gap: 12px; }
   .rar-public-header nav a[href="/request-edition"] { display: none; }
   .rar-concept-header-cta { margin-left: auto; padding: 9px 11px; }
-  .rar-public-header .theme-toggle { display: none; }
+  .rar-public-header .theme-toggle { display: inline-flex; }
   .rar-concept-hero { padding-block: 55px 65px; gap: 35px; }
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
   .rar-concept-hero-feature { min-height: 435px; }
@@ -218,3 +253,6 @@
 @media (prefers-reduced-motion: reduce) {
   .rar-concept .edition-cover.has-image { transition: none; }
 }
+html[data-theme="night"] .rar-concept-hero-feature-ink { filter: grayscale(1) invert(1); mix-blend-mode: screen; opacity: .22; }
+html[data-theme="night"] .rar-concept-hero-feature-bottom { border-top-color: var(--rc-line); }
+html[data-theme="night"] .rar-concept-button.is-secondary { border-color: var(--rc-line); }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 import EditionCover from "@/components/EditionCover";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
@@ -109,7 +110,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
         <header className="rar-concept-header">
           <Link className="rar-concept-logo" href={preview ? "#home" : "/"} aria-label="RAR home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
           <nav aria-label="Main navigation">
-            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>Editions</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link><Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>}
+            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>Editions</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link><Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>}<ThemeToggle />
           </nav>
           <Link className="rar-concept-header-cta" href={preview ? "#join" : "/portfolio"}>Your shelf <span>↗</span></Link>
         </header>

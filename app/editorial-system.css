@@ -373,6 +373,15 @@ html[data-theme="night"] :is(.home-page, .edition-page) {
 .staff-nav-panel a:hover { background: var(--rar-surface-soft); }
 .staff-nav-panel a.is-current { background: var(--rar-red-soft); color: var(--rar-red); }
 
+/* Legacy decision/outcome labels used dark Day colours on Night cards. */
+html[data-theme="night"] .review-page .human-decision-banner.is-ok { color: #80d9b6; }
+html[data-theme="night"] .review-page .human-decision-banner.is-error { color: #ff9f90; }
+html[data-theme="night"] .review-page :is(.human-decision-question span, .human-decision-facts b, .human-decision-actions a) { color: #e4bd75; }
+html[data-theme="night"] .review-page .human-decision-actions button.is-no { color: #ff9f90; }
+html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-sold { color: #80d9b6; }
+html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-ended { color: #ff9f90; }
+html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-live { color: #9bbfff; }
+
 @media (max-width: 1180px) {
   .public-site-header .brand small { display: none; }
   .public-site-header .public-header-nav { gap: 1rem; }

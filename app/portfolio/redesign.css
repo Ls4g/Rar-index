@@ -1,7 +1,7 @@
 .portfolio-page .portfolio-auth {
   display: grid; grid-template-columns: minmax(0, 58%) minmax(330px, 42%);
   align-items: stretch; gap: 0; width: 100%; max-width: none; min-height: min(850px, calc(100dvh - 68px));
-  margin: 0; padding: 0; background: #fff;
+  margin: 0; padding: 0; background: var(--rar-surface);
 }
 .portfolio-page .portfolio-auth-intro {
   position: relative; display: flex; align-items: end; isolation: isolate; min-width: 0;
@@ -26,12 +26,12 @@
 .portfolio-page .portfolio-preview-grid { display: none; }
 .portfolio-page .portfolio-auth-form {
   align-self: center; width: min(470px, calc(100% - 60px)); margin: 60px auto; padding: 0;
-  border: 0; border-radius: 0; background: #fff; box-shadow: none;
+  border: 0; border-radius: 0; background: var(--rar-surface); box-shadow: none;
 }
-.portfolio-page .portfolio-auth-form > .eyebrow { margin: 8px 0 0; color: #ad382c; }
-.portfolio-page .portfolio-auth-form label { color: #4b5052; font-size: .72rem; }
-.portfolio-page .portfolio-auth-form input { min-height: 52px; border-radius: 3px; background: #fff; color: #17191c; }
-.portfolio-page .portfolio-auth-form button[type="submit"] { justify-self: stretch; min-height: 52px; border-radius: 3px; background: #ad382c; }
+.portfolio-page .portfolio-auth-form > .eyebrow { margin: 8px 0 0; color: var(--rar-red); }
+.portfolio-page .portfolio-auth-form label { color: var(--rar-muted); font-size: .72rem; }
+.portfolio-page .portfolio-auth-form input { min-height: 52px; border-radius: 3px; background: var(--rar-surface); color: var(--rar-ink); }
+.portfolio-page .portfolio-auth-form button[type="submit"] { justify-self: stretch; min-height: 52px; border-radius: 3px; background: var(--rar-red); }
 @media (max-width: 850px) {
   .portfolio-page .portfolio-auth { grid-template-columns: 1fr; }
   .portfolio-page .portfolio-auth-intro { min-height: 400px; }
