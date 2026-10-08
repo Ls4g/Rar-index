@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Separate local app and package cache are not part of RAR.
+    "Collectibles-Assistant/**",
+    ".pnpm-store/**",
   ]),
 ]);
 

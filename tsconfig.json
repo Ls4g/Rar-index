@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "RAR-Index-Edition-Detail"]
+  "exclude": ["node_modules", "RAR-Index-Edition-Detail", "Collectibles-Assistant", ".pnpm-store"]
 }
