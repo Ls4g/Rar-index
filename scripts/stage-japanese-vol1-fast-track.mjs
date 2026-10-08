@@ -9,16 +9,16 @@ import { searchOpenBdCatalogue, searchShueishaCatalogue } from "../lib/catalogue
 
 const APPLY = process.argv.includes("--apply");
 const CANDIDATES = [
-  { series: "Case Closed", isbn: "9784091233714", title: "名探偵コナン", publisher: "小学館", madbId: "M314081", source: "OpenBD" },
+  { series: "Case Closed", isbn: "9784091233714", title: "名探偵コナン", publisher: "小学館", madbId: "M314081", source: "OpenBD", publisherUrl: "https://www.shogakukan.co.jp/books/09123371" },
   { series: "Dragon Ball", isbn: "9784088518312", title: "DRAGON BALL", publisher: "Shueisha", madbId: "M307334", source: "Shueisha Direct" },
-  { series: "Oishinbo", isbn: "9784091807519", title: "美味しんぼ", publisher: "小学館", madbId: "M299351", source: "OpenBD" },
+  { series: "Oishinbo", isbn: "9784091807519", title: "美味しんぼ", publisher: "小学館", madbId: "M299351", source: "OpenBD", publisherUrl: "https://www.shogakukan.co.jp/books/09180751" },
   { series: "Kingdom", isbn: "9784088770796", title: "キングダム", publisher: "Shueisha", madbId: "M323743", source: "Shueisha Direct" },
   { series: "Captain Tsubasa", isbn: "9784088512815", title: "キャプテン翼", publisher: "Shueisha", madbId: "M1079286", source: "Shueisha Direct" },
-  { series: "Fullmetal Alchemist", isbn: "9784757506206", title: "鋼の錬金術師", publisher: "エニックス", madbId: "M300404", source: "OpenBD" },
-  { series: "Vagabond", isbn: "9784063286199", title: "バガボンド", publisher: "講談社", madbId: "M292363", source: "OpenBD" },
-  { series: "Tokyo Revengers", isbn: "9784063959383", title: "東京卍リベンジャーズ", publisher: "講談社", madbId: "M482416", source: "OpenBD" },
+  { series: "Fullmetal Alchemist", isbn: "9784757506206", title: "鋼の錬金術師", publisher: "エニックス", madbId: "M300404", source: "OpenBD", publisherUrl: "https://magazine.jp.square-enix.com/top/comics/detail/9784757506206/" },
+  { series: "Vagabond", isbn: "9784063286199", title: "バガボンド", publisher: "講談社", madbId: "M292363", source: "OpenBD", publisherUrl: "https://www.kodansha.co.jp/comic/products/0000007491" },
+  { series: "Tokyo Revengers", isbn: "9784063959383", title: "東京卍リベンジャーズ", publisher: "講談社", madbId: "M482416", source: "OpenBD", publisherUrl: "https://www.kodansha.co.jp/comic/products/0000019996" },
   { series: "Haikyu!!", isbn: "9784088704531", title: "ハイキュー", publisher: "Shueisha", madbId: "M387106", source: "Shueisha Direct" },
-  { series: "Berserk", isbn: "9784592135746", title: "ベルセルク", publisher: "白泉社", madbId: "M314242", source: "OpenBD" },
+  { series: "Berserk", isbn: "9784592135746", title: "ベルセルク", publisher: "白泉社", madbId: "M314242", source: "OpenBD", publisherUrl: "https://www.hakusensha.co.jp/comicslist/40773/" },
 ];
 
 function loadEnv() {
@@ -37,6 +37,17 @@ function normalized(value) {
   return String(value ?? "").normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
+async function verifiedPublisherUrl(entry) {
+  if (!entry.publisherUrl) return null;
+  const response = await fetch(entry.publisherUrl, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`Publisher page unavailable for ${entry.series}: ${response.status}`);
+  const html = await response.text();
+  if (!html.replace(/[^0-9]/g, "").includes(entry.isbn) || !html.includes(entry.title)) {
+    throw new Error(`Publisher page does not identify ${entry.series} ISBN ${entry.isbn}`);
+  }
+  return response.url;
+}
+
 loadEnv();
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing Supabase credentials.");
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -44,7 +55,7 @@ const isbns = CANDIDATES.map((entry) => entry.isbn);
 const [sourceResult, editionResult, queueResult, targetResult] = await Promise.all([
   admin.from("sources").select("id,name").in("name", ["OpenBD", "Shueisha Direct"]),
   admin.from("manga_editions").select("id,isbn_13").in("isbn_13", isbns),
-  admin.from("catalogue_import_queue").select("id,candidate_isbn_13,status").in("candidate_isbn_13", isbns),
+  admin.from("catalogue_import_queue").select("id,candidate_isbn_13,status,raw_payload").in("candidate_isbn_13", isbns),
   admin.from("catalogue_discovery_targets").select("id,title_english,language,status").eq("discovery_source", "staff_fast_track").eq("language", "Japanese").eq("next_missing_volume", 1).limit(200),
 ]);
 for (const result of [sourceResult, editionResult, queueResult, targetResult]) if (result.error) throw result.error;
@@ -60,7 +71,26 @@ for (const entry of CANDIDATES) {
   const target = targets.get(entry.series);
   if (!sourceId || !target) throw new Error(`Missing source or fast-track target: ${entry.series}`);
   if (published.has(entry.isbn)) { outcomes.push({ series: entry.series, status: "already_published" }); continue; }
-  if (queued.has(entry.isbn)) { outcomes.push({ series: entry.series, status: `already_queued:${queued.get(entry.isbn).status}` }); continue; }
+  if (queued.has(entry.isbn)) {
+    const existing = queued.get(entry.isbn);
+    if (entry.publisherUrl && existing.status === "pending_review"
+      && existing.raw_payload?.staff_fast_track?.target_id === target.id
+      && !existing.raw_payload?.human_readable_url) {
+      const publisherUrl = await verifiedPublisherUrl(entry);
+      if (APPLY) {
+        const { error } = await admin.from("catalogue_import_queue").update({ raw_payload: {
+          ...existing.raw_payload,
+          human_readable_url: publisherUrl,
+          human_readable_url_label: "Publisher book page",
+        } }).eq("id", existing.id).eq("status", "pending_review");
+        if (error) throw error;
+      }
+      outcomes.push({ series: entry.series, status: APPLY ? "publisher_link_added" : "publisher_link_ready", publisherUrl });
+    } else {
+      outcomes.push({ series: entry.series, status: `already_queued:${existing.status}`, publisherUrl: existing.raw_payload?.human_readable_url ?? null });
+    }
+    continue;
+  }
   const matches = await (entry.source === "Shueisha Direct" ? searchShueishaCatalogue(entry.isbn) : searchOpenBdCatalogue(entry.isbn));
   const candidate = matches.find((row) => row.candidate_isbn_13 === entry.isbn);
   if (!candidate || !normalized(candidate.candidate_title).includes(normalized(entry.title))
@@ -76,6 +106,10 @@ for (const entry of CANDIDATES) {
     source_record_url: candidate.source_record_url,
     raw_payload: {
       ...candidate.raw_payload,
+      ...(entry.publisherUrl ? {
+        human_readable_url: await verifiedPublisherUrl(entry),
+        human_readable_url_label: "Publisher book page",
+      } : {}),
       staff_fast_track: {
         target_id: target.id,
         requested_series: entry.series,
