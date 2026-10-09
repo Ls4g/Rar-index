@@ -218,6 +218,96 @@ export async function searchShueishaCatalogue(query: string): Promise<CatalogueS
   }];
 }
 
+type ShueishaSearchItem = {
+  isbn?: string;
+  item_name?: string;
+  view_volume_number?: string | number;
+  volume_number?: string | number;
+  image_url?: string;
+};
+
+type ShueishaSearchSeries = {
+  series_id?: number;
+  series_name?: string;
+  label_name?: string;
+  main_label_name?: string;
+  item_datas?: ShueishaSearchItem[];
+};
+
+function shueishaSearchData(html: string): { series_count?: number; datas?: ShueishaSearchSeries[]; data?: { series_data?: ShueishaSearchSeries; item_datas?: ShueishaSearchItem[] } } | null {
+  const embedded = html.match(/var ssd = (\{[\s\S]*?\});/);
+  if (!embedded) return null;
+  try { return JSON.parse(embedded[1]); } catch { return null; }
+}
+
+function shueishaSeriesKey(value: string) {
+  // Meaningful symbols such as ≡ distinguish a sequel from the original.
+  return value.normalize("NFKC").toLocaleLowerCase().replace(/[×✕]/g, "x").replace(/[^\p{L}\p{N}\p{S}]/gu, "");
+}
+
+/** Find a physical volume through Shueisha's public title/series catalogue.
+ * This only returns candidates for the existing human review queue.
+ */
+export async function searchShueishaTitleCatalogue(query: string, volume = 1): Promise<CatalogueSourceCandidate[]> {
+  const title = query.trim();
+  if (title.length < 2 || title.length > 120 || !Number.isInteger(volume) || volume < 1 || volume > 999) {
+    throw new Error("Enter a title and a volume number between 1 and 999.");
+  }
+  const wanted = shueishaSeriesKey(title);
+  const seriesIds: number[] = [];
+  const searchUrl = `https://www.shueisha.co.jp/books/search/search.html?titleauthor=${encodeURIComponent(title)}`;
+  // Results are ordered by recent releases. Search a bounded number of pages
+  // so older originals are not hidden behind newer spinoffs and merchandise.
+  for (let page = 1; page <= 4; page += 1) {
+    const response = await fetch(`${searchUrl}&page=${page}`, {
+      headers: { "User-Agent": "RAR-Index catalogue curator" },
+      signal: AbortSignal.timeout(30_000), cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Shueisha title search did not return a usable response.");
+    const data = shueishaSearchData(await response.text());
+    if (!data?.datas) throw new Error("Shueisha title search changed its result format.");
+    for (const entry of data.datas) {
+      if (entry.series_id && shueishaSeriesKey(entry.series_name || "") === wanted && !seriesIds.includes(entry.series_id)) {
+        seriesIds.push(entry.series_id);
+      }
+    }
+    if (seriesIds.length >= 5) break;
+    if (page * 10 >= (data.series_count ?? 0)) break;
+  }
+  if (!seriesIds.length) return [];
+  const results: CatalogueSourceCandidate[] = [];
+  for (const seriesId of seriesIds.slice(0, 5)) {
+    const seriesResponse = await fetch(`https://www.shueisha.co.jp/books/search/search.html?seriesid=${seriesId}`, {
+      headers: { "User-Agent": "RAR-Index catalogue curator" },
+      signal: AbortSignal.timeout(30_000), cache: "no-store",
+    });
+    if (!seriesResponse.ok) throw new Error("Shueisha did not return the matching series.");
+    const seriesData = shueishaSearchData(await seriesResponse.text())?.data;
+    if (!seriesData?.series_data || shueishaSeriesKey(seriesData.series_data.series_name || "") !== wanted) {
+      throw new Error("Shueisha series data could not be verified.");
+    }
+    const matching = (seriesData.item_datas ?? []).filter((item) =>
+      Number(item.view_volume_number ?? item.volume_number) === volume && Boolean(isbn13FromValues([item.isbn || ""])),
+    ).slice(0, 3);
+    for (const item of matching) {
+      const record = await searchShueishaCatalogue(item.isbn || "");
+      for (const candidate of record) {
+        results.push({
+          ...candidate,
+          candidate_series: seriesData.series_data.series_name || title,
+          candidate_volume_number: String(volume),
+          candidate_cover_image_url: item.image_url?.startsWith("https://") ? item.image_url : null,
+          raw_payload: {
+            ...candidate.raw_payload,
+            title_search: { query: title, series_id: seriesId, label_name: seriesData.series_data.main_label_name, item_name: item.item_name, volume_number: volume },
+          },
+        });
+      }
+    }
+  }
+  return results.sort((left, right) => (left.candidate_release_date ?? "9999-12-31").localeCompare(right.candidate_release_date ?? "9999-12-31"));
+}
+
 export async function searchNdlCatalogue(query: string): Promise<CatalogueSourceCandidate[]> {
   const isbn = cleanIsbn(query);
   const params = new URLSearchParams({

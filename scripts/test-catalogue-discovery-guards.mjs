@@ -46,9 +46,9 @@ check("a candidate with no ISBN cannot be staged", !anilistShaped.candidate_isbn
 check("a candidate with no publisher cannot be staged", !anilistShaped.candidate_publisher);
 
 console.log("\n--- Japanese needs official identity ---");
-// A Japanese backlog target is never turned into a broad library search. The
-// only Japanese path is an exact ISBN through Shueisha, which the backlog
-// cannot supply, so it stays a research target.
+// A generic Japanese backlog target still cannot become a broad library
+// search. Explicit staff priorities and known Shueisha gaps have their own
+// first-party title lookup, covered by test-shueisha-title-discovery.mjs.
 const japanese = backlogTargetToDiscoveryTarget(backlogTarget({ language: "Japanese", title_english: null, title_romaji: null, title_native: "カグラバチ" }));
 check("a Japanese backlog target produces no search", japanese === null);
 

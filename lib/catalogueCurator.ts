@@ -1,27 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
-import { searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { japaneseCatalogueTitle } from "./japaneseTitleAliases.ts";
 import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
 import { describeRunFairness, isStaffFastTrack } from "./catalogueBacklog.ts";
 import { listingIsMultiVolumeLot } from "./liveListings.ts";
 
 const DISCOVERY_TARGET_LIMIT = 10;
 const CANDIDATES_PER_TARGET = 1;
-
-const JAPANESE_SEARCH_ALIASES: Record<string, string> = {
-  "one piece": "ONE PIECE",
-  naruto: "NARUTO",
-  bleach: "BLEACH",
-  "hunter x hunter": "HUNTER×HUNTER",
-  "hunter hunter": "HUNTER×HUNTER",
-  "jujutsu kaisen": "呪術廻戦",
-  kagurabachi: "カグラバチ",
-  "demon slayer kimetsu no yaiba": "鬼滅の刃",
-  "demon slayer": "鬼滅の刃",
-  "attack on titan": "進撃の巨人",
-  "initial d": "頭文字D",
-  "black clover": "ブラッククローバー",
-};
 
 export type CatalogueDiscoveryTarget = {
   key: string;
@@ -91,7 +77,7 @@ function normalise(value: string | null | undefined) {
     .normalize("NFKC")
     .toLocaleLowerCase()
     .replace(/[×✕]/g, "x")
-    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .replace(/[^\p{L}\p{N}\p{S}]+/gu, "")
     .trim();
 }
 
@@ -156,12 +142,12 @@ export function cataloguePublisherMatches(candidate: string | null, target: stri
 }
 
 function japaneseAlias(series: string) {
-  const key = normalise(series);
-  return Object.entries(JAPANESE_SEARCH_ALIASES).find(([name]) => key.includes(normalise(name)))?.[1] ?? series;
+  return japaneseCatalogueTitle(series);
 }
 
 function targetTitleNeedles(target: CatalogueDiscoveryTarget) {
-  return [target.series, target.title, target.language === "Japanese" && target.series ? japaneseAlias(target.series) : null]
+  return [target.series, target.title, target.language === "Japanese" && target.series ? japaneseAlias(target.series) : null,
+    target.language === "Japanese" ? target.query : null]
     .map(titleStem)
     .filter((value, index, all) => value.length >= 2 && all.indexOf(value) === index);
 }
@@ -404,9 +390,13 @@ async function findCandidates(target: CatalogueDiscoveryTarget): Promise<Catalog
     return { sourceName: "Open Library", candidates: await searchOpenLibraryCatalogue(target.query), warnings: [] };
   }
 
-  // Japanese catalogue discovery remains exact-ISBN only. Shueisha is the
-  // preferred first-party record for its own books; OpenBD is a resilient
-  // structured fallback and the primary verifier for other publishers.
+  if (!/^\d{9}[\dX]$|^97[89]\d{10}$/.test(cleanIsbn(target.query))) {
+    const volume = integerVolume(target.volumeNumber);
+    if (!volume) return { sourceName: "Shueisha Direct", candidates: [], warnings: ["missing_volume_number"] };
+    return { sourceName: "Shueisha Direct", candidates: await searchShueishaTitleCatalogue(target.query, volume), warnings: [] };
+  }
+
+  // Exact ISBN requests retain their existing Shueisha/OpenBD fallback.
   const shueishaTarget = cataloguePublisherMatches(target.publisher, "Shueisha");
   const attempts: Array<{ name: CuratorSourceName; run: () => Promise<CatalogueSourceCandidate[]> }> = shueishaTarget
     ? [
@@ -531,6 +521,8 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     if (discovery.error || !sourceId) {
       result.targetsFailed += 1;
       result.targetSummaries.push({ key: target.key, source: discovery.sourceName, result: discovery.error ?? "source_not_configured" });
+      const failedRow = backlogByKey.get(target.key);
+      if (failedRow) await recordTargetOutcome(admin, failedRow.id, "failed", failedRow.failure_count);
       continue;
     }
     try {
@@ -551,10 +543,12 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
         const key = `${sourceId}:${candidate.external_id}`;
         if (existingKeys.has(key)) {
           result.candidatesAlreadyQueued += 1;
+          if (target.language === "Japanese") break;
           continue;
         }
         if (existingIsbns.has(cleanIsbn(candidate.candidate_isbn_13))) {
           result.candidatesAlreadyPublished += 1;
+          if (target.language === "Japanese") break;
           continue;
         }
         const detectedVolume = integerVolume(target.volumeNumber) ?? volumeFromCatalogueTitle(candidate.candidate_title);

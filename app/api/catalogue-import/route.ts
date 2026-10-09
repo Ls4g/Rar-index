@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue } from "@/lib/catalogueSources";
+import { searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue } from "@/lib/catalogueSources";
 import { isStaffRequest } from "@/lib/staffSession";
 
 function languageName(value: string | undefined) {
@@ -110,7 +110,7 @@ async function publisherRecordCandidates(query: string, publisherSource: Publish
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { source?: unknown; publisherSource?: unknown; query?: unknown; queries?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
+  let payload: { source?: unknown; publisherSource?: unknown; query?: unknown; queries?: unknown; volume?: unknown; dryRun?: unknown; selectedExternalIds?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -123,16 +123,17 @@ export async function POST(request: Request) {
     ? payload.queries.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
     : query ? [query] : [];
   const publisherSource = typeof payload.publisherSource === "string" ? payload.publisherSource as PublisherRecordSource : null;
+  const volume = typeof payload.volume === "number" ? payload.volume : 1;
   // These bibliographic sources accept stable identifiers in batches. Other
   // sources stay one-query-at-a-time to avoid creating a broad, noisy queue.
   const searchQueries = source === "shueisha" || source === "ndl_search" ? [...new Set(suppliedQueries)] : suppliedQueries.slice(0, 1);
-  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "ndl_search" && source !== "publisher_record") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 500) || (source === "publisher_record" && (!publisherSource || !publisherRecords[publisherSource]))) {
+  if ((source !== "open_library" && source !== "mangadex" && source !== "shueisha" && source !== "shueisha_title" && source !== "ndl_search" && source !== "publisher_record") || !searchQueries.length || searchQueries.length > 25 || searchQueries.some((value) => value.length < 2 || value.length > 500) || (source === "shueisha_title" && (!Number.isInteger(volume) || volume < 1 || volume > 999 || query.length > 120)) || (source === "publisher_record" && (!publisherSource || !publisherRecords[publisherSource]))) {
     return Response.json({ error: "Choose a catalogue source and enter a search of 2–120 characters." }, { status: 400 });
   }
 
   try {
     const admin = getSupabaseAdmin();
-    const sourceName = source === "open_library" ? "Open Library" : source === "mangadex" ? "MangaDex" : source === "shueisha" ? "Shueisha Direct" : source === "ndl_search" ? "National Diet Library Search" : publisherRecords[publisherSource!].name;
+    const sourceName = source === "open_library" ? "Open Library" : source === "mangadex" ? "MangaDex" : source === "shueisha" || source === "shueisha_title" ? "Shueisha Direct" : source === "ndl_search" ? "National Diet Library Search" : publisherRecords[publisherSource!].name;
     const { data: sourceRecord, error: sourceError } = await admin.from("sources").select("id").eq("name", sourceName).maybeSingle();
     if (sourceError || !sourceRecord) return Response.json({ error: `${sourceName} is not configured as an RAR source.` }, { status: 500 });
 
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
       source === "open_library" ? searchOpenLibraryCatalogue(searchQuery)
         : source === "mangadex" ? mangaDexCandidates(searchQuery)
           : source === "shueisha" ? searchShueishaCatalogue(searchQuery)
+            : source === "shueisha_title" ? searchShueishaTitleCatalogue(searchQuery, volume)
             : source === "ndl_search" ? searchNdlCatalogue(searchQuery)
               : publisherRecordCandidates(searchQuery, publisherSource!)
     )));

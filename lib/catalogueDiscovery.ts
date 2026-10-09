@@ -9,6 +9,7 @@ import {
   type BacklogTarget, type DiscoveryLane,
 } from "./catalogueBacklog.ts";
 import type { CatalogueDiscoveryTarget } from "./catalogueCurator.ts";
+import { japaneseCatalogueTitle } from "./japaneseTitleAliases.ts";
 
 export type BacklogRefreshResult = {
   established: number;
@@ -23,10 +24,9 @@ function pickTitle(work: AniListWork) {
   return work.titleEnglish || work.titleRomaji || work.titleNative || "";
 }
 
-// A work AniList knows about becomes a backlog row, never an edition. The
-// English lane is the one RAR can actually research, because Open Library
-// carries English volumes; Japanese physical editions need an exact ISBN from
-// Shueisha and are held as watching until one exists.
+// An AniList work becomes a backlog row, never an edition. These broad
+// popularity lanes remain English; Japanese staff priorities and known
+// Shueisha gaps use the publisher's exact-series search below.
 function workToRow(work: AniListWork, lane: DiscoveryLane, score: number | null) {
   const title = pickTitle(work);
   return {
@@ -171,16 +171,15 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
         series_status: null,
         reported_volume_count: reported.get(seriesKey) ?? null,
         next_missing_volume: volume,
-        // Japanese needs an exact ISBN from Shueisha, and a broad library
-        // search is exactly what must not be used to guess one. Held as a
-        // research target rather than searched.
+        // Japanese gaps are only searched when the existing edition proves
+        // Shueisha is the publisher; other publishers remain watching.
         status: entry.language === "Japanese" ? "watching" : "researchable",
         source_url: null,
         source_metadata: {
           held_volumes: entry.volumes.sort((left, right) => left - right),
           expected_publisher: entry.publisher,
           note: entry.language === "Japanese"
-            ? "Japanese volumes are only staged from an exact Shueisha record. Held for research rather than searched broadly."
+            ? "Known Shueisha gaps can be researched through the publisher's series and volume records; other Japanese gaps remain watching."
             : "Next volume to look for. Existence is not inferred from the previous volume -- the search must find an exact record.",
         },
         updated_at: new Date().toISOString(),
@@ -192,25 +191,29 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
   return result;
 }
 
-// Backlog rows the scheduler chose, translated into the search targets the
-// existing staging path already knows how to handle. Japanese never gets a
-// broad query: without an exact ISBN there is nothing safe to search.
+// Backlog rows the scheduler chose, translated into source-specific searches.
+// Japanese staff fast-tracks and known Shueisha gaps use the publisher's
+// own title/series search, never a broad library match.
 export function backlogTargetToDiscoveryTarget(target: BacklogTarget): CatalogueDiscoveryTarget | null {
-  if (target.language !== "English") return null;
+  if (target.language !== "English" && target.language !== "Japanese") return null;
   const title = target.title_english || target.title_romaji || target.title_native;
   if (!title) return null;
   const volume = target.next_missing_volume ?? 1;
   const expectedPublisher = typeof target.source_metadata?.expected_publisher === "string"
     ? target.source_metadata.expected_publisher
     : null;
+  if (target.language === "Japanese" && target.discovery_source !== "staff_fast_track" && !/^(?:shueisha|集英社)$/i.test(expectedPublisher ?? "")) return null;
+  const nativeTitle = target.language === "Japanese"
+    ? target.title_native || japaneseCatalogueTitle(title)
+    : title;
   return {
     key: `backlog:${target.id}`,
-    source: "open_library",
-    query: `${title} ${volume}`,
+    source: target.language === "Japanese" ? "shueisha_direct" : "open_library",
+    query: target.language === "Japanese" ? nativeTitle : `${title} ${volume}`,
     title: `${title} Vol. ${volume}`,
     series: title,
     volumeNumber: String(volume),
-    language: "English",
+    language: target.language,
     publisher: expectedPublisher,
     isbn13: null,
     requestId: null,
@@ -230,10 +233,13 @@ export async function readDueBacklog(admin: SupabaseClient, limit = 400): Promis
 
 export async function planBacklogRun(admin: SupabaseClient) {
   const backlog = await readDueBacklog(admin);
-  // Watching targets are counted as due but must not consume search slots:
-  // there is no physical volume to find yet.
-  const researchable = backlog.filter((target) => target.status === "researchable");
-  return { backlog, chosen: planRun(researchable) };
+  // A staff fast-track or a Shueisha gap has a specific physical volume to
+  // research. Other watching titles still cannot consume search slots.
+  const researchable = backlog.filter((target) => target.status === "researchable" || (
+    target.status === "watching" && target.language === "Japanese" && target.next_missing_volume !== null
+    && backlogTargetToDiscoveryTarget(target) !== null
+  ));
+  return { backlog, chosen: planRun(researchable.map((target) => target.status === "watching" ? { ...target, status: "researchable" as const } : target)) };
 }
 
 /**
