@@ -12,6 +12,16 @@ export function extractEbayLegacyItemId(value: string) {
   return trimmed.match(/\/itm\/(?:[^/?#]+\/)?(\d{9,})/i)?.[1] ?? "";
 }
 
+/** Browse saves v1|item|variation; confirmed sales usually save the bare item.
+ * Keep nonzero variations distinct: a sale of one variation cannot close all.
+ */
+export function canonicalEbayItemId(value: string) {
+  const direct = extractEbayLegacyItemId(value);
+  if (direct) return direct;
+  const restful = value.trim().match(/^v\d+\|(\d{9,})\|(\d+)$/i);
+  return restful ? restful[2] === "0" ? restful[1] : value.trim() : "";
+}
+
 export function ebayMarketplaceFromUrl(value: string) {
   try {
     const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, "");

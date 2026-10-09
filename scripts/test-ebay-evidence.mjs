@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  canonicalEbayItemId,
   collectEbayEvidenceImageUrls,
   ebayMarketplaceFromUrl,
   extractEbayLegacyItemId,
@@ -9,6 +10,11 @@ assert.equal(extractEbayLegacyItemId("https://www.ebay.co.uk/itm/Some-Manga/3664
 assert.equal(extractEbayLegacyItemId("https://www.ebay.com/itm/800055394441"), "800055394441");
 assert.equal(extractEbayLegacyItemId("800055394441"), "800055394441");
 assert.equal(extractEbayLegacyItemId("https://example.com/item/800055394441"), "");
+assert.equal(canonicalEbayItemId("v1|307083669140|0"), "307083669140");
+assert.equal(canonicalEbayItemId("307083669140"), "307083669140");
+assert.equal(canonicalEbayItemId("https://www.ebay.com/itm/307083669140?ref=graded"), "307083669140");
+assert.equal(canonicalEbayItemId("v1|not-an-item|0"), "");
+assert.equal(canonicalEbayItemId("v1|307083669140|123"), "v1|307083669140|123");
 assert.equal(ebayMarketplaceFromUrl("https://www.ebay.co.uk/itm/366419349362"), "EBAY_GB");
 assert.equal(ebayMarketplaceFromUrl("https://www.ebay.com/itm/800055394441"), "EBAY_US");
 assert.equal(ebayMarketplaceFromUrl("https://example.com/itm/800055394441"), null);

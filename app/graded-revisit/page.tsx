@@ -1,6 +1,7 @@
 import Link from "next/link";
 import GradedRevisitQueue, { type GradedRevisitGroup } from "@/components/GradedRevisitQueue";
 import StaffNav from "@/components/StaffNav";
+import { canonicalEbayItemId } from "@/lib/ebayEvidence";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
   const decisions = (decisionResult.data ?? []) as DecisionRow[];
   const profileIds = [...new Set(leads.map((row) => row.profile_id))];
   const externalIds = [...new Set(leads.map((row) => row.external_id))];
+  const saleLookupIds = [...new Set(externalIds.flatMap((id) => [id, canonicalEbayItemId(id)].filter(Boolean)))];
   const [profileResult, outcomeResult, soldSourceResult] = await Promise.all([
     profileIds.length ? admin.from("marketplace_search_profiles")
       .select("id,edition_id,edition:manga_editions(title,series,volume_number,language)")
@@ -50,11 +52,11 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
     externalIds.length ? admin.from("listing_outcomes").select("external_id,status").in("external_id", externalIds) : Promise.resolve({ data: [], error: null }),
     admin.from("sources").select("id").eq("name", "eBay Sold").maybeSingle(),
   ]);
-  const saleResult = externalIds.length && soldSourceResult.data?.id
+  const saleResult = saleLookupIds.length && soldSourceResult.data?.id
     ? await admin.from("price_observations")
       .select("external_id,edition_id")
       .eq("source_id", soldSourceResult.data.id)
-      .in("external_id", externalIds)
+      .in("external_id", saleLookupIds)
       .eq("is_verified", true)
       .eq("match_status", "verified_match")
       .eq("sale_status", "confirmed")
@@ -74,13 +76,17 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
   }
   const profiles = new Map(((profileResult.data ?? []) as unknown as ProfileRow[]).map((row) => [row.id, row]));
   const outcomes = new Map(((outcomeResult.data ?? []) as OutcomeRow[]).map((row) => [row.external_id, row.status]));
-  const recordedSales = new Map(((saleResult.data ?? []) as SaleRow[]).map((row) => [row.external_id, row.edition_id]));
+  const recordedSales = new Map(((saleResult.data ?? []) as SaleRow[]).flatMap((row) => {
+    const itemId = canonicalEbayItemId(row.external_id);
+    return itemId ? [[itemId, row.edition_id] as const] : [];
+  }));
   const groupMap = new Map<string, GradedRevisitGroup>();
   for (const lead of leads) {
     const label = latestLabel.get(lead.id);
     if (!label) continue;
     const profile = profiles.get(lead.profile_id);
     const edition = profile?.edition;
+    const itemId = canonicalEbayItemId(lead.external_id);
     const key = `${lead.source_id}:${lead.external_id}`;
     const group = groupMap.get(key) ?? {
       key,
@@ -90,7 +96,7 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
       currency: lead.currency,
       lastSeenAt: lead.last_seen_at,
       outcomeStatus: outcomes.get(lead.external_id) ?? null,
-      recordedSaleEditionId: recordedSales.get(lead.external_id) ?? null,
+      recordedSaleEditionId: recordedSales.get(itemId) ?? null,
       leads: [],
     };
     if (lead.last_seen_at > group.lastSeenAt) {
@@ -105,7 +111,7 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
       editionId: profile?.edition_id ?? null,
       editionTitle: [edition?.series || edition?.title || "Edition", edition?.volume_number ? `Vol. ${edition.volume_number}` : null, edition?.language].filter(Boolean).join(" · "),
       reviewStatus: lead.review_status,
-      pending: !recordedSales.has(lead.external_id) && lead.review_status === "dismissed" && latestDecision.get(lead.id)?.id === label.decision_id,
+      pending: !recordedSales.has(itemId) && lead.review_status === "dismissed" && latestDecision.get(lead.id)?.id === label.decision_id,
       originalNote: decisionById.get(label.decision_id)?.decision_notes ?? null,
     });
     groupMap.set(key, group);
