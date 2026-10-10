@@ -30,30 +30,21 @@ function check(label, condition) {
 console.log("\n1. Closing an approval is not a decision");
 const closeBlock = route.slice(route.indexOf('if (command === "close_action")'), route.indexOf('if (command === "review_action")'));
 check("close_action exists", closeBlock.length > 0);
-check("it only ever matches an approved action", /\.eq\("status", "approved"\)/.test(closeBlock));
+check("closure uses the transactional RPC", /rpc\("close_agent_action"/.test(closeBlock));
 check("it never matches a proposal", !/"proposed"/.test(closeBlock));
 check("it never rejects anything", !/rejected/.test(closeBlock));
 // The original approval is the human's record of their own decision. A close
 // is a later, separate event and must not overwrite who decided or when.
 check("it does not rewrite reviewed_by", !/reviewed_by/.test(closeBlock));
 check("it does not rewrite reviewed_at", !/reviewed_at/.test(closeBlock));
-check("it writes the terminal status", /status: "cancelled"/.test(closeBlock));
 
 console.log("\n2. A reason is required and recorded");
 check("a missing or trivial reason is refused", /reason\.length < 3/.test(closeBlock));
-check("the reason is kept in review_notes", /review_notes/.test(closeBlock));
-check("the close is appended, not substituted for the existing notes", /action\.review_notes/.test(closeBlock));
-check("an audit event is written", /agent_action_events/.test(closeBlock));
-check("the event records that nothing was executed", /closed_without_executing/.test(closeBlock));
-
-console.log("\n3. It cannot strand a running worker or race another close");
-check("a live lease refuses the close", /execution_status === "running"/.test(closeBlock));
-check("the lease expiry is what makes it live", /lease_expires_at/.test(closeBlock));
-// Conditioning the UPDATE on the status is what makes two simultaneous closes
-// resolve to one winner rather than both reporting success.
-const updateClause = closeBlock.slice(closeBlock.indexOf("from(\"agent_actions\").update"));
-check("the update is conditioned on the status", /\.eq\("status", "approved"\)/.test(updateClause));
-check("losing that race is reported, not swallowed", /Another request closed this action first/.test(closeBlock));
+check("the reason is passed to the RPC", /p_reason: reason/.test(closeBlock));
+check("RPC failure cannot return success", /if \(error\) return Response.json/.test(closeBlock));
+// Database behavior is exercised by test-agent-action-closure.mjs, rather
+// than inferred from source patterns. No two-session tests are claimed.
+check("each execution attempt has a unique owner", /crypto.randomUUID\(\)/.test(route));
 
 console.log("\n4. The original guarantee still holds");
 const reviewBlock = route.slice(route.indexOf('if (command === "review_action")'));

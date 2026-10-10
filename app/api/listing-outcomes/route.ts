@@ -159,6 +159,7 @@ export async function POST(request: Request) {
     const captured = await captureWatchedListings(admin);
     const promoted = await promoteEndedListings(admin);
     const checks = await runOutcomeChecks(admin);
+    if (checks.budgetUnavailable) return Response.json({ error: checks.errors[0], captured, promoted, checks }, { status: 503 });
     return Response.json({ captured, promoted, checks, capabilities: await probeOutcomeProviders(await capabilitySample(admin)) });
   }
 

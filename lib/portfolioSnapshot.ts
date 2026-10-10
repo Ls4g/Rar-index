@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DisplayCurrency, FxRate } from "@/lib/fx";
+import type { DisplayCurrency, FxRate } from "./fx.ts";
+import { readCompleteRows } from "./readCompleteRows.ts";
 import {
   buildSnapshotPayload,
   computeEditionMetrics,
@@ -10,7 +11,7 @@ import {
   type SnapshotPayload,
   type ValuationHolding,
   type ValuationSale,
-} from "@/lib/portfolioValuation";
+} from "./portfolioValuation.ts";
 
 export const SNAPSHOT_TRIGGER_REASONS = [
   "holding_added", "holding_updated", "holding_removed",
@@ -49,11 +50,10 @@ function payloadsEqual(a: SnapshotPayload, existing: Record<string, unknown>) {
 }
 
 async function computeSnapshotPayload(admin: SupabaseClient, userId: string, displayCurrency: DisplayCurrency): Promise<SnapshotPayload> {
-  const { data: holdingsData, error: holdingsError } = await admin
+  const holdingsData = await readCompleteRows("holdings", (from, to) => admin
     .from("portfolio_holdings")
     .select("id,edition_id,quantity,purchase_price,purchase_currency,purchase_date,edition:manga_editions(id,printing_of_edition_id,printing_number)")
-    .eq("user_id", userId);
-  if (holdingsError) throw new Error(`Could not load holdings: ${holdingsError.message}`);
+    .eq("user_id", userId).order("id").range(from, to));
 
   const holdings = (holdingsData ?? []) as unknown as ValuationHolding[];
   const today = new Date().toISOString().slice(0, 10);
@@ -63,23 +63,23 @@ async function computeSnapshotPayload(admin: SupabaseClient, userId: string, dis
   }
 
   const publicationIds = [...new Set(holdings.map((holding) => holding.edition?.printing_of_edition_id ?? holding.edition_id))];
-  const { data: childrenData } = await admin
+  const childrenData = await readCompleteRows("publication family", (from, to) => admin
     .from("manga_editions")
     .select("id,printing_of_edition_id")
-    .in("printing_of_edition_id", publicationIds);
+    .in("printing_of_edition_id", publicationIds).order("id").range(from, to));
   const children = (childrenData ?? []) as Array<{ id: string; printing_of_edition_id: string | null }>;
 
   const { publicationByMember } = resolvePublicationFamily(holdings, children);
   const familyIds = familyIdsFor(holdings, publicationIds, children);
 
-  const { data: salesData } = familyIds.length
-    ? await admin
+  const salesData = familyIds.length
+    ? await readCompleteRows("sale evidence", (from, to) => admin
       .from("price_observations")
       .select("edition_id,sale_price,currency,sold_date,print_classification,known_printing_number,listing_title,grading_company,grade_label,grading_reviewed_at")
       .in("edition_id", familyIds)
       .eq("sale_status", "confirmed")
-      .eq("match_status", "verified_match")
-    : { data: [] };
+      .eq("match_status", "verified_match").order("id").range(from, to))
+    : [];
   const sales = (salesData ?? []) as ValuationSale[];
 
   const { metrics } = computeEditionMetrics(holdings, sales, publicationByMember);
@@ -90,12 +90,11 @@ async function computeSnapshotPayload(admin: SupabaseClient, userId: string, dis
     ...holdings.flatMap((holding) => holding.purchase_currency ? [holding.purchase_currency] : []),
     ...metrics.map((metric) => metric.currency),
   ])];
-  const { data: fxRatesData } = await admin
+  const fxRatesData = await readCompleteRows("exchange rates", (from, to) => admin
     .from("exchange_rates")
     .select("rate_date, currency, rate_per_eur, source_name, source_url")
     .in("currency", rateCurrencies)
-    .order("rate_date", { ascending: true })
-    .limit(2000);
+    .order("rate_date", { ascending: true }).order("currency").range(from, to));
   const rates = (fxRatesData ?? []) as FxRate[];
 
   const summary = computePortfolioSummary(holdings, metricsByEdition, rates, displayCurrency, today);
@@ -123,7 +122,7 @@ export async function createPortfolioSnapshot(
 ): Promise<{ snapshot: Record<string, unknown>; created: boolean }> {
   const payload = await computeSnapshotPayload(admin, userId, displayCurrency);
 
-  const { data: latest } = await admin
+  const { data: latest, error: latestError } = await admin
     .from("portfolio_snapshots")
     .select("*")
     .eq("user_id", userId)
@@ -131,6 +130,7 @@ export async function createPortfolioSnapshot(
     .order("snapshot_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (latestError) throw new Error(`Could not load previous snapshot: ${latestError.message}`);
 
   if (latest && payloadsEqual(payload, latest)) {
     return { snapshot: latest, created: false };

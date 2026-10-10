@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const captured = await captureWatchedListings(admin);
     const promoted = await promoteEndedListings(admin);
     const checks = await runOutcomeChecks(admin);
-    return Response.json({ ok: true, captured, promoted, checks });
+    return Response.json({ ok: !checks.budgetUnavailable, captured, promoted, checks }, { status: checks.budgetUnavailable ? 503 : 200 });
   } catch (error) {
     // Reported as a failed run rather than thrown, so a broken outcome check
     // never takes Market Scout's own cron down with it.

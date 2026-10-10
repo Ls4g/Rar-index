@@ -61,7 +61,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
       .eq("cover_verification_status", "verified").not("cover_image_url", "is", null)
       .limit(500),
     supabase.from("price_observations")
-      .select("edition_id,source_listing_url,sold_date,sale_price,currency,grading_company,grade_label,match_status,print_classification,known_printing_number")
+      .select("edition_id,source_listing_url,sold_date,sale_price,currency,listing_title,grading_company,grade_label,grading_reviewed_at,match_status,print_classification,known_printing_number")
       .eq("sale_status", "confirmed").eq("match_status", "verified_match")
       .not("source_listing_url", "is", null).order("sold_date", { ascending: false }).limit(500),
   ]);

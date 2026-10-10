@@ -102,34 +102,10 @@ export async function POST(request: Request) {
       if (!actionId) return Response.json({ error: "Choose an approved action to close." }, { status: 400 });
       if (reason.length < 3) return Response.json({ error: "Say why this approval is being closed — it is the only record of what happened to the work." }, { status: 400 });
 
-      const { data: action, error: readError } = await admin.from("agent_actions")
-        .select("id,status,title,review_notes,execution_status,lease_owner,lease_expires_at")
-        .eq("id", actionId).eq("status", "approved").maybeSingle();
-      if (readError) throw new Error(readError.message);
-      if (!action) return Response.json({ error: "That action is not an open approval. Refresh the list." }, { status: 409 });
-
-      // A claimed action is mid-run somewhere else. Closing it would strand
-      // the worker holding the lease.
-      if (action.execution_status === "running" && action.lease_expires_at && Date.parse(action.lease_expires_at) > Date.now()) {
-        return Response.json({ error: `This action is running (claimed by ${action.lease_owner ?? "unknown"}). Wait for it to finish before closing it.` }, { status: 409 });
-      }
-
-      // Conditioned on status so two people closing at once cannot both win.
-      const { data: closed, error: closeError } = await admin.from("agent_actions").update({
-        status: "cancelled",
-        review_notes: [action.review_notes, `Closed by ${reviewer}: ${reason}`].filter(Boolean).join(" · "),
-      }).eq("id", actionId).eq("status", "approved").select("id").maybeSingle();
-      if (closeError) throw new Error(closeError.message);
-      if (!closed) return Response.json({ error: "Another request closed this action first." }, { status: 409 });
-
-      await admin.from("agent_action_events").insert({
-        action_id: actionId,
-        previous_status: "approved",
-        next_status: "cancelled",
-        actor: reviewer,
-        notes: reason,
-        details: { closed_without_executing: true, title: action.title },
+      const { error } = await admin.rpc("close_agent_action", {
+        p_action_id: actionId, p_reviewer: reviewer, p_reason: reason,
       });
+      if (error) return Response.json({ error: error.message }, { status: error.code === "P0001" ? 409 : 503 });
       return Response.json({ ok: true });
     }
 
@@ -179,7 +155,7 @@ export async function POST(request: Request) {
       // is the worker's: a bounded lease, so a request that crashes or times
       // out leaves recoverable work rather than an action stuck "approved"
       // with nothing running and no way to tell.
-      const leaseOwner = `review_action:${reviewer}`;
+      const leaseOwner = `review_action:${reviewer}:${crypto.randomUUID()}`;
       if (execute) {
         if (action.status === "proposed") {
           const { data: approved, error: approveError } = await admin.from("agent_actions").update({
