@@ -50,24 +50,35 @@ Read-only verification query: `ef860594-07b8-4b8d-ada8-450bcb9e5a19`.
   fixture, linted and included in the final successful production build.
 - Production homepage and real chart data rendered in the browser. A 390px
   viewport had no page-width overflow. This was browser emulation, not a handset.
-- Staff session expired before live catalogue and graded-queue verification.
-  The user was asked to sign in; no password was requested or entered by the
-  agent. Staff rendering is still unverified for this release.
+- After the user signed in, catalogue and graded-queue rendering were checked
+  on production at desktop width and 390px. No page-width overflow was observed;
+  the browser viewport was restored afterwards. No review controls were submitted.
 - Two-connection concurrency tests remain excluded by the user's earlier
   instruction. PGlite tests are single-session checks, not concurrency proof.
 - No genuine sale evidence or human review decisions were created or altered.
   Existing unrelated untracked files were preserved.
 
-## Exact resume
+## Completed staff verification
 
-After the user signs into the existing RAR browser tab:
-1. Open `/catalogue-review`, check the pagination controls and an out-of-range
-   page link. If the real queue is empty, report that; do not create candidates
-   to populate it. Complete traversal is covered by the 123-row local fixture.
-2. Open `/graded-revisit`, confirm recorded-sale recognition and inspect the
-   already-revisited view without submitting decisions. Recount live matches
-   before using yesterday's queue numbers.
-3. Check these staff pages at desktop and narrow browser widths; restore the
-   viewport afterwards. A real-handset check remains separate.
-4. Record the observed results. Do not repeat the entire suite unless code
-   changes or a new failure justify it. No need to reapply the verified SQL.
+- `/catalogue-review?page=999` rendered page 1 safely with an empty queue.
+  Three real candidates subsequently appeared during the checks; a second
+  out-of-range request showed page 1 and all three, with the focused candidate
+  retained. No candidates were created by this verification. Traversal beyond
+  50 rows remains covered by the local 123-row fixture, not a live large queue.
+- In `Already revisited`, Dragon Ball Vol. 6, eBay item `307083669140`, showed
+  that its verified sale is recorded for the edition and it has left the revisit
+  queue. The original graded dismissal was still shown. There was no duplicate
+  sale action on that card.
+- Fresh graded counts initially showed 67 distinct listings, 76 edition
+  decisions, 70 to revisit and 6 revisited. On a later reload they were 2 and 74
+  respectively. Other activity continued during verification; these are timed
+  observations, not fixed baseline numbers. This agent submitted no decisions.
+- Catalogue pagination, candidate controls, graded tabs and cards were checked
+  at desktop and phone browser widths. A physical handset remains untested.
+- Separate visual follow-up: the selected `Keep in review` option in the
+  existing detailed catalogue form has light text on a pale background in night
+  mode. This is outside the six repaired findings and was not changed here.
+
+The previously pending staff verification is complete. Do not repeat the full
+suite without code changes or a new failure. Two-connection tests remain
+excluded; a physical-phone check and the contrast follow-up are separate work.
