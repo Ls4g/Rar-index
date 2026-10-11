@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import type { FxRate } from "@/lib/fx";
 import { ordinal } from "@/lib/editionDisplay";
-import { groupKnownLaterPrintSales, hasComparableChart, splitByPrintClassification, MIN_COMPARABLE_SALES } from "@/lib/printClassification";
+import { groupKnownLaterPrintSales, splitByPrintClassification, MIN_COMPARABLE_SALES } from "@/lib/printClassification";
+import { buildPriceSeries } from "@/lib/priceSeries";
 import MarketValuePanel from "@/components/MarketValuePanel";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
 
@@ -18,6 +19,7 @@ export type PublicationSale = {
   currency: string;
   grading_company: string | null;
   grade_label: string | null;
+  grading_reviewed_at?: string | null;
   match_status: "verified_match" | "needs_review";
   print_classification: "first_print_proven" | "known_later_print" | "printing_not_identified";
   printing_proof_url: string | null;
@@ -61,11 +63,11 @@ function SaleRow({ sale, sourceNames, showPrintClassification = true }: { sale: 
         <small>{formatDate(sale.sold_date)}{sale.grading_company || sale.grade_label ? ` · ${[sale.grading_company, sale.grade_label].filter(Boolean).join(" ")}` : ""}</small>
       </div>
       <div className="sale-classification">
-        <span className={`sale-status ${sale.match_status}`}>{sale.match_status === "verified_match" ? "Edition match verified" : "Edition match under review"}</span>
+        {sale.match_status === "needs_review" ? <span className="sale-status needs_review">Edition match under review</span> : null}
         {showPrintClassification ? (
           <span className={`print-classification-badge is-${sale.print_classification.replaceAll("_", "-")}`}>
             {classificationLabels[sale.print_classification]}
-            {sale.known_printing_number ? ` · ${ordinal(sale.known_printing_number)} printing` : ""}
+            {sale.print_classification === "known_later_print" && sale.known_printing_number ? ` · ${ordinal(sale.known_printing_number)} printing` : ""}
           </span>
         ) : <span className="print-classification-badge is-exact-issue">Exact issue match</span>}
       </div>
@@ -90,13 +92,13 @@ function SaleGroupList({ sales, sourceNames, showPrintClassification = true }: {
     <>
       {verified.length ? (
         <div className="observed-sales-group">
-          <p className="observed-sales-group-label">Verified — counted in the value above ({verified.length})</p>
+          <p className="observed-sales-group-label">Verified receipts ({verified.length})</p>
           <div className="observed-sales-list">{verified.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} showPrintClassification={showPrintClassification} key={sale.id} />)}</div>
         </div>
       ) : null}
       {pending.length ? (
         <div className="observed-sales-group">
-          <p className="observed-sales-group-label">Under review — not yet counted ({pending.length})</p>
+          <p className="observed-sales-group-label">Under review ({pending.length})</p>
           <div className="observed-sales-list">{pending.map((sale) => <SaleRow sale={sale} sourceNames={sourceNames} showPrintClassification={showPrintClassification} key={sale.id} />)}</div>
         </div>
       ) : null}
@@ -138,7 +140,6 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
     return (
       <div className="publication-print-tabs exact-issue-sales">
         <div className="print-tab-panel">
-          <p className="section-copy">Only completed sales tied to this exact magazine issue count. Asking prices and similar-looking issues never affect this value, and raw and graded copies remain separate comparison groups.</p>
           <div className="print-tab-valuation">
             <p className="eyebrow">RAR market evidence · Exact issue</p>
             <MarketValuePanel sales={verified} rates={rates} />
@@ -154,18 +155,12 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
   const firstVerified = firstPrintSales.filter((sale) => sale.match_status === "verified_match");
   const { knownLaterPrint: knownLater, printingNotIdentified: unidentified } = splitByPrintClassification(otherSales);
 
-  // Known-later-print sales only ever compare against sales sharing the
-  // SAME known printing number -- a 3rd printing and a 5th printing are
-  // never charted or valued together, and printing-not-identified sales
-  // are never charted or valued at all (see SaleGroupList below).
+  // Known-later-print sales only compare within the same printing number;
+  // unidentified printings remain individual receipts, never pooled values.
   const knownLaterGroups = groupKnownLaterPrintSales(knownLater);
 
-  // One chart for the whole publication, above the tabs. Every verified sale
-  // goes in and lib/priceSeries.ts decides the lines: first print, each known
-  // printing separately, printing-not-identified, and each grading group. The
-  // tabs below still carry the evidence lists and the per-group valuations --
-  // what moved is only the comparison, which needed shared axes to be
-  // possible at all.
+  // One chart for the whole publication. Every verified sale goes in as a
+  // point; only groups with enough comparable sales receive a line.
   const allVerified = [...firstPrintSales, ...otherSales].filter((sale) => sale.match_status === "verified_match");
 
   return (
@@ -185,7 +180,6 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
       {tab === "first" ? (
         <div className="print-tab-panel" role="tabpanel">
-          <p className="section-copy">Only completed sales with proof that the specific sold copy is a first print, including an SP-confirmed inspection. A listing-title claim alone is never enough.</p>
           <div className="print-tab-valuation">
             <p className="eyebrow">RAR market evidence · First print</p>
             <MarketValuePanel sales={firstVerified} rates={rates} />
@@ -194,19 +188,18 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
         </div>
       ) : (
         <div className="print-tab-panel" role="tabpanel">
-          <p className="section-copy">Completed sales for this same publication where the printing is known to be later, or cannot be proven from the source. RAR never combines these with first-print evidence, and never charts a value across different printing numbers.</p>
-
           {[...knownLaterGroups.entries()].map(([printingNumber, group]) => {
             const verifiedInGroup = group.filter((sale) => sale.match_status === "verified_match");
+            const hasLine = buildPriceSeries(verifiedInGroup).some((series) => series.chartable);
             return (
               <div className="print-tab-subgroup" key={printingNumber}>
                 <h3>{printingNumber ? `${ordinal(printingNumber)} printing` : "Known later printing"} ({group.length})</h3>
-                {hasComparableChart(group) ? (
+                {hasLine ? (
                   <div className="print-tab-valuation">
-                    <MarketValuePanel sales={verifiedInGroup} rates={rates} />
+                    <MarketValuePanel sales={verifiedInGroup} rates={rates} minGroupSales={MIN_COMPARABLE_SALES} />
                   </div>
                 ) : (
-                  <p className="section-copy">Not enough comparable verified sales yet to value this printing — needs {MIN_COMPARABLE_SALES} in this exact printing group, has {verifiedInGroup.length}. This printing appears on the chart above as its own line once it reaches {MIN_COMPARABLE_SALES}.</p>
+                  <p className="print-tab-hint">{verifiedInGroup.length} verified · {MIN_COMPARABLE_SALES} matching printing and grade needed for a line.</p>
                 )}
                 <SaleGroupList sales={group} sourceNames={sourceNames} />
               </div>
@@ -215,7 +208,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
           <div className="print-tab-subgroup">
             <h3>Printing not identified ({unidentified.length})</h3>
-            <p className="section-copy">RAR cannot confirm which printing these copies are from. They are never charted or averaged into a value.</p>
+            <p className="print-tab-hint">Individual sale points only; no pooled value.</p>
             <SaleGroupList sales={unidentified} sourceNames={sourceNames} />
           </div>
         </div>

@@ -20,10 +20,8 @@ export function splitByPrintClassification<T extends { print_classification: Pri
 
 // Known-later-print sales only ever compare within the SAME known printing
 // number — a 3rd printing and a 5th printing are never charted or valued
-// together. Printing-not-identified sales are never VALUED at all and never
-// enter this function; since the multi-series chart they do appear on it, but
-// only as their own separate grey line, labelled as unproven and switched off
-// by default whenever stronger evidence exists (see lib/priceSeries.ts).
+// together. Printing-not-identified sales never enter this function; they
+// appear on the chart only as individual points, never as a trend or value.
 export function groupKnownLaterPrintSales<T extends { known_printing_number: number | null }>(sales: T[]) {
   const groups = new Map<number, T[]>();
   for (const sale of sales) {

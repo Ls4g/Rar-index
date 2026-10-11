@@ -5,7 +5,7 @@
 // rules are exactly as strict as they were when each group had its own chart.
 // Every case here is a way two markets could have been silently pooled into
 // one line.
-import { buildPriceSeries, defaultVisibleSeries, seriesColourIndex } from "../lib/priceSeries.ts";
+import { buildPriceSeries, defaultVisibleSeries, mayDrawPriceLine, seriesColourIndex } from "../lib/priceSeries.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -59,7 +59,7 @@ console.log("\n--- raw and graded never pool ---");
   check("raw is listed before graded", series[0].graded === false);
 }
 
-console.log("\n--- unproven printings stay apart and stay quiet ---");
+console.log("\n--- unproven printings stay apart and remain selectable ---");
 {
   const series = buildPriceSeries([
     first("2026-01-01", 100), first("2026-02-01", 110), first("2026-03-01", 120),
@@ -67,15 +67,13 @@ console.log("\n--- unproven printings stay apart and stay quiet ---");
   ]);
   check("printing-not-identified is its own series", series.some((s) => s.kind === "printing_unknown"));
   check("it never merges into the first-print series", series.find((s) => s.kind === "first_print").sales.length === 3);
-  // It is real evidence and stays available, but it is the weakest thing on
-  // the page and must not be what a visitor is shown first.
+  // The reader sees every sale group by default, including unproven ones,
+  // while the chart only draws an eligible trend line.
   const visible = defaultVisibleSeries(series);
-  check("it is off by default when something stronger exists", !visible.includes(series.find((s) => s.kind === "printing_unknown").id));
+  check("unidentified sales are on by default", visible.includes(series.find((s) => s.kind === "printing_unknown").id));
   check("the first print is on by default", visible.includes(series.find((s) => s.kind === "first_print").id));
 }
 {
-  // ...unless it is all RAR has, in which case hiding it would present an
-  // empty chart and imply there is no evidence at all.
   const series = buildPriceSeries([unknown("2026-01-03", 60), unknown("2026-02-03", 65), unknown("2026-03-03", 70)]);
   check("it is on by default when it is the only series", defaultVisibleSeries(series).length === 1);
 }
@@ -90,7 +88,9 @@ console.log("\n--- the three-sale minimum still governs a line ---");
   check("two sales is not enough for a line", firstSeries.chartable === false);
   check("three sales is enough for a line", series.find((s) => s.printingNumber === 2).chartable === true);
   check("an unchartable series is still reported, not dropped", series.length === 2);
-  check("an unchartable series is not visible by default", !defaultVisibleSeries(series.filter((s) => s.chartable)).includes(firstSeries.id));
+  check("a two-sale group remains selectable for its individual points", defaultVisibleSeries(series).includes(firstSeries.id));
+  check("two sales do not make a line after conversion", !mayDrawPriceLine(firstSeries, 2, "publication_prints"));
+  check("three same-group sales make a line after conversion", mayDrawPriceLine(series.find((s) => s.printingNumber === 2), 3, "publication_prints"));
 }
 
 console.log("\n--- undated sales cannot be plotted ---");
@@ -146,7 +146,22 @@ console.log("\n--- real RAR shapes ---");
   check("three groups are recognised", series.length === 3, JSON.stringify(series.map((s) => `${s.label}:${s.sales.length}`)));
   check("the unnumbered later printing is labelled honestly", series.some((s) => s.label === "Later printing"));
   check("one lone later-print sale is not chartable", series.find((s) => s.kind === "later_printing").chartable === false);
-  check("only the first print is on by default", defaultVisibleSeries(series.filter((s) => s.chartable)).length === 1);
+  check("all three groups are on by default", defaultVisibleSeries(series).length === 3);
+}
+
+console.log("\n--- live-shaped graded sale remains visible ---");
+{
+  const series = buildPriceSeries([
+    first("2026-05-16", 100), first("2026-05-30", 110), first("2026-06-20", 90), first("2026-07-16", 56),
+    sale({ sold_date: "2026-08-23", sale_price: 550, print_classification: "printing_not_identified", grading_company: "BGS", grade_label: "9.0" }),
+  ]);
+  const gradedSeries = series.find((entry) => entry.graded);
+  check("JJK-shaped raw and graded groups stay separate", series.length === 2 && gradedSeries?.sales.length === 1);
+  check("single graded sale has no trend line", gradedSeries?.chartable === false);
+  check("single graded sale is selectable", defaultVisibleSeries(series).includes(gradedSeries?.id));
+  check("graded filter is clearly labelled", gradedSeries?.label.startsWith("Graded · BGS 9.0"));
+  check("unidentified printing cannot make a publication trend even with three sales", !mayDrawPriceLine(gradedSeries, 3, "publication_prints"));
+  check("exact-issue magazines may draw a grading-group line at three sales", mayDrawPriceLine(gradedSeries, 3, "exact_issue"));
 }
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);

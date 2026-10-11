@@ -22,13 +22,14 @@ import { hasUnresolvedGrading } from "./gradingEvidence.ts";
 //                different markets. Known later printings split further by
 //                printing NUMBER, because printClassification.ts is explicit
 //                that a 3rd and a 5th printing are never charted together.
-//   - grading:   a graded copy is a different market from a raw one. RAR has
-//                no graded sales yet, so this dimension currently yields
-//                nothing — it is built now so that the first graded sale
-//                becomes its own line without a rewrite.
+//   - grading:   a graded copy is a different market from a raw one. A grade
+//                is part of the comparison group, not a label on a pooled
+//                graded price.
 
 export type SeriesSale = MarketSale & {
+  id?: string;
   listing_title?: string | null;
+  grading_reviewed_at?: string | null;
   print_classification: PrintClassification;
   known_printing_number: number | null;
 };
@@ -92,7 +93,7 @@ export function buildPriceSeries<T extends SeriesSale>(sales: T[], minSales = MI
       // The grading half is only appended when there is something to say, so
       // a catalogue with no graded sales reads "First print", not
       // "First print · Raw" on every line.
-      label: grading.key === "Raw" ? printing.label : `${printing.label} · ${grading.grading}`,
+      label: grading.key === "Raw" ? printing.label : printing.kind === "printing_unknown" ? `${grading.grading} · print unknown` : `${printing.label} · ${grading.grading}`,
       kind: printing.kind,
       printingNumber: printing.printingNumber,
       grading: grading.grading,
@@ -117,19 +118,16 @@ export function buildPriceSeries<T extends SeriesSale>(sales: T[], minSales = MI
     });
 }
 
-/**
- * Which lines start switched on.
- *
- * Everything chartable is on, except printing-not-identified — those sales
- * are real and worth being able to see, but they are the weakest evidence on
- * the page and should not be what a visitor looks at first. The exception is
- * when they are the ONLY thing there is: hiding the sole line by default
- * would present an empty chart and imply RAR has nothing.
- */
+/** Every group with a plotted sale starts visible. A reader can switch any
+ * group off, including printing-not-identified; no group is silently hidden
+ * or impossible to switch on. The chart still decides independently whether
+ * a group has enough comparable sales for a line. */
 export function defaultVisibleSeries<T extends SeriesSale>(series: PriceSeries<T>[]): string[] {
-  const chartable = series.filter((entry) => entry.chartable);
-  const named = chartable.filter((entry) => entry.kind !== "printing_unknown");
-  return (named.length ? named : chartable).map((entry) => entry.id);
+  return series.map((entry) => entry.id);
+}
+
+export function mayDrawPriceLine(series: PriceSeries, convertedSaleCount: number, mode: "publication_prints" | "exact_issue") {
+  return convertedSaleCount >= MIN_COMPARABLE_SALES && (mode === "exact_issue" || series.kind !== "printing_unknown");
 }
 
 // Two channels rather than one palette, because a series differs along two

@@ -458,6 +458,7 @@ table { font-variant-numeric: tabular-nums; }
 .chart-range-label { position: absolute; left: .65rem; margin-top: -.35rem; transform: translateY(-100%); color: var(--muted); font-size: .68rem; font-weight: 700; }
 .chart-range-label-low { margin-top: .35rem; transform: translateY(0); }
 .chart-tooltip { position: absolute; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; padding: .45rem .65rem; border-radius: .5rem; border: 1px solid var(--line); background: #fffcf3; box-shadow: 0 8px 20px rgba(33,29,24,.14); white-space: nowrap; transition: left .12s ease, top .12s ease; }
+.price-history-multi .chart-tooltip { max-width: min(210px, 48vw); white-space: normal; overflow-wrap: anywhere; }
 .chart-tooltip.is-below { transform: translate(-50%, 14px); }
 .chart-tooltip strong { display: block; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 1rem; font-weight: 700; color: var(--ink); line-height: 1; }
 .chart-tooltip span { display: block; margin-top: .2rem; color: var(--muted); font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -540,12 +541,14 @@ html[data-theme="day"] .price-history-multi {
 .chart-series-line { fill: none; stroke: var(--series-colour, var(--gold)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .chart-series[data-graded="true"] .chart-series-line { stroke-dasharray: 7 5; }
 .price-chart.is-multi .price-chart-point { fill: var(--surface-card, var(--paper)); stroke: var(--series-colour, var(--gold)); }
+.price-chart.is-multi .price-chart-point.is-point-only { stroke-width: 3; opacity: 1; }
 /* A graded marker is hollow; a raw one reads as filled against the line. */
 .chart-series[data-graded="true"] .price-chart-point { fill: var(--surface-card, var(--paper)); stroke-width: 2.4; }
 
 /* The legend is the control. Buttons, not swatches -- each one carries the
    count and latest price so the choice of what to compare can be made
    without opening anything. */
+.chart-filter-title { margin: .15rem 0 .5rem; color: var(--muted); font-size: .68rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
 .chart-legend-toggle {
   display: flex; align-items: center; gap: .5rem;
@@ -560,14 +563,15 @@ html[data-theme="day"] .price-history-multi {
 .chart-legend-toggle.is-on { border-color: var(--series-colour, var(--gold)); background: color-mix(in srgb, var(--series-colour, var(--gold)) 10%, transparent); color: var(--canvas-heading, var(--ink)); opacity: 1; }
 .chart-legend-toggle:focus-visible { outline: 2px solid var(--series-colour, var(--gold)); outline-offset: 2px; }
 .chart-legend-swatch { flex: none; width: 1.1rem; height: 0; border-top: 3px solid var(--series-colour, var(--gold)); border-radius: 2px; }
+.chart-legend-toggle[data-point-only="true"] .chart-legend-swatch { width: .6rem; height: .6rem; border: 2px solid var(--series-colour, var(--gold)); border-radius: 50%; }
 /* The swatch repeats the line's own dash pattern, so the legend and the plot
    are read with one rule rather than two. */
 .chart-legend-toggle[data-graded="true"] .chart-legend-swatch { border-top-style: dashed; }
 .chart-legend-toggle:not(.is-on) .chart-legend-swatch { border-top-color: var(--muted); }
+.chart-legend-toggle[data-point-only="true"]:not(.is-on) .chart-legend-swatch { border-color: var(--muted); }
 .chart-legend-label { font-weight: 700; white-space: nowrap; }
 .chart-legend-meta { color: var(--muted); font-size: .7rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chart-tooltip em { display: block; margin-top: .25rem; color: var(--series-colour, var(--gold)); font-size: .62rem; font-style: normal; font-weight: 700; }
-.chart-belowbar-note { max-width: 690px; margin: .9rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.55; }
 
 @media (max-width: 600px) {
   /* Long labels ("Printing not identified") would each take a full row as
@@ -625,6 +629,14 @@ a.observed-sale:hover { background: #ece5d8; }
 .print-tab-valuation { max-width: 420px; }
 .print-tab-subgroup { padding-top: 1.5rem; border-top: 1px solid var(--line); }
 .print-tab-subgroup h3 { margin: 0 0 .75rem; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; }
+.publication-print-tabs .print-tab-panel { gap: 1rem; }
+.publication-print-tabs .print-tab-subgroup { padding-top: 1rem; }
+.publication-print-tabs .print-tab-subgroup h3 { margin-bottom: .45rem; font-size: 1.2rem; }
+.publication-print-tabs .observed-sales-group-label { margin-bottom: .5rem; }
+.publication-print-tabs .observed-sale { gap: .6rem 1rem; padding: .9rem 1rem; }
+.publication-print-tabs .observed-sale strong { font-size: 1.45rem; }
+.publication-print-tabs .observed-sale-links { margin-top: 0; padding-top: .45rem; }
+.print-tab-hint { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .sources-section { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .community-report { margin-top: 5.5rem; padding-top: 4rem; border-top: 1px solid var(--line); }
 .community-report-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; max-width: 760px; padding: 1.3rem; border: 1px solid var(--line); background: #fbf9f3; }

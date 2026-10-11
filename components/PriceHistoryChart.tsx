@@ -6,12 +6,11 @@ import { convertSale, formatPrice, type ConvertedSale, type FxRate } from "@/lib
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 import ChartRangeSelector from "@/components/ChartRangeSelector";
 import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
-import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
-import { buildPriceSeries, defaultVisibleSeries, seriesColourIndex, type PriceSeries, type SeriesSale } from "@/lib/priceSeries";
+import { buildPriceSeries, defaultVisibleSeries, mayDrawPriceLine, seriesColourIndex, type PriceSeries, type SeriesSale } from "@/lib/priceSeries";
 
-// One chart, one line per comparison group, and a legend that switches lines
-// on and off.
+// One chart, one selectable comparison group per printing and grade. Every
+// verified sale can appear as a point; a line still needs 3 comparable sales.
 //
 // This replaces a stack of separate single-group charts. The evidence rules
 // are unchanged and are exactly what produce the lines (see lib/priceSeries.ts):
@@ -64,7 +63,7 @@ type PlottedPoint = {
 };
 
 function pointKey(point: PlottedPoint) {
-  return `${point.seriesId}-${point.sale.sold_date}-${point.sale.sale_price}`;
+  return point.sale.id ?? `${point.seriesId}-${point.sale.sold_date}-${point.sale.sale_price}-${point.sale.currency}`;
 }
 
 function formatShortDate(value: string) {
@@ -90,19 +89,22 @@ function formatAxisPrice(value: number, code: string) {
  * numbers, which is why the old high/low pair carried so little.
  */
 function niceTicks(min: number, max: number, count = Y_TICK_COUNT) {
-  const span = max - min || Math.max(max * 0.2, 1);
+  const padding = min === max ? Math.max(max * 0.1, 1) : 0;
+  const lower = Math.max(0, min - padding);
+  const upper = max + padding;
+  const span = upper - lower;
   const rough = span / Math.max(1, count - 1);
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   const normalised = rough / magnitude;
   const step = (normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 5 ? 5 : 10) * magnitude;
-  const start = Math.floor(min / step) * step;
-  const end = Math.ceil(max / step) * step;
+  const start = Math.floor(lower / step) * step;
+  const end = Math.ceil(upper / step) * step;
   const ticks: number[] = [];
   for (let value = start; value <= end + step / 2; value += step) ticks.push(Number(value.toFixed(6)));
   return ticks;
 }
 
-function GhostChart({ best, missingRates }: { best: number; missingRates: number }) {
+function GhostChart({ missingRates }: { missingRates: number }) {
   return (
     <div className="ghost-chart" aria-label="Price history is not yet available">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-hidden="true">
@@ -112,11 +114,9 @@ function GhostChart({ best, missingRates }: { best: number; missingRates: number
         <path d={`M 0 ${HEIGHT * 0.69} C 100 ${HEIGHT * 0.55}, 150 ${HEIGHT * 0.68}, 240 ${HEIGHT * 0.52} S 380 ${HEIGHT * 0.41}, 470 ${HEIGHT * 0.57} S 600 ${HEIGHT * 0.37}, 720 ${HEIGHT * 0.44}`} />
       </svg>
       <div className="ghost-chart-message">
-        <strong>Not enough comparable verified sales yet</strong>
+        <strong>Sale prices cannot be plotted yet</strong>
         <p>
-          RAR needs {MIN_COMPARABLE_SALES} verified sales that share a printing and a raw/graded state before it will draw a line.
-          Sales may be in different currencies; each is converted at its sale-date rate.
-          {best ? ` The strongest group here currently has ${best}.` : ""}
+          Each point needs a recorded sale date and a valid exchange rate. A line needs {MIN_COMPARABLE_SALES} comparable sales in one group.
           {missingRates ? ` ${missingRates} sale${missingRates === 1 ? " is" : "s are"} waiting for an exchange-rate record.` : ""}
         </p>
       </div>
@@ -129,7 +129,7 @@ function ThingsToKnow() {
     <details className="price-things-to-know">
       <summary>Things to know about a sale</summary>
       <ul>
-        <li>Each line is one comparison group. RAR never joins a first print to a later printing, or a raw copy to a graded one — those are different markets, so they are different lines.</li>
+        <li>Each point is one completed sale. A line only joins three or more comparable sales from the same printing and grade group.</li>
         <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
         <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
         <li>RAR records the original price and currency, then converts it at the reference rate on the sale date for the selected display currency.</li>
@@ -141,7 +141,7 @@ function ThingsToKnow() {
 /** Converts each series into the display currency and works out which can be
  *  drawn. Shared by the full-history pass and the range pass so both apply
  *  identical rules. */
-function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarketCurrency>["currency"], rates: FxRate[]) {
+function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarketCurrency>["currency"], rates: FxRate[], mode: PriceHistoryChartProps["mode"]) {
   const built = buildPriceSeries(sales);
   const converted = built.map((series) => {
     const convertedSales = series.sales
@@ -152,13 +152,15 @@ function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarke
       convertedSales,
       // Re-checked after conversion: a sale with no exchange-rate record for
       // its date cannot be plotted, so it cannot count towards the minimum.
-      chartable: convertedSales.length >= MIN_COMPARABLE_SALES,
+      // Unidentified printings remain visible as individual receipts, but
+      // cannot support a publication-level trend line even with 3+ sales.
+      chartable: mayDrawPriceLine(series, convertedSales.length, mode ?? "publication_prints"),
     };
   });
   return {
     series: converted,
-    best: Math.max(0, ...converted.map((series) => series.convertedSales.length)),
     missingRates: built.reduce((count, series) => count + series.sales.filter((sale) => !convertSale(sale, currency, rates)).length, 0),
+    missingDetails: sales.length - built.reduce((count, series) => count + series.sales.length, 0),
   };
 }
 
@@ -166,33 +168,35 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
   const { currency } = useMarketCurrency();
   const gradientId = useId();
   const [range, setRange] = useState<ChartRangeKey>("MAX");
-  // Which lines the reader has explicitly switched off. Stored as the
-  // exception rather than as the visible set, so a line that appears later
-  // (a new printing, the first graded sale) shows up instead of silently
+  // Which groups the reader has explicitly switched off. Stored as the
+  // exception rather than as the visible set, so a new group shows up instead of silently
   // staying hidden because it was not in a stored list.
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
-  const full = useMemo(() => prepareSeries(sales, currency, rates), [sales, currency, rates]);
+  const full = useMemo(() => prepareSeries(sales, currency, rates, mode), [sales, currency, rates, mode]);
   const ranged = useMemo(() => {
     const cutoff = chartRangeCutoff(range);
     if (cutoff === null) return full;
     const withinRange = sales.filter((sale) => sale.sold_date && new Date(`${sale.sold_date}T00:00:00`).getTime() >= cutoff);
-    return prepareSeries(withinRange, currency, rates);
-  }, [sales, currency, rates, range, full]);
+    return prepareSeries(withinRange, currency, rates, mode);
+  }, [sales, currency, rates, mode, range, full]);
 
-  // Narrowing the window can drop every group below the minimum. RAR never
-  // draws from fewer than three, so rather than showing a weaker chart the
-  // full history returns with the reason stated — the alternative is a reader
-  // believing the evidence vanished.
-  const usingFallback = range !== "MAX" && !ranged.series.some((series) => series.chartable) && full.series.some((series) => series.chartable);
+  // A range with just one sale still shows that sale as a point. Fall back
+  // only when the selected window has no plotted evidence at all.
+  const usingFallback = range !== "MAX" && !ranged.series.some((series) => series.convertedSales.length) && full.series.some((series) => series.convertedSales.length);
   const shown = usingFallback ? full : ranged;
 
-  const chartable = useMemo(() => shown.series.filter((series) => series.chartable), [shown]);
-  const defaults = useMemo(() => defaultVisibleSeries(chartable as PriceSeries<SeriesSale>[]), [chartable]);
+  const plottable = useMemo(() => shown.series.filter((series) => series.convertedSales.length), [shown]);
+  const defaults = useMemo(() => defaultVisibleSeries(plottable as PriceSeries<SeriesSale>[]), [plottable]);
   const visibleSeries = useMemo(
-    () => chartable.filter((series) => defaults.includes(series.id) && !hiddenIds.includes(series.id)),
-    [chartable, defaults, hiddenIds],
+    () => {
+      const selected = plottable.filter((series) => defaults.includes(series.id) && !hiddenIds.includes(series.id));
+      // A date-range switch can leave every group hidden from a previous
+      // range. Keep one group visible instead of presenting an empty plot.
+      return selected.length ? selected : plottable.slice(0, 1);
+    },
+    [plottable, defaults, hiddenIds],
   );
 
   const plot = useMemo(() => {
@@ -200,14 +204,14 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
     const plotWidth = PLOT_WIDTH;
     const baselineY = PADDING_TOP + PLOT_HEIGHT;
 
-    // x spans every chartable line, not only the visible ones, so switching a
-    // line off never slides the remaining lines along the time axis.
+    // x follows the selected groups, like y. Selecting a lone sale centres
+    // its point instead of marooning it at one edge of an unrelated range.
     //
     // The axis labels are taken from the sale's own date STRING rather than
     // rebuilt from the timestamp. Going back through toISOString() converts
     // to UTC, so a sale dated 1 May parsed in BST became 30 April and the
     // axis under-reported its own range by a day.
-    const allDates = chartable
+    const allDates = visibleSeries
       .flatMap((series) => series.convertedSales.map((sale) => String(sale.sold_date)))
       .sort((left, right) => left.localeCompare(right));
     const firstDate = allDates[0];
@@ -237,17 +241,17 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
     const tickFormat = new Intl.DateTimeFormat("en-GB", spanDays <= 120
       ? { day: "numeric", month: "short" }
       : { month: "short", year: "2-digit" });
-    const rawTicks = Array.from({ length: X_TICK_COUNT }, (_, index) => {
-      const ratio = index / (X_TICK_COUNT - 1);
+    const rawTicks = Array.from({ length: firstTime === lastTime ? 1 : X_TICK_COUNT }, (_, index) => {
+      const ratio = firstTime === lastTime ? 0.5 : index / (X_TICK_COUNT - 1);
       const date = new Date(firstTime + ratio * timeSpan);
       return { x: PADDING_LEFT + ratio * plotWidth, date, label: tickFormat.format(date) };
     });
     const xTicks = rawTicks.filter((tick, index) => index === 0 || tick.label !== rawTicks[index - 1].label);
 
     const lines = visibleSeries.map((series) => {
-      const colourIndex = seriesColourIndex(chartable as PriceSeries<SeriesSale>[], series.id);
+      const colourIndex = seriesColourIndex(plottable as PriceSeries<SeriesSale>[], series.id);
       const points: PlottedPoint[] = series.convertedSales.map((sale) => ({
-        x: PADDING_LEFT + ((new Date(`${sale.sold_date}T00:00:00`).getTime() - firstTime) / timeSpan) * plotWidth,
+        x: PADDING_LEFT + (firstTime === lastTime ? 0.5 : (new Date(`${sale.sold_date}T00:00:00`).getTime() - firstTime) / timeSpan) * plotWidth,
         y: yFor(sale.converted_price),
         seriesId: series.id,
         colourIndex,
@@ -258,12 +262,12 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
         series,
         colourIndex,
         points,
-        path: points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" "),
+        path: series.chartable ? points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ") : null,
       };
     });
 
     return { lines, allPoints: lines.flatMap((line) => line.points), ticks, yFor, xTicks, baselineY, firstDate, lastDate };
-  }, [visibleSeries, chartable]);
+  }, [visibleSeries, plottable]);
 
   const activePoint = useMemo(() => {
     if (!plot || !plot.allPoints.length) return null;
@@ -309,7 +313,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
     else if (event.key === "End") { event.preventDefault(); move(ordered.length - 1); }
   }
 
-  if (!full.series.some((series) => series.chartable)) {
+  if (!full.series.some((series) => series.convertedSales.length)) {
     return (
       <div className="price-history-card price-history-empty">
         <div className="price-history-heading">
@@ -319,21 +323,22 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
           </div>
           <span className="chart-status">Evidence building</span>
         </div>
-        <GhostChart best={full.best} missingRates={full.missingRates} />
+        <GhostChart missingRates={full.missingRates} />
         <ThingsToKnow />
       </div>
     );
   }
 
-  const uncharted = shown.series.filter((series) => !series.chartable);
-  const frequency = describeSaleFrequency(visibleSeries.flatMap((series) => series.convertedSales.map((sale) => sale.sold_date)));
+  const pointOnly = plottable.filter((series) => !series.chartable);
+  const missingRates = shown.missingRates;
+  const missingDetails = shown.missingDetails;
   const totalShown = visibleSeries.reduce((count, series) => count + series.convertedSales.length, 0);
   const showsOriginal = activePoint && activePoint.sale.currency !== currency;
 
   const headlineSeries = visibleSeries[0];
   const headline = headlineSeries?.convertedSales.at(-1) ?? null;
   const headlinePrevious = headlineSeries?.convertedSales.at(-2) ?? null;
-  const headlineChange = headline && headlinePrevious && headlinePrevious.converted_price
+  const headlineChange = headlineSeries?.chartable && headline && headlinePrevious && headlinePrevious.converted_price
     ? (() => {
       const difference = headline.converted_price - headlinePrevious.converted_price;
       if (!difference) return { direction: "is-flat", text: "Level" };
@@ -357,15 +362,16 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
       {usingFallback ? (
         <p className="chart-range-note" role="status">
-          Not enough comparable sales in {chartRange(range).phrase} — RAR needs {MIN_COMPARABLE_SALES} sharing a printing and a raw/graded state, so the full history is shown instead.
+          No recorded sales in {chartRange(range).phrase}; showing all dates instead.
         </p>
       ) : null}
 
       {/* The legend is the control, not a key. Each entry says how many sales
           back the line and what the latest one was, so the decision about
           what to compare can be made without opening anything. */}
-      <ul className="chart-legend" aria-label="Comparison groups on this chart">
-        {chartable.map((series) => {
+      <p className="chart-filter-title">Show sale groups</p>
+      <ul className="chart-legend" aria-label="Filter sale groups on this chart">
+        {plottable.map((series) => {
           const on = visibleSeries.some((entry) => entry.id === series.id);
           const latest = series.convertedSales.at(-1);
           return (
@@ -374,7 +380,8 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                 aria-pressed={on}
                 className={`chart-legend-toggle${on ? " is-on" : ""}`}
                 data-graded={series.graded ? "true" : undefined}
-                data-series-colour={seriesColourIndex(chartable as PriceSeries<SeriesSale>[], series.id)}
+                data-point-only={!series.chartable ? "true" : undefined}
+                data-series-colour={seriesColourIndex(plottable as PriceSeries<SeriesSale>[], series.id)}
                 onClick={() => toggleSeries(series.id)}
                 type="button"
               >
@@ -383,6 +390,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                 <span className="chart-legend-meta">
                   {series.convertedSales.length} sale{series.convertedSales.length === 1 ? "" : "s"}
                   {latest ? ` · ${formatPrice(latest.converted_price, currency)}` : ""}
+                  {!series.chartable ? " · points only" : ""}
                 </span>
               </button>
             </li>
@@ -448,7 +456,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
                 <text
                   className="chart-axis-label"
                   key={tick.date.getTime()}
-                  textAnchor={index === 0 ? "start" : index === plot.xTicks.length - 1 ? "end" : "middle"}
+                  textAnchor={plot.xTicks.length === 1 ? "middle" : index === 0 ? "start" : index === plot.xTicks.length - 1 ? "end" : "middle"}
                   x={tick.x}
                   y={HEIGHT - 12}
                 >
@@ -459,7 +467,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
               {/* A single line keeps its area fill; several would layer
                   translucent washes over each other and muddy every colour. */}
-              {plot.lines.length === 1 ? (
+              {plot.lines.length === 1 && plot.lines[0].series.chartable ? (
                 <path
                   className="price-chart-area"
                   d={`M ${plot.lines[0].points[0].x} ${plot.baselineY} ${plot.lines[0].points.map((point) => `L ${point.x} ${point.y}`).join(" ")} L ${plot.lines[0].points.at(-1)!.x} ${plot.baselineY} Z`}
@@ -469,16 +477,16 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
               {plot.lines.map((line) => (
                 <g className="chart-series" data-graded={line.series.graded ? "true" : undefined} data-series-colour={line.colourIndex} key={line.series.id}>
-                  <path className="chart-series-line" d={line.path} />
+                  {line.path ? <path className="chart-series-line" d={line.path} /> : null}
                   {line.points.map((point) => {
                     const isActive = pointKey(point) === pointKey(activePoint);
                     return (
                       <circle
-                        className={`price-chart-point${isActive ? " is-active" : ""}`}
+                        className={`price-chart-point${!line.series.chartable ? " is-point-only" : ""}${isActive ? " is-active" : ""}`}
                         cx={point.x}
                         cy={point.y}
-                        key={`${point.sale.sold_date}-${point.sale.sale_price}-${point.sale.currency}`}
-                        r={isActive ? 6 : 3}
+                        key={pointKey(point)}
+                        r={isActive ? 7 : line.series.chartable ? 3 : 5}
                       >
                         <title>{`${line.series.label} · ${formatShortDate(String(point.sale.sold_date))}: ${formatPrice(point.sale.sale_price, point.sale.currency)} → ${formatPrice(point.sale.converted_price, currency)}`}</title>
                       </circle>
@@ -493,7 +501,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
               aria-hidden="true"
               className={`chart-tooltip${activePoint.y < PADDING_TOP + PLOT_HEIGHT * 0.32 ? " is-below" : ""}`}
               data-series-colour={activePoint.colourIndex}
-              style={{ left: `${Math.min(90, Math.max(10, (activePoint.x / WIDTH) * 100))}%`, top: `${(activePoint.y / HEIGHT) * 100}%` }}
+              style={{ left: `${Math.min(75, Math.max(25, (activePoint.x / WIDTH) * 100))}%`, top: `${(activePoint.y / HEIGHT) * 100}%` }}
             >
               <strong>{formatPrice(activePoint.sale.converted_price, currency)}</strong>
               <span>{formatShortDate(String(activePoint.sale.sold_date))}</span>
@@ -508,22 +516,11 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
         </>
       ) : null}
 
-      {/* Groups that exist but cannot be drawn are named rather than dropped.
-          Silently omitting them would make the page look like it holds less
-          evidence than it does. */}
-      {uncharted.length ? (
-        <p className="chart-belowbar-note">
-          Not charted yet — {MIN_COMPARABLE_SALES} sales are needed in one group:{" "}
-          {uncharted.map((series) => `${series.label} (${series.convertedSales.length})`).join(", ")}.
-          {mode === "publication_prints" ? " A sale whose printing cannot be proven is never mixed into a printed group." : ""}
-        </p>
-      ) : null}
-
       <p className="chart-note">
-        {totalShown} verified sale{totalShown === 1 ? "" : "s"} shown in {currency}
-        {frequency ? ` · sells ${frequency.label}` : ""}. Lines are never joined across printings or across raw and graded — those are
-        separate markets. Amounts are converted using European Central Bank reference rates from each sale date; the original price and
-        currency stay visible in the sale record below.
+        {totalShown} verified sale{totalShown === 1 ? "" : "s"} shown in {currency}.
+        {pointOnly.length ? ` Groups need ${MIN_COMPARABLE_SALES} comparable sales for a line; smaller groups and unidentified printings appear as points.` : ""}
+        {missingRates ? ` ${missingRates} sale${missingRates === 1 ? " is" : "s are"} waiting for an exchange rate.` : ""}
+        {missingDetails ? ` ${missingDetails} sale${missingDetails === 1 ? " is" : "s are"} waiting for a date or grading review.` : ""}
       </p>
       <ThingsToKnow />
     </div>

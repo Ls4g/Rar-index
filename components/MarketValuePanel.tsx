@@ -1,11 +1,13 @@
 "use client";
 
 import { comparisonGroup, convertSale, DISPLAY_CURRENCIES, formatPrice, median, type FxRate, type MarketSale } from "@/lib/fx";
+import { hasUnresolvedGrading, type GradingEvidence } from "@/lib/gradingEvidence";
 import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 
 type MarketValuePanelProps = {
-  sales: MarketSale[];
+  sales: Array<MarketSale & GradingEvidence>;
   rates: FxRate[];
+  minGroupSales?: number;
 };
 
 function formatDate(value: string | null) {
@@ -13,11 +15,12 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
 }
 
-export default function MarketValuePanel({ sales, rates }: MarketValuePanelProps) {
+export default function MarketValuePanel({ sales, rates, minGroupSales = 1 }: MarketValuePanelProps) {
   const { currency, setCurrency } = useMarketCurrency();
   const groups = new Map<string, { label: string; sales: ReturnType<typeof convertSale>[] }>();
 
   for (const sale of sales) {
+    if (hasUnresolvedGrading(sale)) continue;
     const converted = convertSale(sale, currency, rates);
     if (!converted) continue;
     const group = comparisonGroup(sale);
@@ -28,7 +31,7 @@ export default function MarketValuePanel({ sales, rates }: MarketValuePanelProps
 
   const marketGroups = [...groups.values()]
     .map((group) => ({ ...group, sales: group.sales.filter((sale): sale is NonNullable<typeof sale> => Boolean(sale)) }))
-    .filter((group) => group.sales.length)
+    .filter((group) => group.sales.length >= minGroupSales)
     .sort((a, b) => b.sales.length - a.sales.length);
 
   return (
