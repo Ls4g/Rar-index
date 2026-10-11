@@ -2,6 +2,7 @@ import Link from "next/link";
 import GradedRevisitQueue, { type GradedRevisitGroup } from "@/components/GradedRevisitQueue";
 import StaffNav from "@/components/StaffNav";
 import { canonicalEbayItemId } from "@/lib/ebayEvidence";
+import { consolidateGradedRevisitFamilies } from "@/lib/gradedRevisitFamilies";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ type LeadRow = {
   review_status: "new" | "watching" | "dismissed";
 };
 type DecisionRow = { id: string; lead_id: string; decision_notes: string | null; created_at: string };
-type ProfileRow = { id: string; edition_id: string; edition: { title: string | null; series: string | null; volume_number: number | null; language: string | null } | null };
+type ProfileRow = { id: string; edition_id: string; edition: { title: string | null; series: string | null; volume_number: number | null; language: string | null; printing_of_edition_id: string | null } | null };
 type OutcomeRow = { external_id: string; status: string };
 type SaleRow = { external_id: string; edition_id: string };
 
@@ -47,7 +48,7 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
   const saleLookupIds = [...new Set(externalIds.flatMap((id) => [id, canonicalEbayItemId(id)].filter(Boolean)))];
   const [profileResult, outcomeResult, soldSourceResult] = await Promise.all([
     profileIds.length ? admin.from("marketplace_search_profiles")
-      .select("id,edition_id,edition:manga_editions(title,series,volume_number,language)")
+      .select("id,edition_id,edition:manga_editions(title,series,volume_number,language,printing_of_edition_id)")
       .in("id", profileIds) : Promise.resolve({ data: [], error: null }),
     externalIds.length ? admin.from("listing_outcomes").select("external_id,status").in("external_id", externalIds) : Promise.resolve({ data: [], error: null }),
     admin.from("sources").select("id").eq("name", "eBay Sold").maybeSingle(),
@@ -110,11 +111,16 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
       id: lead.id,
       editionId: profile?.edition_id ?? null,
       editionTitle: [edition?.series || edition?.title || "Edition", edition?.volume_number ? `Vol. ${edition.volume_number}` : null, edition?.language].filter(Boolean).join(" · "),
+      familyId: edition?.printing_of_edition_id ?? profile?.edition_id ?? lead.profile_id,
+      isPrintRun: Boolean(edition?.printing_of_edition_id),
       reviewStatus: lead.review_status,
       pending: !recordedSales.has(itemId) && lead.review_status === "dismissed" && latestDecision.get(lead.id)?.id === label.decision_id,
       originalNote: decisionById.get(label.decision_id)?.decision_notes ?? null,
     });
     groupMap.set(key, group);
+  }
+  for (const group of groupMap.values()) {
+    group.leads = consolidateGradedRevisitFamilies(group.leads);
   }
   const groups = [...groupMap.values()].sort((a, b) => {
     const aPending = a.leads.some((lead) => lead.pending);
@@ -136,7 +142,7 @@ export default async function GradedRevisitPage({ searchParams }: { searchParams
           <p>These are the listings you dismissed because they were graded, not raw. If the original eBay page proves a completed sale, record it directly; you do not need to reopen a live listing first. An asking price or a missing listing is never sale evidence.</p>
           <Link className="header-note" href="/scout">← Back to live listing Scout</Link>
         </div>
-        <div className="queue-total"><strong>{groups.length}</strong><span>distinct graded listings saved · {leads.length} edition decisions retained</span></div>
+        <div className="queue-total"><strong>{groups.length}</strong><span>distinct graded listings saved · matching Scout searches combined into one review per edition</span></div>
       </section>
       {recorded === "1" ? <p className="graded-revisit-confirmation" role="status">Graded sale recorded. Its listing has moved out of “To revisit”; the original Scout dismissal remains in the audit history.</p> : null}
       {error ? <section className="catalogue-content"><p role="alert">The graded queue could not load fully. Please refresh before making decisions.</p></section> : <GradedRevisitQueue initialGroups={groups} />}

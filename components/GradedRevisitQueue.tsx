@@ -8,6 +8,8 @@ export type GradedRevisitLead = {
   id: string;
   editionId: string | null;
   editionTitle: string;
+  familyId: string;
+  isPrintRun: boolean;
   reviewStatus: "dismissed" | "watching" | "new";
   pending: boolean;
   originalNote: string | null;
