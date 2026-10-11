@@ -16,6 +16,8 @@ export type BrowseEdition = {
   language: string | null;
   isbn_13: string | null;
   edition_statement: string | null;
+  format: string | null;
+  release_date: string | null;
   collectible_type: string | null;
   issue_year: number | null;
   issue_number_label: string | null;
@@ -31,6 +33,10 @@ export type BrowseEdition = {
 };
 
 type SortMode = "newest" | "title" | "completeness";
+
+function searchWords(value: string) {
+  return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
 
 // What "well documented" means for sort/filter purposes: a confirmed cover,
 // a proven sale, and proven first-print evidence — not just how many
@@ -57,10 +63,11 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   const collectibleTypes = useMemo(() => [...new Set(editions.map((edition) => edition.collectible_type).filter((value): value is string => Boolean(value)))].sort(), [editions]);
 
   const filtered = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase();
+    const terms = searchWords(query).split(/\s+/).filter(Boolean);
     return editions.filter((edition) => {
-      const searchable = [edition.title, edition.series, edition.volume_number, edition.issue_year, edition.issue_number_label, edition.cumulative_issue_no, edition.madb_id, edition.publisher, publisherDisplayName(edition.publisher), edition.language, edition.isbn_13, editionDescriptor(edition)].filter(Boolean).join(" ").toLocaleLowerCase();
-      return (!term || searchable.includes(term))
+      const searchable = searchWords([edition.title, edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.issue_year, edition.issue_number_label, edition.cumulative_issue_no, edition.madb_id, edition.publisher, publisherDisplayName(edition.publisher), edition.language, edition.isbn_13, editionDescriptor(edition)].filter(Boolean).join(" "));
+      const searchableWords = searchable.split(" ");
+      return terms.every((term) => /^\d$/.test(term) ? searchableWords.includes(term) : searchable.includes(term))
         && (language === "all" || edition.language === language)
         && (publisher === "all" || publisherDisplayName(edition.publisher) === publisher)
         && (collectibleType === "all" || edition.collectible_type === collectibleType)
@@ -149,19 +156,23 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
                 const identifier = isMagazine
                   ? edition.cumulative_issue_no ? `Cumulative issue ${edition.cumulative_issue_no}` : edition.madb_id ? `MADB ${edition.madb_id}` : "Issue identity verified"
                   : edition.isbn_13 || "ISBN pending";
+                const descriptor = editionDescriptor(edition);
+                const editionDetail = descriptor === "Publication record" ? edition.format : descriptor;
+                const publisherAndYear = [publisherDisplayName(edition.publisher), edition.release_date?.slice(0, 4)].filter(Boolean).join(" · ");
                 return (
                   <Link href={`/edition/${edition.id}`} className={`browse-card${wellDocumented ? " is-well-documented" : ""}`} key={edition.id}>
                     <EditionCover title={edition.title} series={displaySeries} volumeNumber={displayVolume} descriptor={isMagazine ? issue : null} language={edition.language} imageUrl={edition.cover_image_url} imageStatus={edition.cover_verification_status} className="browse-card-cover" />
                     <div className="browse-card-body">
                       <p>{[isMagazine ? "Magazine issue" : edition.collectible_type?.replaceAll("_", " "), isMagazine ? issue : displaySeries, !isMagazine && displayVolume ? `Vol. ${displayVolume}` : null, edition.language].filter(Boolean).join(" · ")}</p>
                       <h2>{(isMagazine ? edition.series : edition.title) || "Untitled publication"}</h2>
-                      <strong>{isMagazine ? issue || "Magazine issue" : editionDescriptor(edition)}</strong>
+                      {!isMagazine ? <strong className="browse-card-identity">{publisherAndYear}</strong> : null}
+                      {isMagazine ? <strong>{issue || "Magazine issue"}</strong> : editionDetail ? <span className="browse-card-detail">{editionDetail}</span> : null}
                       {!isMagazine && edition.hasFirstPrintEvidence ? (
                         <em className="browse-card-print-badge is-proven">{edition.firstPrintProvenCount} proven first-print sale{edition.firstPrintProvenCount === 1 ? "" : "s"}</em>
                       ) : !isMagazine && edition.printingNotIdentifiedCount > 0 ? (
                         <em className="browse-card-print-badge is-unidentified">{edition.printingNotIdentifiedCount} sale{edition.printingNotIdentifiedCount === 1 ? "" : "s"} with printing not identified</em>
                       ) : null}
-                      <span>{publisherDisplayName(edition.publisher)}</span>
+                      {isMagazine ? <span>{publisherDisplayName(edition.publisher)}</span> : null}
                       <span className={`browse-card-evidence${wellDocumented ? " is-well-documented" : ""}`}>{evidenceStatusLabel(hasVerifiedCover, edition.verified_sale_count)}</span>
                       <small>{identifier}</small>
                     </div>

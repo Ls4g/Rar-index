@@ -13,7 +13,7 @@ export default async function BrowsePage() {
   const [{ data, error }, { data: readinessRows }] = await Promise.all([
     supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,collectible_type,cover_image_url,cover_verification_status,created_at,issue_year,issue_number_label,cumulative_issue_no,madb_id")
+      .select("id,title,series,volume_number,publisher,language,isbn_13,edition_statement,format,release_date,collectible_type,cover_image_url,cover_verification_status,created_at,issue_year,issue_number_label,cumulative_issue_no,madb_id")
       .eq("is_verified", true)
       .eq("record_kind", "publication")
       .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
