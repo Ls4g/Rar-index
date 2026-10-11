@@ -73,6 +73,14 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-hero-copy h1 { margin: 0 0 24px; font-size: clamp(52px, 5.5vw, 88px); line-height: .98; }
 .rar-concept-hero-copy h1 em { color: var(--rc-accent); font-style: normal; }
 .rar-concept-hero-copy > p:not(.rar-concept-kicker) { max-width: 530px; margin-bottom: 30px; color: var(--rc-muted); font-size: clamp(16px, 1.4vw, 19px); line-height: 1.55; }
+.rar-concept-hero-search { width: min(100%, 570px); margin: 0 0 18px; }
+.rar-concept-hero-search label { display: block; margin-bottom: 8px; color: var(--rc-accent); font-size: 10px; font-weight: 850; letter-spacing: .14em; }
+.rar-concept-hero-search > div { display: flex; min-height: 54px; border: 1px solid var(--rc-ink); border-radius: 3px; background: var(--rc-white); }
+.rar-concept-hero-search input { flex: 1; min-width: 0; border: 0; padding: 13px 15px; background: transparent; color: var(--rc-ink); font: inherit; font-size: 14px; outline: none; }
+.rar-concept-hero-search input::placeholder { color: var(--rc-muted); opacity: 1; }
+.rar-concept-hero-search > div:focus-within { outline: 2px solid var(--rc-accent); outline-offset: 2px; }
+.rar-concept-hero-search button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex: none; border: 0; border-left: 1px solid var(--rc-ink); padding: 12px 18px; background: var(--rc-ink); color: var(--rc-paper); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.rar-concept-hero-search button:hover { background: var(--rc-accent); border-left-color: var(--rc-accent); color: #fff; }
 .rar-concept-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .rar-concept-button { display: inline-flex; justify-content: center; align-items: center; gap: 20px; min-height: 48px; padding: 12px 22px; border-radius: 3px; font-size: 13px; font-weight: 750; }
 .rar-concept-button.is-primary { background: var(--rc-accent); color: #fff; }
@@ -176,6 +184,9 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-public-header .theme-toggle { display: inline-flex; }
   .rar-concept-hero { padding-block: 55px 65px; gap: 35px; }
   .rar-concept-hero-copy h1 { font-size: clamp(44px, 12vw, 68px); }
+  .rar-concept-hero-search > div { flex-wrap: wrap; }
+  .rar-concept-hero-search input { min-height: 52px; flex-basis: 100%; }
+  .rar-concept-hero-search button { width: 100%; min-height: 48px; border-top: 1px solid var(--rc-ink); border-left: 0; }
   .rar-concept-hero-feature { min-height: 435px; }
   .rar-concept-hero-feature-ink { inset: 12px 0 55px -26px; opacity: .29; }
   .rar-concept-hero-feature-top { top: 17px; right: 16px; left: 16px; }

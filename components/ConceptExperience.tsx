@@ -120,9 +120,15 @@ export default async function ConceptExperience({ preview = false }: { preview?:
             <p className="rar-concept-kicker">THE HOME FOR MANGA COLLECTORS</p>
             <h1>Track your manga.<br /><em>Show off your collection.</em></h1>
             <p>Build a shelf around the exact editions you own. Follow their market with sales you can trace back to the source.</p>
+            <form action="/browse" className="rar-concept-hero-search" role="search">
+              <label htmlFor="rar-home-search">SEARCH THE CATALOGUE</label>
+              <div>
+                <input autoComplete="off" id="rar-home-search" name="q" placeholder="Try One Piece, Vol. 2 or an ISBN" type="search" />
+                <button type="submit">Explore manga <span aria-hidden="true">↗</span></button>
+              </div>
+            </form>
             <div className="rar-concept-actions">
               <Link className="rar-concept-button is-primary" href={preview ? "#join" : "/portfolio"}>Start your shelf <span>↗</span></Link>
-              <Link className="rar-concept-button is-secondary" href={preview ? "#browse" : "/browse"}>Explore manga</Link>
             </div>
           </div>
           {heroEdition ? <div className="rar-concept-hero-feature" aria-label="Featured manga edition">
