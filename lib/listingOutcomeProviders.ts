@@ -398,7 +398,7 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
         bestOfferAccepted: bestOfferEnabled ? null : false, scheduledEndAt: endTime,
         httpStatus: response.status,
         detail: bestOfferEnabled
-          ? "Trading GetItem reports that the listing sold, but Best Offer was enabled so the accepted amount is not public."
+          ? "Trading GetItem reports that the listing sold, but does not return the accepted Best Offer amount. Check the price displayed on eBay's sold page."
           : "Trading GetItem reports that at least one item sold and returned the final public price.",
       },
       httpStatus: response.status,
