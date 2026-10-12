@@ -4,6 +4,8 @@ export type DetectedGrading = {
   grade: string;
 };
 
+export type GradingSpecific = { name: string; values: string[] };
+
 export type ParsedSubmittedSale = {
   sourceListingUrl: string;
   listingTitle: string;
@@ -20,6 +22,7 @@ export type ParsedSubmittedSale = {
 const BEST_OFFER = /\b(?:best\s+offer(?:\s+accepted)?|accepted\s+offer|offer\s+accepted)\b/i;
 const GRADED = /\b(?:cgc|cbcs|bgs|beckett|psa|graded|slab(?:bed)?)\b/i;
 const GRADING_COMPANY = /\b(CGC|CBCS|BGS|BECKETT|PSA)\b/i;
+const GRADE_VALUE = "(10(?:\\.0)?|[1-9](?:\\.[0-9])?|0\\.[5-9])";
 
 function normaliseCompany(value: string) {
   const upper = value.toUpperCase();
@@ -29,12 +32,37 @@ function normaliseCompany(value: string) {
 export function detectGrading(value: string): DetectedGrading {
   const companyMatch = value.match(GRADING_COMPANY);
   const company = companyMatch ? normaliseCompany(companyMatch[1]) : "";
-  const gradePattern = company
-    ? new RegExp(`\\b(?:${company === "BGS" ? "BGS|BECKETT" : company})\\s*(?:GRADE\\s*)?(10(?:\\.0)?|[1-9](?:\\.[0-9])?)\\b`, "i")
-    : null;
-  const labelledGrade = value.match(/\b(?:grade|graded)\s*(10(?:\.0)?|[1-9](?:\.[0-9])?)\b/i)?.[1] ?? "";
-  const grade = gradePattern?.exec(value)?.[1] ?? labelledGrade;
+  const companyWord = company === "BGS" ? "BGS|BECKETT" : company;
+  const adjacentGrade = company
+    ? new RegExp(`\\b(?:${companyWord})\\b[\\s:#-]*(?:(?:graded?|universal)[\\s:#-]*)?${GRADE_VALUE}\\b`, "i").exec(value)?.[1]
+      ?? new RegExp(`\\b${GRADE_VALUE}[\\s:#-]*(?:(?:graded?|by)[\\s:#-]*)?(?:${companyWord})\\b`, "i").exec(value)?.[1]
+    : "";
+  const labelledGrade = new RegExp(`\\b(?:grade|graded)\\s*[:#-]?\\s*${GRADE_VALUE}\\b`, "i").exec(value)?.[1]
+    ?? new RegExp(`\\b${GRADE_VALUE}\\s+graded\\b`, "i").exec(value)?.[1]
+    ?? "";
+  const grade = adjacentGrade || labelledGrade;
   return { isGraded: GRADED.test(value), company, grade };
+}
+
+/** Item specifics are seller-entered hints, not proof. Conflicting title and
+ * specifics deliberately leave the disputed fields blank for staff to check. */
+export function detectGradingEvidence(title: string, specifics: GradingSpecific[]) {
+  const titleGrading = detectGrading(title);
+  const graderValue = specifics.find((specific) => /^(?:professional grader|grading company|grader)$/i.test(specific.name.trim()))?.values.join(" ") ?? "";
+  const gradeValue = specifics.find((specific) => /^(?:grade|numerical grade)$/i.test(specific.name.trim()))?.values[0] ?? "";
+  const specificCompany = detectGrading(graderValue).company
+    || (/professional sports authenticator/i.test(graderValue) ? "PSA" : "")
+    || (/certified guaranty company/i.test(graderValue) ? "CGC" : "")
+    || (/comic book certification service/i.test(graderValue) ? "CBCS" : "");
+  const specificGrade = new RegExp(`^\\s*${GRADE_VALUE}\\s*$`, "i").exec(gradeValue)?.[1] ?? "";
+  const companyConflict = Boolean(titleGrading.company && specificCompany && titleGrading.company !== specificCompany);
+  const gradeConflict = Boolean(titleGrading.grade && specificGrade && Number(titleGrading.grade) !== Number(specificGrade));
+  return {
+    isGraded: titleGrading.isGraded || Boolean(specificCompany || specificGrade),
+    company: companyConflict ? "" : titleGrading.company || specificCompany,
+    grade: gradeConflict ? "" : titleGrading.grade || specificGrade,
+    conflict: companyConflict || gradeConflict,
+  };
 }
 
 export function detectsBestOffer(value: string) {

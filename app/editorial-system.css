@@ -360,6 +360,30 @@ html[data-theme="night"] :is(.home-page, .edition-page) {
 .review-page :is(.review-submit-row button, .catalogue-form-actions button, .agent-control-button, .approved-listing-submit button, .bulk-sale-publish button) { background: var(--rar-red); color: #fff; }
 .review-page :is(.review-submit-row button, .catalogue-form-actions button, .agent-control-button, .approved-listing-submit button, .bulk-sale-publish button):hover:not(:disabled) { background: var(--rar-red-dark); }
 
+/* Sales intake still carried parchment literals from the old staff theme.
+   In Night those left white text on cream inputs and several bright cards. */
+html[data-theme="night"] .review-page :is(.bulk-sale-edition input, .bulk-sale-links textarea, .bulk-sale-toolbar select, .bulk-sale-fields input, .bulk-sale-fields select, .bulk-sale-fields textarea, .approved-listing-reviewer input) {
+  border-color: var(--rar-line); background: var(--rar-surface); color: var(--rar-ink);
+}
+html[data-theme="night"] .review-page :is(.selected-edition, .edition-suggestions, .bulk-sale-toolbar, .bulk-sale-row, .bulk-sale-publish, .sold-search-priority-list article, .catalogue-rules > div) {
+  border-color: var(--rar-line); background: var(--rar-surface-soft); color: var(--rar-ink);
+}
+html[data-theme="night"] .review-page :is(.bulk-sale-row.saved, .bulk-sale-row.ready) { background: var(--rar-surface); }
+html[data-theme="night"] .review-page .bulk-sale-publish { background: var(--rar-surface); }
+html[data-theme="night"] .review-page :is(.bulk-sale-heading p, .bulk-sale-heading-actions small, .bulk-sale-links small, .bulk-sale-toolbar span, .bulk-sale-toolbar label, .bulk-sale-fields label, .bulk-sale-publish p, .bulk-sale-row summary, .bulk-sale-facts, .bulk-sale-missing, .bulk-sale-price-note, .sold-search-priority-list span, .sold-search-priority-list small, .sold-search-priorities > div:first-child p:last-child) { color: var(--rar-muted); }
+html[data-theme="night"] .review-page :is(.edition-suggestions button, .selected-edition button, .bulk-sale-heading-actions button, .sold-search-priority-list a) {
+  border-color: var(--rar-line); background: var(--rar-surface); color: var(--rar-ink);
+}
+html[data-theme="night"] .review-page .edition-suggestions button:hover { background: var(--rar-surface-soft); }
+html[data-theme="night"] .review-page :is(.bulk-sale-row header a, .staff-context-links a:hover) { color: var(--rar-red); }
+html[data-theme="night"] .review-page :is(.bulk-sale-warning, .bulk-sale-fields .attention, .bulk-sale-row header em) {
+  border-color: var(--rar-line); background: var(--rar-red-soft); color: var(--rar-ink);
+}
+html[data-theme="night"] .review-page :is(.bulk-sale-result, .bulk-sale-row.ready header em, .bulk-sale-row.saved header em) {
+  background: color-mix(in srgb, #1f7a5c 18%, var(--rar-surface)); color: var(--rar-ink);
+}
+html[data-theme="night"] .review-page .bulk-sale-row details { border-color: var(--rar-line); }
+
 .staff-primary-links,
 .staff-nav-menu summary { border-color: var(--rar-line); background: var(--rar-surface); }
 .staff-primary-links a,

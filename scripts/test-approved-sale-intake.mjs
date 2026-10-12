@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { detectGrading, detectsBestOffer, parseSubmittedSaleLinks, parseSubmittedSaleText } from "../lib/submittedSale.ts";
+import { detectGrading, detectGradingEvidence, detectsBestOffer, parseSubmittedSaleLinks, parseSubmittedSaleText } from "../lib/submittedSale.ts";
 
 const bgs = detectGrading("Hunter x Hunter Vol. 1 Japanese Manga BGS 9.0");
 assert.deepEqual(bgs, { isGraded: true, company: "BGS", grade: "9.0" });
 
 const beckett = detectGrading("Beckett 8.5 graded manga");
 assert.deepEqual(beckett, { isGraded: true, company: "BGS", grade: "8.5" });
+assert.deepEqual(detectGrading("Bleach manga 8.5 Graded Beckett"), { isGraded: true, company: "BGS", grade: "8.5" });
+assert.deepEqual(detectGrading("Hunter x Hunter manga 6.5 Graded"), { isGraded: true, company: "", grade: "6.5" });
+assert.deepEqual(detectGrading("BGS 6.0 Naruto Vol.1 #1 2000 1st Printing Manga DJ 5.5 Japanese"), { isGraded: true, company: "BGS", grade: "6.0" });
+assert.deepEqual(detectGradingEvidence("Graded manga", [
+  { name: "Professional Grader", values: ["Beckett"] },
+  { name: "Grade", values: ["9.2"] },
+]), { isGraded: true, company: "BGS", grade: "9.2", conflict: false });
+assert.deepEqual(detectGradingEvidence("CGC 9.8 manga", [
+  { name: "Professional Grader", values: ["Beckett"] },
+  { name: "Grade", values: ["9.2"] },
+]), { isGraded: true, company: "", grade: "", conflict: true });
 
 const raw = detectGrading("One Piece Vol. 1 Japanese manga first printing");
 assert.equal(raw.isGraded, false);
@@ -71,6 +82,6 @@ assert.match(bulkForm, /rows\.filter\(rowIsReady\)/);
 
 const providers = fs.readFileSync(new URL("../lib/listingOutcomeProviders.ts", import.meta.url), "utf8");
 assert.match(providers, /export async function getSubmittedEbaySaleEvidence/);
-assert.match(providers, /soldPrice: bestOffer \? null/);
+assert.match(providers, /soldPrice: bestOffer \|\| multipleSales \? null/);
 
-console.log("Approved sale intake and bulk fast lane: 35 checks passed.");
+console.log("Approved sale intake and bulk fast lane: all checks passed.");

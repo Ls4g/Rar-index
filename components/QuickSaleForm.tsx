@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { extractEbayLegacyItemId } from "@/lib/ebayEvidence";
-import { detectGrading, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
+import { detectGrading, detectGradingEvidence, detectsBestOffer, parseSubmittedSaleText } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Edition = {
@@ -34,6 +34,7 @@ type EbayEvidence = {
   quantitySold: number | null;
   buyingFormat: string | null;
   bestOffer: boolean;
+  itemSpecifics: Array<{ name: string; values: string[] }>;
   detail: string;
 };
 type GradedLeadPrefill = { leadId: string; editionId: string; sourceListingUrl: string; externalId: string; listingTitle: string };
@@ -178,19 +179,21 @@ export default function QuickSaleForm({ initialEditionId = "", initialGradedLead
       setListingTitle(evidence.title);
       setSoldDate(evidence.soldAt?.slice(0, 10) ?? "");
       setSalePrice(evidence.soldPrice === null ? "" : String(evidence.soldPrice));
-      setCurrency(evidence.soldCurrency?.toUpperCase() ?? "GBP");
+      setCurrency(evidence.soldCurrency?.toUpperCase() ?? "");
       setShippingPrice(evidence.shippingPrice === null ? "" : String(evidence.shippingPrice));
-      setQuantity(evidence.quantitySold && evidence.quantitySold > 0 ? String(evidence.quantitySold) : "1");
+      setQuantity("1");
       setEvidenceImages(evidence.imageUrls);
       const format = (evidence.buyingFormat ?? "").toUpperCase();
       setSaleType(evidence.bestOffer ? "best_offer" : format.includes("AUCTION") ? "auction" : format ? "fixed_price" : "unknown");
-      const grading = detectGrading(`${evidence.title}\n${initialGradedLead?.listingTitle ?? ""}`);
+      const grading = detectGradingEvidence(`${evidence.title}\n${initialGradedLead?.listingTitle ?? ""}`, evidence.itemSpecifics ?? []);
       setIsGraded(Boolean(initialGradedLead) || grading.isGraded);
       setGradingCompany(grading.company ?? "");
       setGradeLabel(grading.grade ?? "");
-      setMessage(evidence.bestOffer
-        ? "eBay confirmed the sale and filled the listing. Copy the accepted item price now shown on the original sold page, then approve."
-        : "eBay confirmed the sale and filled the available details. Check the printing choice, then approve once.");
+      let confirmationMessage = "eBay confirmed the sale and filled the available details. Check the printing choice, then approve once.";
+      if (evidence.bestOffer) confirmationMessage = "eBay confirmed the sale and filled the listing. Copy the accepted item price now shown on the original sold page, then approve.";
+      if (grading.conflict) confirmationMessage = "The title and item specifics disagree about the grade or grader. Check the slab and correct the missing field.";
+      if (evidence.quantitySold && evidence.quantitySold > 1) confirmationMessage = "eBay reports several copies sold on this item ID. Check the exact transaction price and date on the original sold page; the listing total is not one sale.";
+      setMessage(confirmationMessage);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "eBay could not load this listing.");
     } finally {

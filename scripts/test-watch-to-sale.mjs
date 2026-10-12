@@ -16,7 +16,7 @@ import {
   validateManualBestOfferEvidence,
   validateObservedSaleEvidence,
 } from "../lib/listingOutcome.ts";
-import { resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
+import { getSubmittedEbaySaleEvidence, resolveListingOutcome, tradingCapabilityFromResult, tradingOutcomeProvider } from "../lib/listingOutcomeProviders.ts";
 import { DEFAULT_OUTCOME_CHECK_LIMIT, DAILY_OUTCOME_CHECK_CEILING, OUTCOME_CHECK_CONCURRENCY } from "../lib/watchToSale.ts";
 
 let failures = 0;
@@ -161,8 +161,8 @@ const originalClientSecret = process.env.EBAY_CLIENT_SECRET;
 const originalFetch = globalThis.fetch;
 process.env.EBAY_USER_TOKEN = "test-user-token";
 
-function tradingXml({ status, quantitySold, price = 120, currency = "GBP", bestOffer = false }) {
-  return `<?xml version="1.0"?><GetItemResponse xmlns="urn:ebay:apis:eBLBaseComponents"><Ack>Success</Ack><Item><ListingDetails><EndTime>${yesterday}</EndTime></ListingDetails><ListingType>Chinese</ListingType><BestOfferDetails><BestOfferEnabled>${bestOffer}</BestOfferEnabled></BestOfferDetails><SellingStatus><BidCount>4</BidCount><CurrentPrice currencyID="${currency}">${price}</CurrentPrice><QuantitySold>${quantitySold}</QuantitySold><ListingStatus>${status}</ListingStatus></SellingStatus></Item></GetItemResponse>`;
+function tradingXml({ status, quantitySold, price = 120, currency = "GBP", bestOffer = false, specifics = "" }) {
+  return `<?xml version="1.0"?><GetItemResponse xmlns="urn:ebay:apis:eBLBaseComponents"><Ack>Success</Ack><Item><Title>Graded manga</Title>${specifics ? `<ItemSpecifics>${specifics}</ItemSpecifics>` : ""}<ListingDetails><EndTime>${yesterday}</EndTime></ListingDetails><ListingType>Chinese</ListingType><BestOfferDetails><BestOfferEnabled>${bestOffer}</BestOfferEnabled></BestOfferDetails><SellingStatus><BidCount>4</BidCount><CurrentPrice currencyID="${currency}">${price}</CurrentPrice><QuantitySold>${quantitySold}</QuantitySold><ListingStatus>${status}</ListingStatus></SellingStatus></Item></GetItemResponse>`;
 }
 check("Trading fixture contains a sale end date", tradingXml({ status: "Completed", quantitySold: 1 }).includes(`<EndTime>${yesterday}</EndTime>`), tradingXml({ status: "Completed", quantitySold: 1 }));
 
@@ -173,6 +173,15 @@ check("GetItem completed listing with quantity sold returns an explicit sold sig
 check("the explicit GetItem sale passes the existing evidence classifier",
   classifyListingOutcome(tradingSold.signal).status === "sold_candidate",
   JSON.stringify({ signal: tradingSold.signal, raw: tradingSold.rawResponse, classification: classifyListingOutcome(tradingSold.signal) }));
+globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 1, specifics: "<NameValueList><Name>Professional Grader</Name><Value>Beckett</Value></NameValueList><NameValueList><Name>Grade</Name><Value>9.2</Value></NameValueList>" }), { status: 200 });
+const submittedGraded = await getSubmittedEbaySaleEvidence("123456789012", "EBAY_GB");
+check("staff lookup includes structured grading item specifics",
+  submittedGraded.itemSpecifics.find((specific) => specific.name === "Professional Grader")?.values[0] === "Beckett"
+  && submittedGraded.itemSpecifics.find((specific) => specific.name === "Grade")?.values[0] === "9.2");
+globalThis.fetch = async () => new Response(tradingXml({ status: "Completed", quantitySold: 3 }), { status: 200 });
+const submittedMultiple = await getSubmittedEbaySaleEvidence("123456789012", "EBAY_GB");
+check("listing-lifetime multiple sales never fabricate a transaction price or date",
+  submittedMultiple.soldPrice === null && submittedMultiple.soldAt === null && submittedMultiple.quantitySold === 3);
 check("a live readable GetItem result is the only thing that enables Trading sale confirmation",
   tradingCapabilityFromResult(tradingSold).canConfirmSales === true);
 

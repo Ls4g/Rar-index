@@ -54,6 +54,7 @@ export type SubmittedEbaySaleEvidence = {
   quantitySold: number | null;
   buyingFormat: string | null;
   bestOffer: boolean;
+  itemSpecifics: Array<{ name: string; values: string[] }>;
   detail: string;
 };
 
@@ -369,6 +370,13 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
   const bestOfferEnabled = xmlText(xml, "BestOfferEnabled") === "true";
   const buyingFormat = [listingType, bestOfferEnabled ? "BEST_OFFER" : null].filter(Boolean).join(",") || null;
   const title = decodeXmlText(xmlText(xml, "Title") ?? "");
+  const specificsXml = xmlText(xml, "ItemSpecifics") ?? "";
+  const itemSpecifics = [...specificsXml.matchAll(/<NameValueList>([\s\S]*?)<\/NameValueList>/gi)]
+    .map((match) => ({
+      name: decodeXmlText(xmlText(match[1], "Name") ?? ""),
+      values: xmlTexts(match[1], "Value"),
+    }))
+    .filter((specific) => specific.name && specific.values.length);
   const imageUrls = [...new Set([
     ...xmlTexts(xml, "PictureURL"),
     ...xmlTexts(xml, "GalleryURL"),
@@ -376,7 +384,7 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
   const shipping = xmlAmount(xml, "ShippingServiceCost");
   const sharedRaw = {
     ack, listingStatus, quantitySold, price, endTime, listingType, bidCount,
-    bestOfferEnabled, title, imageUrls, shipping,
+    bestOfferEnabled, title, imageUrls, shipping, itemSpecifics,
   };
 
   if (listingStatus === "active") {
@@ -419,22 +427,27 @@ export async function getSubmittedEbaySaleEvidence(
     imageUrls?: string[];
     quantitySold?: number | null;
     shipping?: { value?: number | null; currency?: string | null };
+    itemSpecifics?: Array<{ name: string; values: string[] }>;
   };
   const bestOffer = (result.signal.buyingFormat ?? "").toUpperCase().includes("BEST_OFFER");
+  const multipleSales = typeof raw.quantitySold === "number" && raw.quantitySold > 1;
   return {
     itemId,
     state: result.signal.listingState,
     title: raw.title?.trim() ?? "",
     imageUrls: Array.isArray(raw.imageUrls) ? raw.imageUrls.filter(Boolean) : [],
-    // eBay's public CurrentPrice is not necessarily the accepted Best Offer.
-    soldPrice: bestOffer ? null : result.signal.soldPrice,
+    // CurrentPrice is the listing price, not a per-transaction receipt. It
+    // cannot identify the accepted offer or which of several copies sold at
+    // which price, even though QuantitySold confirms a sale happened.
+    soldPrice: bestOffer || multipleSales ? null : result.signal.soldPrice,
     soldCurrency: result.signal.soldCurrency,
-    soldAt: result.signal.soldAt,
+    soldAt: multipleSales ? null : result.signal.soldAt,
     shippingPrice: typeof raw.shipping?.value === "number" ? raw.shipping.value : null,
     quantitySold: typeof raw.quantitySold === "number" && Number.isFinite(raw.quantitySold) ? raw.quantitySold : null,
     buyingFormat: result.signal.buyingFormat,
     bestOffer,
-    detail: result.signal.detail,
+    itemSpecifics: raw.itemSpecifics ?? [],
+    detail: multipleSales ? "eBay reports multiple copies sold on this listing. GetItem does not identify each transaction's price or date; check the specific completed sale yourself." : result.signal.detail,
   };
 }
 

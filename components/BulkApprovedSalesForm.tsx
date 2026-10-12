@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { detectGrading, parseSubmittedSaleLinks } from "@/lib/submittedSale";
+import { detectGradingEvidence, parseSubmittedSaleLinks } from "@/lib/submittedSale";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Edition = {
@@ -27,6 +27,8 @@ type EbayEvidence = {
   quantitySold: number | null;
   buyingFormat: string | null;
   bestOffer: boolean;
+  imageUrls: string[];
+  itemSpecifics: Array<{ name: string; values: string[] }>;
   detail: string;
 };
 type LookupResult = { listingUrl: string; itemId?: string; evidence?: EbayEvidence; error?: string };
@@ -49,6 +51,9 @@ type BatchRow = {
   knownPrintingNumber: string;
   intakeNotes: string;
   lookupWarning: string;
+  lookupState: string;
+  gradingConflict: boolean;
+  initialMissing: string[];
   status: "draft" | "saving" | "saved" | "failed";
   resultMessage: string;
 };
@@ -61,8 +66,8 @@ function editionLabel(edition: Edition) {
 function rowFromLookup(result: LookupResult): BatchRow {
   const evidence = result.evidence;
   const format = (evidence?.buyingFormat ?? "").toUpperCase();
-  const grading = detectGrading(evidence?.title ?? "");
-  return {
+  const grading = detectGradingEvidence(evidence?.title ?? "", evidence?.itemSpecifics ?? []);
+  const row: BatchRow = {
     key: evidence?.itemId || result.itemId || result.listingUrl,
     listingUrl: result.listingUrl,
     externalId: evidence?.itemId || result.itemId || "",
@@ -70,8 +75,10 @@ function rowFromLookup(result: LookupResult): BatchRow {
     soldDate: evidence?.soldAt?.slice(0, 10) ?? "",
     salePrice: evidence?.soldPrice === null || evidence?.soldPrice === undefined ? "" : String(evidence.soldPrice),
     shippingPrice: evidence?.shippingPrice === null || evidence?.shippingPrice === undefined ? "" : String(evidence.shippingPrice),
-    currency: evidence?.soldCurrency?.toUpperCase() ?? "GBP",
-    quantity: evidence?.quantitySold && evidence.quantitySold > 0 ? String(evidence.quantitySold) : "1",
+    currency: evidence?.soldCurrency?.toUpperCase() ?? "",
+    // GetItem's QuantitySold is a listing-lifetime total, not the quantity
+    // purchased in the transaction the reviewer is adding.
+    quantity: "1",
     saleType: evidence?.bestOffer ? "best_offer" : format.includes("AUCTION") ? "auction" : format ? "fixed_price" : "unknown",
     isGraded: grading.isGraded,
     gradingCompany: grading.company,
@@ -80,17 +87,35 @@ function rowFromLookup(result: LookupResult): BatchRow {
     printingProofUrl: "",
     knownPrintingNumber: "",
     intakeNotes: "",
-    lookupWarning: result.error ?? "",
+    lookupWarning: result.error ?? (evidence?.quantitySold && evidence.quantitySold > 1 ? evidence.detail : ""),
+    lookupState: evidence?.state ?? "unknown",
+    gradingConflict: grading.conflict,
+    initialMissing: [],
     status: "draft",
     resultMessage: "",
   };
+  row.initialMissing = missingFacts(row);
+  return row;
 }
 
 function rowIsReady(row: BatchRow) {
+  if (row.lookupState === "active" || row.lookupState === "completed_unsold") return false;
   if (!row.listingUrl || !row.externalId || !row.listingTitle || !row.soldDate || !row.salePrice || !/^[A-Z]{3}$/.test(row.currency)) return false;
   if (row.isGraded && (!row.gradingCompany || !row.gradeLabel)) return false;
   if (row.printClassification === "first_print_proven" && !row.printingProofUrl) return false;
   return row.status !== "saved";
+}
+
+function missingFacts(row: BatchRow) {
+  const missing: string[] = [];
+  if (!row.listingTitle) missing.push("title");
+  if (!row.soldDate) missing.push("sold date");
+  if (!row.salePrice) missing.push("item price");
+  if (!/^[A-Z]{3}$/.test(row.currency)) missing.push("currency");
+  if (row.isGraded && !row.gradingCompany) missing.push("grader");
+  if (row.isGraded && !row.gradeLabel) missing.push("grade");
+  if (row.printClassification === "first_print_proven" && !row.printingProofUrl) missing.push("copyright-page proof link");
+  return missing;
 }
 
 export default function BulkApprovedSalesForm({
@@ -155,10 +180,9 @@ export default function BulkApprovedSalesForm({
       const data = await response.json() as { results?: LookupResult[]; error?: string };
       if (!response.ok || !data.results) throw new Error(data.error ?? "The batch could not be prepared.");
       setRows(data.results.map(rowFromLookup));
-      const blocked = data.results.filter((result) => result.error).length;
-      setMessage(blocked
-        ? `Prepared ${data.results.length} links. ${blocked} need visible details because eBay could not confirm them automatically.`
-        : `Prepared ${data.results.length} completed sales. Check the printing and grading choices, then publish them together.`);
+      const blocked = data.results.filter((result) => result.evidence?.state === "active" || result.evidence?.state === "completed_unsold").length;
+      const manual = data.results.filter((result) => result.error && result.evidence?.state !== "active" && result.evidence?.state !== "completed_unsold").length;
+      setMessage(`Prepared ${data.results.length} links.${blocked ? ` ${blocked} still active or unsold and cannot publish.` : ""}${manual ? ` ${manual} need facts from the sold page.` : ""} Check the edition, printing and grading, then publish ready rows together.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The batch could not be prepared.");
     } finally {
@@ -246,23 +270,41 @@ export default function BulkApprovedSalesForm({
       <div className="bulk-sale-toolbar"><div><strong>3. Check only what needs attention</strong><span>RAR has filled the available eBay facts.</span></div><label>Apply printing to all unpublished<select defaultValue="" onChange={(event) => { if (event.target.value) applyPrintToDraftRows(event.target.value as PrintClassification); }}><option value="">Choose…</option><option value="printing_not_identified">Printing not identified</option><option value="known_later_print">Known later printing</option><option value="first_print_proven">First print — proven</option></select></label></div>
       <div className="bulk-sale-rows">{rows.map((row, rowIndex) => {
         const ready = rowIsReady(row);
-        const stateClass = row.status === "saved" ? "saved" : row.status === "failed" ? "failed" : ready ? "ready" : "needs-input";
+        const blocked = row.lookupState === "active" || row.lookupState === "completed_unsold";
+        const missing = missingFacts(row);
+        const stateClass = row.status === "saved" ? "saved" : blocked ? "blocked" : row.status === "failed" ? "failed" : ready ? "ready" : "needs-input";
         return <article className={`bulk-sale-row ${stateClass}`} key={row.key}>
-          <header><span>{rowIndex + 1}</span><div><strong>{row.listingTitle || "Listing details needed"}</strong><a href={row.listingUrl} target="_blank" rel="noreferrer">Open source ↗</a></div><em>{row.status === "saved" ? "Published" : ready ? "Ready" : "Needs input"}</em></header>
-          {row.lookupWarning ? <p className="bulk-sale-warning">eBay lookup: {row.lookupWarning} You can still enter the facts you personally verified.</p> : null}
-          <div className="bulk-sale-fields">
+          <header><span>{rowIndex + 1}</span><div><strong>{row.listingTitle || "Listing details needed"}</strong><a href={row.listingUrl} target="_blank" rel="noreferrer">Open source ↗</a></div><em>{row.status === "saved" ? "Published" : blocked ? "Cannot publish" : ready ? "Ready" : "Needs input"}</em></header>
+          <p className="bulk-sale-facts">{[
+            row.salePrice ? `${row.currency} ${row.salePrice}` : "Price needed",
+            row.soldDate || "Date needed",
+            row.isGraded ? `Graded${row.gradingCompany ? ` · ${row.gradingCompany}` : " · grader needed"}${row.gradeLabel ? ` ${row.gradeLabel}` : " · grade needed"}` : "Raw",
+            row.saleType === "best_offer" ? "Best Offer" : null,
+          ].filter(Boolean).join(" · ")}</p>
+          {row.lookupWarning ? <p className="bulk-sale-warning">eBay lookup: {row.lookupWarning}{blocked ? " This link cannot be published as a completed sale." : " Enter only facts you personally verified on the sold page."}</p> : null}
+          {row.gradingConflict ? <p className="bulk-sale-warning">The title and eBay item specifics disagree about the grade or grader. Check the slab and fill the missing field.</p> : null}
+          {missing.length && !blocked ? <p className="bulk-sale-missing">Only fill: {missing.join(", ")}.</p> : null}
+          <div className="bulk-sale-fields bulk-sale-essential">
+            <label>Print<select value={row.printClassification} onChange={(event) => updateRow(row.key, { printClassification: event.target.value as PrintClassification })}><option value="printing_not_identified">Not identified</option><option value="known_later_print">Later print</option><option value="first_print_proven">First print — proven</option></select></label>
+            {row.initialMissing.includes("title") ? <label className="wide">Listing title<input value={row.listingTitle} onChange={(event) => updateRow(row.key, { listingTitle: event.target.value })} /></label> : null}
+            {row.initialMissing.includes("sold date") ? <label>Sold date<input type="date" value={row.soldDate} onChange={(event) => updateRow(row.key, { soldDate: event.target.value })} /></label> : null}
+            {row.initialMissing.includes("item price") ? <label>Item price<input inputMode="decimal" value={row.salePrice} onChange={(event) => updateRow(row.key, { salePrice: event.target.value })} placeholder="Excluding delivery and fees" /></label> : null}
+            {row.initialMissing.includes("currency") ? <label>Currency<input maxLength={3} value={row.currency} onChange={(event) => updateRow(row.key, { currency: event.target.value.toUpperCase() })} /></label> : null}
+            {row.isGraded && (row.initialMissing.includes("grader") || !row.gradingCompany) ? <label>Grader<input value={row.gradingCompany} onChange={(event) => updateRow(row.key, { gradingCompany: event.target.value.toUpperCase(), gradingConflict: false })} placeholder="BGS, CGC, PSA…" /></label> : null}
+            {row.isGraded && (row.initialMissing.includes("grade") || !row.gradeLabel) ? <label>Grade<input value={row.gradeLabel} onChange={(event) => updateRow(row.key, { gradeLabel: event.target.value, gradingConflict: false })} placeholder="e.g. 9.2" /></label> : null}
+            {row.printClassification === "first_print_proven" ? <label className="wide attention">Copyright-page proof link<input type="url" value={row.printingProofUrl} onChange={(event) => updateRow(row.key, { printingProofUrl: event.target.value })} placeholder="Required for this sold copy" /></label> : null}
+          </div>
+          <details><summary>Edit imported details or add a note</summary><div className="bulk-sale-fields">
             <label className="wide">Listing title<input value={row.listingTitle} onChange={(event) => updateRow(row.key, { listingTitle: event.target.value })} /></label>
             <label>Sold date<input type="date" value={row.soldDate} onChange={(event) => updateRow(row.key, { soldDate: event.target.value })} /></label>
             <label>Item price<input inputMode="decimal" value={row.salePrice} onChange={(event) => updateRow(row.key, { salePrice: event.target.value })} /></label>
             <label>Currency<input maxLength={3} value={row.currency} onChange={(event) => updateRow(row.key, { currency: event.target.value.toUpperCase() })} /></label>
             <label>Sale type<select value={row.saleType} onChange={(event) => updateRow(row.key, { saleType: event.target.value as SaleType })}><option value="unknown">Unknown</option><option value="auction">Auction</option><option value="fixed_price">Fixed price</option><option value="best_offer">Best Offer</option></select></label>
-            <label>Print<select value={row.printClassification} onChange={(event) => updateRow(row.key, { printClassification: event.target.value as PrintClassification })}><option value="printing_not_identified">Not identified</option><option value="known_later_print">Later print</option><option value="first_print_proven">First print — proven</option></select></label>
             <label>Copy type<select value={row.isGraded ? "graded" : "raw"} onChange={(event) => updateRow(row.key, { isGraded: event.target.value === "graded" })}><option value="raw">Raw</option><option value="graded">Graded</option></select></label>
-            {row.isGraded ? <><label>Grader<input value={row.gradingCompany} onChange={(event) => updateRow(row.key, { gradingCompany: event.target.value.toUpperCase() })} /></label><label>Grade<input value={row.gradeLabel} onChange={(event) => updateRow(row.key, { gradeLabel: event.target.value })} /></label></> : null}
-            {row.saleType === "best_offer" ? <p className="wide attention">The original eBay sold page is the accepted-price proof. Enter the item price without Buyer Protection or delivery fees.</p> : null}
-            {row.printClassification === "first_print_proven" ? <label className="wide attention">Copyright-page proof link<input type="url" value={row.printingProofUrl} onChange={(event) => updateRow(row.key, { printingProofUrl: event.target.value })} placeholder="Required for this sold copy" /></label> : null}
-          </div>
-          <details><summary>Optional delivery, quantity and notes</summary><div className="bulk-sale-fields"><label>Delivery<input inputMode="decimal" value={row.shippingPrice} onChange={(event) => updateRow(row.key, { shippingPrice: event.target.value })} /></label><label>Quantity<input min={1} type="number" value={row.quantity} onChange={(event) => updateRow(row.key, { quantity: event.target.value })} /></label><label className="wide">Note<textarea rows={2} value={row.intakeNotes} onChange={(event) => updateRow(row.key, { intakeNotes: event.target.value })} /></label></div></details>
+            {row.isGraded ? <><label>Grader<input value={row.gradingCompany} onChange={(event) => updateRow(row.key, { gradingCompany: event.target.value.toUpperCase(), gradingConflict: false })} /></label><label>Grade<input value={row.gradeLabel} onChange={(event) => updateRow(row.key, { gradeLabel: event.target.value, gradingConflict: false })} /></label></> : null}
+            <label>Delivery<input inputMode="decimal" value={row.shippingPrice} onChange={(event) => updateRow(row.key, { shippingPrice: event.target.value })} /></label><label>Quantity<input min={1} type="number" value={row.quantity} onChange={(event) => updateRow(row.key, { quantity: event.target.value })} /></label><label className="wide">Note<textarea rows={2} value={row.intakeNotes} onChange={(event) => updateRow(row.key, { intakeNotes: event.target.value })} /></label>
+          </div></details>
+          {row.saleType === "best_offer" ? <p className="bulk-sale-price-note">For Best Offer, use the accepted item price on eBay—not the crossed-out asking price, delivery or Buyer Protection fee.</p> : null}
           {row.resultMessage ? <p className="bulk-sale-result">{row.resultMessage}</p> : null}
         </article>;
       })}</div>
