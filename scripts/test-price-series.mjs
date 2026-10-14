@@ -67,8 +67,7 @@ console.log("\n--- unproven printings stay apart and remain selectable ---");
   ]);
   check("printing-not-identified is its own series", series.some((s) => s.kind === "printing_unknown"));
   check("it never merges into the first-print series", series.find((s) => s.kind === "first_print").sales.length === 3);
-  // The reader sees every sale group by default, including unproven ones,
-  // while the chart only draws an eligible trend line.
+  // The reader sees every sale group by default, including unproven ones.
   const visible = defaultVisibleSeries(series);
   check("unidentified sales are on by default", visible.includes(series.find((s) => s.kind === "printing_unknown").id));
   check("the first print is on by default", visible.includes(series.find((s) => s.kind === "first_print").id));
@@ -76,6 +75,8 @@ console.log("\n--- unproven printings stay apart and remain selectable ---");
 {
   const series = buildPriceSeries([unknown("2026-01-03", 60), unknown("2026-02-03", 65), unknown("2026-03-03", 70)]);
   check("it is on by default when it is the only series", defaultVisibleSeries(series).length === 1);
+  check("three sales of unidentified printings earn their own line", series[0].chartable && mayDrawPriceLine(series[0].sales.length));
+  check("the line remains labelled as printing not identified", series[0].label === "Printing not identified");
 }
 
 console.log("\n--- the three-sale minimum still governs a line ---");
@@ -89,8 +90,8 @@ console.log("\n--- the three-sale minimum still governs a line ---");
   check("three sales is enough for a line", series.find((s) => s.printingNumber === 2).chartable === true);
   check("an unchartable series is still reported, not dropped", series.length === 2);
   check("a two-sale group remains selectable for its individual points", defaultVisibleSeries(series).includes(firstSeries.id));
-  check("two sales do not make a line after conversion", !mayDrawPriceLine(firstSeries, 2, "publication_prints"));
-  check("three same-group sales make a line after conversion", mayDrawPriceLine(series.find((s) => s.printingNumber === 2), 3, "publication_prints"));
+  check("two sales do not make a line after conversion", !mayDrawPriceLine(2));
+  check("three same-group sales make a line after conversion", mayDrawPriceLine(3));
 }
 
 console.log("\n--- undated sales cannot be plotted ---");
@@ -160,8 +161,16 @@ console.log("\n--- live-shaped graded sale remains visible ---");
   check("single graded sale has no trend line", gradedSeries?.chartable === false);
   check("single graded sale is selectable", defaultVisibleSeries(series).includes(gradedSeries?.id));
   check("graded filter is clearly labelled", gradedSeries?.label.startsWith("Graded · BGS 9.0"));
-  check("unidentified printing cannot make a publication trend even with three sales", !mayDrawPriceLine(gradedSeries, 3, "publication_prints"));
-  check("exact-issue magazines may draw a grading-group line at three sales", mayDrawPriceLine(gradedSeries, 3, "exact_issue"));
+  check("an unidentified-print group still needs three sales", !mayDrawPriceLine(gradedSeries.sales.length));
+}
+{
+  const gradedUnknown = (date, price) => sale({ sold_date: date, sale_price: price, print_classification: "printing_not_identified", grading_company: "BGS", grade_label: "9.0" });
+  const series = buildPriceSeries([
+    unknown("2026-07-01", 80), unknown("2026-08-01", 90), unknown("2026-09-01", 85),
+    gradedUnknown("2026-07-02", 500), gradedUnknown("2026-08-02", 550), gradedUnknown("2026-09-02", 525),
+  ]);
+  check("raw and graded unidentified printings remain separate lines", series.length === 2 && series.every((entry) => entry.chartable));
+  check("graded unknown line keeps its grade label", series.find((entry) => entry.graded)?.label.includes("BGS 9.0"));
 }
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} failed`}\n`);

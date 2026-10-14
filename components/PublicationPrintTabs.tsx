@@ -144,7 +144,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
             <p className="eyebrow">RAR market evidence · Exact issue</p>
             <MarketValuePanel sales={verified} rates={rates} />
           </div>
-          <PriceHistoryChart mode="exact_issue" rates={rates} sales={verified} />
+          <PriceHistoryChart rates={rates} sales={verified} />
           <h2 className="market-receipts-heading">Verified sales and original receipts</h2>
           <SaleGroupList sales={exactIssueSales} sourceNames={sourceNames} showPrintClassification={false} />
         </div>
@@ -155,8 +155,9 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
   const firstVerified = firstPrintSales.filter((sale) => sale.match_status === "verified_match");
   const { knownLaterPrint: knownLater, printingNotIdentified: unidentified } = splitByPrintClassification(otherSales);
 
-  // Known-later-print sales only compare within the same printing number;
-  // unidentified printings remain individual receipts, never pooled values.
+  // Known-later-print valuations only compare within the same printing
+  // number. Unknown printings can have their own labelled chart line, but
+  // they never enter a known-printing valuation.
   const knownLaterGroups = groupKnownLaterPrintSales(knownLater);
 
   // One chart for the whole publication. Every verified sale goes in as a
@@ -208,7 +209,7 @@ export default function PublicationPrintTabs({ firstPrintSales, otherSales, rate
 
           <div className="print-tab-subgroup">
             <h3>Printing not identified ({unidentified.length})</h3>
-            <p className="print-tab-hint">Individual sale points only; no pooled value.</p>
+            <p className="print-tab-hint">Shown as a separate line once three sales qualify; no pooled printing-specific value.</p>
             <SaleGroupList sales={unidentified} sourceNames={sourceNames} />
           </div>
         </div>

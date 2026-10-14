@@ -126,8 +126,11 @@ export function defaultVisibleSeries<T extends SeriesSale>(series: PriceSeries<T
   return series.map((entry) => entry.id);
 }
 
-export function mayDrawPriceLine(series: PriceSeries, convertedSaleCount: number, mode: "publication_prints" | "exact_issue") {
-  return convertedSaleCount >= MIN_COMPARABLE_SALES && (mode === "exact_issue" || series.kind !== "printing_unknown");
+export function mayDrawPriceLine(convertedSaleCount: number) {
+  // Printing-not-identified is a labelled group of its own, not a claim
+  // that its sales came from the same printing. It earns a line at the same
+  // three-sale threshold as every other printing-and-grade group.
+  return convertedSaleCount >= MIN_COMPARABLE_SALES;
 }
 
 // Two channels rather than one palette, because a series differs along two

@@ -31,9 +31,6 @@ import { buildPriceSeries, defaultVisibleSeries, mayDrawPriceLine, seriesColourI
 type PriceHistoryChartProps = {
   sales: SeriesSale[];
   rates: FxRate[];
-  /** Magazines have no printings, so their sales split by grading alone and
-   *  the printing wording below would be noise. */
-  mode?: "publication_prints" | "exact_issue";
 };
 
 // Proportions follow the reference this was rebuilt against: a squat,
@@ -129,7 +126,7 @@ function ThingsToKnow() {
     <details className="price-things-to-know">
       <summary>Things to know about a sale</summary>
       <ul>
-        <li>Each point is one completed sale. A line only joins three or more comparable sales from the same identified printing and grade group.</li>
+        <li>Each point is one completed sale. A line joins three or more sales in the same printing-and-grade group. “Printing not identified” is its own group; its line does not claim all copies have the same printing.</li>
         <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
         <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
         <li>RAR records the original price and currency, then converts it at the reference rate on the sale date for the selected display currency.</li>
@@ -141,7 +138,7 @@ function ThingsToKnow() {
 /** Converts each series into the display currency and works out which can be
  *  drawn. Shared by the full-history pass and the range pass so both apply
  *  identical rules. */
-function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarketCurrency>["currency"], rates: FxRate[], mode: PriceHistoryChartProps["mode"]) {
+function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarketCurrency>["currency"], rates: FxRate[]) {
   const built = buildPriceSeries(sales);
   const converted = built.map((series) => {
     const convertedSales = series.sales
@@ -152,9 +149,7 @@ function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarke
       convertedSales,
       // Re-checked after conversion: a sale with no exchange-rate record for
       // its date cannot be plotted, so it cannot count towards the minimum.
-      // Unidentified printings remain visible as individual receipts, but
-      // cannot support a publication-level trend line even with 3+ sales.
-      chartable: mayDrawPriceLine(series, convertedSales.length, mode ?? "publication_prints"),
+      chartable: mayDrawPriceLine(convertedSales.length),
     };
   });
   return {
@@ -164,7 +159,7 @@ function prepareSeries(sales: SeriesSale[], currency: ReturnType<typeof useMarke
   };
 }
 
-export default function PriceHistoryChart({ sales, rates, mode = "publication_prints" }: PriceHistoryChartProps) {
+export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartProps) {
   const { currency } = useMarketCurrency();
   const gradientId = useId();
   const [range, setRange] = useState<ChartRangeKey>("MAX");
@@ -174,13 +169,13 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
-  const full = useMemo(() => prepareSeries(sales, currency, rates, mode), [sales, currency, rates, mode]);
+  const full = useMemo(() => prepareSeries(sales, currency, rates), [sales, currency, rates]);
   const ranged = useMemo(() => {
     const cutoff = chartRangeCutoff(range);
     if (cutoff === null) return full;
     const withinRange = sales.filter((sale) => sale.sold_date && new Date(`${sale.sold_date}T00:00:00`).getTime() >= cutoff);
-    return prepareSeries(withinRange, currency, rates, mode);
-  }, [sales, currency, rates, mode, range, full]);
+    return prepareSeries(withinRange, currency, rates);
+  }, [sales, currency, rates, range, full]);
 
   // A range with just one sale still shows that sale as a point. Fall back
   // only when the selected window has no plotted evidence at all.
@@ -331,7 +326,6 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
   const pointOnly = plottable.filter((series) => !series.chartable);
   const hasTrendLine = plottable.some((series) => series.chartable);
-  const onlyUnidentifiedPrintings = plottable.every((series) => series.kind === "printing_unknown");
   const missingRates = shown.missingRates;
   const missingDetails = shown.missingDetails;
   const totalShown = visibleSeries.reduce((count, series) => count + series.convertedSales.length, 0);
@@ -403,9 +397,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
       {!hasTrendLine ? (
         <p className="chart-no-line-note" role="note">
           <strong>Why no line?</strong>{" "}
-          {onlyUnidentifiedPrintings
-            ? "These sales have no verified printing number. The points are shown, but joining them would imply the copies are directly comparable."
-            : `No printing-and-grade group has ${MIN_COMPARABLE_SALES} plottable sales yet. Each verified sale still appears as a point.`}
+          No printing-and-grade group has {MIN_COMPARABLE_SALES} plottable sales yet. Each verified sale still appears as a point.
         </p>
       ) : null}
 
@@ -529,7 +521,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
 
       <p className="chart-note">
         {totalShown} verified sale{totalShown === 1 ? "" : "s"} shown in {currency}.
-        {pointOnly.length ? ` Groups need ${MIN_COMPARABLE_SALES} comparable sales for a line; smaller groups and unidentified printings appear as points.` : ""}
+        {pointOnly.length ? ` Each printing-and-grade group needs ${MIN_COMPARABLE_SALES} plottable sales for a line; smaller groups appear as points.` : ""}
         {missingRates ? ` ${missingRates} sale${missingRates === 1 ? " is" : "s are"} waiting for an exchange rate.` : ""}
         {missingDetails ? ` ${missingDetails} sale${missingDetails === 1 ? " is" : "s are"} waiting for a date or grading review.` : ""}
       </p>

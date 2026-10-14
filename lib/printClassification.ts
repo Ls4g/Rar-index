@@ -20,8 +20,9 @@ export function splitByPrintClassification<T extends { print_classification: Pri
 
 // Known-later-print sales only ever compare within the SAME known printing
 // number — a 3rd printing and a 5th printing are never charted or valued
-// together. Printing-not-identified sales never enter this function; they
-// appear on the chart only as individual points, never as a trend or value.
+// together. Printing-not-identified sales never enter this function; the
+// chart may draw their own labelled line, but they are not a known-printing
+// valuation group.
 export function groupKnownLaterPrintSales<T extends { known_printing_number: number | null }>(sales: T[]) {
   const groups = new Map<number, T[]>();
   for (const sale of sales) {
