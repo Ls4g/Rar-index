@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/listing-outcomes",
       "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/exchange-rates",
+      "schedule": "0 18 * * *"
     }
   ]
 }

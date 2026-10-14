@@ -129,7 +129,7 @@ function ThingsToKnow() {
     <details className="price-things-to-know">
       <summary>Things to know about a sale</summary>
       <ul>
-        <li>Each point is one completed sale. A line only joins three or more comparable sales from the same printing and grade group.</li>
+        <li>Each point is one completed sale. A line only joins three or more comparable sales from the same identified printing and grade group.</li>
         <li>RAR keeps raw and graded results separate, but does not create a separate price for every raw-condition detail.</li>
         <li>Check the original listing for completeness and condition. An obi, dust jacket, inserts, signatures, regional differences, or a bundle can materially affect one sale.</li>
         <li>RAR records the original price and currency, then converts it at the reference rate on the sale date for the selected display currency.</li>
@@ -330,6 +330,8 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
   }
 
   const pointOnly = plottable.filter((series) => !series.chartable);
+  const hasTrendLine = plottable.some((series) => series.chartable);
+  const onlyUnidentifiedPrintings = plottable.every((series) => series.kind === "printing_unknown");
   const missingRates = shown.missingRates;
   const missingDetails = shown.missingDetails;
   const totalShown = visibleSeries.reduce((count, series) => count + series.convertedSales.length, 0);
@@ -355,7 +357,7 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
       <div className="price-history-heading">
         <div>
           <p className="eyebrow">RAR market history</p>
-          <h2>Price history</h2>
+          <h2>{hasTrendLine ? "Price history" : "Recorded sale prices"}</h2>
         </div>
         <ChartRangeSelector label="Price history time range" onChange={setRange} value={range} />
       </div>
@@ -397,6 +399,15 @@ export default function PriceHistoryChart({ sales, rates, mode = "publication_pr
           );
         })}
       </ul>
+
+      {!hasTrendLine ? (
+        <p className="chart-no-line-note" role="note">
+          <strong>Why no line?</strong>{" "}
+          {onlyUnidentifiedPrintings
+            ? "These sales have no verified printing number. The points are shown, but joining them would imply the copies are directly comparable."
+            : `No printing-and-grade group has ${MIN_COMPARABLE_SALES} plottable sales yet. Each verified sale still appears as a point.`}
+        </p>
+      ) : null}
 
       {/* A figure to anchor the plot, taken from the leading visible line --
           first print whenever there is one, since that is the line the page

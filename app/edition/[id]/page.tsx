@@ -14,6 +14,7 @@ import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, list
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { readCompleteRows } from "@/lib/readCompleteRows";
 import "@/app/public-redesign.css";
 
 // Valuations are live market intelligence, not deployment-time content.
@@ -307,15 +308,24 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const firstPrintVerifiedCount = firstPrintSales.filter((sale) => sale.match_status === "verified_match").length;
 
   const rateCurrencies = [...new Set(["GBP", "USD", ...verifiedSales.map((sale) => sale.currency)])];
-  const fxRatesResult = rateCurrencies.length
-    ? await supabase
+  const verifiedSaleDates = verifiedSales.map((sale) => sale.sold_date).filter((date): date is string => Boolean(date)).sort();
+  const earliestRateDate = verifiedSaleDates.length
+    ? new Date(Date.parse(`${verifiedSaleDates[0]}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10)
+    : null;
+  // Fetch only dates relevant to this edition, but paginate the complete
+  // window. An ascending LIMIT 1000 would eventually strand recent sales on
+  // older rates as the daily ECB table grows.
+  const fxRates: FxRate[] = earliestRateDate
+    ? await readCompleteRows<FxRate>("edition exchange rates", (from, to) => supabase
       .from("exchange_rates")
       .select("rate_date, currency, rate_per_eur, source_name, source_url")
       .in("currency", rateCurrencies)
+      .gte("rate_date", earliestRateDate)
+      .lte("rate_date", verifiedSaleDates.at(-1) as string)
       .order("rate_date", { ascending: true })
-      .limit(1000)
-    : { data: [] };
-  const fxRates = (fxRatesResult.data ?? []) as FxRate[];
+      .order("currency", { ascending: true })
+      .range(from, to))
+    : [];
   const observedSourceIds = new Set(observedSales.map((sale) => sale.source_id).filter((sourceId): sourceId is string => Boolean(sourceId)));
   const latestVerifiedSale = [...verifiedSales].sort((a, b) => (b.sold_date ?? "").localeCompare(a.sold_date ?? ""))[0];
   const sourceIds = [

@@ -24,6 +24,10 @@ export type ConvertedSale<T extends MarketSale = MarketSale> = T & {
   fx_rate_date: string | null;
 };
 
+// ECB reference rates are published on working days. A short weekend or
+// holiday gap is expected; a months-old rate is not a historical conversion.
+export const MAX_RATE_AGE_DAYS = 7;
+
 export function comparisonGroup(sale: MarketSale) {
   const grading = sale.grading_company || sale.grade_label
     ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${sale.grade_label ? ` ${sale.grade_label}` : ""}`
@@ -41,7 +45,10 @@ function rateForDate(currency: string, soldDate: string, rates: FxRate[]) {
     .filter((rate) => rate.currency === currency && rate.rate_date <= soldDate)
     .sort((a, b) => b.rate_date.localeCompare(a.rate_date));
   const match = matchingRates[0];
-  return match ? { rate: Number(match.rate_per_eur), rateDate: match.rate_date } : null;
+  if (!match) return null;
+  const ageDays = (Date.parse(`${soldDate}T00:00:00Z`) - Date.parse(`${match.rate_date}T00:00:00Z`)) / 86_400_000;
+  if (!Number.isFinite(ageDays) || ageDays > MAX_RATE_AGE_DAYS) return null;
+  return { rate: Number(match.rate_per_eur), rateDate: match.rate_date };
 }
 
 /**
@@ -51,6 +58,9 @@ function rateForDate(currency: string, soldDate: string, rates: FxRate[]) {
  */
 export function convertSale<T extends MarketSale>(sale: T, displayCurrency: DisplayCurrency, rates: FxRate[]): ConvertedSale<T> | null {
   if (!sale.sold_date || !Number.isFinite(sale.sale_price)) return null;
+  if (sale.currency === displayCurrency) {
+    return { ...sale, converted_price: sale.sale_price, display_currency: displayCurrency, fx_rate_date: null };
+  }
   const source = rateForDate(sale.currency, sale.sold_date, rates);
   const target = rateForDate(displayCurrency, sale.sold_date, rates);
   if (!source || !target || source.rate <= 0 || target.rate <= 0) return null;
