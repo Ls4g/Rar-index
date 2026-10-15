@@ -29,6 +29,7 @@ import { hasUnresolvedGrading } from "./gradingEvidence.ts";
 export type SeriesSale = MarketSale & {
   id?: string;
   listing_title?: string | null;
+  source_listing_url?: string | null;
   grading_reviewed_at?: string | null;
   print_classification: PrintClassification;
   known_printing_number: number | null;
