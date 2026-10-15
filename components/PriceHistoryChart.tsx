@@ -57,6 +57,30 @@ function priceScale(lowest: number, highest: number) {
   };
 }
 
+function priceRuler(min: number, max: number) {
+  const span = max - min || 1;
+  const magnitude = 10 ** Math.floor(Math.log10(span / 4));
+  const steps = [1, 2, 2.5, 5, 10].map((multiple) => multiple * magnitude);
+  // Prefer a round increment that divides the scale into three to six bands.
+  // Black Clover's £0–£400 scale therefore gets £100 labels, while much
+  // larger or smaller markets keep a readable number of labels.
+  const step = steps.find((candidate) => {
+    const bands = span / candidate;
+    return bands >= 3 && bands <= 6 && Math.abs(bands - Math.round(bands)) < 0.000001;
+  }) ?? steps.find((candidate) => span / candidate <= 5) ?? 10 * magnitude;
+  const values = Array.from({ length: Math.floor(span / step) + 1 }, (_, index) => Number((min + index * step).toFixed(6)));
+  if (Math.abs(values.at(-1)! - max) > 0.000001) values.push(max);
+  const y = (value: number) => INSET_Y + (max - value) / span * (CHART_HEIGHT - INSET_Y * 2);
+  const major = values.map((value) => ({ value, y: y(value) }));
+  const minor = values.slice(0, -1).flatMap((value, index) =>
+    [1, 2, 3].map((quarter) => ({
+      y: y(value + (values[index + 1] - value) * quarter / 4),
+      midpoint: quarter === 2,
+    }))
+  );
+  return { major, minor };
+}
+
 function pointKey(sale: DisplaySale) {
   return sale.id ?? `${sale.sold_date}-${sale.sale_price}-${sale.currency}`;
 }
@@ -105,7 +129,7 @@ function makePlot(sales: DisplaySale[]) {
     const time = tickCount === 1 ? firstTime : firstTime + span * index / (tickCount - 1);
     return formatAxisDate(time, includeYear);
   });
-  return { points, line, area, labels, max, min, firstTime, lastTime };
+  return { points, line, area, labels, max, min, ruler: priceRuler(min, max), firstTime, lastTime };
 }
 
 function ThingsToKnow() {
@@ -219,13 +243,15 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
             <>
               <div className="market-chart-frame">
                 <div className="market-chart-y-axis" aria-label={`Price scale from ${formatPrice(plot.min, currency)} to ${formatPrice(plot.max, currency)}`}>
-                  <span>{formatAxisPrice(plot.max, currency)}</span>
-                  <span>{formatAxisPrice((plot.max + plot.min) / 2, currency)}</span>
-                  <span>{formatAxisPrice(plot.min, currency)}</span>
+                  {plot.ruler.major.map(({ value, y }) => (
+                    <span key={value} style={{ top: `${y / CHART_HEIGHT * 100}%` }}>{formatAxisPrice(value, currency)}</span>
+                  ))}
                 </div>
                 <div className="market-chart-plot" aria-label={`Verified ${selected.label} sales from ${formatSaleDate(String(plot.points[0].sale.sold_date))} to ${formatSaleDate(String(plot.points.at(-1)!.sale.sold_date))}. Use arrow keys to inspect individual sales.`} onKeyDown={handleKeyDown} onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => inspectAt(event.clientX, event.currentTarget)} onPointerLeave={() => setActiveKey(null)} onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => { if (event.pointerType !== "touch") inspectAt(event.clientX, event.currentTarget); }} role="group" tabIndex={0}>
                   <svg aria-hidden="true" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-                    {[INSET_Y, CHART_HEIGHT / 2, CHART_HEIGHT - INSET_Y].map((y) => <line className="market-chart-grid" key={y} x1="0" x2={CHART_WIDTH} y1={y} y2={y} />)}
+                    {plot.ruler.major.map(({ value, y }) => <line className="market-chart-grid" key={value} x1="0" x2={CHART_WIDTH} y1={y} y2={y} />)}
+                    <line className="market-chart-ruler-spine" x1="0" x2="0" y1={INSET_Y} y2={CHART_HEIGHT - INSET_Y} />
+                    {plot.ruler.minor.map(({ y, midpoint }, index) => <line className={midpoint ? "market-chart-ruler-midpoint" : "market-chart-ruler-tick"} key={index} x1="0" x2={midpoint ? CHART_WIDTH : 22} y1={y} y2={y} />)}
                     <path className="market-chart-area" d={plot.area} />
                     <path className="market-chart-line" d={plot.line} />
                     {active ? <line className="market-chart-guide" x1={active.x} x2={active.x} y1={INSET_Y} y2={CHART_HEIGHT - INSET_Y} /> : null}
