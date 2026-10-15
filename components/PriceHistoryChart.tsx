@@ -28,6 +28,12 @@ function formatSaleDate(date: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(saleTime(date));
 }
 
+function formatAxisDate(time: number, includeYear: boolean) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric", month: "short", ...(includeYear ? { year: "2-digit" } : {}), timeZone: "UTC",
+  }).format(time);
+}
+
 function formatAxisPrice(value: number, currency: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency", currency, currencyDisplay: "narrowSymbol",
@@ -90,11 +96,15 @@ function makePlot(sales: DisplaySale[]) {
   }));
   const line = points.map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
   const area = `M ${points[0].x.toFixed(1)} ${bottom} ${points.map((point) => `L ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ")} L ${points.at(-1)!.x.toFixed(1)} ${bottom} Z`;
-  // Only actual first/last sale dates are labelled. Interpolated calendar
-  // ticks looked like random sale dates when the record is sparse.
-  const labels = span
-    ? [ordered[0], ordered.at(-1)!].map((sale) => formatSaleDate(String(sale.sold_date)))
-    : [formatSaleDate(String(ordered[0].sold_date))];
+  // Calendar ticks describe the time axis, not additional sales. The exact
+  // date of each recorded sale remains available through the point inspector.
+  const dayCount = Math.round(span / 86_400_000);
+  const tickCount = Math.min(5, dayCount + 1);
+  const includeYear = new Date(firstTime).getUTCFullYear() !== new Date(lastTime).getUTCFullYear();
+  const labels = Array.from({ length: tickCount }, (_, index) => {
+    const time = tickCount === 1 ? firstTime : firstTime + span * index / (tickCount - 1);
+    return formatAxisDate(time, includeYear);
+  });
   return { points, line, area, labels, max, min, firstTime, lastTime };
 }
 
@@ -223,10 +233,10 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
                   {active ? <span aria-hidden="true" className="market-chart-marker" style={{ left: `${active.x / CHART_WIDTH * 100}%`, top: `${active.y / CHART_HEIGHT * 100}%` }} /> : null}
                 </div>
               </div>
-              <div className={`market-chart-x-axis${plot.labels.length === 1 ? " is-single" : ""}`} aria-label="Sale timeline, earliest to latest">
-                {plot.labels.map((label, index) => <span key={`${label}-${index}`}>{plot.labels.length === 1 ? label : `${index === 0 ? "First sale" : "Latest sale"} · ${label}`}</span>)}
+              <div className={`market-chart-x-axis${plot.labels.length === 1 ? " is-single" : ""}${plot.labels.length === 5 ? " has-five-ticks" : ""}`} aria-label="Calendar dates, earliest to latest">
+                {plot.labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
               </div>
-              <p className="market-chart-footnote">Move across the line to inspect recorded sales. Dates run from earliest to latest; the line does not estimate prices between sales.</p>
+              <p className="market-chart-footnote">Calendar dates run left to right. Move across the line for each sale’s exact date and price; the line does not estimate prices between sales.</p>
             </>
           ) : (
             <div className="market-chart-sparse">

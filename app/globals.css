@@ -604,8 +604,8 @@ html[data-theme="day"] .price-history-multi {
 .market-chart-active-date { margin: .45rem 0 0; color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
 .market-chart-count { flex: none; padding-bottom: .15rem; color: var(--muted); font-size: .72rem; }
 .market-chart-frame { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: .7rem; }
-.market-chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; height: 230px; padding: 17px 0; box-sizing: border-box; color: var(--muted); font-family: var(--font-sans); font-size: .68rem; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.market-chart-plot { position: relative; height: 230px; min-width: 0; cursor: crosshair; touch-action: pan-y; }
+.market-chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; height: 400px; padding: 30px 0; box-sizing: border-box; color: var(--muted); font-family: var(--font-sans); font-size: .68rem; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.market-chart-plot { position: relative; height: 400px; min-width: 0; cursor: crosshair; touch-action: pan-y; }
 .market-chart-plot:focus-visible { outline: 2px solid var(--series-colour, var(--gold)); outline-offset: 2px; }
 .market-chart-plot svg { display: block; width: 100%; height: 100%; }
 .market-chart-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -613,7 +613,8 @@ html[data-theme="day"] .price-history-multi {
 .market-chart-line { fill: none; stroke: var(--series-colour, var(--gold)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .market-chart-guide { stroke: var(--series-colour, var(--gold)); stroke-width: 1; stroke-dasharray: 3 4; opacity: .55; vector-effect: non-scaling-stroke; }
 .market-chart-marker { position: absolute; z-index: 1; width: 11px; height: 11px; border: 2px solid var(--series-colour, var(--gold)); border-radius: 50%; background: var(--surface-card, var(--paper)); box-shadow: 0 0 0 3px var(--surface-card, var(--paper)); pointer-events: none; transform: translate(-50%, -50%); }
-.market-chart-x-axis { display: flex; justify-content: space-between; gap: .35rem; margin: .4rem 0 0 4.2rem; color: var(--muted); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.market-chart-x-axis { display: flex; justify-content: space-between; gap: .35rem; margin: .55rem 0 0 4.2rem; color: var(--canvas-heading, var(--ink)); font-size: .82rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+.market-chart-x-axis span { white-space: nowrap; }
 .market-chart-x-axis.is-single { justify-content: center; }
 .market-chart-footnote { margin: .8rem 0 1.2rem 4.2rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .market-chart-sparse { padding: 1rem 0 1.2rem; border-top: 1px solid var(--line); }
@@ -632,9 +633,10 @@ html[data-theme="day"] .price-history-multi {
   .market-chart-feature { align-items: start; }
   .market-chart-count { padding-top: .2rem; }
   .market-chart-frame { grid-template-columns: 2.8rem minmax(0, 1fr); gap: .45rem; }
-  .market-chart-y-axis, .market-chart-plot { height: 210px; }
-  .market-chart-y-axis { font-size: .62rem; }
-  .market-chart-x-axis { margin-left: 3.25rem; font-size: .62rem; }
+  .market-chart-y-axis, .market-chart-plot { height: 280px; }
+  .market-chart-y-axis { padding: 21px 0; font-size: .62rem; }
+  .market-chart-x-axis { margin-left: 3.25rem; font-size: .73rem; }
+  .market-chart-x-axis.has-five-ticks span:nth-child(even) { display: none; }
   .market-chart-footnote { margin-left: 3.25rem; }
 }
 .ghost-chart { min-height: 380px; }
@@ -4671,6 +4673,7 @@ html .edition-page .price-history-multi {
   --series-5: #aa2430;
 }
 .edition-page .price-history-multi, .edition-page .price-history-card { max-width: 980px; }
+.edition-page .price-history-multi.market-chart { max-width: none; }
 .edition-page .price-history-multi .price-chart-wrap, .edition-page .price-history-card .ghost-chart {
   border-color: #d8dde4; background: #f8fafc; box-shadow: 0 18px 42px rgba(25,34,48,.055);
 }
