@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { outcomeCheckQueueFilter, runOutcomeChecks } from "../lib/watchToSale.ts";
+import { activeListingEndAt, outcomeCheckQueueFilter, runOutcomeChecks } from "../lib/watchToSale.ts";
 
 const base = { id: "outcome", external_id: "v1|123456789012|0", marketplace: "EBAY_GB", listing_title: "Berserk Volume 1 English Dark Horse", status: "ambiguous", scheduled_end_at: "2026-08-01T00:00:00Z", next_check_at: "2026-08-02T00:00:00Z", check_attempts: 1, outcome_provider: "eBay Trading GetItem", reviewed_by: null, resulting_observation_id: null };
 function database({ auditError = false, queueError = false } = {}) {
@@ -37,6 +37,18 @@ assert.match(healthy.state.queueFilter, /^and\(status\.eq\.ended_pending_check,n
 assert.equal(healthy.state.row.status, "unsold");
 assert.equal(completed.unsold, 1);
 assert.equal(healthy.state.audits, 1);
+const activeDb = database();
+activeDb.state.row.check_attempts = 4;
+const activeSignal = { ...signal, signal: { ...signal.signal, listingState: "active", detail: "GetItem reports active", scheduledEndAt: base.scheduled_end_at } };
+const activeResult = await runOutcomeChecks(activeDb, 1, async () => activeSignal);
+assert.equal(activeDb.state.row.status, "active", "a live read must not exhaust into ambiguity");
+assert.equal(activeDb.state.row.check_attempts, 0, "a live read starts a new watch cycle");
+assert.equal(activeDb.state.row.next_check_at, null, "a live listing is not left in the check queue");
+assert.equal(activeDb.state.row.scheduled_end_at, null, "a stale end date cannot immediately requeue a live listing");
+assert.ok(new Date(activeDb.state.row.last_seen_at).getTime() > new Date(base.scheduled_end_at).getTime());
+assert.equal(activeResult.stillActive, 1);
+assert.equal(activeResult.exhausted, 0);
+assert.equal(activeListingEndAt(null, "2099-01-01T00:00:00Z", new Date().toISOString()), "2099-01-01T00:00:00Z");
 for (const providerFails of [false, true]) {
   const db = database();
   const result = await runOutcomeChecks(db, 1, async () => {

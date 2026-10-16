@@ -153,6 +153,13 @@ export async function captureWatchedListings(admin: SupabaseClient, limit = 500)
 // even when it falls out of one Scout result page.
 export const UNSEEN_DAYS_BEFORE_CHECK = 7;
 
+// An API-confirmed live listing begins a fresh watch cycle. An old end time
+// must not immediately send it back to the check queue on the next run.
+export function activeListingEndAt(previous: string | null, reported: string | null, nowIso: string) {
+  const usableFuture = (value: string | null) => value && Number.isFinite(Date.parse(value)) && Date.parse(value) > Date.parse(nowIso) ? value : null;
+  return usableFuture(reported) ?? usableFuture(previous);
+}
+
 // Move listings into the status-check queue. A passed eBay end time is useful
 // evidence that the listing ended; merely going unseen is only a scheduling
 // signal. They share the legacy ended_pending_check DB state for compatibility,
@@ -267,7 +274,10 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
     }
 
     const classification = classifyListingOutcome(providerResult.signal);
-    const exhausted = !classification.resolved && attempt >= MAX_OUTCOME_ATTEMPTS;
+    // A positive live read is not an unresolved failure. Retry exhaustion is
+    // only for checks that genuinely could not determine the listing state.
+    const activeAgain = classification.status === "active";
+    const exhausted = !activeAgain && !classification.resolved && attempt >= MAX_OUTCOME_ATTEMPTS;
     const final = exhausted ? exhaustedOutcome(providerResult.signal.provider, attempt) : classification;
     const providerTrail = providerResult.attempts ?? [];
     const auditDetail = providerTrail.length > 1
@@ -297,10 +307,14 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
       sold_at: final.soldAt,
       outcome_reason: final.reason,
       outcome_provider: providerResult.signal.provider,
-      check_attempts: attempt,
+      check_attempts: activeAgain ? 0 : attempt,
+      ...(activeAgain ? {
+        last_seen_at: nowIso,
+        scheduled_end_at: activeListingEndAt(row.scheduled_end_at, providerResult.signal.scheduledEndAt, nowIso),
+      } : {}),
       last_checked_at: nowIso,
       last_error: null,
-      next_check_at: final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
+      next_check_at: activeAgain || final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
       updated_at: nowIso,
     }).eq("id", row.id).eq("status", row.status).eq("check_attempts", row.check_attempts)
       .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();

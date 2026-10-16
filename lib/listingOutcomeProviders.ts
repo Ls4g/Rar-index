@@ -267,7 +267,7 @@ export async function browseOutcomeProvider(itemId: string, marketplace: string 
         bidCount: typeof item?.bidCount === "number" ? item.bidCount : null,
         scheduledEndAt: item?.itemEndDate ?? null,
         httpStatus: 200,
-        detail: "Browse still serves this listing, so it has not ended.",
+        detail: "Browse still serves this listing, so it remains available. A multi-quantity listing may have sold copies while staying live; Browse does not report those transactions.",
       },
       httpStatus: 200,
       rawResponse: payload,
@@ -281,7 +281,7 @@ export async function browseOutcomeProvider(itemId: string, marketplace: string 
         listingState: "not_found",
         httpStatus: 404,
         // Said plainly so nobody later mistakes this for an unsold result.
-        detail: "Browse no longer serves this listing. Browse only carries active listings, so this means it ended -- not that it sold or that it did not.",
+        detail: "Browse no longer serves this listing. It may have ended, become unavailable, or be inaccessible to this lookup. This does not establish whether any copy sold.",
       },
       httpStatus: 404,
       rawResponse: payload,

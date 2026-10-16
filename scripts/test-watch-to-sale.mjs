@@ -101,6 +101,8 @@ check("removed listing is inaccessible, never sold", removed.status === "inacces
 
 const stillActive = classifyListingOutcome({ ...base, provider: "eBay Browse", listingState: "active" });
 check("listing still live after its expected end stays active", stillActive.status === "active" && stillActive.resolved === false);
+check("a live multi-quantity listing cannot be treated as unsold or a verified transaction",
+  stillActive.status !== "unsold" && stillActive.status !== "sold_candidate");
 
 console.log("\n--- incomplete sale data ---");
 const noPrice = classifyListingOutcome({ ...base, listingState: "completed_sold", soldPrice: null, soldCurrency: "GBP", soldAt: yesterday });

@@ -236,12 +236,13 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     ? await supabase
       .from("manga_editions")
       .select("id,title,language,publisher,isbn_13,edition_statement,printing_number,variant_name")
-      .eq("series", edition.series)
+      .ilike("series", edition.series)
       .eq("volume_number", edition.volume_number)
       .eq("is_verified", true)
+      .eq("record_kind", "publication")
       .not("id", "in", `(${familyIds.join(",")})`)
       .order("language", { ascending: true })
-      .limit(6)
+      .limit(20)
     : { data: [] };
 
   const [sourceLinksResult, observedSalesResult] = await Promise.all([
@@ -551,6 +552,30 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
         </div>
       </section>
 
+      {relatedEditions.length ? (
+        <nav className="edition-publication-picker" aria-label="Choose a publication of this volume">
+          <div className="edition-publication-picker-heading">
+            <div>
+              <span>Same story, different books</span>
+              <h2>Choose the publication</h2>
+            </div>
+            <p>Language, publisher and ISBN distinguish these books. Sales stay with the exact publication.</p>
+          </div>
+          <div className="edition-publication-picker-list">
+            <span className="edition-publication-choice is-current" aria-current="page">
+              <strong>{edition.title || displayTitle}</strong>
+              <small>{edition.language || "Language pending"} · {publisherDisplayName(edition.publisher)} · {edition.isbn_13 || edition.isbn_10 ? `ISBN ${edition.isbn_13 ?? edition.isbn_10}` : "ISBN pending"} · Current</small>
+            </span>
+            {relatedEditions.map((related) => (
+              <Link className="edition-publication-choice" href={`/edition/${related.id}`} key={related.id}>
+                <strong>{related.title || editionDescriptor(related)}</strong>
+                <small>{related.language || "Language pending"} · {publisherDisplayName(related.publisher)} · {related.isbn_13 ? `ISBN ${related.isbn_13}` : "ISBN pending"}</small>
+              </Link>
+            ))}
+          </div>
+        </nav>
+      ) : null}
+
       <MarketCurrencyProvider>
       <section className="edition-content">
         <div className="edition-layout">
@@ -838,24 +863,6 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           </div>
           </div>
         </details>
-
-        {relatedEditions.length ? (
-          <details className="edition-disclosure related-editions-section">
-            <summary><span><small>Different language or publisher</small>Related publications</span><span className="disclosure-hint">{relatedEditions.length} publication{relatedEditions.length === 1 ? "" : "s"}</span></summary>
-            <div className="edition-disclosure-content">
-              <p className="section-copy">Same series and volume, but a different book — another language or another publisher, not another printing of this one. Printings of this exact book are compared in the tabs above.</p>
-            <div className="related-editions-list">
-              {relatedEditions.map((related) => (
-                <Link href={`/edition/${related.id}`} key={related.id}>
-                  <span>{related.language || "Language pending"}</span>
-                  <strong>{editionDescriptor(related)}</strong>
-                  <small>{[related.publisher, related.isbn_13 ? `ISBN ${related.isbn_13}` : null].filter(Boolean).join(" · ")}</small>
-                </Link>
-              ))}
-            </div>
-            </div>
-          </details>
-        ) : null}
 
         {edition.historical_notes || edition.importance_tags?.length ? (
           <details className="edition-disclosure collector-context-section">
