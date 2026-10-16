@@ -125,6 +125,7 @@ html[data-theme="night"] .public-page.browse-redesign .browse-card-body .browse-
 .public-page.edition-redesign .edition-publication-choice { display: grid; align-content: space-between; gap: 12px; flex: 0 0 min(260px, 76vw); min-height: 86px; border: 1px solid var(--rar-line); border-radius: 8px; padding: 13px 15px; background: var(--rar-surface); color: var(--rar-ink); text-decoration: none; transition: border-color .15s ease, transform .15s ease; }
 .public-page.edition-redesign .edition-publication-choice strong { font-size: 13px; line-height: 1.35; }
 .public-page.edition-redesign .edition-publication-choice small { color: var(--rar-muted); font-size: 11px; line-height: 1.3; }
+.public-page.edition-redesign .edition-publication-meta { display: grid; gap: 4px; }
 .public-page.edition-redesign .edition-publication-choice.is-current { border-color: var(--rar-red); box-shadow: inset 3px 0 var(--rar-red); }
 .public-page.edition-redesign a.edition-publication-choice:hover { border-color: var(--rar-red); transform: translateY(-2px); }
 .public-page.edition-redesign a.edition-publication-choice:focus-visible { outline: 2px solid var(--rar-red); outline-offset: 2px; }

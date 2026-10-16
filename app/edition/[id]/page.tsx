@@ -14,6 +14,7 @@ import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, list
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { adjacentPublication } from "@/lib/publicationNavigation";
 import { readCompleteRows } from "@/lib/readCompleteRows";
 import "@/app/public-redesign.css";
 
@@ -74,6 +75,8 @@ type RelatedEdition = {
   language: string | null;
   publisher: string | null;
   isbn_13: string | null;
+  format: string | null;
+  release_date: string | null;
   edition_statement: string | null;
   printing_number: number | null;
   variant_name: string | null;
@@ -223,19 +226,19 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
   const siblingVolumesResult = edition.series && !isMagazine
     ? await supabase
       .from("manga_editions")
-      .select("id,title,series,volume_number,language,cover_image_url,cover_verification_status")
+      .select("id,title,series,volume_number,language,publisher,format,release_date,cover_image_url,cover_verification_status")
       .eq("series", edition.series)
       .eq("language", edition.language)
       .eq("is_verified", true)
       .eq("record_kind", "publication")
       .not("volume_number", "is", null)
       .limit(400)
-    : { data: [] as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_image_url: string | null; cover_verification_status: string | null }> };
+    : { data: [] as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; publisher: string | null; format: string | null; release_date: string | null; cover_image_url: string | null; cover_verification_status: string | null }> };
 
   const relatedEditionsResult = edition.series && edition.volume_number && !isMagazine
     ? await supabase
       .from("manga_editions")
-      .select("id,title,language,publisher,isbn_13,edition_statement,printing_number,variant_name")
+      .select("id,title,language,publisher,isbn_13,format,release_date,edition_statement,printing_number,variant_name")
       .ilike("series", edition.series)
       .eq("volume_number", edition.volume_number)
       .eq("is_verified", true)
@@ -349,7 +352,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     const match = String(value ?? "").match(/\d+(\.\d+)?/);
     return match ? Number(match[0]) : null;
   };
-  const siblingVolumes = ((siblingVolumesResult.data ?? []) as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; cover_image_url: string | null; cover_verification_status: string | null }>)
+  const siblingVolumes = ((siblingVolumesResult.data ?? []) as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; publisher: string | null; format: string | null; release_date: string | null; cover_image_url: string | null; cover_verification_status: string | null }>)
     .flatMap((row) => {
       const number = volumeOf(row.volume_number);
       return number === null ? [] : [{ ...row, number, label: row.volume_number as string }];
@@ -357,8 +360,12 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
     .sort((left, right) => left.number - right.number);
   const distinctVolumeCount = new Set(siblingVolumes.map((entry) => entry.number)).size;
   const currentVolume = volumeOf(edition.volume_number);
-  const previousVolume = currentVolume === null ? null : [...siblingVolumes].reverse().find((entry) => entry.number < currentVolume) ?? null;
-  const nextVolume = currentVolume === null ? null : siblingVolumes.find((entry) => entry.number > currentVolume) ?? null;
+  const currentPublication = currentVolume === null ? null : {
+    id: edition.id, number: currentVolume, publisher: edition.publisher,
+    format: edition.format, language: edition.language, release_date: edition.release_date,
+  };
+  const previousVolume = currentPublication ? adjacentPublication(currentPublication, siblingVolumes, "previous") : null;
+  const nextVolume = currentPublication ? adjacentPublication(currentPublication, siblingVolumes, "next") : null;
 
   // Live Scout leads answer "can I buy one now?" They deliberately use a
   // server-only read and are never included in verified sales, market value,
@@ -559,17 +566,17 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <span>Same story, different books</span>
               <h2>Choose the publication</h2>
             </div>
-            <p>Language, publisher and ISBN distinguish these books. Sales stay with the exact publication.</p>
+            <p>Compare language, publisher, format and ISBN. Each publication keeps its own sales.</p>
           </div>
           <div className="edition-publication-picker-list">
             <span className="edition-publication-choice is-current" aria-current="page">
               <strong>{edition.title || displayTitle}</strong>
-              <small>{edition.language || "Language pending"} · {publisherDisplayName(edition.publisher)} · {edition.isbn_13 || edition.isbn_10 ? `ISBN ${edition.isbn_13 ?? edition.isbn_10}` : "ISBN pending"} · Current</small>
+              <span className="edition-publication-meta"><small>{[edition.language || "Language pending", publisherDisplayName(edition.publisher), edition.format, edition.release_date?.slice(0, 4)].filter(Boolean).join(" · ")}</small><small>{edition.isbn_13 || edition.isbn_10 ? `ISBN ${edition.isbn_13 ?? edition.isbn_10}` : "ISBN pending"} · Current</small></span>
             </span>
             {relatedEditions.map((related) => (
               <Link className="edition-publication-choice" href={`/edition/${related.id}`} key={related.id}>
                 <strong>{related.title || editionDescriptor(related)}</strong>
-                <small>{related.language || "Language pending"} · {publisherDisplayName(related.publisher)} · {related.isbn_13 ? `ISBN ${related.isbn_13}` : "ISBN pending"}</small>
+                <span className="edition-publication-meta"><small>{[related.language || "Language pending", publisherDisplayName(related.publisher), related.format, related.release_date?.slice(0, 4)].filter(Boolean).join(" · ")}</small><small>{related.isbn_13 ? `ISBN ${related.isbn_13}` : "ISBN pending"}</small></span>
               </Link>
             ))}
           </div>

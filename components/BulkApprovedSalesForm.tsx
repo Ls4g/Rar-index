@@ -12,6 +12,8 @@ type Edition = {
   language: string | null;
   isbn_13: string | null;
   publisher: string | null;
+  format: string | null;
+  release_date: string | null;
 };
 type Source = { id: string; name: string | null };
 type PrintClassification = "printing_not_identified" | "known_later_print" | "first_print_proven";
@@ -59,7 +61,7 @@ type BatchRow = {
 };
 
 function editionLabel(edition: Edition) {
-  return [edition.title, edition.series, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.publisher]
+  return [edition.title, edition.series && !edition.title?.toLocaleLowerCase().includes(edition.series.toLocaleLowerCase()) ? edition.series : null, edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.publisher, edition.format, edition.release_date?.slice(0, 4), edition.isbn_13 ? `ISBN ${edition.isbn_13}` : "ISBN pending"]
     .filter(Boolean).join(" · ");
 }
 
@@ -254,7 +256,7 @@ export default function BulkApprovedSalesForm({
     </section>
 
     <div className="bulk-sale-edition">
-      <span>1</span><div><strong>Which exact edition do all these links belong to?</strong>
+      <span>1</span><div><strong>Which exact edition do all these links belong to?</strong><small>Check the ISBN and publisher when a volume has more than one publication.</small>
       {selectedEdition ? <div className="selected-edition"><strong>{editionLabel(selectedEdition)}</strong><button type="button" onClick={changeEdition}>Change edition</button></div> : <>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or series" autoComplete="off" />
         {visibleSuggestions.length ? <div className="edition-suggestions">{visibleSuggestions.map((edition) => <button type="button" key={edition.id} onClick={() => setSelectedEdition(edition)}>{editionLabel(edition)}</button>)}</div> : null}
