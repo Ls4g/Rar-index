@@ -602,6 +602,8 @@ html[data-theme="day"] .price-history-multi {
 .market-chart-group-name { margin: 0 0 .35rem; color: var(--series-colour, var(--gold)); font-size: .7rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .market-chart-active-price { color: var(--canvas-heading, var(--ink)); font-family: var(--font-display); font-size: clamp(2rem, 4vw, 2.7rem); font-variant-numeric: tabular-nums; line-height: 1; }
 .market-chart-active-date { margin: .45rem 0 0; color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.market-chart-active-source { display: inline-block; margin-top: .45rem; color: var(--series-colour, var(--gold)); font-size: .75rem; font-weight: 700; text-underline-offset: .2em; }
+.market-chart-active-source:focus-visible { outline: 2px solid var(--series-colour, var(--gold)); outline-offset: 3px; }
 .market-chart-count { flex: none; padding-bottom: .15rem; color: var(--muted); font-size: .72rem; }
 .market-chart-frame { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: .7rem; }
 .market-chart-y-axis { position: relative; height: 400px; color: var(--muted); font-family: var(--font-sans); font-size: .68rem; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
@@ -616,10 +618,18 @@ html[data-theme="day"] .price-history-multi {
 .market-chart-area { fill: var(--series-colour, var(--gold)); fill-opacity: .1; }
 .market-chart-line { fill: none; stroke: var(--series-colour, var(--gold)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .market-chart-guide { stroke: var(--series-colour, var(--gold)); stroke-width: 1; stroke-dasharray: 3 4; opacity: .55; vector-effect: non-scaling-stroke; }
+.market-chart-sale-point { position: absolute; width: 7px; height: 7px; border: 1.5px solid var(--series-colour, var(--gold)); border-radius: 50%; background: var(--surface-card, var(--paper)); pointer-events: none; transform: translate(-50%, -50%); }
 .market-chart-marker { position: absolute; z-index: 1; width: 11px; height: 11px; border: 2px solid var(--series-colour, var(--gold)); border-radius: 50%; background: var(--surface-card, var(--paper)); box-shadow: 0 0 0 3px var(--surface-card, var(--paper)); pointer-events: none; transform: translate(-50%, -50%); }
+.market-chart-tooltip { position: absolute; z-index: 2; min-width: 6.5rem; padding: .42rem .58rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--surface-card, var(--paper)); box-shadow: 0 5px 16px rgba(0,0,0,.14); pointer-events: none; text-align: center; transform: translate(-50%, calc(-100% - 13px)); }
+.market-chart-tooltip.is-below { transform: translate(-50%, 13px); }
+.market-chart-tooltip strong { display: block; color: var(--canvas-heading, var(--ink)); font-size: .76rem; font-variant-numeric: tabular-nums; }
+.market-chart-tooltip small { display: block; margin-top: .08rem; color: var(--muted); font-size: .64rem; white-space: nowrap; }
 .market-chart-x-axis { display: flex; justify-content: space-between; gap: .35rem; margin: .55rem 0 0 4.2rem; color: var(--canvas-heading, var(--ink)); font-size: .82rem; font-variant-numeric: tabular-nums; font-weight: 600; }
 .market-chart-x-axis span { white-space: nowrap; }
 .market-chart-x-axis.is-single { justify-content: center; }
+.market-chart-recorded-range { display: flex; gap: 2rem; margin: 1rem 0 0 4.2rem; padding-top: .85rem; border-top: 1px solid var(--line); }
+.market-chart-recorded-range span { display: grid; gap: .18rem; color: var(--muted); font-size: .65rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.market-chart-recorded-range strong { color: var(--canvas-heading, var(--ink)); font-size: .9rem; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .market-chart-footnote { margin: .8rem 0 1.2rem 4.2rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .market-chart-sparse { padding: 1rem 0 1.2rem; border-top: 1px solid var(--line); }
 .market-chart-sparse > p { margin: 0 0 .85rem; color: var(--muted); font-size: .78rem; line-height: 1.5; }
@@ -641,6 +651,7 @@ html[data-theme="day"] .price-history-multi {
   .market-chart-y-axis { font-size: .62rem; }
   .market-chart-x-axis { margin-left: 3.25rem; font-size: .73rem; }
   .market-chart-x-axis.has-five-ticks span:nth-child(even) { display: none; }
+  .market-chart-recorded-range { margin-left: 3.25rem; }
   .market-chart-footnote { margin-left: 3.25rem; }
 }
 .ghost-chart { min-height: 380px; }
@@ -4624,6 +4635,9 @@ html[data-theme="day"] .edition-page {
 .edition-page .edition-hero h1 { margin-bottom: .35rem; font-size: clamp(3.7rem, 5vw, 5.35rem); }
 .edition-page .edition-hero-actions { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 1rem; max-width: 760px; margin-top: 1.4rem; }
 .edition-page .edition-hero-actions .home-btn { gap: .65rem; min-height: 3.65rem; }
+.edition-page .edition-market-jump { display: inline-flex; gap: .55rem; margin-top: 1rem; color: var(--rar-ink); font-size: .78rem; font-weight: 700; text-decoration: underline; text-underline-offset: .22em; }
+.edition-page .edition-market-jump span { color: var(--rar-muted); font-weight: 600; text-decoration: none; }
+.edition-page .edition-market-jump:focus-visible { outline: 2px solid var(--rar-red); outline-offset: 4px; }
 .edition-page .edition-reader-intro { display: none; }
 .edition-page .price-history-section { margin: 0; padding: 2.8rem 3.3vw 3.5rem; border: 0; border-radius: 0; background: var(--rar-surface); box-shadow: none; }
 .edition-page .price-history-section .section-intro h2 { margin: 0; font-size: clamp(2.35rem, 3.4vw, 3.45rem); line-height: .95; }
@@ -4675,6 +4689,14 @@ html .edition-page .price-history-multi {
   --series-3: #d26a2e;
   --series-4: #7657a5;
   --series-5: #aa2430;
+}
+html[data-theme="night"] .edition-page .price-history-multi {
+  --series-0: #ff6a71;
+  --series-1: #75adf0;
+  --series-2: #70cba0;
+  --series-3: #f0a16f;
+  --series-4: #ae91da;
+  --series-5: #e57b84;
 }
 .edition-page .price-history-multi, .edition-page .price-history-card { max-width: 980px; }
 .edition-page .price-history-multi.market-chart { max-width: none; }

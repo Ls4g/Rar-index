@@ -537,6 +537,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
                 {editionIntro ? <p className="edition-reader-edition">{editionIntro}</p> : null}
             </div>
             <EditionHeroActions editionId={String(edition.id)} title={displayTitle} />
+            {verifiedSales.length ? <a className="edition-market-jump" href="#market-data">View verified sale history <span>{verifiedSales.length} receipts ↓</span></a> : null}
             {previousVolume || nextVolume ? (
               <nav aria-label="Volume navigation" className="volume-nav">
                 {previousVolume
