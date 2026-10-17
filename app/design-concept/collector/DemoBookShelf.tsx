@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
 import PhysicalBookDemo from "./PhysicalBookDemo";
-import GalleryPrototype from "./GalleryPrototype";
+
+// Keep the WebGL prototype out of real collector profile bundles.
+const GalleryPrototype = dynamic(() => import("./GalleryPrototype"), { ssr: false });
 
 export type DemoMarketGuide = {
   currency: string;
@@ -73,7 +76,7 @@ export default function DemoBookShelf({ books, isDemo = true, ownerName = "The O
   const close = () => dialogRef.current?.close();
 
   return <>
-    {isDemo ? <GalleryPrototype books={books} onOpen={setPhysicalBook} /> : null}
+    {isDemo ? <GalleryPrototype books={books} /> : null}
     <section className="rar-demo-content" id="spotlight">
       <div className="rar-concept-container">
         <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Open a cover to explore {isDemo ? "the sample collector’s" : "this collector’s"} volumes, exact editions and source-backed market context.</p></div>
