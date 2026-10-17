@@ -216,14 +216,9 @@ export default async function ConceptExperience({ preview = false }: { preview?:
           </div>
         </section> : null}
 
-        <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container">
-          <div className="rar-concept-showcase-intro"><div><p className="rar-concept-kicker">SHOW OFF YOUR COLLECTION</p><h2>Give your manga a shelf worth sharing.</h2><p>Choose what other fans can see: your favourite covers, the series you collect, and the exact editions on your shelf.</p></div><Link href="/portfolio">Build your shelf ↗</Link></div>
-          <div className="rar-concept-shelf-preview" aria-label="Example of a public manga shelf">
-            <div className="rar-concept-shelf-preview-top"><span>EXAMPLE PUBLIC SHELF</span><span>RAR / COLLECTORS</span></div>
-            <div className="rar-concept-shelf-preview-person"><span className="rar-concept-shelf-preview-avatar" aria-hidden="true">O</span><div><small>@openingchapter · sample collector</small><strong>The Opening Chapter</strong><p>A few favourite series, shared with fellow manga collectors.</p></div></div>
-            <div className="rar-concept-shelf-preview-grid">{showcaseCovers.slice(0, 4).map((edition) => <div key={edition.id}>{cover(edition)}<strong>{editionName(edition)}</strong><span>{editionMeta(edition)}</span></div>)}</div>
-            <p className="rar-concept-shelf-preview-note">A visual example using real RAR catalogue covers—not a real person’s collection. Your shelf shows only what you choose to share.</p>
-          </div>
+        <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container rar-concept-showcase-hero">
+          <div><p className="rar-concept-kicker">A SHELF TO SHARE</p><h2>Show your manga<br />collection<span>.</span></h2><p>Turn the editions you collect into a public portfolio people can explore. Open a series to see its volumes and the books behind them.</p><Link href="/design-concept/collector">View portfolio demo <span aria-hidden="true">↗</span></Link><small>Fictional collector · real RAR catalogue editions</small></div>
+          <span className="rar-concept-showcase-watermark" aria-hidden="true">O</span>
         </div></section>
 
         <section className="rar-concept-buy" id="buy">

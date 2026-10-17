@@ -135,25 +135,17 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-sale-list a { display: flex; align-items: center; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--rc-line); font-size: 14px; font-weight: 750; }
 .rar-concept-sale-list a small { color: var(--rc-muted); font-weight: 400; }
 .rar-concept-sale-list a b { margin-left: auto; font-size: 12px; }
-.rar-concept-showcase { padding: 88px 0 96px; background: var(--rc-night); color: #f8f7f2; }
-.rar-concept-showcase-intro { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 36px; }
-.rar-concept-showcase-intro > div > p:last-child { max-width: 590px; margin: 18px 0 0; color: #b4bab8; font-size: 16px; line-height: 1.5; }
-.rar-concept-showcase-intro > a { flex: none; border: 1px solid #87908c; padding: 14px 20px; font-size: 13px; font-weight: 750; }
-.rar-concept-showcase-intro > a:hover { border-color: #f0a392; color: #f0a392; }
-.rar-concept-shelf-preview { border: 1px solid #555d5a; background: #1b2022; }
-.rar-concept-shelf-preview-top { display: flex; justify-content: space-between; gap: 15px; border-bottom: 1px solid #414947; padding: 13px 24px; color: #9aa6a2; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
-.rar-concept-shelf-preview-person { display: flex; align-items: center; gap: 18px; padding: 27px 30px 25px; }
-.rar-concept-shelf-preview-avatar { display: grid; flex: none; place-items: center; width: 62px; height: 62px; border: 1px solid #84918b; border-radius: 50%; font-family: Georgia, serif; font-size: 37px; font-style: italic; }
-.rar-concept-shelf-preview-person > div { display: grid; gap: 4px; }
-.rar-concept-shelf-preview-person small { color: #e8a899; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
-.rar-concept-shelf-preview-person strong { font-size: clamp(23px, 3vw, 34px); letter-spacing: -.04em; }
-.rar-concept-shelf-preview-person p { margin: 0; color: #aeb8b4; font-size: 12px; }
-.rar-concept-shelf-preview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; border-top: 1px solid #414947; padding: 25px 30px; }
-.rar-concept-shelf-preview-grid > div { display: flex; flex-direction: column; align-items: start; min-width: 0; }
-.rar-concept-shelf-preview-grid .edition-cover { height: clamp(175px, 18vw, 225px); margin: 0 auto 16px; }
-.rar-concept-shelf-preview-grid strong { font-size: 13px; }
-.rar-concept-shelf-preview-grid span { margin-top: 5px; color: #aeb8b4; font-size: 11px; line-height: 1.4; }
-.rar-concept-shelf-preview-note { margin: 0; border-top: 1px solid #414947; padding: 14px 30px; color: #aeb8b4; font-size: 11px; line-height: 1.5; }
+.rar-concept-showcase { overflow: hidden; padding: 66px 0 75px; background: #101416; color: #f8f7f2; }
+.rar-concept-showcase-hero { position: relative; display: flex; align-items: center; min-height: 310px; }
+.rar-concept-showcase-hero > div { position: relative; z-index: 1; max-width: 760px; }
+.rar-concept-showcase-hero h2 { margin-top: 15px; font-size: clamp(52px, 6.5vw, 92px); line-height: .95; letter-spacing: -.065em; }
+.rar-concept-showcase-hero h2 span { color: #e65349; }
+.rar-concept-showcase-hero p:not(.rar-concept-kicker) { max-width: 510px; margin: 24px 0 26px; color: #b4bab8; font-size: 16px; line-height: 1.5; }
+.rar-concept-showcase-hero a { display: inline-flex; align-items: center; gap: 28px; min-height: 49px; padding: 12px 18px; background: #c43231; color: #fff; font-size: 13px; font-weight: 800; }
+.rar-concept-showcase-hero a:hover { background: #e0443c; }
+.rar-concept-showcase-hero a:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+.rar-concept-showcase-hero small { display: block; margin-top: 11px; color: #909b98; font-size: 11px; }
+.rar-concept-showcase-watermark { position: absolute; right: 2%; bottom: -129px; color: #394541; font-family: Georgia, serif; font-size: clamp(370px, 40vw, 610px); font-style: italic; line-height: 1; pointer-events: none; user-select: none; }
 .rar-concept-buy { padding-block: 88px 78px; }
 .rar-concept-buy-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
 .rar-concept-buy-heading > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
@@ -191,7 +183,6 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-hero { grid-template-columns: 1fr; }
   .rar-concept-hero-feature { width: min(100%, 640px); }
   .rar-concept-book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rar-concept-shelf-preview-grid { gap: 12px; }
   .rar-concept-join { grid-template-columns: 58% 42%; }
   .rar-concept-join-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -231,14 +222,10 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-product-image .edition-cover { height: 310px; }
   .rar-concept-market { margin-top: 55px; }
   .rar-concept-market-heading { align-items: start; flex-direction: column; }
-  .rar-concept-showcase-intro { align-items: start; flex-direction: column; }
-  .rar-concept-shelf-preview-top { padding-inline: 16px; font-size: 8px; }
-  .rar-concept-shelf-preview-person { gap: 13px; padding: 20px 16px; }
-  .rar-concept-shelf-preview-avatar { width: 48px; height: 48px; font-size: 29px; }
-  .rar-concept-shelf-preview-person p { line-height: 1.4; }
-  .rar-concept-shelf-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; padding: 20px 16px; }
-  .rar-concept-shelf-preview-grid .edition-cover { height: clamp(145px, 43vw, 195px); }
-  .rar-concept-shelf-preview-note { padding-inline: 16px; }
+  .rar-concept-showcase { padding-block: 62px 68px; }
+  .rar-concept-showcase-hero { min-height: 0; }
+  .rar-concept-showcase-hero h2 { font-size: clamp(49px, 13vw, 67px); }
+  .rar-concept-showcase-watermark { right: -45px; bottom: -100px; font-size: 350px; opacity: .55; }
   .rar-concept-buy { padding-block: 60px; }
   .rar-concept-buy-heading { align-items: start; flex-direction: column; gap: 24px; }
   .rar-concept-live-market { margin-top: 34px; }
