@@ -136,23 +136,24 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-sale-list a small { color: var(--rc-muted); font-weight: 400; }
 .rar-concept-sale-list a b { margin-left: auto; font-size: 12px; }
 .rar-concept-showcase { padding: 88px 0 96px; background: var(--rc-night); color: #f8f7f2; }
-.rar-concept-showcase-intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 36px; }
-.rar-concept-showcase-intro > div > p:last-child { max-width: 530px; margin: 18px 0 0; color: #b4bab8; font-size: 16px; line-height: 1.5; }
-.rar-concept-showcase-intro > span { color: #919b99; font-size: 11px; text-align: right; line-height: 1.5; }
-.rar-concept-profile-preview { display: flex; align-items: center; gap: 20px; min-height: 122px; margin-bottom: 28px; border-block: 1px solid #535b58; padding: 20px 10px; color: #f8f7f2; }
-.rar-concept-profile-preview-mark { display: grid; flex: none; place-items: center; width: 60px; height: 60px; border: 1px solid #8a9590; border-radius: 50%; font-family: Georgia, serif; font-size: 38px; font-style: italic; }
-.rar-concept-profile-preview-copy { display: grid; gap: 4px; }
-.rar-concept-profile-preview-copy small { color: #e8a899; font-size: 9px; font-weight: 800; letter-spacing: .15em; }
-.rar-concept-profile-preview-copy strong { font-size: 25px; letter-spacing: -.04em; }
-.rar-concept-profile-preview-copy > span { color: #aab4ae; font-size: 12px; }
-.rar-concept-profile-preview-link { margin-left: auto; border-bottom: 1px solid currentColor; padding-bottom: 5px; font-size: 12px; font-weight: 750; white-space: nowrap; }
-.rar-concept-profile-preview:hover .rar-concept-profile-preview-link { color: #f0a392; }
-.rar-concept-showcase-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px 16px; }
-.rar-concept-showcase-grid a { display: flex; flex-direction: column; align-items: start; min-width: 0; padding: 10px; }
-.rar-concept-showcase-grid .edition-cover { height: clamp(190px, 20vw, 245px); margin: 0 auto 14px; }
-.rar-concept-showcase-grid strong { font-size: 13px; }
-.rar-concept-showcase-grid span { margin-top: 4px; color: #a5aeac; font-size: 10px; line-height: 1.4; }
-.rar-concept-showcase-action { display: inline-block; margin-top: 30px; border-bottom: 1px solid #f8f7f2; padding-bottom: 6px; font-size: 13px; font-weight: 700; }
+.rar-concept-showcase-intro { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 36px; }
+.rar-concept-showcase-intro > div > p:last-child { max-width: 590px; margin: 18px 0 0; color: #b4bab8; font-size: 16px; line-height: 1.5; }
+.rar-concept-showcase-intro > a { flex: none; border: 1px solid #87908c; padding: 14px 20px; font-size: 13px; font-weight: 750; }
+.rar-concept-showcase-intro > a:hover { border-color: #f0a392; color: #f0a392; }
+.rar-concept-shelf-preview { border: 1px solid #555d5a; background: #1b2022; }
+.rar-concept-shelf-preview-top { display: flex; justify-content: space-between; gap: 15px; border-bottom: 1px solid #414947; padding: 13px 24px; color: #9aa6a2; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.rar-concept-shelf-preview-person { display: flex; align-items: center; gap: 18px; padding: 27px 30px 25px; }
+.rar-concept-shelf-preview-avatar { display: grid; flex: none; place-items: center; width: 62px; height: 62px; border: 1px solid #84918b; border-radius: 50%; font-family: Georgia, serif; font-size: 37px; font-style: italic; }
+.rar-concept-shelf-preview-person > div { display: grid; gap: 4px; }
+.rar-concept-shelf-preview-person small { color: #e8a899; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
+.rar-concept-shelf-preview-person strong { font-size: clamp(23px, 3vw, 34px); letter-spacing: -.04em; }
+.rar-concept-shelf-preview-person p { margin: 0; color: #aeb8b4; font-size: 12px; }
+.rar-concept-shelf-preview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; border-top: 1px solid #414947; padding: 25px 30px; }
+.rar-concept-shelf-preview-grid > div { display: flex; flex-direction: column; align-items: start; min-width: 0; }
+.rar-concept-shelf-preview-grid .edition-cover { height: clamp(175px, 18vw, 225px); margin: 0 auto 16px; }
+.rar-concept-shelf-preview-grid strong { font-size: 13px; }
+.rar-concept-shelf-preview-grid span { margin-top: 5px; color: #aeb8b4; font-size: 11px; line-height: 1.4; }
+.rar-concept-shelf-preview-note { margin: 0; border-top: 1px solid #414947; padding: 14px 30px; color: #aeb8b4; font-size: 11px; line-height: 1.5; }
 .rar-concept-buy { padding-block: 88px 78px; }
 .rar-concept-buy-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
 .rar-concept-buy-heading > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
@@ -190,7 +191,7 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-hero { grid-template-columns: 1fr; }
   .rar-concept-hero-feature { width: min(100%, 640px); }
   .rar-concept-book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rar-concept-showcase-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rar-concept-shelf-preview-grid { gap: 12px; }
   .rar-concept-join { grid-template-columns: 58% 42%; }
   .rar-concept-join-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -231,14 +232,13 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-market { margin-top: 55px; }
   .rar-concept-market-heading { align-items: start; flex-direction: column; }
   .rar-concept-showcase-intro { align-items: start; flex-direction: column; }
-  .rar-concept-showcase-intro > span { text-align: left; }
-  .rar-concept-profile-preview { flex-wrap: wrap; gap: 14px; padding-inline: 0; }
-  .rar-concept-profile-preview-mark { width: 48px; height: 48px; font-size: 30px; }
-  .rar-concept-profile-preview-copy strong { font-size: 21px; }
-  .rar-concept-profile-preview-link { width: 100%; margin: 0 0 0 62px; }
-  .rar-concept-showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .rar-concept-showcase-grid a { padding: 11px; }
-  .rar-concept-showcase-grid .edition-cover { height: clamp(160px, 50vw, 220px); }
+  .rar-concept-shelf-preview-top { padding-inline: 16px; font-size: 8px; }
+  .rar-concept-shelf-preview-person { gap: 13px; padding: 20px 16px; }
+  .rar-concept-shelf-preview-avatar { width: 48px; height: 48px; font-size: 29px; }
+  .rar-concept-shelf-preview-person p { line-height: 1.4; }
+  .rar-concept-shelf-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; padding: 20px 16px; }
+  .rar-concept-shelf-preview-grid .edition-cover { height: clamp(145px, 43vw, 195px); }
+  .rar-concept-shelf-preview-note { padding-inline: 16px; }
   .rar-concept-buy { padding-block: 60px; }
   .rar-concept-buy-heading { align-items: start; flex-direction: column; gap: 24px; }
   .rar-concept-live-market { margin-top: 34px; }

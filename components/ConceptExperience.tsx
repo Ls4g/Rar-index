@@ -217,14 +217,13 @@ export default async function ConceptExperience({ preview = false }: { preview?:
         </section> : null}
 
         <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container">
-          <div className="rar-concept-showcase-intro"><div><p className="rar-concept-kicker">PUBLIC PORTFOLIOS</p><h2>A collection worth looking at.</h2><p>Your favourite covers take centre stage. Visitors can explore the exact editions behind them.</p></div><span>Fictional demo collector · real catalogue covers<br />No collector ownership implied</span></div>
-          <Link className="rar-concept-profile-preview" href="/design-concept/collector">
-            <span className="rar-concept-profile-preview-mark" aria-hidden="true">O</span>
-            <span className="rar-concept-profile-preview-copy"><small>DEMO COLLECTOR PROFILE</small><strong>The Opening Chapter</strong><span>See how a public manga shelf could look and feel.</span></span>
-            <span className="rar-concept-profile-preview-link">Explore the demo profile ↗</span>
-          </Link>
-          <div className="rar-concept-showcase-grid">{showcaseCovers.map((edition) => <Link href={`/edition/${edition.id}`} key={edition.id}>{cover(edition)}<strong>{editionName(edition)}</strong><span>{editionMeta(edition)}</span></Link>)}</div>
-          <Link className="rar-concept-showcase-action" href="/design-concept/collector">View the full demo profile ↗</Link>
+          <div className="rar-concept-showcase-intro"><div><p className="rar-concept-kicker">SHOW OFF YOUR COLLECTION</p><h2>Give your manga a shelf worth sharing.</h2><p>Choose what other fans can see: your favourite covers, the series you collect, and the exact editions on your shelf.</p></div><Link href="/portfolio">Build your shelf ↗</Link></div>
+          <div className="rar-concept-shelf-preview" aria-label="Example of a public manga shelf">
+            <div className="rar-concept-shelf-preview-top"><span>EXAMPLE PUBLIC SHELF</span><span>RAR / COLLECTORS</span></div>
+            <div className="rar-concept-shelf-preview-person"><span className="rar-concept-shelf-preview-avatar" aria-hidden="true">O</span><div><small>@openingchapter · sample collector</small><strong>The Opening Chapter</strong><p>A few favourite series, shared with fellow manga collectors.</p></div></div>
+            <div className="rar-concept-shelf-preview-grid">{showcaseCovers.slice(0, 4).map((edition) => <div key={edition.id}>{cover(edition)}<strong>{editionName(edition)}</strong><span>{editionMeta(edition)}</span></div>)}</div>
+            <p className="rar-concept-shelf-preview-note">A visual example using real RAR catalogue covers—not a real person’s collection. Your shelf shows only what you choose to share.</p>
+          </div>
         </div></section>
 
         <section className="rar-concept-buy" id="buy">
