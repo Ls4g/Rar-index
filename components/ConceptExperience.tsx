@@ -217,7 +217,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
         </section> : null}
 
         <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container rar-concept-showcase-hero">
-          <div><p className="rar-concept-kicker">A SHELF TO SHARE</p><h2>Show your manga<br />collection<span>.</span></h2><p>Turn the editions you collect into a public portfolio people can explore. Open a series to see its volumes and the books behind them.</p><Link href="/design-concept/collector">View portfolio demo <span aria-hidden="true">↗</span></Link><small>Fictional collector · real RAR catalogue editions</small></div>
+          <div><p className="rar-concept-kicker">A SHELF TO SHARE</p><h2>Show your manga<br />collection<span>.</span></h2><p>Turn the editions you collect into a public portfolio people can explore. Open a series to see its volumes and the books behind them.</p><Link href="/design-concept/collector#gallery">View portfolio demo <span aria-hidden="true">↗</span></Link><small>Fictional collector · real RAR catalogue editions</small></div>
           <span className="rar-concept-showcase-watermark" aria-hidden="true">O</span>
         </div></section>
 

@@ -8,6 +8,7 @@ import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "./Demo
 import "../style.css";
 import "./style.css";
 import "./physical-book.css";
+import "./gallery.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -178,7 +179,7 @@ export default async function DemoCollectorProfilePage() {
       <div className="rar-concept-previewbar"><span>RAR design concept · fictional collector profile</span><Link href="/design-concept">Back to the concept ↗</Link></div>
       <header className="rar-concept-header">
         <Link className="rar-concept-logo" href="/design-concept" aria-label="RAR design concept home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
-        <nav aria-label="Demo profile sections"><a href="#spotlight">Highlights</a><a href="#shelf">The shelf</a><Link href="/browse">Discover manga</Link></nav>
+        <nav aria-label="Demo profile sections"><a href="#gallery">The gallery</a><a href="#spotlight">Highlights</a><a href="#shelf">The shelf</a><Link href="/browse">Discover manga</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
 

@@ -89,14 +89,16 @@ export default function PhysicalBookDemo({ book, onClose, collectorName = "The O
     if (!dialog) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    dialog.showModal();
+    if (!dialog.open) dialog.showModal();
     timers.current.push(window.setTimeout(() => setIsOpen(true), 470));
     timers.current.push(window.setTimeout(() => setCoverSettled(true), 1700));
     return () => {
       timers.current.forEach(window.clearTimeout);
       timers.current = [];
       document.body.style.overflow = previousOverflow;
-      if (dialog.open) dialog.close();
+      // The element is removed when the component unmounts. Closing it during
+      // effect cleanup also fires onClose during React's dev effect replay,
+      // immediately discarding the selected book before visitors can see it.
     };
   }, []);
 
