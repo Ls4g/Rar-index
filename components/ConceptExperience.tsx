@@ -7,6 +7,8 @@ import type { FxRate } from "@/lib/fx";
 import type { SeriesSale } from "@/lib/priceSeries";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { selectHomeLiveListings, type HomeListingCard, type HomeListingEdition, type HomeListingLead, type HomeListingProfile } from "@/lib/homeLiveListings";
+import HomeLiveListingsRail from "@/components/HomeLiveListingsRail";
 import "@/app/design-concept/style.css";
 
 type ConceptEdition = {
@@ -53,7 +55,39 @@ function editionMeta(edition: ConceptEdition) {
     .filter(Boolean).join(" · ");
 }
 
+async function getHomeLiveListings(): Promise<HomeListingCard[]> {
+  const admin = getSupabaseAdmin();
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: leadData, error: leadError } = await admin.from("scout_listing_leads")
+    .select("id,external_id,profile_id,review_status,source_listing_url,listing_title,listing_price,currency,item_end_at,last_seen_at")
+    .in("review_status", ["new", "watching"]).gte("last_seen_at", cutoff)
+    .or(`item_end_at.gt.${now.toISOString()},item_end_at.is.null`)
+    .order("last_seen_at", { ascending: false }).limit(300);
+  if (leadError || !leadData?.length) return [];
+  const leads = leadData as HomeListingLead[];
+  const profileIds = [...new Set(leads.map((lead) => lead.profile_id))];
+  const profilePages = await Promise.all(Array.from({ length: Math.ceil(profileIds.length / 150) }, (_, index) =>
+    admin.from("marketplace_search_profiles").select("id,edition_id,is_active,source:sources!inner(name)")
+      .in("id", profileIds.slice(index * 150, (index + 1) * 150))
+      .eq("is_active", true).eq("source.name", "eBay Sold")));
+  if (profilePages.some((page) => page.error)) return [];
+  const profiles = profilePages.flatMap((page) => (page.data ?? []) as unknown as HomeListingProfile[]);
+  const editionIds = [...new Set(profiles.map((profile) => profile.edition_id))];
+  if (!editionIds.length) return [];
+  const editionPages = await Promise.all(Array.from({ length: Math.ceil(editionIds.length / 150) }, (_, index) =>
+    admin.from("manga_editions")
+      .select("id,title,series,volume_number,language,publisher,format,isbn_13,cover_image_url,cover_verification_status")
+      .in("id", editionIds.slice(index * 150, (index + 1) * 150))
+      .eq("is_verified", true).eq("record_kind", "publication")
+      .eq("cover_verification_status", "verified").not("cover_image_url", "is", null)));
+  if (editionPages.some((page) => page.error)) return [];
+  const editions = editionPages.flatMap((page) => (page.data ?? []) as HomeListingEdition[]);
+  return selectHomeLiveListings(leads, profiles, editions, now);
+}
+
 export default async function ConceptExperience({ preview = false }: { preview?: boolean }) {
+  const liveListingsPromise = getHomeLiveListings();
   const [{ data: catalogueData }, { data: saleData }] = await Promise.all([
     supabase.from("manga_editions")
       .select("id,title,series,volume_number,language,publisher,cover_image_url,cover_verification_status")
@@ -99,6 +133,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
     : heroEdition?.series?.toLowerCase() === "one piece"
       ? "/rar-one-piece-cover-sketch-v2.png" : null;
   const showcaseCovers = featured.slice(0, 10);
+  const liveListings = await liveListingsPromise;
 
   return (
     <MarketCurrencyProvider initialCurrency="GBP">
@@ -192,7 +227,10 @@ export default async function ConceptExperience({ preview = false }: { preview?:
           <Link className="rar-concept-showcase-action" href="/design-concept/collector">View the full demo profile ↗</Link>
         </div></section>
 
-        <section className="rar-concept-buy rar-concept-container" id="buy"><div><p className="rar-concept-kicker">BUY MANGA</p><h2>See the edition. Then find a copy.</h2><p>Browse copies listed for sale, with their asking prices clearly separate from completed sales.</p></div><Link href={preview ? (product ? `/edition/${product.id}` : "/browse") : "/buy-manga"}>View available copies ↗</Link></section>
+        <section className="rar-concept-buy" id="buy">
+          <div className="rar-concept-container rar-concept-buy-heading"><div><p className="rar-concept-kicker">BUY MANGA</p><h2>See the edition. Then find a copy.</h2><p>Browse copies listed for sale, with their asking prices clearly separate from completed sales.</p></div><Link href={preview ? (product ? `/edition/${product.id}` : "/browse") : "/buy-manga"}>View available copies ↗</Link></div>
+          {liveListings.length ? <HomeLiveListingsRail listings={liveListings} /> : <p className="rar-concept-buy-empty rar-concept-container">No recently checked copies to show right now. Browse the catalogue while Scout looks for more.</p>}
+        </section>
 
         <section className="rar-concept-join" id="join"><div className="rar-concept-join-wall" aria-hidden="true">{showcaseCovers.map((edition) => <div key={edition.id}>{cover(edition)}</div>)}</div><div className="rar-concept-join-copy"><p className="rar-concept-kicker">YOUR COLLECTION STARTS HERE</p><h2>Build your shelf.</h2><p>Track every edition you own and choose what the world gets to see.</p><Link className="rar-concept-button is-primary" href="/portfolio">Open your collection <span>↗</span></Link></div></section>
       </main>

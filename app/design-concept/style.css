@@ -153,9 +153,32 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-showcase-grid strong { font-size: 13px; }
 .rar-concept-showcase-grid span { margin-top: 4px; color: #a5aeac; font-size: 10px; line-height: 1.4; }
 .rar-concept-showcase-action { display: inline-block; margin-top: 30px; border-bottom: 1px solid #f8f7f2; padding-bottom: 6px; font-size: 13px; font-weight: 700; }
-.rar-concept-buy { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding-block: 88px; }
-.rar-concept-buy > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
-.rar-concept-buy > a { flex: none; border: 1px solid var(--rc-ink); padding: 14px 20px; font-size: 13px; font-weight: 700; }
+.rar-concept-buy { padding-block: 88px 78px; }
+.rar-concept-buy-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+.rar-concept-buy-heading > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
+.rar-concept-buy-heading > a { flex: none; border: 1px solid var(--rc-ink); padding: 14px 20px; font-size: 13px; font-weight: 700; }
+.rar-concept-buy-heading > a:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
+.rar-concept-buy-empty { margin-top: 30px; color: var(--rc-muted); font-size: 13px; }
+.rar-concept-live-market { margin-top: 45px; }
+.rar-concept-live-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
+.rar-concept-live-heading p { margin: 0 0 5px; color: var(--rc-accent); font-size: 10px; font-weight: 850; letter-spacing: .15em; }
+.rar-concept-live-heading span { color: var(--rc-muted); font-size: 12px; }
+.rar-concept-live-controls { display: flex; gap: 7px; }
+.rar-concept-live-controls button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--rc-line); border-radius: 50%; background: var(--rc-white); color: var(--rc-ink); cursor: pointer; font: inherit; }
+.rar-concept-live-controls button:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
+.rar-concept-live-controls button:focus-visible, .rar-concept-live-card a:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 3px; }
+.rar-concept-live-rail { display: flex; gap: 16px; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-padding-inline: max(44px, calc((100vw - 1320px) / 2)); scroll-snap-type: x mandatory; padding: 0 max(44px, calc((100vw - 1320px) / 2)) 17px; scrollbar-color: var(--rc-muted) transparent; scrollbar-width: thin; }
+.rar-concept-live-card { display: flex; flex: 0 0 clamp(205px, 19vw, 244px); flex-direction: column; min-width: 0; border-top: 1px solid var(--rc-line); padding-top: 12px; scroll-snap-align: start; }
+.rar-concept-live-cover { display: grid; place-items: center; height: 225px; margin-bottom: 14px; }
+.rar-concept-live-cover .edition-cover { height: 200px; max-width: 90%; }
+.rar-concept-live-card > p { overflow: hidden; margin: 0 0 7px; color: var(--rc-muted); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.rar-concept-live-card h3 { display: -webkit-box; min-height: 35px; overflow: hidden; margin: 0 0 12px; font-size: 13px; font-weight: 700; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rar-concept-live-card h3 a:hover { color: var(--rc-accent); }
+.rar-concept-live-card-bottom { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-top: auto; border-top: 1px solid var(--rc-line); padding-top: 10px; }
+.rar-concept-live-card-bottom strong { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rar-concept-live-card-bottom strong small { display: block; margin-top: 2px; color: var(--rc-muted); font-size: 10px; font-weight: 600; }
+.rar-concept-live-card-bottom > a { flex: none; border-bottom: 1px solid currentColor; padding-bottom: 2px; color: var(--rc-accent); font-size: 11px; font-weight: 750; white-space: nowrap; }
+.rar-concept-live-note { margin-top: 13px; color: var(--rc-muted); font-size: 11px; line-height: 1.45; }
 .rar-concept-join { display: grid; grid-template-columns: 62% 38%; min-height: 540px; background: var(--rc-white); }
 .rar-concept-join-wall { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; align-items: center; overflow: hidden; padding: 24px; background: #9d3029; }
 .rar-concept-join-wall > div { display: grid; place-items: center; height: 205px; padding: 10px; }
@@ -216,7 +239,13 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .rar-concept-showcase-grid a { padding: 11px; }
   .rar-concept-showcase-grid .edition-cover { height: clamp(160px, 50vw, 220px); }
-  .rar-concept-buy { align-items: start; flex-direction: column; padding-block: 60px; }
+  .rar-concept-buy { padding-block: 60px; }
+  .rar-concept-buy-heading { align-items: start; flex-direction: column; gap: 24px; }
+  .rar-concept-live-market { margin-top: 34px; }
+  .rar-concept-live-rail { scroll-padding-inline: 18px; padding-inline: 18px; }
+  .rar-concept-live-card { flex-basis: min(65vw, 230px); }
+  .rar-concept-live-cover { height: 195px; }
+  .rar-concept-live-cover .edition-cover { height: 175px; }
   .rar-concept-join { grid-template-columns: 1fr; }
   .rar-concept-join-wall { height: 360px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; padding: 10px; }
   .rar-concept-join-wall > div { height: 140px; padding: 3px; }
@@ -263,6 +292,7 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 }
 @media (prefers-reduced-motion: reduce) {
   .rar-concept .edition-cover.has-image { transition: none; }
+  .rar-concept-live-rail { scroll-behavior: auto; }
 }
 html[data-theme="night"] .rar-concept-hero-feature-ink { filter: grayscale(1) invert(1); mix-blend-mode: screen; opacity: .22; }
 html[data-theme="night"] .rar-concept-hero-feature-bottom { border-top-color: var(--rc-line); }
