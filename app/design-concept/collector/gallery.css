@@ -3,6 +3,7 @@
 .rar-gallery-intro { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 34px; }
 .rar-gallery-intro h2 { margin: 15px 0 0; font-size: clamp(45px, 5.5vw, 78px); line-height: .98; letter-spacing: -.06em; }
 .rar-gallery-intro h2 span { color: #ad322b; }
+.rar-gallery-caption { max-width: 650px; margin: 18px 0 0; color: #50534e; font-size: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rar-gallery-intro > p { max-width: 340px; margin: 0 0 5px; color: #61645d; font-size: 14px; line-height: 1.6; }
 .rar-gallery-options { display: flex; align-items: center; gap: 18px; margin: 0 0 18px; }
 .rar-gallery-options > span { color: #77736c; font-size: 10px; font-weight: 850; letter-spacing: .13em; }
@@ -27,7 +28,9 @@
 .rar-gallery-exhibits button strong { display: block; margin-top: 3px; font-size: 15px; }
 .rar-gallery-exhibits button small { display: block; margin-top: 2px; color: #67665f; font-size: 11px; }
 .rar-gallery-exhibits.is-wall { inset: 36px 6% 12px; gap: 0 14px; }
-.rar-gallery-exhibits.is-wall button { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; border: 0; padding: 0 3px 8px; text-align: center; }
+.rar-gallery-exhibits.is-wall { pointer-events: none; }
+.rar-gallery-exhibits.is-wall button { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; border: 0; padding: 0 3px 8px; text-align: center; pointer-events: none; }
+.rar-gallery-exhibits.is-wall button:focus-visible { background: rgba(173,50,43,.13); }
 .rar-gallery-exhibits.is-wall button span, .rar-gallery-exhibits.is-wall button strong, .rar-gallery-exhibits.is-wall button small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .rar-gallery-details { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: min(40%, 440px); padding: 45px 38px 35px; display: flex; flex-direction: column; background: #fafafa; box-shadow: -20px 0 60px rgba(40,40,40,.08); animation: rar-gallery-panel-in .5s cubic-bezier(.2,.75,.15,1) both; }
 .rar-gallery-return { align-self: flex-start; border: 0; border-bottom: 1px solid #847e72; padding: 0 0 5px; background: none; color: #383a33; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
@@ -36,6 +39,9 @@
 .rar-gallery-details h3 em { font-style: normal; color: #ad322b; }
 .rar-gallery-edition-line { margin: 0; color: #66675e; font-size: 13px; }
 .rar-gallery-edition-copy { margin: 30px 0 0; max-width: 310px; font-size: 15px; line-height: 1.65; }
+.rar-gallery-collector-note { margin-top: 24px; border-left: 3px solid #ad322b; padding: 3px 0 3px 14px; }
+.rar-gallery-collector-note span { color: #8d322e; font-size: 10px; font-weight: 850; letter-spacing: .11em; }
+.rar-gallery-collector-note p { margin: 7px 0 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rar-gallery-market { display: grid; gap: 8px; margin-top: 35px; border-top: 1px solid #c9c5b9; padding-top: 15px; }
 .rar-gallery-market strong { font-size: 14px; font-weight: 700; }
 .rar-gallery-details > a { margin-top: 30px; align-self: flex-start; border: 1px solid #ad322b; padding: 13px 16px; background: #ad322b; color: #fff; font-size: 12px; font-weight: 800; text-decoration: none; }
@@ -68,15 +74,17 @@
   .rar-gallery-exhibits button strong { font-size: 12px; }
   .rar-gallery-exhibits button small { font-size: 10px; }
   .rar-gallery-exhibits.is-wall { inset: 35px 3% 4px; gap: 0 8px; }
-  .rar-gallery-details { top: auto; right: 0; bottom: 0; left: 0; width: 100%; height: 322px; padding: 21px 24px; box-shadow: 0 -15px 35px rgba(76,67,50,.08); }
+  .rar-gallery-details { top: auto; right: 0; bottom: 0; left: 0; width: 100%; height: 360px; overflow-y: auto; padding: 21px 24px; box-shadow: 0 -15px 35px rgba(76,67,50,.08); }
   .rar-gallery-details .rar-concept-kicker { display: none; }
   .rar-gallery-details h3 { margin: 14px 0 8px; font-size: 41px; }
   .rar-gallery-edition-copy { display: none; }
+  .rar-gallery-collector-note { margin-top: 14px; }
+  .rar-gallery-collector-note p { font-size: 14px; }
   .rar-gallery-market { margin-top: 14px; padding-top: 10px; }
   .rar-gallery-details > a { margin-top: 14px; }
   .rar-gallery-drag-hint { margin-top: 8px; }
   .rar-gallery-focus { width: calc(100vw - 20px); height: min(720px, calc(100dvh - 20px)); }
-  .rar-gallery-focus-visual { bottom: auto; height: calc(100% - 322px); }
+  .rar-gallery-focus-visual { bottom: auto; height: calc(100% - 360px); }
   .rar-gallery-focus .rar-gallery-details { width: 100%; }
   .rar-gallery-footnote { display: block; line-height: 1.5; }
   .rar-gallery-footnote span:last-child { display: block; margin-top: 5px; }

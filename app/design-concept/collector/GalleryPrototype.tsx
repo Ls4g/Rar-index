@@ -140,10 +140,13 @@ function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, drag
   </Canvas>;
 }
 
-export default function GalleryPrototype({ books, wallEditions, ownerName, isDemo = true }: {
+export default function GalleryPrototype({ books, wallEditions, ownerName, galleryTitle = "", galleryCaption = "", galleryComments = {}, isDemo = true }: {
   books: DemoSeriesBook[];
   wallEditions?: DemoBookEdition[];
   ownerName?: string;
+  galleryTitle?: string;
+  galleryCaption?: string;
+  galleryComments?: Record<string, string>;
   isDemo?: boolean;
 }) {
   const exhibits: GalleryBook[] = isDemo ? EXHIBITS.flatMap((exhibit) => {
@@ -191,6 +194,7 @@ export default function GalleryPrototype({ books, wallEditions, ownerName, isDem
   const rows = Math.ceil(collection.length / columns);
   const selected = selectedIndex === null ? null : collection[selectedIndex];
   const edition = selected?.edition;
+  const collectorNote = edition ? galleryComments[edition.id]?.trim() : "";
   const price = edition?.marketGuide
     ? `${formatPrice(edition.marketGuide.median, edition.marketGuide.currency)} median · ${edition.marketGuide.saleCount} verified sales`
     : "No comparable sales guide yet";
@@ -209,7 +213,7 @@ export default function GalleryPrototype({ books, wallEditions, ownerName, isDem
   };
 
   return <section className="rar-gallery" id="gallery" aria-labelledby="rar-gallery-title"><div className="rar-concept-container">
-    <div className="rar-gallery-intro"><div><p className="rar-concept-kicker">{isDemo ? `A COLLECTOR’S GALLERY / ${size === "three" ? "THREE-BOOK" : "SINGLE-WALL"} STUDY` : `${ownerName?.toUpperCase() ?? "COLLECTOR"}’S GALLERY`}</p><h2 id="rar-gallery-title">A room for the stories<span>.</span></h2></div><p>{isDemo && size === "three" ? "Three real editions on the wall." : `${collection.length} ${collection.length === 1 ? "edition" : "editions"} on one continuous wall.`} Choose a book to bring it closer and explore its exact catalogue record.</p></div>
+    <div className="rar-gallery-intro"><div><p className="rar-concept-kicker">{isDemo ? `A COLLECTOR’S GALLERY / ${size === "three" ? "THREE-BOOK" : "SINGLE-WALL"} STUDY` : `${ownerName?.toUpperCase() ?? "COLLECTOR"}’S GALLERY`}</p><h2 id="rar-gallery-title">{galleryTitle.trim() || (isDemo ? "The Opening Chapter" : `${ownerName ?? "Collector"}'s gallery`)}</h2>{galleryCaption.trim() ? <p className="rar-gallery-caption">{galleryCaption}</p> : null}</div><p>{isDemo && size === "three" ? "Three real editions on the wall." : `${collection.length} ${collection.length === 1 ? "edition" : "editions"} on one continuous wall.`} Choose a book to bring it closer and explore its exact catalogue record.</p></div>
     {isDemo ? <div className="rar-gallery-options" aria-label="Gallery size">
       <span>EXPLORE THE SPACE</span>
       <div className="rar-gallery-size-switch"><button type="button" aria-pressed={size === "three"} onClick={() => changeSize("three")}>3 editions</button><button type="button" aria-pressed={size === "wall"} onClick={() => changeSize("wall")}>{exhibits.length} on one wall</button></div>
@@ -227,6 +231,7 @@ export default function GalleryPrototype({ books, wallEditions, ownerName, isDem
         <h3>{selected.book.name}<br /><em>Vol. {edition.volumeNumber || "1"}</em></h3>
         <p className="rar-gallery-edition-line">{edition.publisher} · {edition.language} · Volume {edition.volumeNumber}</p>
         <p className="rar-gallery-edition-copy">{isDemo ? "One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery." : `An edition ${ownerName ?? "this collector"} chose to display from their RAR shelf.`}</p>
+        {collectorNote ? <div className="rar-gallery-collector-note"><span>FROM @{ownerName}</span><p>{collectorNote}</p></div> : null}
         <div className="rar-gallery-market"><span>RAR MARKET CONTEXT</span><strong>{price}</strong></div>
         <Link href={`/edition/${edition.id}`}>Explore the edition <span aria-hidden="true">↗</span></Link>
         <small className="rar-gallery-drag-hint">Drag the book to turn it</small>
@@ -243,6 +248,7 @@ export default function GalleryPrototype({ books, wallEditions, ownerName, isDem
           <h3>{selected.book.name}<br /><em>Vol. {edition.volumeNumber || "1"}</em></h3>
           <p className="rar-gallery-edition-line">{edition.publisher} · {edition.language} · Volume {edition.volumeNumber}</p>
           <p className="rar-gallery-edition-copy">{isDemo ? "One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery." : `An edition ${ownerName ?? "this collector"} chose to display from their RAR shelf.`}</p>
+          {collectorNote ? <div className="rar-gallery-collector-note"><span>FROM @{ownerName}</span><p>{collectorNote}</p></div> : null}
           <div className="rar-gallery-market"><span>RAR MARKET CONTEXT</span><strong>{price}</strong></div>
           <Link href={`/edition/${edition.id}`}>Explore the edition <span aria-hidden="true">↗</span></Link>
           <small className="rar-gallery-drag-hint">Drag the book to turn it</small>

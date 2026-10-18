@@ -54,6 +54,11 @@
 .collector-gallery-editor > summary small { margin-top: 3px; color: var(--rar-muted, #666); }
 .collector-gallery-editor-body { border-top: 1px solid var(--rar-border, #d5d2ca); padding: 22px; }
 .collector-gallery-editor-body > p { color: var(--rar-muted, #666); }
+.collector-gallery-copy-fields { display: grid; gap: 12px; max-width: 650px; margin: 24px 0; }
+.collector-gallery-copy-fields label, .collector-gallery-comment { display: grid; gap: 7px; font-size: .82rem; font-weight: 700; }
+.collector-gallery-copy-fields input, .collector-gallery-copy-fields textarea, .collector-gallery-comment textarea { width: 100%; border: 1px solid var(--rar-border, #d5d2ca); border-radius: 0; padding: 10px 12px; background: var(--rar-surface, #fff); color: var(--rar-ink, #222); font: inherit; font-weight: 400; resize: vertical; }
+.collector-gallery-copy-fields small { color: var(--rar-muted, #666); }
+.collector-gallery-comment { margin-top: 12px; }
 .collector-gallery-public-link a { color: var(--rar-red, #ad322b); font-weight: 700; }
 .collector-gallery-wall { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
 .collector-gallery-slot { min-width: 0; padding: 12px; border: 1px solid var(--rar-border, #d5d2ca); background: var(--rar-surface, #fff); }

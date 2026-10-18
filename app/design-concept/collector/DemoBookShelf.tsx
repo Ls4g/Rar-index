@@ -59,7 +59,7 @@ function marketCopy(guide: DemoMarketGuide | null) {
     : "Market guide pending";
 }
 
-export default function DemoBookShelf({ books, wallEditions = [], isDemo = true, ownerName = "The Opening Chapter" }: { books: DemoSeriesBook[]; wallEditions?: DemoBookEdition[]; isDemo?: boolean; ownerName?: string }) {
+export default function DemoBookShelf({ books, wallEditions = [], isDemo = true, ownerName = "The Opening Chapter", galleryTitle = "", galleryCaption = "", galleryComments = {} }: { books: DemoSeriesBook[]; wallEditions?: DemoBookEdition[]; isDemo?: boolean; ownerName?: string; galleryTitle?: string; galleryCaption?: string; galleryComments?: Record<string, string> }) {
   const [active, setActive] = useState<DemoSeriesBook | null>(null);
   const [physicalBook, setPhysicalBook] = useState<DemoSeriesBook | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -79,7 +79,7 @@ export default function DemoBookShelf({ books, wallEditions = [], isDemo = true,
   const close = () => dialogRef.current?.close();
 
   return <>
-    {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} /> : null}
+    {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} /> : null}
     <section className="rar-demo-content" id="spotlight">
       <div className="rar-concept-container">
         <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Open a cover to explore {isDemo ? "the sample collector’s" : "this collector’s"} volumes, exact editions and source-backed market context.</p></div>
