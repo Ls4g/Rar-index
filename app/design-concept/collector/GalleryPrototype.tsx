@@ -53,6 +53,13 @@ function Book({ exhibit, index, selectedIndex, dragRotation, onInspect }: {
   }}>
     {/* The paper block sits inside two thin covers. The art reaches the front's edges. */}
     <mesh castShadow position={[0.015, 0, -0.007]}><boxGeometry args={[1.45, 2.07, 0.135]} /><meshStandardMaterial color="#f3eee2" roughness={0.96} /></mesh>
+    {Array.from({ length: 10 }, (_, line) => {
+      const pageZ = -0.068 + line * 0.012;
+      return <group key={line}>
+        <mesh position={[0.743, 0, pageZ]}><boxGeometry args={[0.002, 2.04, 0.002]} /><meshBasicMaterial color="#bdb1a1" transparent opacity={0.56} depthWrite={false} /></mesh>
+        <mesh position={[0.015, 1.037, pageZ]}><boxGeometry args={[1.42, 0.002, 0.002]} /><meshBasicMaterial color="#bdb1a1" transparent opacity={0.42} depthWrite={false} /></mesh>
+      </group>;
+    })}
     <mesh castShadow position={[0, 0, -0.087]}><boxGeometry args={[1.50, 2.11, 0.013]} /><meshStandardMaterial color="#ad342e" roughness={0.74} /></mesh>
     <mesh castShadow position={[-0.752, 0, -0.003]}><boxGeometry args={[0.024, 2.11, 0.171]} /><meshStandardMaterial color="#a32d28" roughness={0.78} /></mesh>
     <mesh position={[0, 0, 0.079]}><planeGeometry args={[1.50, 2.11]} /><meshBasicMaterial map={coverTexture} toneMapped={false} /></mesh>
@@ -76,13 +83,15 @@ function Scene({ exhibits, selectedIndex, dragRotation, onInspect }: {
   onInspect: (index: number) => void;
 }) {
   return <Canvas shadows flat dpr={[1, 1.7]} camera={{ position: [0, 1.95, 6.7], fov: 37 }} gl={{ antialias: true, alpha: false }} onCreated={({ camera }) => camera.lookAt(0, 1.43, 0)}>
-    <color attach="background" args={["#faf8f3"]} />
-    <ambientLight intensity={2.2} />
-    <directionalLight position={[0, 4, 8]} intensity={1.1} castShadow shadow-mapSize={[2048, 2048]} shadow-radius={3} shadow-bias={-0.00025} />
-    <mesh receiveShadow position={[0, 1.65, -0.52]}><boxGeometry args={[9, 4.3, 0.18]} /><meshStandardMaterial color="#faf8f3" roughness={1} /></mesh>
-    <mesh receiveShadow position={[-4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#f5f2ec" roughness={1} /></mesh>
-    <mesh receiveShadow position={[4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#f5f2ec" roughness={1} /></mesh>
-    <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color="#eee9e0" roughness={1} /></mesh>
+    <color attach="background" args={["#ded5c8"]} />
+    <ambientLight intensity={1.65} />
+    <directionalLight position={[0, 4, 8]} color="#fff3df" intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} shadow-radius={3} shadow-bias={-0.00025} />
+    {[-2.12, 0, 2.12].map((lightX) => <spotLight key={lightX} position={[lightX, 3.6, 2.2]} color="#fff4dc" angle={0.42} penumbra={1} intensity={1.7} />)}
+    <mesh receiveShadow position={[0, 1.65, -0.52]}><boxGeometry args={[9, 4.3, 0.18]} /><meshStandardMaterial color="#e3d9ca" roughness={1} /></mesh>
+    <mesh receiveShadow position={[-4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#cfc3b3" roughness={1} /></mesh>
+    <mesh receiveShadow position={[4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#cfc3b3" roughness={1} /></mesh>
+    <mesh position={[0, 3.62, -0.34]}><boxGeometry args={[9, 0.16, 0.35]} /><meshStandardMaterial color="#c9bbaa" roughness={1} /></mesh>
+    <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color="#cfc2b2" roughness={1} /></mesh>
     {exhibits.map((exhibit, index) => <group key={exhibit.book.representative.id}>
       <Shelf index={index} />
       <Book exhibit={exhibit} index={index} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
