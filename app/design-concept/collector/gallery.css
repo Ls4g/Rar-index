@@ -1,10 +1,10 @@
-.rar-gallery { padding: 100px 0 110px; background: #f7f5ef; color: #222320; }
+.rar-gallery { padding: 100px 0 110px; background: #f5f5f5; color: #222320; }
 .rar-gallery-loading { min-height: 930px; color: #686a64; font-size: 12px; }
 .rar-gallery-intro { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 34px; }
 .rar-gallery-intro h2 { margin: 15px 0 0; font-size: clamp(45px, 5.5vw, 78px); line-height: .98; letter-spacing: -.06em; }
 .rar-gallery-intro h2 span { color: #ad322b; }
 .rar-gallery-intro > p { max-width: 340px; margin: 0 0 5px; color: #61645d; font-size: 14px; line-height: 1.6; }
-.rar-gallery-stage { position: relative; height: 650px; overflow: hidden; background: #f3f0e9; isolation: isolate; }
+.rar-gallery-stage { position: relative; height: 650px; overflow: hidden; background: #f5f5f5; isolation: isolate; }
 .rar-gallery-stage::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(55,49,40,.06); }
 .rar-gallery-canvas { position: absolute; inset: 0; touch-action: pan-y; }
 .rar-gallery-stage[data-inspecting="true"] .rar-gallery-canvas { touch-action: none; cursor: grab; }
@@ -18,7 +18,7 @@
 .rar-gallery-exhibits button span { display: block; color: #8c6253; font-size: 9px; font-weight: 850; letter-spacing: .13em; }
 .rar-gallery-exhibits button strong { display: block; margin-top: 3px; font-size: 15px; }
 .rar-gallery-exhibits button small { display: block; margin-top: 2px; color: #67665f; font-size: 11px; }
-.rar-gallery-details { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: min(40%, 440px); padding: 45px 38px 35px; display: flex; flex-direction: column; background: #faf8f3; box-shadow: -20px 0 60px rgba(76,67,50,.08); animation: rar-gallery-panel-in .5s cubic-bezier(.2,.75,.15,1) both; }
+.rar-gallery-details { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: min(40%, 440px); padding: 45px 38px 35px; display: flex; flex-direction: column; background: #fafafa; box-shadow: -20px 0 60px rgba(40,40,40,.08); animation: rar-gallery-panel-in .5s cubic-bezier(.2,.75,.15,1) both; }
 .rar-gallery-return { align-self: flex-start; border: 0; border-bottom: 1px solid #847e72; padding: 0 0 5px; background: none; color: #383a33; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .rar-gallery-details .rar-concept-kicker { margin-top: auto; }
 .rar-gallery-details h3 { margin: 13px 0 12px; font-size: clamp(48px, 4vw, 70px); line-height: .94; letter-spacing: -.065em; }
