@@ -4,6 +4,12 @@
 .rar-gallery-intro h2 { margin: 15px 0 0; font-size: clamp(45px, 5.5vw, 78px); line-height: .98; letter-spacing: -.06em; }
 .rar-gallery-intro h2 span { color: #ad322b; }
 .rar-gallery-intro > p { max-width: 340px; margin: 0 0 5px; color: #61645d; font-size: 14px; line-height: 1.6; }
+.rar-gallery-options { display: flex; align-items: center; gap: 18px; margin: 0 0 18px; }
+.rar-gallery-options > span { color: #77736c; font-size: 10px; font-weight: 850; letter-spacing: .13em; }
+.rar-gallery-options > small { margin-left: auto; color: #77736c; font-size: 11px; }
+.rar-gallery-size-switch { display: flex; border: 1px solid #d3d1cb; padding: 3px; }
+.rar-gallery-size-switch button { border: 0; padding: 8px 14px; background: transparent; color: #5c5d59; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.rar-gallery-size-switch button[aria-pressed="true"] { background: #292b29; color: #fff; }
 .rar-gallery-stage { position: relative; height: 650px; overflow: hidden; background: #f5f5f5; isolation: isolate; }
 .rar-gallery-stage::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(55,49,40,.06); }
 .rar-gallery-canvas { position: absolute; inset: 0; touch-action: pan-y; }
@@ -12,7 +18,7 @@
 .rar-gallery-brand { position: absolute; z-index: 2; top: 27px; left: 31px; display: flex; align-items: center; gap: 11px; color: #56544c; font-size: 10px; font-weight: 800; letter-spacing: .14em; line-height: 1.4; pointer-events: none; }
 .rar-gallery-brand b { display: grid; place-items: center; width: 35px; height: 35px; background: #ad322b; color: #fff; font-size: 17px; letter-spacing: 0; }
 .rar-gallery-market span { font-size: 9px; font-weight: 850; letter-spacing: .14em; }
-.rar-gallery-exhibits { position: absolute; z-index: 3; right: 5%; bottom: 23px; left: 5%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.rar-gallery-exhibits { position: absolute; z-index: 3; right: 5%; bottom: 23px; left: 5%; display: grid; gap: 22px; }
 .rar-gallery-exhibits button { min-width: 0; border: 0; border-top: 1px solid #c9c2b6; padding: 10px 2px 4px; background: transparent; color: #252521; text-align: left; font: inherit; cursor: pointer; }
 .rar-gallery-exhibits button:hover { border-color: #ad322b; }
 .rar-gallery-exhibits button span { display: block; color: #8c6253; font-size: 9px; font-weight: 850; letter-spacing: .13em; }
@@ -31,6 +37,13 @@
 .rar-gallery-details > a:hover { background: #8e251f; }
 .rar-gallery-details > a span { margin-left: 8px; }
 .rar-gallery-drag-hint { margin: 18px 0 auto; color: #77766d; font-size: 11px; }
+.rar-gallery-wall-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #d5d2cb; padding: 18px 0; }
+.rar-gallery-wall-nav button { min-width: 140px; border: 0; padding: 10px 0; background: transparent; color: #282a28; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.rar-gallery-wall-nav button:first-child { text-align: left; }
+.rar-gallery-wall-nav button:last-child { text-align: right; }
+.rar-gallery-wall-nav button:disabled { color: #aaa9a4; cursor: default; }
+.rar-gallery-wall-nav > span { text-align: center; color: #3a3c38; font-size: 10px; font-weight: 850; letter-spacing: .12em; white-space: nowrap; }
+.rar-gallery-wall-nav small { display: block; margin-top: 5px; color: #777870; font-size: 10px; font-weight: 700; letter-spacing: .05em; }
 .rar-gallery-footnote { display: flex; justify-content: space-between; gap: 20px; margin-top: 14px; color: #6c6e67; font-size: 10px; font-weight: 850; letter-spacing: .09em; }
 .rar-gallery button:focus-visible, .rar-gallery a:focus-visible { outline: 3px solid #ad322b; outline-offset: 4px; }
 @keyframes rar-gallery-panel-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: translateX(0); } }
@@ -38,6 +51,9 @@
   .rar-gallery { padding: 70px 0 80px; }
   .rar-gallery-intro { display: block; margin-bottom: 24px; }
   .rar-gallery-intro > p { margin-top: 20px; }
+  .rar-gallery-options { flex-wrap: wrap; gap: 10px; }
+  .rar-gallery-options > span { flex-basis: 100%; }
+  .rar-gallery-options > small { margin-left: 0; }
   .rar-gallery-stage { height: 670px; }
   .rar-gallery-brand { top: 18px; left: 18px; font-size: 8px; }
   .rar-gallery-exhibits { right: 12px; bottom: 15px; left: 12px; gap: 10px; }
@@ -50,6 +66,9 @@
   .rar-gallery-market { margin-top: 14px; padding-top: 10px; }
   .rar-gallery-details > a { margin-top: 14px; }
   .rar-gallery-drag-hint { margin-top: 8px; }
+  .rar-gallery-wall-nav button { min-width: 0; font-size: 11px; }
+  .rar-gallery-wall-nav > span { font-size: 9px; }
+  .rar-gallery-wall-nav small { font-size: 9px; }
   .rar-gallery-footnote { display: block; line-height: 1.5; }
   .rar-gallery-footnote span:last-child { display: block; margin-top: 5px; }
 }
