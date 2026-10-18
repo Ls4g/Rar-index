@@ -83,15 +83,14 @@ function Scene({ exhibits, selectedIndex, dragRotation, onInspect }: {
   onInspect: (index: number) => void;
 }) {
   return <Canvas shadows flat dpr={[1, 1.7]} camera={{ position: [0, 1.95, 6.7], fov: 37 }} gl={{ antialias: true, alpha: false }} onCreated={({ camera }) => camera.lookAt(0, 1.43, 0)}>
-    <color attach="background" args={["#ded5c8"]} />
+    <color attach="background" args={["#f3f0e9"]} />
     <ambientLight intensity={1.65} />
-    <directionalLight position={[0, 4, 8]} color="#fff3df" intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} shadow-radius={3} shadow-bias={-0.00025} />
-    {[-2.12, 0, 2.12].map((lightX) => <spotLight key={lightX} position={[lightX, 3.6, 2.2]} color="#fff4dc" angle={0.42} penumbra={1} intensity={1.7} />)}
-    <mesh receiveShadow position={[0, 1.65, -0.52]}><boxGeometry args={[9, 4.3, 0.18]} /><meshStandardMaterial color="#e3d9ca" roughness={1} /></mesh>
-    <mesh receiveShadow position={[-4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#cfc3b3" roughness={1} /></mesh>
-    <mesh receiveShadow position={[4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#cfc3b3" roughness={1} /></mesh>
-    <mesh position={[0, 3.62, -0.34]}><boxGeometry args={[9, 0.16, 0.35]} /><meshStandardMaterial color="#c9bbaa" roughness={1} /></mesh>
-    <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color="#cfc2b2" roughness={1} /></mesh>
+    <directionalLight position={[0, 4, 8]} color="#fffaf2" intensity={1.2} castShadow shadow-mapSize={[2048, 2048]} shadow-radius={3} shadow-bias={-0.00025} />
+    {[-2.12, 0, 2.12].map((lightX) => <spotLight key={lightX} position={[lightX, 3.6, 2.2]} color="#fffaf0" angle={0.42} penumbra={1} intensity={1.7} />)}
+    <mesh receiveShadow position={[0, 1.65, -0.52]}><boxGeometry args={[9, 4.3, 0.18]} /><meshStandardMaterial color="#fbf8f1" roughness={1} /></mesh>
+    <mesh receiveShadow position={[-4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#f1ede4" roughness={1} /></mesh>
+    <mesh receiveShadow position={[4.44, 1.65, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, 4.3, 0.13]} /><meshStandardMaterial color="#f1ede4" roughness={1} /></mesh>
+    <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color="#eee9df" roughness={1} /></mesh>
     {exhibits.map((exhibit, index) => <group key={exhibit.book.representative.id}>
       <Shelf index={index} />
       <Book exhibit={exhibit} index={index} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
