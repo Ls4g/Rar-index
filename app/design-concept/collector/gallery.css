@@ -1,25 +1,24 @@
-.rar-gallery { padding: 100px 0 110px; background: #f2f0e9; color: #222320; }
+.rar-gallery { padding: 100px 0 110px; background: #faf8f3; color: #222320; }
 .rar-gallery-loading { min-height: 930px; color: #686a64; font-size: 12px; }
 .rar-gallery-intro { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 34px; }
 .rar-gallery-intro h2 { margin: 15px 0 0; font-size: clamp(45px, 5.5vw, 78px); line-height: .98; letter-spacing: -.06em; }
 .rar-gallery-intro h2 span { color: #ad322b; }
 .rar-gallery-intro > p { max-width: 340px; margin: 0 0 5px; color: #61645d; font-size: 14px; line-height: 1.6; }
-.rar-gallery-stage { position: relative; height: 650px; overflow: hidden; background: #e9e5dc; isolation: isolate; }
-.rar-gallery-stage::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(55,49,40,.08), inset 0 0 100px rgba(91,79,59,.09); }
+.rar-gallery-stage { position: relative; height: 650px; overflow: hidden; background: #faf8f3; isolation: isolate; }
+.rar-gallery-stage::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(55,49,40,.06); }
 .rar-gallery-canvas { position: absolute; inset: 0; touch-action: pan-y; }
 .rar-gallery-stage[data-inspecting="true"] .rar-gallery-canvas { touch-action: none; cursor: grab; }
 .rar-gallery-stage[data-inspecting="true"] .rar-gallery-canvas:active { cursor: grabbing; }
 .rar-gallery-brand { position: absolute; z-index: 2; top: 27px; left: 31px; display: flex; align-items: center; gap: 11px; color: #56544c; font-size: 10px; font-weight: 800; letter-spacing: .14em; line-height: 1.4; pointer-events: none; }
 .rar-gallery-brand b { display: grid; place-items: center; width: 35px; height: 35px; background: #ad322b; color: #fff; font-size: 17px; letter-spacing: 0; }
-.rar-gallery-plaque { position: absolute; z-index: 2; right: 7%; bottom: 96px; display: grid; width: 210px; border-top: 1px solid #a6a092; padding-top: 11px; color: #34332e; pointer-events: none; transition: opacity .35s; }
-.rar-gallery-plaque span, .rar-gallery-market span { font-size: 9px; font-weight: 850; letter-spacing: .14em; }
-.rar-gallery-plaque strong { margin-top: 6px; font-size: 22px; letter-spacing: -.04em; }
-.rar-gallery-plaque small { margin-top: 3px; font-size: 11px; }
-.rar-gallery-inspect { position: absolute; z-index: 3; left: 50%; bottom: 30px; transform: translateX(-50%); border: 1px solid #292a26; padding: 14px 21px; background: #222420; color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
-.rar-gallery-inspect span { margin-left: 13px; }
-.rar-gallery-inspect:hover { background: #ad322b; border-color: #ad322b; }
-.rar-gallery-stage[data-inspecting="true"] .rar-gallery-plaque { opacity: 0; }
-.rar-gallery-details { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: min(40%, 440px); padding: 45px 38px 35px; display: flex; flex-direction: column; background: rgba(249,247,241,.96); box-shadow: -20px 0 60px rgba(76,67,50,.07); animation: rar-gallery-panel-in .5s cubic-bezier(.2,.75,.15,1) both; }
+.rar-gallery-market span { font-size: 9px; font-weight: 850; letter-spacing: .14em; }
+.rar-gallery-exhibits { position: absolute; z-index: 3; right: 5%; bottom: 23px; left: 5%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.rar-gallery-exhibits button { min-width: 0; border: 0; border-top: 1px solid #c9c2b6; padding: 10px 2px 4px; background: transparent; color: #252521; text-align: left; font: inherit; cursor: pointer; }
+.rar-gallery-exhibits button:hover { border-color: #ad322b; }
+.rar-gallery-exhibits button span { display: block; color: #8c6253; font-size: 9px; font-weight: 850; letter-spacing: .13em; }
+.rar-gallery-exhibits button strong { display: block; margin-top: 3px; font-size: 15px; }
+.rar-gallery-exhibits button small { display: block; margin-top: 2px; color: #67665f; font-size: 11px; }
+.rar-gallery-details { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: min(40%, 440px); padding: 45px 38px 35px; display: flex; flex-direction: column; background: #fffefa; box-shadow: -20px 0 60px rgba(76,67,50,.06); animation: rar-gallery-panel-in .5s cubic-bezier(.2,.75,.15,1) both; }
 .rar-gallery-return { align-self: flex-start; border: 0; border-bottom: 1px solid #847e72; padding: 0 0 5px; background: none; color: #383a33; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .rar-gallery-details .rar-concept-kicker { margin-top: auto; }
 .rar-gallery-details h3 { margin: 13px 0 12px; font-size: clamp(48px, 4vw, 70px); line-height: .94; letter-spacing: -.065em; }
@@ -41,7 +40,9 @@
   .rar-gallery-intro > p { margin-top: 20px; }
   .rar-gallery-stage { height: 670px; }
   .rar-gallery-brand { top: 18px; left: 18px; font-size: 8px; }
-  .rar-gallery-plaque { display: none; }
+  .rar-gallery-exhibits { right: 12px; bottom: 15px; left: 12px; gap: 10px; }
+  .rar-gallery-exhibits button strong { font-size: 12px; }
+  .rar-gallery-exhibits button small { font-size: 10px; }
   .rar-gallery-details { top: auto; right: 0; bottom: 0; left: 0; width: 100%; height: 322px; padding: 21px 24px; box-shadow: 0 -15px 35px rgba(76,67,50,.08); }
   .rar-gallery-details .rar-concept-kicker { display: none; }
   .rar-gallery-details h3 { margin: 14px 0 8px; font-size: 41px; }
