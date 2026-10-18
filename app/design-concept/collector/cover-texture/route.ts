@@ -11,6 +11,12 @@ const VERIFIED_COVERS = {
   "chainsaw-man": "https://covers.openlibrary.org/b/id/13222012-L.jpg",
   "attack-on-titan": "https://dvs-cover.kodansha.co.jp/0000017064/qLLMwJdlqPdbWsGu48rCYwKGmqTQevk4XcM1yTlp.jpg",
   "black-clover": "https://dw9to29mmj727.cloudfront.net/products/1421587181.jpg",
+  kagurabachi: "https://dosbg3xlm0x1t.cloudfront.net/images/items/9784088838199/500/9784088838199.jpg",
+  "hunter-hunter": "https://dosbg3xlm0x1t.cloudfront.net/images/items/9784088725710/500/9784088725710.jpg",
+  "one-piece-2": "https://covers.openlibrary.org/b/id/13729742-M.jpg",
+  "naruto-2": "https://dw9to29mmj727.cloudfront.net/products/1591161789.jpg",
+  "naruto-3": "https://dw9to29mmj727.cloudfront.net/products/1591161878.jpg",
+  "naruto-4": "https://covers.openlibrary.org/b/id/7234165-L.jpg",
 } as const;
 
 export async function GET(request: Request) {
