@@ -8,7 +8,10 @@ import { formatPrice } from "@/lib/fx";
 import PhysicalBookDemo from "./PhysicalBookDemo";
 
 // Keep the WebGL prototype out of real collector profile bundles.
-const GalleryPrototype = dynamic(() => import("./GalleryPrototype"), { ssr: false });
+const GalleryPrototype = dynamic(() => import("./GalleryPrototype"), {
+  ssr: false,
+  loading: () => <section className="rar-gallery rar-gallery-loading" id="gallery" aria-label="Opening gallery"><div className="rar-concept-container">Opening gallery…</div></section>,
+});
 
 export type DemoMarketGuide = {
   currency: string;
