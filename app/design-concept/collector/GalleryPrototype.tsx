@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DemoBookEdition, DemoSeriesBook } from "./DemoBookShelf";
 import { formatPrice } from "@/lib/fx";
@@ -26,22 +26,26 @@ const EXHIBITS = [
   { series: "Hunter × Hunter", texture: "hunter-hunter" },
 ] as const;
 
-type GalleryBook = { book: DemoSeriesBook; edition: DemoBookEdition; texture: string };
+type GalleryBook = { book: DemoSeriesBook; edition: DemoBookEdition; textureUrl: string };
 type GallerySize = "three" | "wall";
 
-function wallLayout(index: number, columns: number, size: GallerySize, focusOnly = false) {
+function wallLayout(index: number, count: number, columns: number, size: GallerySize, focusOnly = false) {
   if (focusOnly) return { x: 0, y: 1.62, scale: 0.94 };
   if (size === "three") return { x: (index - 1) * (columns === 2 ? 0.91 : 2.12), y: 1.62, scale: columns === 2 ? 0.52 : 0.94 };
   const row = Math.floor(index / columns);
   const column = index % columns;
+  const rowCount = Math.min(columns, count - row * columns);
+  const rows = Math.ceil(count / columns);
   const xStep = columns === 2 ? 1.65 : 1.95;
-  const topY = columns === 2 ? 12.9 : columns === 3 ? 9.5 : 6.67;
-  return { x: (column - (columns - 1) / 2) * xStep, y: topY - row * (columns === 4 ? 1.68 : 1.7), scale: columns === 2 ? 0.6 : 0.68 };
+  const stepY = columns === 4 ? 1.68 : 1.7;
+  const topY = (columns === 4 ? 1.62 : 1) + (rows - 1) * stepY;
+  return { x: (column - (rowCount - 1) / 2) * xStep, y: topY - row * stepY, scale: columns === 2 ? 0.6 : 0.68 };
 }
 
-function Book({ exhibit, index, columns, size, focusOnly = false, selectedIndex, dragRotation, onInspect }: {
+function Book({ exhibit, index, count, columns, size, focusOnly = false, selectedIndex, dragRotation, onInspect }: {
   exhibit: GalleryBook;
   index: number;
+  count: number;
   columns: number;
   size: GallerySize;
   focusOnly?: boolean;
@@ -51,18 +55,21 @@ function Book({ exhibit, index, columns, size, focusOnly = false, selectedIndex,
 }) {
   const ref = useRef<THREE.Group>(null);
   const isNarrow = useThree((state) => state.size.width < 700);
-  const cover = useLoader(THREE.TextureLoader, `/design-concept/collector/cover-texture?book=${exhibit.texture}`);
-  const coverTexture = useMemo(() => {
-    const texture = cover.clone();
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
-    texture.needsUpdate = true;
-    return texture;
-  }, [cover]);
-  useEffect(() => () => coverTexture.dispose(), [coverTexture]);
+  const [coverTexture, setCoverTexture] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let active = true;
+    const texture = new THREE.TextureLoader().load(exhibit.textureUrl, (loaded) => {
+      if (!active) return;
+      loaded.colorSpace = THREE.SRGBColorSpace;
+      loaded.anisotropy = 8;
+      loaded.needsUpdate = true;
+      setCoverTexture(loaded);
+    }, undefined, () => { if (active) setCoverTexture(null); });
+    return () => { active = false; texture.dispose(); };
+  }, [exhibit.textureUrl]);
 
   const selected = selectedIndex === index;
-  const { x: wallX, y: wallY, scale: wallScale } = wallLayout(index, columns, size, focusOnly);
+  const { x: wallX, y: wallY, scale: wallScale } = wallLayout(index, count, columns, size, focusOnly);
   useFrame((_, delta) => {
     if (!ref.current) return;
     ref.current.position.x = THREE.MathUtils.damp(ref.current.position.x, selected ? (isNarrow ? 0 : -0.75) : wallX, 4.2, delta);
@@ -88,12 +95,12 @@ function Book({ exhibit, index, columns, size, focusOnly = false, selectedIndex,
     })}
     <mesh castShadow position={[0, 0, -0.087]}><boxGeometry args={[1.50, 2.11, 0.013]} /><meshStandardMaterial color="#ad342e" roughness={0.74} /></mesh>
     <mesh castShadow position={[-0.752, 0, -0.003]}><boxGeometry args={[0.024, 2.11, 0.171]} /><meshStandardMaterial color="#a32d28" roughness={0.78} /></mesh>
-    <mesh position={[0, 0, 0.079]}><planeGeometry args={[1.50, 2.11]} /><meshBasicMaterial map={coverTexture} toneMapped={false} /></mesh>
+    <mesh position={[0, 0, 0.079]}><planeGeometry args={[1.50, 2.11]} /><meshBasicMaterial key={coverTexture ? "cover" : "blank"} map={coverTexture ?? undefined} color={coverTexture ? "#ffffff" : "#d8d3c9"} toneMapped={false} /></mesh>
   </group>;
 }
 
-function Shelf({ index, columns, size }: { index: number; columns: number; size: GallerySize }) {
-  const { x, y, scale } = wallLayout(index, columns, size);
+function Shelf({ index, count, columns, size }: { index: number; count: number; columns: number; size: GallerySize }) {
+  const { x, y, scale } = wallLayout(index, count, columns, size);
   const shelfY = y - scale * 1.055 - 0.035;
   return <mesh receiveShadow position={[x, shelfY, -0.22]}>
     <boxGeometry args={[size === "three" ? (columns === 2 ? 0.84 : 1.81) : scale * 1.85, 0.055, 0.43]} />
@@ -110,10 +117,12 @@ function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, drag
   dragRotation: number;
   onInspect: (index: number) => void;
 }) {
-  const wallCamera = columns === 2 ? { center: 7.3, z: 18.5 } : columns === 3 ? { center: 5.25, z: 14 } : { center: 3.7, z: 10.8 };
+  const rows = Math.ceil(exhibits.length / columns);
+  const topY = (columns === 4 ? 1.62 : 1) + (rows - 1) * (columns === 4 ? 1.68 : 1.7);
+  const wallCamera = { center: (topY + (columns === 4 ? 1.62 : 1)) / 2, z: 6 + (rows - 1) * 1.6 };
   const center = size === "three" || focusOnly ? 1.43 : wallCamera.center;
   const cameraZ = size === "three" || focusOnly ? 6.7 : wallCamera.z;
-  const roomHeight = size === "three" || focusOnly ? 4.3 : columns === 2 ? 15.3 : columns === 3 ? 11.5 : 8.2;
+  const roomHeight = size === "three" || focusOnly ? 4.3 : 4.3 + (rows - 1) * 1.55;
   const roomWidth = size === "three" || focusOnly ? 9 : columns === 2 ? 5 : 9;
   return <Canvas key={`${size}-${columns}-${focusOnly}`} shadows flat dpr={[1, size === "wall" ? 1.35 : 1.7]} camera={{ position: [0, center + 0.35, cameraZ], fov: size === "three" || focusOnly ? 37 : 40 }} gl={{ antialias: true, alpha: false }} onCreated={({ camera }) => camera.lookAt(0, center, 0)}>
     <color attach="background" args={["#f5f5f5"]} />
@@ -125,19 +134,27 @@ function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, drag
     <mesh receiveShadow position={[roomWidth / 2, center + 0.2, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, roomHeight, 0.13]} /><meshStandardMaterial color="#f5f5f5" roughness={1} /></mesh>
     <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color="#f0f0f0" roughness={1} /></mesh>
     {exhibits.map((exhibit, index) => <group key={exhibit.edition.id}>
-      {focusOnly ? null : <Shelf index={index} columns={columns} size={size} />}
-      <Book exhibit={exhibit} index={index} columns={columns} size={size} focusOnly={focusOnly} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
+      {focusOnly ? null : <Shelf index={index} count={exhibits.length} columns={columns} size={size} />}
+      <Book exhibit={exhibit} index={index} count={exhibits.length} columns={columns} size={size} focusOnly={focusOnly} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
     </group>)}
   </Canvas>;
 }
 
-export default function GalleryPrototype({ books }: { books: DemoSeriesBook[] }) {
-  const exhibits = EXHIBITS.flatMap((exhibit) => {
+export default function GalleryPrototype({ books, wallEditions, ownerName, isDemo = true }: {
+  books: DemoSeriesBook[];
+  wallEditions?: DemoBookEdition[];
+  ownerName?: string;
+  isDemo?: boolean;
+}) {
+  const exhibits: GalleryBook[] = isDemo ? EXHIBITS.flatMap((exhibit) => {
     const book = books.find((item) => item.name.toLowerCase() === exhibit.series.toLowerCase());
     const edition = "volume" in exhibit
       ? book?.owned.find((item) => item.volumeNumber === exhibit.volume)
       : book?.representative;
-    return book && edition ? [{ book, edition, texture: exhibit.texture }] : [];
+    return book && edition ? [{ book, edition, textureUrl: `/design-concept/collector/cover-texture?book=${exhibit.texture}` }] : [];
+  }) : (wallEditions ?? []).flatMap((edition) => {
+    const book = books.find((item) => item.owned.some((owned) => owned.id === edition.id));
+    return book ? [{ book, edition, textureUrl: `/design-concept/collector/cover-texture?editionId=${edition.id}` }] : [];
   });
   const [size, setSize] = useState<GallerySize>("wall");
   const [isNarrow, setIsNarrow] = useState(() => window.matchMedia("(max-width: 700px)").matches);
@@ -168,8 +185,8 @@ export default function GalleryPrototype({ books }: { books: DemoSeriesBook[] })
     if (dialog.open) dialog.close();
   }, [size, selectedIndex]);
 
-  if (exhibits.length < 3) return null;
-  const collection = size === "three" ? exhibits.filter((exhibit) => exhibit.edition.id === exhibit.book.representative.id).slice(0, 3) : exhibits;
+  if (!exhibits.length) return null;
+  const collection = isDemo && size === "three" ? exhibits.filter((exhibit) => exhibit.edition.id === exhibit.book.representative.id).slice(0, 3) : exhibits;
   const columns = isNarrow ? 2 : isMedium ? 3 : 4;
   const rows = Math.ceil(collection.length / columns);
   const selected = selectedIndex === null ? null : collection[selectedIndex];
@@ -180,6 +197,7 @@ export default function GalleryPrototype({ books }: { books: DemoSeriesBook[] })
   const returnToWall = () => { setSelectedIndex(null); setDragRotation(0); };
   const inspect = (index: number) => { setSelectedIndex(index); setDragRotation(0); };
   const changeSize = (next: GallerySize) => { setSize(next); returnToWall(); };
+  const galleryStyle = { "--rar-gallery-rows": rows } as CSSProperties;
   const pointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (selectedIndex === null) return;
     dragStart.current = { x: event.clientX, rotation: dragRotation };
@@ -191,24 +209,24 @@ export default function GalleryPrototype({ books }: { books: DemoSeriesBook[] })
   };
 
   return <section className="rar-gallery" id="gallery" aria-labelledby="rar-gallery-title"><div className="rar-concept-container">
-    <div className="rar-gallery-intro"><div><p className="rar-concept-kicker">A COLLECTOR’S GALLERY / {size === "three" ? "THREE-BOOK" : "SINGLE-WALL"} STUDY</p><h2 id="rar-gallery-title">A room for the stories<span>.</span></h2></div><p>{size === "three" ? "Three real editions on the wall." : `${collection.length} real editions on one continuous wall.`} Choose a book to bring it closer and explore its exact catalogue record.</p></div>
-    <div className="rar-gallery-options" aria-label="Gallery size">
+    <div className="rar-gallery-intro"><div><p className="rar-concept-kicker">{isDemo ? `A COLLECTOR’S GALLERY / ${size === "three" ? "THREE-BOOK" : "SINGLE-WALL"} STUDY` : `${ownerName?.toUpperCase() ?? "COLLECTOR"}’S GALLERY`}</p><h2 id="rar-gallery-title">A room for the stories<span>.</span></h2></div><p>{isDemo && size === "three" ? "Three real editions on the wall." : `${collection.length} ${collection.length === 1 ? "edition" : "editions"} on one continuous wall.`} Choose a book to bring it closer and explore its exact catalogue record.</p></div>
+    {isDemo ? <div className="rar-gallery-options" aria-label="Gallery size">
       <span>EXPLORE THE SPACE</span>
       <div className="rar-gallery-size-switch"><button type="button" aria-pressed={size === "three"} onClick={() => changeSize("three")}>3 editions</button><button type="button" aria-pressed={size === "wall"} onClick={() => changeSize("wall")}>{exhibits.length} on one wall</button></div>
       <small>A display study, not a membership limit.</small>
-    </div>
-    <div className="rar-gallery-stage" data-size={size} data-columns={columns} data-inspecting={size === "three" && selectedIndex !== null}>
+    </div> : null}
+    <div className="rar-gallery-stage" style={galleryStyle} data-size={size} data-columns={columns} data-inspecting={size === "three" && selectedIndex !== null}>
       <div className="rar-gallery-canvas" onPointerDown={size === "three" ? pointerDown : undefined} onPointerMove={size === "three" ? pointerMove : undefined} onPointerUp={() => { dragStart.current = null; }} onPointerCancel={() => { dragStart.current = null; }}>
         <Scene exhibits={collection} size={size} columns={columns} selectedIndex={size === "three" ? selectedIndex : null} dragRotation={dragRotation} onInspect={inspect} />
       </div>
-      <div className="rar-gallery-brand" aria-hidden="true"><b>R</b><span>THE OPENING CHAPTER<br />{collection.length} EDITIONS / ONE WALL</span></div>
+      <div className="rar-gallery-brand" aria-hidden="true"><b>R</b><span>{ownerName?.toUpperCase() ?? "THE OPENING CHAPTER"}<br />{collection.length} EDITIONS / ONE WALL</span></div>
       {size === "wall" || selectedIndex === null ? <div className={`rar-gallery-exhibits ${size === "wall" ? "is-wall" : ""}`} style={{ gridTemplateColumns: `repeat(${size === "wall" ? columns : 3}, minmax(0, 1fr))`, gridTemplateRows: size === "wall" ? `repeat(${rows}, minmax(0, 1fr))` : undefined }} aria-label="Choose an edition to inspect">{collection.map((exhibit, index) => <button type="button" key={exhibit.edition.id} aria-label={`Inspect ${exhibit.book.name}, volume ${exhibit.edition.volumeNumber || "1"}`} onClick={() => inspect(index)}><span>{String(index + 1).padStart(2, "0")} / EXHIBIT</span><strong>{exhibit.book.name}</strong><small>Vol. {exhibit.edition.volumeNumber || "1"} · Inspect ↗</small></button>)}</div> : null}
       {size === "three" && selected && edition ? <aside className="rar-gallery-details" aria-label="Edition details">
         <button className="rar-gallery-return" type="button" onClick={returnToWall}>← Return to wall</button>
         <p className="rar-concept-kicker">ON THE WALL / {String(selectedIndex! + 1).padStart(2, "0")}</p>
         <h3>{selected.book.name}<br /><em>Vol. {edition.volumeNumber || "1"}</em></h3>
         <p className="rar-gallery-edition-line">{edition.publisher} · {edition.language} · Volume {edition.volumeNumber}</p>
-        <p className="rar-gallery-edition-copy">One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery.</p>
+        <p className="rar-gallery-edition-copy">{isDemo ? "One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery." : `An edition ${ownerName ?? "this collector"} chose to display from their RAR shelf.`}</p>
         <div className="rar-gallery-market"><span>RAR MARKET CONTEXT</span><strong>{price}</strong></div>
         <Link href={`/edition/${edition.id}`}>Explore the edition <span aria-hidden="true">↗</span></Link>
         <small className="rar-gallery-drag-hint">Drag the book to turn it</small>
@@ -224,13 +242,13 @@ export default function GalleryPrototype({ books }: { books: DemoSeriesBook[] })
           <p className="rar-concept-kicker">ON THE WALL / {String(selectedIndex! + 1).padStart(2, "0")}</p>
           <h3>{selected.book.name}<br /><em>Vol. {edition.volumeNumber || "1"}</em></h3>
           <p className="rar-gallery-edition-line">{edition.publisher} · {edition.language} · Volume {edition.volumeNumber}</p>
-          <p className="rar-gallery-edition-copy">One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery.</p>
+          <p className="rar-gallery-edition-copy">{isDemo ? "One exact edition from RAR’s catalogue, shown here as part of a fictional collector gallery." : `An edition ${ownerName ?? "this collector"} chose to display from their RAR shelf.`}</p>
           <div className="rar-gallery-market"><span>RAR MARKET CONTEXT</span><strong>{price}</strong></div>
           <Link href={`/edition/${edition.id}`}>Explore the edition <span aria-hidden="true">↗</span></Link>
           <small className="rar-gallery-drag-hint">Drag the book to turn it</small>
         </aside>
       </div> : null}
     </dialog>
-    <div className="rar-gallery-footnote"><span>FICTIONAL GALLERY · VERIFIED RAR COVERS · NO OWNERSHIP CLAIM</span><span>{collection.length}-BOOK INTERACTION STUDY</span></div>
+    <div className="rar-gallery-footnote"><span>{isDemo ? "FICTIONAL GALLERY · VERIFIED RAR COVERS · NO OWNERSHIP CLAIM" : "COLLECTOR’S CHOSEN DISPLAY · VERIFIED RAR COVERS"}</span><span>{isDemo ? `${collection.length}-BOOK INTERACTION STUDY` : `${collection.length} ON DISPLAY`}</span></div>
   </div></section>;
 }

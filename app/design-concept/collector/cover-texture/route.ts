@@ -1,5 +1,9 @@
-// Same-origin copies of the verified catalogue covers in the gallery study.
-// This is a fixed allowlist, not a general-purpose image proxy.
+import { isIP } from "node:net";
+import { supabase } from "@/lib/supabase";
+
+// Same-origin copies of verified catalogue covers for the WebGL gallery.
+// The demo uses a fixed allowlist; real shelves resolve only approved edition
+// records, never a caller-supplied remote URL.
 const VERIFIED_COVERS = {
   "one-piece": "https://dw9to29mmj727.cloudfront.net/products/1569319014.jpg",
   "dragon-ball": "https://covers.openlibrary.org/b/id/14859007-L.jpg",
@@ -20,21 +24,56 @@ const VERIFIED_COVERS = {
 } as const;
 
 export async function GET(request: Request) {
-  const book = new URL(request.url).searchParams.get("book") || "one-piece";
-  if (!(book in VERIFIED_COVERS)) return new Response("Cover not found", { status: 404 });
-  const coverUrl = VERIFIED_COVERS[book as keyof typeof VERIFIED_COVERS];
+  const params = new URL(request.url).searchParams;
+  const editionId = params.get("editionId");
+  let coverUrl: string;
+  if (editionId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editionId)) {
+      return new Response("Cover not found", { status: 404 });
+    }
+    const { data, error } = await supabase.from("manga_editions")
+      .select("cover_image_url")
+      .eq("id", editionId)
+      .eq("cover_verification_status", "verified")
+      .maybeSingle();
+    if (error || !data?.cover_image_url) return new Response("Cover not found", { status: 404 });
+    coverUrl = data.cover_image_url;
+  } else {
+    const book = params.get("book") || "one-piece";
+    if (!(book in VERIFIED_COVERS)) return new Response("Cover not found", { status: 404 });
+    coverUrl = VERIFIED_COVERS[book as keyof typeof VERIFIED_COVERS];
+  }
+
   try {
-    const upstream = await fetch(coverUrl, { signal: AbortSignal.timeout(12000), next: { revalidate: 86400 } });
+    let target = new URL(coverUrl);
+    let upstream: Response | null = null;
+    for (let hop = 0; hop < 3; hop++) {
+      const host = target.hostname.toLowerCase();
+      if (target.protocol !== "https:" || target.username || target.password || isIP(host) || host.includes(":")
+        || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
+        return new Response("Cover unavailable", { status: 502 });
+      }
+      upstream = await fetch(target, { signal: AbortSignal.timeout(12000), redirect: "manual", next: { revalidate: 86400 } });
+      if (![301, 302, 303, 307, 308].includes(upstream.status)) break;
+      const location = upstream.headers.get("location");
+      if (!location) return new Response("Cover unavailable", { status: 502 });
+      target = new URL(location, target);
+      upstream = null;
+    }
+    if (!upstream) return new Response("Cover unavailable", { status: 502 });
     if (!upstream.ok) {
       return new Response("Cover unavailable", { status: 502 });
     }
+    const length = Number(upstream.headers.get("content-length"));
+    if (length > 3_000_000) return new Response("Invalid cover", { status: 502 });
     const image = await upstream.arrayBuffer();
     const bytes = new Uint8Array(image);
-    // Some vetted publishers omit Content-Type despite returning a valid JPEG.
-    if (bytes.length > 2_000_000 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
-      return new Response("Invalid cover", { status: 502 });
-    }
-    return new Response(image, { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=3600, s-maxage=86400" } });
+    // Some vetted publishers omit Content-Type, so trust only image signatures.
+    const type = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff ? "image/jpeg"
+      : bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 ? "image/png"
+        : String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP" ? "image/webp" : null;
+    if (bytes.length > 3_000_000 || !type) return new Response("Invalid cover", { status: 502 });
+    return new Response(image, { headers: { "content-type": type, "cache-control": "public, max-age=3600, s-maxage=86400" } });
   } catch {
     return new Response("Cover unavailable", { status: 502 });
   }

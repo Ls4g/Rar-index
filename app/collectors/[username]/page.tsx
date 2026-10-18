@@ -10,6 +10,7 @@ import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "@/app/
 import "@/app/design-concept/style.css";
 import "@/app/design-concept/collector/style.css";
 import "@/app/design-concept/collector/physical-book.css";
+import "@/app/design-concept/collector/gallery.css";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,11 @@ async function loadShelf(username: string) {
 
   const shelf = (rows ?? []) as Array<{ username: string; edition_id: string }>;
   if (!shelf.length) return null;
+
+  const { data: profile } = await supabase.from("collector_profiles")
+    .select("user_id").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
+  const { data: layout } = profile?.user_id ? await supabase.from("collector_gallery_layouts")
+    .select("edition_ids").eq("user_id", profile.user_id).maybeSingle() : { data: null };
 
   const editionIds = [...new Set(shelf.map((row) => row.edition_id))];
   const { data: editionData } = await supabase
@@ -102,7 +108,15 @@ async function loadShelf(username: string) {
     };
   }).sort((a, b) => b.owned.length - a.owned.length || a.name.localeCompare(b.name));
 
-  return { displayName: shelf[0].username, editions, books };
+  const galleryEligible = new Map(books.flatMap((book) => book.owned)
+    .filter((edition) => edition.coverStatus === "verified" && edition.coverUrl)
+    .map((edition) => [edition.id, edition]));
+  const initialIds = [...galleryEligible.values()].sort((a, b) => (a.series ?? "").localeCompare(b.series ?? "") ||
+    (volumeSortValue(a.volumeNumber) ?? 9999) - (volumeSortValue(b.volumeNumber) ?? 9999) || a.id.localeCompare(b.id)).map((edition) => edition.id);
+  const chosenIds: string[] = layout?.edition_ids ?? initialIds.slice(0, 16);
+  const wallEditions = chosenIds.flatMap((id) => galleryEligible.has(id) ? [galleryEligible.get(id)!] : []).slice(0, 16);
+
+  return { displayName: shelf[0].username, editions, books, wallEditions };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
@@ -134,12 +148,12 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
         <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
-      <ShelfBody displayName={shelf.displayName} editions={shelf.editions} books={shelf.books} />
+      <ShelfBody displayName={shelf.displayName} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} />
     </main>
   );
 }
 
-function ShelfBody({ displayName, editions, books }: { displayName: string; editions: ShelfEdition[]; books: DemoSeriesBook[] }) {
+function ShelfBody({ displayName, editions, books, wallEditions }: { displayName: string; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[] }) {
   const withCovers = editions.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url).length;
   const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
   const spotlight = books.slice(0, 3);
@@ -166,7 +180,7 @@ function ShelfBody({ displayName, editions, books }: { displayName: string; edit
           </div>
         </div>
       </section>
-      <DemoBookShelf books={books} isDemo={false} ownerName={displayName} />
+      <DemoBookShelf books={books} wallEditions={wallEditions} isDemo={false} ownerName={displayName} />
       <section className="rar-demo-join"><div className="rar-concept-container"><div><p className="rar-concept-kicker">BUILD YOUR OWN SHELF</p><h2>Your manga. Your shelf.</h2><p>{withCovers < editions.length ? `${editions.length - withCovers} shared editions are still waiting on a confirmed cover. ` : ""}Choose what to share; what you paid and your private notes stay yours.</p></div><Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span>↗</span></Link></div></section>
     </>
   );

@@ -22,6 +22,7 @@ import HoldingModal from "@/components/portfolio/HoldingModal";
 import { type LiveListingActivity, type RecentHoldingActivity, type RecentSaleActivity } from "@/components/portfolio/ActivityFeed";
 import { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioValueChart";
 import CollectorUsernameControl from "@/components/portfolio/CollectorUsernameControl";
+import CollectorGalleryEditor from "@/components/portfolio/CollectorGalleryEditor";
 import type { CatalogueVolume } from "@/lib/seriesCompletion";
 
 const RECENT_HOLDINGS_LIMIT = 5;
@@ -369,6 +370,7 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
       <PortfolioAuth authMessage={authMessage} authCovers={authCovers} email={email} initialEditionId={initialEditionId} mode={mode} onSubmit={submitAuth} password={password} setEmail={setEmail} setMode={setMode} setPassword={setPassword} />
     ) : (
       <MarketCurrencyProvider>
+        {userId && !loading ? <CollectorGalleryEditor userId={userId} holdings={holdings} /> : null}
         {/* A visual privacy screen, not a security boundary: it blurs every
             money figure so the page can be screenshotted or shared on a call
             without exposing what the collection is worth. */}
