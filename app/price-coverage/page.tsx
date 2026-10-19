@@ -15,6 +15,8 @@ import {
   type EditionCoverage,
 } from "@/lib/editionPriceCoverage";
 import type { SeriesSale } from "@/lib/priceSeries";
+import { isbnForSearch } from "@/lib/apifySoldSearch";
+import FindSalesButton from "@/components/FindSalesButton";
 
 // Getting a current price onto every edition.
 //
@@ -156,6 +158,7 @@ async function loadCoverage(admin: Admin) {
 }
 
 function CoverageRow({ row }: { row: EditionCoverage }) {
+  const hasIsbn = Boolean(isbnForSearch(row.edition.isbn_13));
   return (
     <li className={`price-coverage-row is-${row.state}`}>
       <Link className="price-coverage-link" href={`/price-coverage?edition=${row.edition.id}`}>
@@ -167,6 +170,18 @@ function CoverageRow({ row }: { row: EditionCoverage }) {
         {coverageStateHelp(row)}
         {row.groupLabel && row.state !== "none" ? <span className="price-coverage-group"> {row.groupLabel}.</span> : null}
       </p>
+      <div className="price-coverage-actions">
+        {/* Listings already waiting outrank a fresh search: they are a decision
+            away from a price and cost nothing, where a search costs money. */}
+        {row.waitingToCheck ? (
+          <Link className="price-coverage-check" href={`/price-coverage?edition=${row.edition.id}`}>
+            Check {row.waitingToCheck} waiting
+          </Link>
+        ) : null}
+        {hasIsbn
+          ? <FindSalesButton editionId={row.edition.id} label={row.waitingToCheck ? "Find more sales" : "Find sales"} />
+          : <span className="price-coverage-group">No ISBN, so no search can identify it.</span>}
+      </div>
     </li>
   );
 }
@@ -305,6 +320,11 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             </p>
           ) : <p className="outcome-message" role="alert">That edition could not be found.</p>}
           {focusMissing ? <p className="outcome-message" role="alert">That listing no longer exists, so the edition could not be opened.</p> : null}
+          {edition && isbnForSearch(edition.isbn_13) ? (
+            <div className="price-coverage-actions">
+              <FindSalesButton editionId={editionId} label={rows.length ? "Find more sales" : "Find sales"} />
+            </div>
+          ) : null}
         </div>
         {rows.length ? (
           <ListingOutcomesPanel

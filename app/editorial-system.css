@@ -573,3 +573,32 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
   .review-page .price-coverage-state { grid-column: 1; order: 2; }
   .review-page .price-coverage-price { grid-column: 2; grid-row: 1; }
 }
+
+/* The action half of the price-coverage row: a search costs money, so the
+   button reads as deliberate rather than as another link to wander into. */
+.review-page .price-coverage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .6rem; }
+.review-page .price-coverage-check {
+  padding: .4rem .8rem;
+  border: 1px solid var(--rar-ink);
+  border-radius: 999px;
+  color: var(--rar-ink);
+  font-size: .76rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.review-page .find-sales { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.review-page .find-sales-button {
+  min-height: 2.2rem;
+  padding: .4rem .9rem;
+  border: 1px dashed var(--rar-line);
+  border-radius: 999px;
+  background: var(--rar-surface);
+  color: var(--rar-muted);
+  font: inherit;
+  font-size: .76rem;
+  cursor: pointer;
+}
+.review-page .find-sales-button:hover:not(:disabled) { border-style: solid; border-color: var(--rar-ink); color: var(--rar-ink); }
+.review-page .find-sales-button:disabled { cursor: progress; opacity: .65; }
+.review-page .find-sales-message { color: var(--rar-muted); font-size: .76rem; line-height: 1.45; }
+.review-page .find-sales-message.is-error { color: var(--rar-red); }
