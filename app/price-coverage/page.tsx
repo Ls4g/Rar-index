@@ -19,6 +19,7 @@ import { isbnForSearch } from "@/lib/apifySoldSearch";
 import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
 import FindSalesButton from "@/components/FindSalesButton";
 import PriceCoverageReview from "@/components/PriceCoverageReview";
+import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
 
 // Getting a current price onto every edition.
@@ -38,7 +39,7 @@ export const dynamic = "force-dynamic";
 
 const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13";
 const SALE_COLUMNS =
-  "edition_id,sold_date,sale_price,currency,grading_company,grade_label,print_classification,known_printing_number";
+  "id,edition_id,sold_date,sale_price,currency,listing_title,source_listing_url,match_status,sale_status,is_verified,grading_company,grade_label,print_classification,printing_proof_url,known_printing_number";
 const OUTCOME_COLUMNS =
   "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
@@ -48,6 +49,16 @@ const OUTCOME_COLUMNS =
 const OUTSTANDING_STATUSES = ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"];
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
+
+type StaffVerifiedSale = SeriesSale & {
+  id: string;
+  edition_id: string;
+  listing_title: string | null;
+  source_listing_url: string | null;
+  sale_status: string;
+  is_verified: boolean;
+  printing_proof_url: string | null;
+};
 
 function one(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -130,7 +141,7 @@ function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"]): Outc
 async function loadCoverage(admin: Admin) {
   const [editions, sales, outcomes] = await Promise.all([
     readAll<CoverageEdition>(admin, "manga_editions", EDITION_COLUMNS),
-    readAll<SeriesSale & { edition_id: string }>(admin, "price_observations", SALE_COLUMNS,
+    readAll<StaffVerifiedSale>(admin, "price_observations", SALE_COLUMNS,
       { column: "match_status", value: "verified_match" }),
     readAll<{ edition_id: string; status: string; reviewed_by: string | null; resulting_observation_id: string | null }>(
       admin, "listing_outcomes", "id,edition_id,status,reviewed_by,resulting_observation_id"),
@@ -294,8 +305,13 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
 
   const edition = editionResult.data as CoverageEdition | null;
   const records = (outcomeResult.data ?? []) as unknown as OutcomeRecord[];
+  const verifiedSales = ((salesResult.data ?? []) as unknown as StaffVerifiedSale[])
+    .filter((sale) => sale.sale_status === "confirmed" && sale.is_verified);
+  const unidentifiedSales = verifiedSales
+    .filter((sale) => sale.print_classification === "printing_not_identified")
+    .sort((left, right) => right.sale_price - left.sale_price);
   const coverage = edition
-    ? assessEditionCoverage(edition, (salesResult.data ?? []) as unknown as SeriesSale[],
+    ? assessEditionCoverage(edition, verifiedSales,
       records.filter((record) => !record.reviewed_by && !record.resulting_observation_id && OUTSTANDING_STATUSES.includes(record.status)).length)
     : null;
 
@@ -421,6 +437,15 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
               : "No listings have been found for this edition yet. Run a sold-listing search for its ISBN to find some."}
           </p>
         )}
+        {unidentifiedSales.length ? <details className="coverage-print-corrections" id="printing-corrections">
+          <summary>Correct printing on verified sales · {unidentifiedSales.length} not identified</summary>
+          <p>Use this only when a photo from the exact sold copy proves its printing. A seller saying “first print” in the title is not enough.</p>
+          {unidentifiedSales.map((sale) => <details className="coverage-print-correction" key={sale.id} id={`printing-${sale.id}`}>
+            <summary>{sale.listing_title || "Untitled sale"} · {sale.currency} {sale.sale_price.toFixed(2)} · {sale.sold_date ?? "Date unknown"}</summary>
+            {sale.source_listing_url ? <p><a href={sale.source_listing_url} rel="noopener noreferrer" target="_blank">Open original sold listing ↗</a></p> : null}
+            <PrintClassificationDecisionForm observationId={sale.id} currentClassification={sale.print_classification} currentProofUrl={sale.printing_proof_url} currentPrintingNumber={sale.known_printing_number} />
+          </details>)}
+        </details> : null}
       </section>
     </main>
   );

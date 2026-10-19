@@ -636,6 +636,12 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .coverage-review-success { padding: .75rem 1rem; border-left: 3px solid var(--rar-ink); background: var(--rar-surface-soft); color: var(--rar-ink); font-size: .85rem; }
 .review-page .coverage-review-empty { padding: 1.4rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-muted); }
 .review-page .coverage-review-more { display: inline-block; margin-top: .65rem; color: var(--rar-muted) !important; font-size: .72rem !important; }
+.review-page .coverage-print-corrections { margin: 2rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
+.review-page .coverage-print-corrections > summary { cursor: pointer; color: var(--rar-ink); font-weight: 700; }
+.review-page .coverage-print-corrections > p { color: var(--rar-muted); font-size: .85rem; line-height: 1.5; }
+.review-page .coverage-print-correction { margin-top: .75rem; padding: .8rem; border: 1px solid var(--rar-line); background: var(--rar-surface); }
+.review-page .coverage-print-correction > summary { cursor: pointer; color: var(--rar-ink); font-size: .82rem; font-weight: 650; line-height: 1.4; }
+.review-page .coverage-print-correction > p { font-size: .8rem; }
 @media (max-width: 600px) {
   .review-page .coverage-review-card { gap: .7rem; padding: .8rem; }
   .review-page .coverage-review-cover { width: 3.25rem; height: 4.5rem; }
