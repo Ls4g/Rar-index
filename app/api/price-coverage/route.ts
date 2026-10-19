@@ -81,8 +81,15 @@ export async function POST(request: Request) {
     .gte("first_seen_at", cooldownSince);
   if ((recentCount ?? 0) > 0) {
     return Response.json({
-      error: `This edition was already searched in the last ${SEARCH_COOLDOWN_HOURS} hours. Review what is queued below before spending another search.`,
-    }, { status: 429 });
+      ok: true,
+      found: 0,
+      queued: 0,
+      alreadyKnown: 0,
+      dropped: 0,
+      needsHuman: 0,
+      alreadySearched: true,
+      summary: `Searched within the last ${SEARCH_COOLDOWN_HOURS} hours. No new paid search was started; review the existing findings.`,
+    });
   }
 
   let budget;

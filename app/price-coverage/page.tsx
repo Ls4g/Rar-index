@@ -6,10 +6,8 @@ import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { probeOutcomeProviders } from "@/lib/listingOutcomeProviders";
 import {
   assessEditionCoverage,
-  coverageStateHelp,
   coverageSummary,
   COVERAGE_STATE_LABEL,
-  PRICE_CURRENT_WITHIN_DAYS,
   sortCoverage,
   type CoverageEdition,
   type EditionCoverage,
@@ -18,7 +16,10 @@ import {
 } from "@/lib/editionPriceCoverage";
 import type { SeriesSale } from "@/lib/priceSeries";
 import { isbnForSearch } from "@/lib/apifySoldSearch";
+import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
 import FindSalesButton from "@/components/FindSalesButton";
+import PriceCoverageReview from "@/components/PriceCoverageReview";
+import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
 
 // Getting a current price onto every edition.
 //
@@ -74,11 +75,6 @@ function editionLabel(edition: { title?: string | null; series?: string | null; 
   const volume = edition.volume_number === null || edition.volume_number === undefined || edition.volume_number === ""
     ? "" : ` vol. ${edition.volume_number}`;
   return `${edition.series ?? edition.title ?? "Unknown"}${volume}${edition.language ? ` · ${edition.language}` : ""}`;
-}
-
-function money(value: number | null, currency: string | null) {
-  if (value === null || !currency) return "—";
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 2 }).format(value);
 }
 
 type OutcomeRecord = {
@@ -161,23 +157,23 @@ async function loadCoverage(admin: Admin) {
 
 function CoverageRow({ row }: { row: EditionCoverage }) {
   const hasIsbn = Boolean(isbnForSearch(row.edition.isbn_13));
+  const missing = comparableSalesNeeded(row);
   return (
     <li className={`price-coverage-row is-${row.state}`}>
       <Link className="price-coverage-link" href={`/price-coverage?edition=${row.edition.id}`}>
         <span className="price-coverage-name">{editionLabel(row.edition)}</span>
-        <span className="price-coverage-state">{COVERAGE_STATE_LABEL[row.state]}</span>
-        <span className="price-coverage-price">{money(row.medianPrice, row.currency)}</span>
+        <span className="price-coverage-state">{missing ? `${missing} sale${missing === 1 ? "" : "s"} missing` : row.state === "stale" ? "Needs a recent sale" : COVERAGE_STATE_LABEL[row.state]}</span>
       </Link>
       <p className="price-coverage-help">
-        {coverageStateHelp(row)}
-        {row.groupLabel && row.state !== "none" ? <span className="price-coverage-group"> {row.groupLabel}.</span> : null}
+        {row.comparableSales} of {MIN_COMPARABLE_SALES} comparable sales{row.groupLabel ? ` · ${row.groupLabel}` : ""}
+        {row.waitingToCheck ? ` · ${row.waitingToCheck} finding${row.waitingToCheck === 1 ? "" : "s"} ready to review` : ""}
       </p>
       <div className="price-coverage-actions">
         {/* Listings already waiting outrank a fresh search: they are a decision
             away from a price and cost nothing, where a search costs money. */}
         {row.waitingToCheck ? (
           <Link className="price-coverage-check" href={`/price-coverage?edition=${row.edition.id}`}>
-            Check {row.waitingToCheck} waiting
+            Review {row.waitingToCheck} finding{row.waitingToCheck === 1 ? "" : "s"}
           </Link>
         ) : null}
         {hasIsbn
@@ -189,7 +185,7 @@ function CoverageRow({ row }: { row: EditionCoverage }) {
 }
 
 export default async function PriceCoveragePage({ searchParams }: {
-  searchParams: Promise<{ edition?: string | string[]; outcome?: string | string[]; show?: string | string[]; series?: string | string[] }>;
+  searchParams: Promise<{ edition?: string | string[]; outcome?: string | string[]; show?: string | string[]; series?: string | string[]; searched?: string | string[]; found?: string | string[]; queued?: string | string[]; known?: string | string[]; excluded?: string | string[]; recent?: string | string[] }>;
 }) {
   const parameters = await searchParams;
   const admin = getSupabaseAdmin();
@@ -209,7 +205,7 @@ export default async function PriceCoveragePage({ searchParams }: {
   // A focused listing is one the Decisions page sent here by name, so it must
   // be rendered even when it has already been settled -- otherwise the link
   // lands on a page that does not contain the listing it was about.
-  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing, one(parameters.show) === "all" || Boolean(focusOutcomeId));
+  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing, one(parameters.show) === "all" || Boolean(focusOutcomeId), parameters);
 
   const { rows, summary } = await loadCoverage(admin);
   const show = one(parameters.show) ?? "todo";
@@ -251,13 +247,7 @@ export default async function PriceCoveragePage({ searchParams }: {
             <span style={{ width: `${percent}%` }} />
           </div>
           <p className="price-coverage-note">
-            A current price means at least three sales of the same printing, in the same currency, the newest within{" "}
-            {PRICE_CURRENT_WITHIN_DAYS} days. {shown.thin} have some sales but not enough, {shown.stale} have
-            enough but out of date, and {shown.none} have none yet.
-          </p>
-          <p className="price-coverage-note">
-            {shown.waitingToCheck} listing{shown.waitingToCheck === 1 ? "" : "s"} waiting for a decision
-            {selected ? ` across ${selected.label}` : " across all editions"}. Open an edition to work through only its own.
+            Each row shows how many more comparable sales it needs for a price. Find sales searches eBay through Apify, then opens the findings for your decision. {shown.waitingToCheck} already waiting for review.
           </p>
 
           {/* A plain GET form, so the filter is a URL anyone can bookmark or
@@ -295,7 +285,7 @@ export default async function PriceCoveragePage({ searchParams }: {
   );
 }
 
-async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, showSettled: boolean) {
+async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, showSettled: boolean, search: { searched?: string | string[]; found?: string | string[]; queued?: string | string[]; known?: string | string[]; excluded?: string | string[]; recent?: string | string[] }) {
   const [editionResult, outcomeResult, salesResult] = await Promise.all([
     admin.from("manga_editions").select(EDITION_COLUMNS).eq("id", editionId).maybeSingle(),
     admin.from("listing_outcomes").select(OUTCOME_COLUMNS).eq("edition_id", editionId).order("last_seen_at", { ascending: false }),
@@ -340,13 +330,22 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
   // again on every visit. Rechecking a listing you already dismissed is the
   // slowest possible way to work through a queue.
   const rows = showSettled ? allRows : outstanding;
+  const wasSearched = one(search.searched) === "1";
+  const searchCount = (key: "found" | "queued" | "known" | "excluded") => Math.max(0, Number(one(search[key]) ?? 0) || 0);
 
-  const sample = records[0] ?? null;
-  const [counts, capabilities] = await Promise.all([
-    readWatchToSaleMetrics(admin),
-    probeOutcomeProviders(sample ? { itemId: sample.external_id, marketplace: sample.marketplace } : undefined)
-      .catch((): OutcomeCapability[] => [{ provider: "eBay", available: false, canConfirmSales: false, detail: "The capability probe could not reach eBay." }]),
-  ]);
+  // The compact Apify workbench needs no global watch metrics or live provider
+  // probe. Those can involve additional database/API work, so only load them
+  // when someone explicitly opens the advanced evidence view for one listing.
+  let counts: Awaited<ReturnType<typeof readWatchToSaleMetrics>> | null = null;
+  let capabilities: OutcomeCapability[] = [];
+  if (focusOutcomeId || showSettled) {
+    const sample = records[0] ?? null;
+    [counts, capabilities] = await Promise.all([
+      readWatchToSaleMetrics(admin),
+      probeOutcomeProviders(sample ? { itemId: sample.external_id, marketplace: sample.marketplace } : undefined)
+        .catch((): OutcomeCapability[] => [{ provider: "eBay", available: false, canConfirmSales: false, detail: "The capability probe could not reach eBay." }]),
+    ]);
+  }
 
   // One edition's listings all fit on one page, so the panel is handed the
   // whole set and told not to draw filters. The counts it needs for paging are
@@ -366,14 +365,17 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
           <h1>{editionLabel(edition)}</h1>
           {coverage ? (
             <p className="price-coverage-note">
-              {coverage.state === "priced" || coverage.state === "stale"
-                ? `Median ${money(coverage.medianPrice, coverage.currency)} from ${coverage.comparableSales} comparable sales${coverage.groupLabel ? ` (${coverage.groupLabel})` : ""}.`
-                : coverage.comparableSales
-                  ? `${coverage.comparableSales} sale${coverage.comparableSales === 1 ? "" : "s"} so far — not enough for a price yet.`
-                  : "No verified sales yet."}
-              {" "}{outstanding.length} listing{outstanding.length === 1 ? "" : "s"} below need a decision.
+              {comparableSalesNeeded(coverage)
+                ? `${comparableSalesNeeded(coverage)} more comparable sale${comparableSalesNeeded(coverage) === 1 ? "" : "s"} needed for a price.`
+                : coverage.state === "stale" ? "Enough comparable sales, but a recent sale is needed to refresh the price." : "This edition has a current price."}
+              {" "}{outstanding.length} finding{outstanding.length === 1 ? "" : "s"} awaiting your review.
             </p>
           ) : <p className="outcome-message" role="alert">That edition could not be found.</p>}
+          {wasSearched ? <p className="coverage-review-success" role="status">
+            {one(search.recent) === "1" ? "Already searched recently; no second paid search was run. Review the findings below." :
+              `Search complete: ${searchCount("queued")} new finding${searchCount("queued") === 1 ? "" : "s"} to review${searchCount("known") ? `, ${searchCount("known")} already known` : ""}${searchCount("excluded") ? `, ${searchCount("excluded")} excluded because they could not be safely matched or used` : ""}.`}
+            {searchCount("found") === 0 && one(search.recent) !== "1" ? " No sold-index listings were found for this ISBN." : null}
+          </p> : null}
           {focusMissing ? <p className="outcome-message" role="alert">That listing no longer exists, so the edition could not be opened.</p> : null}
           <div className="price-coverage-actions">
             {edition && isbnForSearch(edition.isbn_13)
@@ -388,12 +390,12 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             ) : null}
           </div>
         </div>
-        {rows.length ? (
+        {!focusOutcomeId && !showSettled ? <PriceCoverageReview editionId={editionId} initialRows={outstanding} /> : rows.length ? (
           <ListingOutcomesPanel
             basePath={`/price-coverage?edition=${editionId}`}
             showFilters={false}
             capabilities={capabilities}
-            counts={counts}
+            counts={counts!}
             focusOutcomeId={focusOutcomeId}
             focusMissing={false}
             focusRedirected={false}

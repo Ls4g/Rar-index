@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import {
   assessEditionCoverage,
+  comparableSalesNeeded,
   coverageSummary,
   PRICE_CURRENT_WITHIN_DAYS,
   sortCoverage,
@@ -67,7 +68,18 @@ check("two sales is never a price, however recent", () => {
   const row = assessEditionCoverage(EDITION, [sale(), sale()], 0, NOW);
   assert.equal(row.state, "thin");
   assert.equal(row.comparableSales, 2);
+  assert.equal(comparableSalesNeeded(row), 1);
   assert.ok(row.medianPrice !== null, "a figure is still shown, it is just not called a price");
+});
+
+check("missing count follows one comparable group, not total sales", () => {
+  const row = assessEditionCoverage(EDITION, [
+    sale({ print_classification: "first_print_proven" }),
+    sale({ print_classification: "printing_not_identified" }),
+  ], 0, NOW);
+  assert.equal(row.totalSales, 2);
+  assert.equal(comparableSalesNeeded(row), 2);
+  assert.equal(comparableSalesNeeded(assessEditionCoverage(EDITION, [], 0, NOW)), 3);
 });
 
 check(`enough sales but all older than ${PRICE_CURRENT_WITHIN_DAYS} days is 'stale', not 'priced'`, () => {
@@ -150,6 +162,12 @@ check("the same input always sorts the same way", () => {
   const first = sortCoverage(rows).map((row) => row.edition.id);
   const again = sortCoverage([...rows].reverse()).map((row) => row.edition.id);
   assert.deepEqual(first, again);
+});
+
+check("an edition one sale away outranks an edition two away even with a smaller queue", () => {
+  const near = assessEditionCoverage({ ...EDITION, id: "near" }, [sale(), sale()], 1, NOW);
+  const far = assessEditionCoverage({ ...EDITION, id: "far" }, [sale()], 30, NOW);
+  assert.deepEqual(sortCoverage([far, near]).map((row) => row.edition.id), ["near", "far"]);
 });
 
 for (const result of checks) {

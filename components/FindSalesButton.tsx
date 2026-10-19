@@ -23,6 +23,7 @@ type FindSalesResponse = {
   needsHuman?: number;
   dropped?: number;
   alreadyKnown?: number;
+  alreadySearched?: boolean;
   remainingUsd?: number;
 };
 
@@ -48,15 +49,10 @@ export default function FindSalesButton({ editionId, label = "Find sales" }: { e
         setMessage(data.error ?? "The search did not run.");
         return;
       }
-      const parts = [data.summary ?? ""];
-      if (data.dropped) parts.push(`${data.dropped} dropped as lots or unusable prices.`);
-      if (data.needsHuman) parts.push(`${data.needsHuman} could not be pinned to one printing.`);
-      if (data.alreadyKnown) parts.push(`${data.alreadyKnown} already known.`);
-      if (typeof data.remainingUsd === "number") parts.push(`$${data.remainingUsd.toFixed(2)} credit left.`);
-      setMessage(parts.filter(Boolean).join(" "));
-      // The queued listings and this edition's counts are both server-rendered,
-      // so the page has to be refetched for them to appear.
-      if (data.queued) router.refresh();
+      // A search should end at the findings, not back on the edition list.
+      // Navigate even when nothing new was queued: the workbench explains the
+      // result and still exposes earlier unresolved findings for this edition.
+      router.push(`/price-coverage?edition=${encodeURIComponent(editionId)}&searched=1&found=${data.found ?? 0}&queued=${data.queued ?? 0}&known=${data.alreadyKnown ?? 0}&excluded=${(data.dropped ?? 0) + (data.needsHuman ?? 0)}${data.alreadySearched ? "&recent=1" : ""}`);
     } catch {
       setFailed(true);
       setMessage("The search could not be reached. Nothing was queued.");
@@ -67,7 +63,7 @@ export default function FindSalesButton({ editionId, label = "Find sales" }: { e
 
   return (
     <span className="find-sales">
-      <button className="find-sales-button" disabled={busy} onClick={() => void run()} type="button">
+      <button className={`find-sales-button${label === "Find sales" ? " is-primary" : ""}`} disabled={busy} onClick={() => void run()} type="button">
         {busy ? "Searching eBay…" : label}
       </button>
       {message ? (

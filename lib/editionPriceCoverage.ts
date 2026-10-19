@@ -154,14 +154,17 @@ export function coverageSummary(rows: EditionCoverage[]): CoverageSummary {
   return summary;
 }
 
-// Most of the work first. An edition with listings already waiting is one
-// decision away from a price, so it outranks one that needs a search run
-// before anything can happen at all; a finished edition sinks to the bottom.
+// Closest to a price first. Within the same coverage state, needing one more
+// comparable sale outranks needing two, then existing findings outrank a paid
+// search. A finished edition sinks to the bottom.
 const STATE_ORDER: Record<CoverageState, number> = { thin: 0, none: 1, stale: 2, priced: 3 };
 
 export function sortCoverage(rows: EditionCoverage[]) {
   return [...rows].sort((left, right) => {
     if (left.state !== right.state) return STATE_ORDER[left.state] - STATE_ORDER[right.state];
+    if (left.state === "thin" && left.comparableSales !== right.comparableSales) {
+      return right.comparableSales - left.comparableSales;
+    }
     if (left.waitingToCheck !== right.waitingToCheck) return right.waitingToCheck - left.waitingToCheck;
     // A tiebreak that cannot shift between requests, so paging stays stable.
     const label = `${left.edition.series ?? ""}`.localeCompare(`${right.edition.series ?? ""}`);
@@ -192,6 +195,11 @@ export function coverageStateHelp(row: EditionCoverage): string {
         ? `${row.waitingToCheck} listing${row.waitingToCheck === 1 ? "" : "s"} waiting for you.`
         : "Run a search to find sales.";
   }
+}
+
+/** Additional verified sales in one comparable group before its first price. */
+export function comparableSalesNeeded(row: EditionCoverage) {
+  return Math.max(0, MIN_COMPARABLE_SALES - row.comparableSales);
 }
 
 export function seriesKey(value: string | null | undefined) {

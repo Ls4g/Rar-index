@@ -599,9 +599,48 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
   cursor: pointer;
 }
 .review-page .find-sales-button:hover:not(:disabled) { border-style: solid; border-color: var(--rar-ink); color: var(--rar-ink); }
+.review-page .find-sales-button.is-primary { border: 1px solid var(--rar-ink); background: var(--rar-ink); color: var(--rar-canvas); font-weight: 700; }
+.review-page .find-sales-button.is-primary:hover:not(:disabled) { color: var(--rar-canvas); opacity: .82; }
 .review-page .find-sales-button:disabled { cursor: progress; opacity: .65; }
 .review-page .find-sales-message { color: var(--rar-muted); font-size: .76rem; line-height: 1.45; }
 .review-page .find-sales-message.is-error { color: var(--rar-red); }
+
+/* One-edition review workbench. Findings stay visible immediately after the
+   search instead of hiding behind the large outcomes dashboard. */
+.review-page .coverage-review { margin: 1.2rem 0 3rem; }
+.review-page .coverage-review-heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 1rem; }
+.review-page .coverage-review-heading h2 { margin: .15rem 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+.review-page .coverage-review-heading label { display: grid; gap: .25rem; font-size: .72rem; color: var(--rar-muted); }
+.review-page .coverage-review-heading input { min-height: 2.45rem; width: 12rem; }
+.review-page .coverage-review-intro { color: var(--rar-muted); font-size: .85rem; line-height: 1.5; }
+.review-page .coverage-review-list { display: grid; gap: .75rem; margin-top: 1.15rem; }
+.review-page .coverage-review-card { display: flex; gap: 1rem; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface); }
+.review-page .coverage-review-cover { width: 5.25rem; height: 7rem; object-fit: contain; flex: none; }
+.review-page .coverage-review-body { min-width: 0; flex: 1; }
+.review-page .coverage-review-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; color: var(--rar-muted); font-size: .67rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.review-page .coverage-review-card h3 { margin: .35rem 0; font-size: 1rem; line-height: 1.35; }
+.review-page .coverage-review-card p { margin: .25rem 0 .55rem; color: var(--rar-muted); font-size: .8rem; }
+.review-page .coverage-review-card a { color: var(--rar-ink); font-size: .8rem; text-underline-offset: 3px; }
+.review-page .coverage-review-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .9rem; }
+.review-page .coverage-review-actions button, .review-page .coverage-review-form > button { min-height: 2.35rem; padding: .45rem .75rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); color: var(--rar-ink); font: inherit; font-size: .76rem; font-weight: 650; cursor: pointer; }
+.review-page .coverage-review-actions button:first-child, .review-page .coverage-review-form > button { background: var(--rar-ink); border-color: var(--rar-ink); color: var(--rar-canvas); }
+.review-page .coverage-review-actions button:disabled, .review-page .coverage-review-form > button:disabled { opacity: .55; cursor: progress; }
+.review-page .coverage-review-form { display: grid; gap: .8rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
+.review-page .coverage-review-fields { display: flex; flex-wrap: wrap; gap: .75rem; }
+.review-page .coverage-review-fields label { display: grid; flex: 1 1 9rem; gap: .3rem; color: var(--rar-muted); font-size: .72rem; }
+.review-page .coverage-review-fields :is(input, select), .review-page .coverage-review-heading input { box-sizing: border-box; width: 100%; padding: .45rem .6rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-ink); font: inherit; }
+.review-page .coverage-review-confirm { display: flex; align-items: start; gap: .55rem; max-width: 72ch; font-size: .8rem; line-height: 1.45; }
+.review-page .coverage-review-confirm input { margin-top: .15rem; }
+.review-page .coverage-review-form > button { justify-self: start; }
+.review-page .coverage-review-error { color: var(--rar-red) !important; }
+.review-page .coverage-review-success { padding: .75rem 1rem; border-left: 3px solid var(--rar-ink); background: var(--rar-surface-soft); color: var(--rar-ink); font-size: .85rem; }
+.review-page .coverage-review-empty { padding: 1.4rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-muted); }
+.review-page .coverage-review-more { display: inline-block; margin-top: .65rem; color: var(--rar-muted) !important; font-size: .72rem !important; }
+@media (max-width: 600px) {
+  .review-page .coverage-review-card { gap: .7rem; padding: .8rem; }
+  .review-page .coverage-review-cover { width: 3.25rem; height: 4.5rem; }
+  .review-page .coverage-review-actions button { flex: 1 1 auto; }
+}
 
 /* The series filter. A plain GET form, so it needs no JavaScript and the
    result is a URL that can be bookmarked or sent to someone. */
