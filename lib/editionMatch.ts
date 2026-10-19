@@ -448,6 +448,36 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
     reasons.push("listing states first printing / first edition");
   }
 
+  // A named variant -- a foil cover, a special jacket -- shares its ISBN with
+  // the plain edition, so the listing title is the only thing that can tell
+  // the two apart. Three of RAR's ISBNs carry two editions each for exactly
+  // this reason, and until this existed both scored identically: a listing
+  // saying "Gold Foil cover" could not be told from one that said nothing,
+  // and the pair went to a human who had already been told the answer.
+  //
+  // Only a short, tag-like name is usable. "Gold Foil" appears verbatim in
+  // real titles. A descriptive variant_name such as "1997 first printing
+  // (verified)" never will, and must not be matched loosely: its "first
+  // printing" fragment would then fire on any first-printing listing and
+  // credit a specific edition on the strength of a word it shares with every
+  // other first printing. Parenthesised and long names are skipped rather
+  // than approximated.
+  //
+  // Deliberately one-directional. Naming the variant credits the variant
+  // edition, but a title mentioning a variant is NOT a conflict for the plain
+  // edition. Knowing that "Gold Foil" belongs to a sibling would require
+  // knowing the other editions on the ISBN, and this function only ever sees
+  // one target. Scoring the positive is enough to separate them; inventing
+  // the negative would be an assertion about an edition nobody passed in.
+  const variantTag = (target.variant_name ?? "").trim();
+  if (candidate.title && variantTag && variantTag.length <= 24 && !/[()]/.test(variantTag)) {
+    const variantPattern = new RegExp(`\\b${variantTag.split(/\s+/).map(escapeRegExp).join("\\s+")}\\b`, "i");
+    if (variantPattern.test(candidate.title)) {
+      score += 10;
+      reasons.push(`listing names the ${variantTag} variant`);
+    }
+  }
+
   // Naming the series, the language and the publisher is worth 60 on its own,
   // which lands in "partial" without anyone having established WHICH volume
   // or issue the listing is. Measured on the live queue on 16 August 2026:
