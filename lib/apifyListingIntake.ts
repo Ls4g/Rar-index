@@ -75,9 +75,6 @@ export function priceDisqualifier(row: ApifyEbayRow): string | null {
   if (!row.itemId) return "no eBay item id, so RAR could never check it";
   if (!row.url) return "no listing URL, so there is nothing for a reviewer to open";
   if (!row.title?.trim()) return "no listing title to match on";
-  if (row.isBestOfferAccepted === true) {
-    return "Best Offer accepted; the search row does not disclose what was actually paid";
-  }
   if (row.soldPriceMax != null) {
     return "a price range, not one sale (eBay shows these for multi-quantity listings)";
   }
@@ -162,7 +159,10 @@ export function buildOutcomeRow(
   // winning bid, which is not an asking price and must not be filed as one --
   // it stays in the snapshot, where it is clearly Apify's number and not
   // RAR's.
-  const buyItNow = (row.listingType ?? "") === "buy_it_now";
+  // An accepted Best Offer's search-row number is not the paid price (and
+  // may not even be a useful asking price). Keep the lead, but require the
+  // reviewer to read the actual accepted amount on the original eBay page.
+  const buyItNow = (row.listingType ?? "") === "buy_it_now" && row.isBestOfferAccepted !== true;
   const askingPrice = buyItNow && row.soldPrice != null ? Number(row.soldPrice) : null;
 
   return {
@@ -180,7 +180,7 @@ export function buildOutcomeRow(
     currency: askingPrice != null ? (row.soldCurrency ?? null) : null,
     // Apify's own vocabulary, kept verbatim. Translating it into eBay Browse's
     // terms would make a scraped field look like an API one.
-    buying_format: row.buyingFormat ?? row.listingType ?? null,
+    buying_format: row.isBestOfferAccepted === true ? "BEST_OFFER" : row.buyingFormat ?? row.listingType ?? null,
     bid_count: typeof row.bidCount === "number" ? row.bidCount : null,
     scheduled_end_at: endedAt,
     first_seen_at: nowIso,

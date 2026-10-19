@@ -104,10 +104,16 @@ check("the stored link and the stored item id always agree", () => {
   assert.match(priceDisqualifier(mismatched), /points at item 999999999999/);
 });
 
-check("an accepted Best Offer is dropped, because the paid price is undisclosed", () => {
-  const decision = classifyApifyRow({ ...SOUND_ROW, isBestOfferAccepted: true }, byIsbn);
-  assert.equal(decision.kind, "drop");
-  assert.match(decision.why, /Best Offer/);
+check("an accepted Best Offer stays review-only until eBay shows the actual paid price", () => {
+  const bestOffer = { ...SOUND_ROW, isBestOfferAccepted: true };
+  const decision = classifyApifyRow(bestOffer, byIsbn);
+  assert.equal(decision.kind, "queue");
+  const row = buildOutcomeRow(bestOffer, decision.pick, "s");
+  assert.equal(row.status, "ended_pending_check");
+  assert.equal(row.buying_format, "BEST_OFFER");
+  assert.equal(row.asking_price, null, "the search-row price is neither a verified sale nor a safe asking price");
+  assert.equal(row.currency, null);
+  assert.ok(!("sold_price" in row));
 });
 
 check("a price range is dropped, because it is not one sale", () => {
