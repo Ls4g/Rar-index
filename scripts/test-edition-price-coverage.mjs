@@ -13,6 +13,8 @@ import {
   coverageSummary,
   PRICE_CURRENT_WITHIN_DAYS,
   sortCoverage,
+  buildSeriesOptions,
+  seriesKey,
 } from "../lib/editionPriceCoverage.ts";
 import { MIN_COMPARABLE_SALES } from "../lib/printClassification.ts";
 
@@ -157,3 +159,73 @@ for (const result of checks) {
 const failed = checks.filter((result) => !result.ok).length;
 console.log(`\n${checks.length - failed}/${checks.length} checks passed.`);
 if (failed) process.exitCode = 1;
+
+// ---------------------------------------------------------------- series filter
+
+const filterChecks = [];
+function filterCheck(label, fn) {
+  try { fn(); filterChecks.push({ label, ok: true }); }
+  catch (error) { filterChecks.push({ label, ok: false, error: error.message }); }
+}
+
+function coveredEdition(id, series, priced = false) {
+  return assessEditionCoverage(
+    { id, title: null, series, volume_number: "1", language: "English", isbn_13: null },
+    priced ? [sale(), sale(), sale()] : [],
+    0,
+    NOW,
+  );
+}
+
+filterCheck("two spellings of one series become one filter entry", () => {
+  // The real catalogue holds "One Piece" (26) and "ONE PIECE" (2). Treating
+  // them separately would hide two volumes from anyone picking the obvious one.
+  const options = buildSeriesOptions([
+    coveredEdition("a", "One Piece"),
+    coveredEdition("b", "One Piece"),
+    coveredEdition("c", "ONE PIECE"),
+  ]);
+  assert.equal(options.length, 1, `expected one entry, got ${JSON.stringify(options.map((o) => o.label))}`);
+  assert.equal(options[0].total, 3, "all three volumes must be reachable through it");
+  assert.equal(options[0].label, "One Piece", "the commonest spelling is the one shown");
+});
+
+filterCheck("the key matches what seriesKey produces, so the filter finds its own rows", () => {
+  const rows = [coveredEdition("a", "ONE PIECE"), coveredEdition("b", "One Piece")];
+  const [option] = buildSeriesOptions(rows);
+  const matched = rows.filter((row) => seriesKey(row.edition.series) === option.key);
+  assert.equal(matched.length, 2, "an option that cannot select its own rows is worse than no filter");
+});
+
+filterCheck("priced counts are per series, not global", () => {
+  const options = buildSeriesOptions([
+    coveredEdition("a", "Akira", true),
+    coveredEdition("b", "Akira"),
+    coveredEdition("c", "Berserk"),
+  ]);
+  const akira = options.find((option) => option.label === "Akira");
+  const berserk = options.find((option) => option.label === "Berserk");
+  assert.equal(akira.priced, 1);
+  assert.equal(akira.total, 2);
+  assert.equal(berserk.priced, 0);
+});
+
+filterCheck("an edition with no series is left out rather than given a blank entry", () => {
+  const options = buildSeriesOptions([coveredEdition("a", null), coveredEdition("b", "   "), coveredEdition("c", "Akira")]);
+  assert.deepEqual(options.map((option) => option.label), ["Akira"]);
+});
+
+filterCheck("the label does not change between requests when spellings tie", () => {
+  const rows = [coveredEdition("a", "Spy x Family"), coveredEdition("b", "SPY x FAMILY")];
+  const forward = buildSeriesOptions(rows)[0].label;
+  const backward = buildSeriesOptions([...rows].reverse())[0].label;
+  assert.equal(forward, backward, "a tie must break deterministically, not on row order");
+});
+
+for (const result of filterChecks) {
+  console.log(`${result.ok ? "PASS" : "FAIL"}  ${result.label}`);
+  if (!result.ok) console.log(`      ${result.error}`);
+}
+const filterFailed = filterChecks.filter((result) => !result.ok).length;
+console.log(`\n${filterChecks.length - filterFailed}/${filterChecks.length} series-filter checks passed.`);
+if (filterFailed) process.exitCode = 1;

@@ -193,3 +193,47 @@ export function coverageStateHelp(row: EditionCoverage): string {
         : "Run a search to find sales.";
   }
 }
+
+export function seriesKey(value: string | null | undefined) {
+  return (value ?? "").trim().toLocaleLowerCase();
+}
+
+export type SeriesOption = { key: string; label: string; total: number; priced: number };
+
+/**
+ * The series list for the page's filter, with its counts.
+ *
+ * Grouped case-insensitively on purpose. The catalogue holds both "One Piece"
+ * and "ONE PIECE", and both spellings of "Spy x Family". A filter treating
+ * those as separate series would quietly hide 2 of the 28 One Piece volumes
+ * from someone who picked the obvious entry -- the worst kind of bug, because
+ * the page would look complete. The duplicates stay visible in the catalogue
+ * to be fixed there rather than papered over here.
+ *
+ * Built from rows already loaded rather than its own query, so the counts in
+ * the dropdown cannot disagree with the list underneath it.
+ */
+export function buildSeriesOptions(rows: EditionCoverage[]): SeriesOption[] {
+  const groups = new Map<string, { labels: Map<string, number>; total: number; priced: number }>();
+  for (const row of rows) {
+    const key = seriesKey(row.edition.series);
+    if (!key) continue;
+    const group = groups.get(key) ?? { labels: new Map<string, number>(), total: 0, priced: 0 };
+    const label = (row.edition.series ?? "").trim();
+    group.labels.set(label, (group.labels.get(label) ?? 0) + 1);
+    group.total += 1;
+    if (row.state === "priced") group.priced += 1;
+    groups.set(key, group);
+  }
+  return [...groups.entries()]
+    .map(([key, group]) => ({
+      key,
+      // Whichever spelling the catalogue uses most often, so the dropdown reads
+      // the way a person expects rather than showing a stray shouty variant.
+      // Ties break alphabetically, so the label cannot change between requests.
+      label: [...group.labels.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0],
+      total: group.total,
+      priced: group.priced,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}

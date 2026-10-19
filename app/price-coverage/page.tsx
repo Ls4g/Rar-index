@@ -13,6 +13,8 @@ import {
   sortCoverage,
   type CoverageEdition,
   type EditionCoverage,
+  buildSeriesOptions,
+  seriesKey,
 } from "@/lib/editionPriceCoverage";
 import type { SeriesSale } from "@/lib/priceSeries";
 import { isbnForSearch } from "@/lib/apifySoldSearch";
@@ -187,7 +189,7 @@ function CoverageRow({ row }: { row: EditionCoverage }) {
 }
 
 export default async function PriceCoveragePage({ searchParams }: {
-  searchParams: Promise<{ edition?: string | string[]; outcome?: string | string[]; show?: string | string[] }>;
+  searchParams: Promise<{ edition?: string | string[]; outcome?: string | string[]; show?: string | string[]; series?: string | string[] }>;
 }) {
   const parameters = await searchParams;
   const admin = getSupabaseAdmin();
@@ -211,8 +213,26 @@ export default async function PriceCoveragePage({ searchParams }: {
 
   const { rows, summary } = await loadCoverage(admin);
   const show = one(parameters.show) ?? "todo";
-  const visible = show === "all" ? rows : rows.filter((row) => row.state !== "priced");
-  const percent = summary.total ? Math.round((summary.priced / summary.total) * 100) : 0;
+  const series = (one(parameters.series) ?? "").trim();
+
+  // Grouped case-insensitively on purpose. The catalogue holds both "One Piece"
+  // and "ONE PIECE", and both spellings of "Spy x Family": a filter that
+  // treated those as different series would quietly hide editions from the
+  // person looking for them. The label shown is whichever spelling is most
+  // common, and the duplicates remain visible in the catalogue itself to be
+  // fixed there rather than papered over here.
+  const seriesOptions = buildSeriesOptions(rows);
+  const selected = seriesOptions.find((option) => option.key === series.toLocaleLowerCase()) ?? null;
+
+  const inSeries = selected ? rows.filter((row) => seriesKey(row.edition.series) === selected.key) : rows;
+  const visible = show === "all" ? inSeries : inSeries.filter((row) => row.state !== "priced");
+
+  // The headline counts whatever is being looked at. Filtering to One Piece and
+  // still being told about all 235 editions would answer a question nobody
+  // asked.
+  const shown = selected ? coverageSummary(inSeries) : summary;
+  const percent = shown.total ? Math.round((shown.priced / shown.total) * 100) : 0;
+  const keepSeries = selected ? `&series=${encodeURIComponent(selected.key)}` : "";
 
   return (
     <main className="review-page">
@@ -223,23 +243,47 @@ export default async function PriceCoveragePage({ searchParams }: {
       </header>
       <section className="catalogue-content">
         <div className="price-coverage-header">
-          <p className="eyebrow">Price coverage</p>
-          <h1>{summary.priced} of {summary.total} editions have a current price</h1>
-          <div className="price-coverage-progress" role="img" aria-label={`${percent}% of editions priced`}>
+          <p className="eyebrow">{selected ? selected.label : "Price coverage"}</p>
+          <h1>
+            {shown.priced} of {shown.total} {selected ? "volumes" : "editions"} have a current price
+          </h1>
+          <div className="price-coverage-progress" role="img" aria-label={`${percent}% priced`}>
             <span style={{ width: `${percent}%` }} />
           </div>
           <p className="price-coverage-note">
             A current price means at least three sales of the same printing, in the same currency, the newest within{" "}
-            {PRICE_CURRENT_WITHIN_DAYS} days. {summary.thin} editions have some sales but not enough, {summary.stale} have
-            enough but out of date, and {summary.none} have none yet.
+            {PRICE_CURRENT_WITHIN_DAYS} days. {shown.thin} have some sales but not enough, {shown.stale} have
+            enough but out of date, and {shown.none} have none yet.
           </p>
           <p className="price-coverage-note">
-            {summary.waitingToCheck} listing{summary.waitingToCheck === 1 ? "" : "s"} across all editions are waiting for a
-            decision. Open an edition to work through only its own.
+            {shown.waitingToCheck} listing{shown.waitingToCheck === 1 ? "" : "s"} waiting for a decision
+            {selected ? ` across ${selected.label}` : " across all editions"}. Open an edition to work through only its own.
           </p>
+
+          {/* A plain GET form, so the filter is a URL anyone can bookmark or
+              send, and it works before any JavaScript has loaded. */}
+          <form action="/price-coverage" className="price-coverage-filter" method="get">
+            <label htmlFor="series-filter">Series</label>
+            <select defaultValue={selected?.key ?? ""} id="series-filter" name="series">
+              <option value="">All {seriesOptions.length} series ({summary.total} editions)</option>
+              {seriesOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label} — {option.priced} of {option.total} priced
+                </option>
+              ))}
+            </select>
+            {show === "all" ? <input name="show" type="hidden" value="all" /> : null}
+            <button type="submit">Show</button>
+            {selected ? <Link className="price-coverage-group" href={show === "all" ? "/price-coverage?show=all" : "/price-coverage"}>Clear</Link> : null}
+          </form>
+
           <div className="price-coverage-tabs">
-            <Link className={show === "todo" ? "is-active" : ""} href="/price-coverage">Needs work ({summary.total - summary.priced})</Link>
-            <Link className={show === "all" ? "is-active" : ""} href="/price-coverage?show=all">Everything ({summary.total})</Link>
+            <Link className={show === "todo" ? "is-active" : ""} href={`/price-coverage${keepSeries ? `?${keepSeries.slice(1)}` : ""}`}>
+              Needs work ({shown.total - shown.priced})
+            </Link>
+            <Link className={show === "all" ? "is-active" : ""} href={`/price-coverage?show=all${keepSeries}`}>
+              Everything ({shown.total})
+            </Link>
           </div>
         </div>
         <ol className="price-coverage-list">

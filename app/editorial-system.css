@@ -602,3 +602,46 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .find-sales-button:disabled { cursor: progress; opacity: .65; }
 .review-page .find-sales-message { color: var(--rar-muted); font-size: .76rem; line-height: 1.45; }
 .review-page .find-sales-message.is-error { color: var(--rar-red); }
+
+/* The series filter. A plain GET form, so it needs no JavaScript and the
+   result is a URL that can be bookmarked or sent to someone. */
+.review-page .price-coverage-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-top: 1.25rem;
+}
+.review-page .price-coverage-filter label {
+  color: var(--rar-muted);
+  font-size: .64rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.review-page .price-coverage-filter select {
+  min-height: 2.6rem;
+  max-width: 100%;
+  border: 1px solid var(--rar-line);
+  border-radius: .5rem;
+  padding: .5rem .6rem;
+  background: var(--rar-surface);
+  color: var(--rar-ink);
+  font: inherit;
+  font-size: .82rem;
+}
+.review-page .price-coverage-filter button {
+  min-height: 2.6rem;
+  padding: .5rem 1rem;
+  border: 1px solid var(--rar-ink);
+  border-radius: .5rem;
+  background: var(--rar-ink);
+  color: var(--rar-canvas);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .review-page .price-coverage-filter select { flex: 1 1 100%; }
+}
