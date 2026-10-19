@@ -204,7 +204,10 @@ export default async function PriceCoveragePage({ searchParams }: {
     else focusMissing = true;
   }
 
-  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing);
+  // A focused listing is one the Decisions page sent here by name, so it must
+  // be rendered even when it has already been settled -- otherwise the link
+  // lands on a page that does not contain the listing it was about.
+  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing, one(parameters.show) === "all" || Boolean(focusOutcomeId));
 
   const { rows, summary } = await loadCoverage(admin);
   const show = one(parameters.show) ?? "todo";
@@ -248,7 +251,7 @@ export default async function PriceCoveragePage({ searchParams }: {
   );
 }
 
-async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean) {
+async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, showSettled: boolean) {
   const [editionResult, outcomeResult, salesResult] = await Promise.all([
     admin.from("manga_editions").select(EDITION_COLUMNS).eq("id", editionId).maybeSingle(),
     admin.from("listing_outcomes").select(OUTCOME_COLUMNS).eq("edition_id", editionId).order("last_seen_at", { ascending: false }),
@@ -283,8 +286,16 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
     checksByOutcome.set(id, list);
   }
 
-  const rows = records.map((record) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? []));
-  const outstanding = rows.filter((row) => !row.reviewedBy && !row.observationId && OUTSTANDING_STATUSES.includes(row.status));
+  const allRows = records.map((record) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? []));
+  const outstanding = allRows.filter((row) => !row.reviewedBy && !row.observationId && OUTSTANDING_STATUSES.includes(row.status));
+  const settled = allRows.length - outstanding.length;
+
+  // Only what still needs deciding. Showing the whole history put 43 cards on
+  // a page that said 31 needed a decision, so twelve already answered -- seven
+  // marked unsold, four finished, one still live -- had to be read and skipped
+  // again on every visit. Rechecking a listing you already dismissed is the
+  // slowest possible way to work through a queue.
+  const rows = showSettled ? allRows : outstanding;
 
   const sample = records[0] ?? null;
   const [counts, capabilities] = await Promise.all([
@@ -320,11 +331,18 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             </p>
           ) : <p className="outcome-message" role="alert">That edition could not be found.</p>}
           {focusMissing ? <p className="outcome-message" role="alert">That listing no longer exists, so the edition could not be opened.</p> : null}
-          {edition && isbnForSearch(edition.isbn_13) ? (
-            <div className="price-coverage-actions">
-              <FindSalesButton editionId={editionId} label={rows.length ? "Find more sales" : "Find sales"} />
-            </div>
-          ) : null}
+          <div className="price-coverage-actions">
+            {edition && isbnForSearch(edition.isbn_13)
+              ? <FindSalesButton editionId={editionId} label={outstanding.length ? "Find more sales" : "Find sales"} />
+              : null}
+            {settled ? (
+              <Link className="price-coverage-group" href={showSettled
+                ? `/price-coverage?edition=${editionId}`
+                : `/price-coverage?edition=${editionId}&show=all`}>
+                {showSettled ? `Hide the ${settled} already dealt with` : `${settled} already dealt with — show them`}
+              </Link>
+            ) : null}
+          </div>
         </div>
         {rows.length ? (
           <ListingOutcomesPanel
@@ -348,11 +366,13 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             search=""
             sort="priority"
             view="attention"
-            viewCounts={{ attention: total, watching: 0, finished: 0 }}
+            viewCounts={{ attention: outstanding.length, watching: 0, finished: settled }}
           />
         ) : (
           <p className="outcome-message" role="status">
-            No listings have been found for this edition yet. Run a sold-listing search for its ISBN to find some.
+            {settled
+              ? `Nothing left to decide here — all ${settled} listings have been dealt with. Find more sales to keep going.`
+              : "No listings have been found for this edition yet. Run a sold-listing search for its ISBN to find some."}
           </p>
         )}
       </section>
