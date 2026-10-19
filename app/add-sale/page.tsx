@@ -94,7 +94,7 @@ export default async function AddSalePage({ searchParams }: AddSalePageProps) {
     <section className="catalogue-content">
       {gradedSalePrefill ? <nav className="staff-context-links" aria-label="Graded sales task"><Link href="/graded-revisit">← Back to graded copies</Link></nav> : <nav className="staff-context-links" aria-label="Other sales tasks">
         <Link href="/review?lane=sales">Review possible sales</Link>
-        <Link href="/listing-outcomes?view=attention&queue=worth_checking">Investigate watched listings</Link>
+        <Link href="/price-coverage">Price coverage by edition</Link>
         <Link href="/price-import">Preflight a sales file</Link>
       </nav>}
       {gradedLeadId && !gradedSalePrefill ? <p role="alert">That graded lead could not be loaded. No listing details were carried over; return to the graded queue and try again.</p> : null}

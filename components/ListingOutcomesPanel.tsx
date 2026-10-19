@@ -116,6 +116,7 @@ export default function ListingOutcomesPanel({
   page, pageCount, pageSize, firstIndex, lastIndex, total,
   viewCounts, queueCounts,
   focusOutcomeId = null, focusMissing = false, focusRedirected = false,
+  basePath = "/price-coverage", showFilters = true,
 }: {
   rows: OutcomeRow[];
   capabilities: OutcomeCapability[];
@@ -140,6 +141,14 @@ export default function ListingOutcomesPanel({
   focusOutcomeId?: string | null;
   focusMissing?: boolean;
   focusRedirected?: boolean;
+  // Where this panel's own links point back to, so it can be mounted under a
+  // page other than the one it was written for.
+  basePath?: string;
+  // The eight queue tabs and three view tabs exist to make 2,945 listings
+  // navigable. Showing one edition's handful of listings needs none of them,
+  // and a row of mostly-zero tabs over four rows is the confusion this page
+  // was rebuilt to remove. The decision controls are unaffected.
+  showFilters?: boolean;
 }) {
   const focusRow = focusOutcomeId ? rows.find((row) => row.id === focusOutcomeId) ?? null : null;
   const router = useRouter();
@@ -181,7 +190,7 @@ export default function ListingOutcomesPanel({
     // every later click back to its tab and page.
     next.delete("outcome");
     setSelected(new Set());
-    router.push(`/listing-outcomes${next.size ? `?${next}` : ""}`);
+    router.push(`${basePath}${next.size ? `?${next}` : ""}`);
   }
 
   const selectable = view !== "finished";
@@ -398,13 +407,15 @@ export default function ListingOutcomesPanel({
       {focusMissing ? <p className="outcome-message" role="alert">That listing no longer exists, so it could not be opened. The queue below is unfiltered.</p> : null}
       {focusRedirected && focusRow ? <p className="outcome-message" role="status">Opened <b>{focusRow.listingTitle}</b> on page {page} of the {view === "attention" ? "review" : view} queue.</p> : null}
 
-      <div className="outcome-view-tabs" role="tablist" aria-label="Listing outcome views">
-        {([["attention", "Needs review", viewCounts.attention], ["watching", "Still watching", viewCounts.watching], ["finished", "Finished", viewCounts.finished]] as Array<[OutcomeView, string, number]>).map(([key, label, count]) => (
-          <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => go({ view: key })} role="tab" type="button">{label} <span>{count}</span></button>
-        ))}
-      </div>
+      {showFilters ? (
+        <div className="outcome-view-tabs" role="tablist" aria-label="Listing outcome views">
+          {([["attention", "Needs review", viewCounts.attention], ["watching", "Still watching", viewCounts.watching], ["finished", "Finished", viewCounts.finished]] as Array<[OutcomeView, string, number]>).map(([key, label, count]) => (
+            <button aria-selected={view === key} className={view === key ? "is-active" : ""} key={key} onClick={() => go({ view: key })} role="tab" type="button">{label} <span>{count}</span></button>
+          ))}
+        </div>
+      ) : null}
 
-      {view === "attention" ? (
+      {showFilters && view === "attention" ? (
         <div className="outcome-triage-tools">
           <div className="outcome-quick-filters" aria-label="Outcome quick filters">
             {QUEUES.map(({ key, label }) => (

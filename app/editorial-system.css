@@ -502,3 +502,74 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
   background: color-mix(in srgb, var(--rar-red) 8%, var(--rar-surface));
 }
 .review-page :is(.agent-incident-list span, .agent-last-run em, .agent-workbench-heading > a) { color: var(--rar-red); }
+
+/* ---------------------------------------------------------------- Price coverage
+   The edition checklist that replaced the watched-listing queue. Every colour
+   is a theme token, because the bug this project keeps hitting is a colour
+   defined for one theme only -- a literal here is invisible in Night mode. */
+.review-page .price-coverage-header { margin-bottom: 2.25rem; }
+.review-page .price-coverage-header h1 { margin: .35rem 0 1rem; }
+.review-page .price-coverage-progress {
+  height: .5rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--rar-line);
+  border-radius: 999px;
+  background: var(--rar-surface-soft);
+  overflow: hidden;
+}
+.review-page .price-coverage-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--rar-ink);
+}
+.review-page .price-coverage-note {
+  max-width: 62ch;
+  margin: 0 0 .6rem;
+  color: var(--rar-muted);
+  font-size: .85rem;
+  line-height: 1.55;
+}
+.review-page .price-coverage-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
+.review-page .price-coverage-tabs a {
+  padding: .45rem .85rem;
+  border: 1px solid var(--rar-line);
+  border-radius: 999px;
+  background: var(--rar-surface);
+  color: var(--rar-muted);
+  font-size: .78rem;
+  text-decoration: none;
+}
+.review-page .price-coverage-tabs a.is-active {
+  border-color: var(--rar-ink);
+  background: var(--rar-ink);
+  color: var(--rar-canvas);
+}
+
+.review-page .price-coverage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--rar-line); border: 1px solid var(--rar-line); }
+.review-page .price-coverage-row { padding: .9rem 1.1rem; background: var(--rar-surface); }
+/* The state is carried by a word in the row as well as this edge, so it is
+   never colour alone that says what needs doing. */
+.review-page .price-coverage-row.is-thin { box-shadow: inset 3px 0 0 var(--rar-red); }
+.review-page .price-coverage-row.is-stale { box-shadow: inset 3px 0 0 var(--rar-muted); }
+.review-page .price-coverage-row.is-priced { background: color-mix(in srgb, var(--rar-ink) 3%, var(--rar-surface)); }
+
+.review-page .price-coverage-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 1rem;
+  color: var(--rar-ink);
+  text-decoration: none;
+}
+.review-page .price-coverage-link:hover .price-coverage-name { text-decoration: underline; }
+.review-page .price-coverage-name { min-width: 0; font-weight: 600; }
+.review-page .price-coverage-state { color: var(--rar-muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.review-page .price-coverage-price { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.review-page .price-coverage-help { margin: .3rem 0 0; color: var(--rar-muted); font-size: .78rem; line-height: 1.5; }
+.review-page .price-coverage-group { color: var(--rar-muted); }
+
+@media (max-width: 600px) {
+  .review-page .price-coverage-link { grid-template-columns: minmax(0, 1fr) auto; }
+  .review-page .price-coverage-state { grid-column: 1; order: 2; }
+  .review-page .price-coverage-price { grid-column: 2; grid-row: 1; }
+}
