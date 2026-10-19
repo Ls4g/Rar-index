@@ -642,6 +642,8 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .coverage-print-correction { margin-top: .75rem; padding: .8rem; border: 1px solid var(--rar-line); background: var(--rar-surface); }
 .review-page .coverage-print-correction > summary { cursor: pointer; color: var(--rar-ink); font-size: .82rem; font-weight: 650; line-height: 1.4; }
 .review-page .coverage-print-correction > p { font-size: .8rem; }
+.review-page .review-options label.selected { background: var(--rar-surface-soft); color: var(--rar-ink); }
+.review-page .review-options label.selected small { color: var(--rar-muted); }
 @media (max-width: 600px) {
   .review-page .coverage-review-card { gap: .7rem; padding: .8rem; }
   .review-page .coverage-review-cover { width: 3.25rem; height: 4.5rem; }
