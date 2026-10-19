@@ -26,10 +26,11 @@ import type { ScoutRule } from "./scoutRules.ts";
 // sold field echoed the search filter rather than the item.
 export const APIFY_SOLD_ACTOR = "oTtB3VgfuE9GtxQt2";
 
-// One search returns at most this many listings. eBay rarely has more recent
-// sales than this for a single manga volume, and a cap is the only thing
-// standing between a stuck loop and a spent account.
+// The Actor's own `count` is only a requested result count. The API request
+// also sets maxItems and a run-level dollar ceiling; neither output size nor
+// a timeout alone is a spending guarantee.
 export const RESULTS_PER_SEARCH = 25;
+export const MAX_SEARCH_CHARGE_USD = 0.12;
 
 // How far back a search looks. Also the window `PRICE_CURRENT_WITHIN_DAYS`
 // uses for "current", deliberately: a price RAR quotes should be refreshable
@@ -46,6 +47,10 @@ export const SEARCH_COOLDOWN_HOURS = 12;
 
 export type ApifyBudget = { usedUsd: number; maxUsd: number; remainingUsd: number };
 
+export function hasSearchReserve(budget: ApifyBudget): boolean {
+  return budget.remainingUsd >= MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD;
+}
+
 export async function readApifyBudget(token: string): Promise<ApifyBudget> {
   const response = await fetch("https://api.apify.com/v2/users/me/limits", {
     headers: { Authorization: `Bearer ${token}` },
@@ -58,6 +63,16 @@ export async function readApifyBudget(token: string): Promise<ApifyBudget> {
 }
 
 export type SoldSearchResult = { rows: ApifyEbayRow[]; runId: string; costUsd: number };
+
+export function soldSearchRunUrl(): string {
+  const url = new URL(`https://api.apify.com/v2/acts/${APIFY_SOLD_ACTOR}/run-sync-get-dataset-items`);
+  url.searchParams.set("timeout", "120");
+  url.searchParams.set("maxItems", String(RESULTS_PER_SEARCH));
+  url.searchParams.set("maxTotalChargeUsd", MAX_SEARCH_CHARGE_USD.toFixed(2));
+  url.searchParams.set("restartOnError", "false");
+  url.searchParams.set("limit", String(RESULTS_PER_SEARCH));
+  return url.toString();
+}
 
 /**
  * One search, for one ISBN, capped.
@@ -81,22 +96,19 @@ export async function runSoldSearch(token: string, isbn: string): Promise<SoldSe
     buyingFormat: "all",
   };
 
-  // run-sync-get-dataset-items starts the run, waits, and returns the rows in
-  // one call, so there is no polling loop that could spin.
-  const response = await fetch(
-    `https://api.apify.com/v2/acts/${APIFY_SOLD_ACTOR}/run-sync-get-dataset-items?timeout=120`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
+  // Apify enforces maxTotalChargeUsd at run level for every pricing model.
+  // maxItems additionally limits charged items for pay-per-result Actors.
+  const response = await fetch(soldSearchRunUrl(), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   if (!response.ok) {
     throw new Error(`The sold-listing search failed (HTTP ${response.status}). Nothing was queued.`);
   }
   const rows = (await response.json()) as ApifyEbayRow[];
   const runId = response.headers.get("x-apify-pagination-total") ?? "";
-  return { rows: Array.isArray(rows) ? rows : [], runId, costUsd: 0 };
+  return { rows: Array.isArray(rows) ? rows.slice(0, RESULTS_PER_SEARCH) : [], runId, costUsd: 0 };
 }
 
 export type QueueOutcome = {
