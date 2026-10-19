@@ -15,6 +15,7 @@ import {
   outcomeView,
   sortOutcomes,
 } from "../lib/outcomeBrowsing.ts";
+import { SOLD_SEARCH_DISCOVERY_PROVIDER } from "../lib/listingOutcome.ts";
 
 let checks = 0;
 let failures = 0;
@@ -89,6 +90,14 @@ check("a never-checked ended listing is watching, not attention",
   outcomeView({ status: "ended_pending_check", reviewedBy: null, checkAttempts: 0 }) === "watching");
 check("an ended listing that was checked is attention",
   outcomeView({ status: "ended_pending_check", reviewedBy: null, checkAttempts: 2 }) === "attention");
+// A sold-listing search is the reason a discovered row exists, so the question
+// is already open and it must not wait a day for an automated check to ask it.
+check("a never-checked listing found by a sold search is attention, not watching",
+  outcomeView({ status: "ended_pending_check", reviewedBy: null, checkAttempts: 0, outcomeProvider: SOLD_SEARCH_DISCOVERY_PROVIDER }) === "attention");
+check("a never-checked Scout capture still waits quietly",
+  outcomeView({ status: "ended_pending_check", reviewedBy: null, checkAttempts: 0, outcomeProvider: "RAR scheduler" }) === "watching");
+check("an absent provider is treated as a Scout capture, not a discovery",
+  outcomeView({ status: "ended_pending_check", reviewedBy: null, checkAttempts: 0, outcomeProvider: null }) === "watching");
 
 console.log("\n2. Walking the pages yields every matching row exactly once");
 function traverse(options) {

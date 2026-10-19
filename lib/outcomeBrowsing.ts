@@ -4,6 +4,7 @@ import {
   type OutcomeQueue,
   type TriageableOutcome,
 } from "./listingOutcomeTriage.ts";
+import { discoveredFromSoldSearch } from "./listingOutcome.ts";
 
 export type OutcomeView = "attention" | "watching" | "finished";
 export type OutcomeSort = "priority" | "match" | "newest";
@@ -37,11 +38,27 @@ export const OUTCOME_SORTS: OutcomeSort[] = ["priority", "match", "newest"];
  * it, so it has nothing to tell a human and no question to ask. Without this
  * the review tab filled with hundreds of "should RAR keep watching?" prompts
  * about listings that were plainly still live.
+ *
+ * That reasoning holds for a listing Scout captured while it was live. It is
+ * exactly wrong for one a sold-listing search returned, where the search IS
+ * the reason the row exists and "did this sell, and for how much" is already
+ * the open question. Those go straight to "attention" so a person can open the
+ * eBay page and answer it, rather than waiting a day for an automated check to
+ * ask the same thing. The point of looking a listing up is to be able to review
+ * it now.
+ *
+ * This decides placement only. Neither path lets anything become evidence: a
+ * sold-listing search is not a sale signal, and the row is still resolved
+ * either by eBay's own item data or by a person reading the page.
  */
-export function outcomeView(row: Pick<BrowsableOutcome, "status" | "reviewedBy" | "checkAttempts">): OutcomeView {
+export function outcomeView(
+  row: Pick<BrowsableOutcome, "status" | "reviewedBy" | "checkAttempts" | "outcomeProvider">,
+): OutcomeView {
   if (row.reviewedBy || ["unsold", "review_complete"].includes(row.status)) return "finished";
   if (row.status === "active") return "watching";
-  if (row.status === "ended_pending_check" && row.checkAttempts === 0) return "watching";
+  if (row.status === "ended_pending_check" && row.checkAttempts === 0) {
+    return discoveredFromSoldSearch(row.outcomeProvider) ? "attention" : "watching";
+  }
   return "attention";
 }
 

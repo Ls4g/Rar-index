@@ -2,7 +2,7 @@ import { assessScoutListing, type ScoutEdition } from "./scoutIngest.ts";
 import type { EditionMatchAssessment } from "./editionMatch.ts";
 import type { ScoutRule } from "./scoutRules.ts";
 import { ebayMarketplaceFromUrl } from "./ebayEvidence.ts";
-import { nextOutcomeCheckAt } from "./listingOutcome.ts";
+import { nextOutcomeCheckAt, SOLD_SEARCH_DISCOVERY_PROVIDER } from "./listingOutcome.ts";
 
 // Turning Apify's eBay rows into listings RAR will ask eBay about.
 //
@@ -191,7 +191,7 @@ export function buildOutcomeRow(
     next_check_at: nextOutcomeCheckAt(0),
     outcome_reason:
       "Apify found this listing in eBay's sold-listings search index. That index is not proof of sale -- it has returned listings the seller simply ended -- so the outcome still needs checking against eBay's own item data.",
-    outcome_provider: "Apify eBay sold search (discovery only)",
+    outcome_provider: SOLD_SEARCH_DISCOVERY_PROVIDER,
     updated_at: nowIso,
   };
 }

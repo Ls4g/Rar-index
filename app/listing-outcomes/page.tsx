@@ -40,11 +40,12 @@ type BrowseRecord = {
   listing_title: string; asking_price: number | null; currency: string | null;
   sold_price: number | null; sold_currency: string | null; sold_at: string | null;
   buying_format: string | null; match_assessment: { score?: number; conflicts?: string[] } | null;
-  last_seen_at: string; outcome_reason: string | null; check_attempts: number; reviewed_by: string | null;
+  last_seen_at: string; outcome_reason: string | null; outcome_provider: string | null;
+  check_attempts: number; reviewed_by: string | null;
   edition: EditionLabelParts;
 };
 
-const BROWSE_SELECT = "id,external_id,marketplace,status,listing_title,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,match_assessment,last_seen_at,outcome_reason,check_attempts,reviewed_by,edition:manga_editions(title,series,volume_number,language)";
+const BROWSE_SELECT = "id,external_id,marketplace,status,listing_title,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,match_assessment,last_seen_at,outcome_reason,outcome_provider,check_attempts,reviewed_by,edition:manga_editions(title,series,volume_number,language)";
 const DETAIL_SELECT = "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
 function editionLabel(edition: EditionLabelParts) {
@@ -94,6 +95,7 @@ function toBrowsable(record: BrowseRecord): BrowsableOutcome {
     matchConflicts: record.match_assessment?.conflicts ?? [],
     lastSeenAt: record.last_seen_at,
     outcomeReason: record.outcome_reason,
+    outcomeProvider: record.outcome_provider,
     reviewedBy: record.reviewed_by,
     checkAttempts: record.check_attempts,
   };

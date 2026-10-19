@@ -236,6 +236,26 @@ export function classifyListingOutcome(signal: OutcomeSignal): OutcomeClassifica
 export const OUTCOME_RETRY_MINUTES = [30, 180, 720, 2880, 10_080];
 export const MAX_OUTCOME_ATTEMPTS = OUTCOME_RETRY_MINUTES.length;
 
+// How a listing got into the queue, when it was not Scout that put it there.
+//
+// This matters to one decision and no others: which tab a not-yet-checked row
+// belongs in. A Scout-captured listing waiting for its first check has nothing
+// to ask a person -- it was live when RAR last looked and may still be -- so it
+// waits quietly. A listing a sold-listing search returned is the opposite: the
+// search is the reason it exists, and the question "did this sell, and for how
+// much" is already on the table. Hiding those until an automated check has run
+// defeats the point of looking them up.
+//
+// It never changes what may become evidence. A sold-listing search is not a
+// sale signal; it has returned listings whose own page says the seller ended
+// them. The row still has to be resolved by eBay's item data or by a person
+// reading the page.
+export const SOLD_SEARCH_DISCOVERY_PROVIDER = "Apify eBay sold search (discovery only)";
+
+export function discoveredFromSoldSearch(provider: string | null | undefined) {
+  return (provider ?? "") === SOLD_SEARCH_DISCOVERY_PROVIDER;
+}
+
 export function nextOutcomeCheckAt(attempts: number, from = new Date()): string | null {
   if (attempts >= MAX_OUTCOME_ATTEMPTS) return null;
   const minutes = OUTCOME_RETRY_MINUTES[attempts];

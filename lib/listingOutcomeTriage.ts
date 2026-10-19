@@ -1,3 +1,5 @@
+import { discoveredFromSoldSearch } from "./listingOutcome.ts";
+
 export type TriageableOutcome = {
   status: string;
   listingTitle: string;
@@ -11,6 +13,9 @@ export type TriageableOutcome = {
   matchConflicts: string[];
   lastSeenAt: string;
   outcomeReason?: string | null;
+  // How the listing got into the queue. Only read to recognise a row that
+  // exists because someone looked this book up on purpose. See worthChecking.
+  outcomeProvider?: string | null;
 };
 
 export type OutcomeQueue =
@@ -75,8 +80,18 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
   const matchScore = row.matchScore ?? 0;
   const staffObservedSold = /green sold styling|supports a sale outcome/i.test(row.outcomeReason ?? "");
 
+  // The Best Offer and high-value gates below exist to surface the few rows
+  // worth a person's time out of a pile of ~1,800 ambiguous ones nobody asked
+  // for. A row that came from a deliberate sold-listing search is the opposite
+  // case: somebody chose that ISBN, so it is worth checking by construction,
+  // and a $4 paperback failing a high-value threshold is not a reason to hide
+  // it. Still subject to the graded/lot/conflict exclusions, which are about
+  // whether the listing can price one exact edition at all.
+  const discovered = discoveredFromSoldSearch(row.outcomeProvider);
+
   const worthChecking = hasVerifiedOutcome
     || staffObservedSold
+    || (discovered && !isGraded && !isLot && !hasEditionConflict)
     || (!isGraded && !isLot && !hasEditionConflict && (
       (isBestOffer && matchScore >= 50)
       || (isHighValue && matchScore >= 65)
@@ -88,6 +103,7 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
   else if (isGraded) reason = "Graded copy detected. Keep it out of the raw-manga evidence workflow.";
   else if (isLot) reason = "Lot or multi-volume listing detected. It cannot price one exact edition.";
   else if (hasEditionConflict) reason = "Edition-matching conflicts need resolving before this can become evidence.";
+  else if (discovered) reason = "Found by a sold-listing search for this edition. Open the eBay page and record what it shows.";
   else if (isBestOffer) reason = "The accepted Best Offer price may now be visible on the original eBay sold page.";
   else if (isHighValue) reason = "High-value listing with a useful edition match. Worth a closer look.";
   else if (isStale) reason = "Old unresolved listing with no new sale evidence. Safely parked for now.";
@@ -95,6 +111,10 @@ export function classifyListingOutcome(row: TriageableOutcome, now = new Date())
   let priority = matchScore * 10;
   if (hasVerifiedOutcome) priority += 10_000;
   if (staffObservedSold) priority += 7_500;
+  // Above an unprompted Best Offer row, below anything a person or eBay has
+  // already said something about: somebody asked for this book, so it should
+  // not sit underneath rows nobody requested.
+  if (discovered) priority += 5_000;
   if (isBestOffer) priority += 2_500;
   if (isHighValue) priority += 1_000;
   if (isStale) priority -= 1_000;
