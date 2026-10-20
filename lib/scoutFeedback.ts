@@ -315,19 +315,28 @@ export function analyseScoutFeedback(decisions: HumanScoutDecision[], rules: Sco
   };
 }
 
-export async function readHumanScoutDecisions(admin: SupabaseClient): Promise<HumanScoutDecision[]> {
+export async function readHumanScoutDecisions(admin: SupabaseClient, maxRows = 10_000): Promise<HumanScoutDecision[]> {
   const rows: DecisionRow[] = [];
   const pageSize = 1000;
-  for (let from = 0; from < 10_000; from += pageSize) {
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const last = Math.min(from + pageSize - 1, maxRows - 1);
     const { data, error } = await admin
       .from("scout_lead_decisions")
       .select("id,lead_id,decision,decision_notes,reviewed_by,created_at,lead:scout_listing_leads!inner(id,source_id,external_id,listing_title,first_seen_at,profile:marketplace_search_profiles!inner(edition:manga_editions!inner(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no)))")
+      // Auto-triage has produced thousands of decisions. They are audited in
+      // the database, but downloading them to build human decision examples
+      // makes the Scout page slow and can crowd actual staff examples out of
+      // the 10,000-row safety window.
+      .neq("reviewed_by", "RAR Auto-Triage")
+      .neq("reviewed_by", "RAR Market Scout")
+      .neq("reviewed_by", "RAR Market Scout system")
+      .not("reviewed_by", "ilike", "% system")
       .order("created_at", { ascending: false })
-      .range(from, from + pageSize - 1);
+      .range(from, last);
     if (error) throw new Error(`Market Scout could not read staff feedback: ${error.message}`);
     const page = (data ?? []) as unknown as DecisionRow[];
     rows.push(...page);
-    if (page.length < pageSize) break;
+    if (page.length < last - from + 1) break;
   }
 
   const latestHumanByLead = new Map<string, DecisionRow>();

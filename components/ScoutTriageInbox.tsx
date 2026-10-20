@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { formatListingEndStaffLabel, listingType } from "@/lib/liveListings";
+import { formatListingEndStaffLabel } from "@/lib/liveListings";
 import { DISMISS_LEARNING_LABELS, learningLabelFitsDecision, learningLabelName, WATCH_LEARNING_LABELS } from "@/lib/scoutDecisionLabels";
 import type { RelatedScoutDecision } from "@/lib/scoutLearningEvidence";
-import { SCOUT_HIGH_CONFIDENCE_MIN_SCORE, SCOUT_REVIEW_NOW_MIN_SCORE, isScoutNeedsEvidenceScore } from "@/lib/scoutTriagePolicy";
+import { SCOUT_REVIEW_NOW_MIN_SCORE, isScoutNeedsEvidenceScore } from "@/lib/scoutTriagePolicy";
+import type { ScoutView } from "@/lib/scoutInboxView";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type ScoutLead = {
@@ -26,7 +27,7 @@ export type ScoutLead = {
   itemEndAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
-  rawPayload: unknown;
+  listingType: string;
   score: number;
   confidence: "strong" | "partial" | "insufficient" | "conflict";
   reasons: string[];
@@ -138,7 +139,7 @@ function formatSeenDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(value));
 }
 
-type QuickView = "reviewNow" | "highConfidence" | "needsEvidence" | "endsSoon" | "graded" | "watching" | "surplusBackups" | "staleBacklog" | "lowConfidenceBacklog" | "dismissed";
+type QuickView = ScoutView;
 const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
   { key: "reviewNow", label: "Review now" },
   { key: "highConfidence", label: "High-confidence" },
@@ -162,11 +163,27 @@ const QUICK_VIEW_ORDER: Array<{ key: QuickView; label: string }> = [
 // photo picker, which prefers a raw copy for the same reason a slab is hard
 // to read: the cover sits behind plastic and a grader's label.
 
-export default function ScoutTriageInbox({ leads: initialLeads }: { leads: ScoutLead[] }) {
+function filtersForView(view: QuickView): Filters {
+  if (view === "highConfidence") return { ...DEFAULT_FILTERS, scoreBand: "75plus" };
+  if (view === "needsEvidence") return { ...DEFAULT_FILTERS, scoreBand: "50to64" };
+  if (view === "endsSoon") return { ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" };
+  if (view === "watching") return { ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all", listingKind: "all", coverage: "all" };
+  if (view === "surplusBackups") return { ...DEFAULT_FILTERS, scoreBand: "all", coverage: "surplus", listingKind: "all" };
+  if (view === "graded") return { ...DEFAULT_FILTERS, scoreBand: "all", listingKind: "graded" };
+  if (view === "staleBacklog") return { ...DEFAULT_FILTERS, scoreBand: "all", freshness: "stale", includeExpired: true, listingKind: "all", coverage: "all" };
+  if (view === "lowConfidenceBacklog") return { ...DEFAULT_FILTERS, scoreBand: "below50", listingKind: "all", coverage: "all" };
+  if (view === "dismissed") return { ...DEFAULT_FILTERS, status: "dismissed", scoreBand: "all", includeExpired: true, freshness: "all", listingKind: "all", coverage: "all" };
+  return DEFAULT_FILTERS;
+}
+
+export default function ScoutTriageInbox({ leads: initialLeads, archiveView = false, selectedView = "reviewNow", viewCounts, viewTotal }: {
+  leads: ScoutLead[]; archiveView?: boolean; selectedView?: QuickView;
+  viewCounts: Record<QuickView, number>; viewTotal: number | null;
+}) {
   const [leads, setLeads] = useState(initialLeads);
   const [reviewer, setReviewer] = useStaffReviewer();
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [activeQuickView, setActiveQuickView] = useState<QuickView | null>("reviewNow");
+  const [filters, setFilters] = useState<Filters>(() => filtersForView(selectedView));
+  const [activeQuickView, setActiveQuickView] = useState<QuickView | null>(selectedView);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
@@ -176,7 +193,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   const [bulkNote, setBulkNote] = useState("");
   const [bulkLearningLabel, setBulkLearningLabel] = useState("");
   const [message, setMessage] = useState("");
-  const [triageMode, setTriageMode] = useState<TriageMode>("focus");
+  const [triageMode, setTriageMode] = useState<TriageMode>(archiveView ? "batch" : "focus");
   const [focusIndex, setFocusIndex] = useState(0);
   const [reviewedThisSession, setReviewedThisSession] = useState(0);
   // A stable snapshot taken once on mount — used only for filtering
@@ -185,15 +202,6 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   // function outside the one place React allows that (useMemo/useState).
   const [now] = useState(() => Date.now());
 
-  function updateFilters(partial: Partial<Filters>, quickView: QuickView | null) {
-    setFilters((current) => ({ ...current, ...partial }));
-    setActiveQuickView(quickView);
-    setVisibleCount(PAGE_SIZE);
-    setSelected(new Set());
-    setFocusIndex(0);
-  }
-
-  const openLeadCount = useMemo(() => leads.filter((lead) => lead.reviewStatus !== "dismissed").length, [leads]);
   const seriesOptions = useMemo(() => [...new Set(leads.map((lead) => lead.series).filter((value): value is string => Boolean(value)))].sort(), [leads]);
   const languageOptions = useMemo(() => [...new Set(leads.map((lead) => lead.language).filter((value): value is string => Boolean(value)))].sort(), [leads]);
   const publisherOptions = useMemo(() => [...new Set(leads.map((lead) => lead.publisher).filter((value): value is string => Boolean(value)))].sort(), [leads]);
@@ -220,7 +228,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
     if (filters.currency !== "all" && lead.currency !== filters.currency) return false;
     if (filters.priceMin && (lead.listingPrice === null || lead.listingPrice < Number(filters.priceMin))) return false;
     if (filters.priceMax && (lead.listingPrice === null || lead.listingPrice > Number(filters.priceMax))) return false;
-    if (filters.listingType !== "all" && listingType(lead.rawPayload) !== filters.listingType) return false;
+    if (filters.listingType !== "all" && lead.listingType !== filters.listingType) return false;
     if (filters.endsSoonOnly && !isEndingSoon(lead.itemEndAt, now)) return false;
     if (filters.priorityOnly && !lead.isPriority) return false;
     if (filters.listingKind === "raw" && lead.isGraded) return false;
@@ -244,35 +252,6 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
   }, [filteredLeads, filters.sortBy]);
 
   const visibleLeads = sortedLeads.slice(0, visibleCount);
-
-  // Deliberately computed from the full, unfiltered lead list — stable
-  // totals a reviewer can trust regardless of whatever the filters below
-  // are currently narrowed to.
-  const quickViewCounts: Record<QuickView, number> = useMemo(() => ({
-    reviewNow: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= SCOUT_REVIEW_NOW_MIN_SCORE).length,
-    highConfidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && lead.score >= SCOUT_HIGH_CONFIDENCE_MIN_SCORE).length,
-    needsEvidence: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && isScoutNeedsEvidenceScore(lead.score)).length,
-    endsSoon: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && !lead.isGraded && isEndingSoon(lead.itemEndAt, now)).length,
-    watching: leads.filter((lead) => lead.reviewStatus === "watching").length,
-    surplusBackups: leads.filter((lead) => lead.reviewStatus === "new" && lead.isSurplusBackup).length,
-    graded: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && !lead.isSurplusBackup && lead.isGraded).length,
-    staleBacklog: leads.filter((lead) => lead.reviewStatus === "new" && lead.isStale).length,
-    lowConfidenceBacklog: leads.filter((lead) => lead.reviewStatus === "new" && !lead.isExpired && !lead.isStale && lead.score < 50).length,
-    dismissed: leads.filter((lead) => lead.reviewStatus === "dismissed").length,
-  }), [leads, now]);
-
-  function applyQuickView(view: QuickView) {
-    if (view === "reviewNow") updateFilters(DEFAULT_FILTERS, view);
-    else if (view === "highConfidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "75plus" }, view);
-    else if (view === "needsEvidence") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "50to64" }, view);
-    else if (view === "endsSoon") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", endsSoonOnly: true, sortBy: "endThenScore" }, view);
-    else if (view === "watching") updateFilters({ ...DEFAULT_FILTERS, status: "watching", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
-    else if (view === "surplusBackups") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", coverage: "surplus" }, view);
-    else if (view === "graded") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", listingKind: "graded" }, view);
-    else if (view === "staleBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "all", freshness: "stale", includeExpired: true }, view);
-    else if (view === "lowConfidenceBacklog") updateFilters({ ...DEFAULT_FILTERS, scoreBand: "below50" }, view);
-    else if (view === "dismissed") updateFilters({ ...DEFAULT_FILTERS, status: "dismissed", scoreBand: "all", includeExpired: true, freshness: "all" }, view);
-  }
 
   function onManualFilterChange(partial: Partial<Filters>) {
     setFilters((current) => ({ ...current, ...partial }));
@@ -362,18 +341,18 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       {message ? <p className="review-submit-row scout-inline-message" role="status">{message}</p> : null}
 
       <div className="scout-quick-views" role="group" aria-label="Quick views">
-        {QUICK_VIEW_ORDER.map((view) => (
-          <button className={`scout-quick-view${activeQuickView === view.key ? " is-active" : ""}`} key={view.key} onClick={() => applyQuickView(view.key)} type="button">
-            {view.label}<span>{quickViewCounts[view.key]}</span>
-          </button>
-        ))}
+        {archiveView ? <Link className="scout-quick-view" href="/scout">← Current listings</Link> : null}
+        {QUICK_VIEW_ORDER.filter((view) => !archiveView || view.key === "dismissed").map((view) =>
+          <Link className={`scout-quick-view${activeQuickView === view.key ? " is-active" : ""}`} href={view.key === "reviewNow" ? "/scout" : `/scout?view=${view.key}`} key={view.key}>
+            {view.label}{view.key !== "dismissed" || archiveView ? <span>{viewCounts[view.key]}</span> : null}
+          </Link>)}
       </div>
 
       <details className="browse-controls scout-filters-panel">
         <summary>Advanced filters</summary>
         <div className="scout-filters-grid">
           <label>Review status<select onChange={(event) => onManualFilterChange({ status: event.target.value as StatusFilter })} value={filters.status}>
-            <option value="all">Any</option><option value="new">New</option><option value="watching">Watching</option><option value="dismissed">Dismissed</option>
+            <option value="all">Any on this page</option>{archiveView ? <option value="dismissed">Dismissed</option> : <><option value="new">New</option><option value="watching">Watching</option></>}
           </select></label>
           <label>Freshness<select onChange={(event) => onManualFilterChange({ freshness: event.target.value as FreshnessFilter })} value={filters.freshness}>
             <option value="current">Seen in the last 8 days</option><option value="stale">Needs availability recheck</option><option value="all">Any freshness</option>
@@ -424,7 +403,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
       {/* Counted against open leads, not everything ever stored: a dismissed
           lead is a decision already made, and including it made the queue
           look several times larger than the work actually left. */}
-      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {openLeadCount} open listings match these filters{triageMode === "batch" ? ` · showing ${visibleLeads.length}` : ""}.</p>
+      <p className="coverage-filter-count"><strong>{filteredLeads.length}</strong> of {initialLeads.length} listings on this page match these filters{viewTotal === null ? "" : ` · ${viewTotal} in this view`}{triageMode === "batch" ? ` · showing ${visibleLeads.length}` : ""}.</p>
 
       {displayedLeads.length ? (
         <>
@@ -447,7 +426,7 @@ export default function ScoutTriageInbox({ leads: initialLeads }: { leads: Scout
                       <a className="scout-lead-title" href={lead.sourceListingUrl} rel="noreferrer" target="_blank">{lead.listingTitle}</a>
                     </div>
                     <p className="scout-lead-meta">
-                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {listingType(lead.rawPayload)} · {formatListingEndStaffLabel(lead.itemEndAt)}{lead.isExpired ? " (expired)" : lead.isStale ? " (stale — awaiting eBay recheck)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
+                      <strong>{formatPrice(lead.listingPrice, lead.currency)}</strong> · {lead.listingType} · {formatListingEndStaffLabel(lead.itemEndAt)}{lead.isExpired ? " (expired)" : lead.isStale ? " (stale — awaiting eBay recheck)" : ""} · first seen {formatSeenDate(lead.firstSeenAt)}, last seen {formatSeenDate(lead.lastSeenAt)}
                     </p>
                     <p className="scout-lead-meta">
                       <Link className="scout-lead-edition-link" href={`/edition/${lead.editionId}`} target="_blank">{lead.editionTitle ?? "Edition"}</Link>

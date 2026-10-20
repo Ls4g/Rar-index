@@ -101,8 +101,7 @@ button, input { font: inherit; }
   .staff-workspace-nav { width: 100%; margin-left: 0; justify-content: space-between; order: 3; }
   .staff-nav-panel {
     right: auto;
-    left: auto;
-    right: 0;
+    left: 0;
     min-width: 0;
     width: max-content;
     max-width: calc(100vw - 2rem);
@@ -2433,6 +2432,8 @@ html[data-theme="day"] .public-page {
 .scout-quick-view.is-active { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .scout-quick-view span { display: inline-grid; place-items: center; min-width: 1.5rem; padding: .1rem .35rem; border-radius: 999px; background: rgba(33,29,24,.08); font-variant-numeric: tabular-nums; font-size: .68rem; }
 .scout-quick-view.is-active span { background: rgba(167,51,42,.14); }
+.scout-archive-pages { display: flex; justify-content: space-between; gap: 1rem; margin: 1.5rem 0; }
+.scout-archive-pages a { color: var(--ink); font-size: .82rem; font-weight: 700; text-decoration: underline; text-underline-offset: .2rem; }
 
 .scout-filters-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 1rem; padding: 1.1rem; }
 .scout-filters-grid label { display: grid; gap: .42rem; color: var(--muted); font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
