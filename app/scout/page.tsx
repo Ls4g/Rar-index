@@ -58,43 +58,30 @@ type LeadRow = {
   reviewed_by: string | null;
 };
 
-// PostgREST caps a single response at 1000 rows regardless of .limit().
-// Current leads are read in narrow pages so every view count and coverage
-// backup stays accurate; dismissed history is read only one page at a time.
+// PostgREST caps ordinary table reads at 1,000 rows. The active inbox uses a
+// staff-only snapshot RPC so the full backlog, exact view counts, and coverage
+// backup ranking arrive in one request. Dismissed history stays paged.
 const SCOUT_PAGE_SIZE = 250;
 
-async function fetchLeads(admin: ReturnType<typeof getSupabaseAdmin>, profileIds: string[], archivePage: number | null) {
-  const pageSize = 1000;
-  const rows: LeadRow[] = [];
-  const archive = archivePage !== null;
-  const start = archive ? archivePage * SCOUT_PAGE_SIZE : 0;
-  async function readPage(offset: number, last: number) {
-    let query = admin
-      .from("scout_listing_leads")
-      .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,first_seen_at,last_seen_at,buying_options:raw_payload->item->buyingOptions,review_status,review_notes,reviewed_by")
-      .in("profile_id", profileIds)
-      .order("last_seen_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(offset, last);
-    query = archive ? query.eq("review_status", "dismissed") : query.in("review_status", ["new", "watching"]);
-    const { data, error } = await query;
-    if (error) throw new Error(`Scout leads could not be loaded: ${error.message}`);
-    return (data ?? []) as LeadRow[];
-  }
-  if (archive) {
-    rows.push(...await readPage(start, start + SCOUT_PAGE_SIZE));
-  } else {
-    // Four narrow pages in parallel instead of serialising every database
-    // round trip. Stop at the first short page; later pages are empty.
-    const concurrency = 4;
-    for (let offset = 0; ; offset += pageSize * concurrency) {
-      const pages = await Promise.all(Array.from({ length: concurrency }, (_, index) =>
-        readPage(offset + index * pageSize, offset + (index + 1) * pageSize - 1)));
-      for (const batch of pages) rows.push(...batch);
-      if (pages.some((batch) => batch.length < pageSize)) break;
-    }
-  }
-  return { rows: archive ? rows.slice(0, SCOUT_PAGE_SIZE) : rows, hasMore: archive && rows.length > SCOUT_PAGE_SIZE };
+async function fetchActiveLeads(admin: ReturnType<typeof getSupabaseAdmin>) {
+  const { data, error } = await admin.rpc("scout_active_leads_snapshot");
+  if (error) throw new Error(`Scout leads could not be loaded: ${error.message}`);
+  if (!Array.isArray(data)) throw new Error("Scout leads could not be loaded: unexpected snapshot response");
+  return data as LeadRow[];
+}
+
+async function fetchArchivedLeads(admin: ReturnType<typeof getSupabaseAdmin>, profileIds: string[], pageIndex: number) {
+  const { data, error } = await admin
+    .from("scout_listing_leads")
+    .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,listing_condition,item_end_at,first_seen_at,last_seen_at,buying_options:raw_payload->item->buyingOptions,review_status,review_notes,reviewed_by")
+    .in("profile_id", profileIds)
+    .eq("review_status", "dismissed")
+    .order("last_seen_at", { ascending: false })
+    .order("id", { ascending: true })
+    .range(pageIndex * SCOUT_PAGE_SIZE, (pageIndex + 1) * SCOUT_PAGE_SIZE);
+  if (error) throw new Error(`Scout archive could not be loaded: ${error.message}`);
+  const rows = (data ?? []) as LeadRow[];
+  return { rows: rows.slice(0, SCOUT_PAGE_SIZE), hasMore: rows.length > SCOUT_PAGE_SIZE };
 }
 
 export default async function ScoutPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string }> }) {
@@ -105,22 +92,27 @@ export default async function ScoutPage({ searchParams }: { searchParams: Promis
   const pageIndex = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage - 1, 1000) : 0;
   const admin = getSupabaseAdmin();
   const rulesPromise = loadActiveScoutRules(admin);
+  const activeLeadsPromise = archiveView ? null : fetchActiveLeads(admin);
   // Only the visible page needs nearby staff examples. The full history
   // remains available to agent learning, but cannot block this inbox.
   const memoryPromise = archiveView ? null : readHumanScoutDecisions(admin, 250)
     .then((decisions) => ({ find: createScoutMemory(decisions), ready: true }))
     .catch(() => ({ find: createScoutMemory([]), ready: false }));
-  const { data: profileData } = await admin
+  const profileRequest = admin
     .from("marketplace_search_profiles")
     .select("id,search_query,last_checked_at,edition_id,edition:manga_editions(id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no),source:sources(name)")
     .eq("is_active", true)
     .order("last_checked_at", { ascending: false, nullsFirst: false });
+  const [{ data: profileData }, activeRows] = await Promise.all([
+    profileRequest,
+    activeLeadsPromise,
+  ]);
   const profiles = (profileData ?? []) as unknown as Profile[];
   const profileIds = profiles.map((profile) => profile.id);
   const editionByProfile = new Map(profiles.map((profile) => [profile.id, profile.edition]));
-  const { rows: leadRows, hasMore: archiveHasMore } = profileIds.length
-    ? await fetchLeads(admin, profileIds, archiveView ? pageIndex : null)
-    : { rows: [] as LeadRow[], hasMore: false };
+  const { rows: leadRows, hasMore: archiveHasMore } = archiveView
+    ? profileIds.length ? await fetchArchivedLeads(admin, profileIds, pageIndex) : { rows: [] as LeadRow[], hasMore: false }
+    : { rows: activeRows ?? [], hasMore: false };
   const activeRules = await rulesPromise;
 
   // The same real eBay listing can be captured by more than one collection
