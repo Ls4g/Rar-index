@@ -134,6 +134,12 @@ export function mayDrawPriceLine(convertedSaleCount: number) {
   return convertedSaleCount >= MIN_COMPARABLE_SALES;
 }
 
+/** A range narrows the dates, not the evidence earned by the whole group.
+ * A line still needs two distinct visible dates; one date is shown as a point. */
+export function mayDrawPriceRangeLine(groupSaleCount: number, visibleDates: string[]) {
+  return mayDrawPriceLine(groupSaleCount) && new Set(visibleDates).size >= 2;
+}
+
 // Two channels rather than one palette, because a series differs along two
 // independent axes and colour alone would need a slot for every combination:
 //

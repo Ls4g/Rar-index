@@ -7,7 +7,7 @@ import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 import ChartRangeSelector from "@/components/ChartRangeSelector";
 import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
 import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
-import { buildPriceSeries, mayDrawPriceLine, seriesColourIndex, type PriceSeries, type SeriesSale } from "@/lib/priceSeries";
+import { buildPriceSeries, mayDrawPriceLine, mayDrawPriceRangeLine, seriesColourIndex, type PriceSeries, type SeriesSale } from "@/lib/priceSeries";
 
 type PriceHistoryChartProps = { sales: SeriesSale[]; rates: FxRate[] };
 type DisplaySale = ConvertedSale<SeriesSale>;
@@ -37,7 +37,7 @@ function formatAxisDate(time: number, includeYear: boolean) {
 function formatAxisPrice(value: number, currency: string) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency", currency, currencyDisplay: "narrowSymbol",
-    maximumFractionDigits: value > 0 && value < 5 ? 2 : 0,
+    maximumFractionDigits: value > 0 && value < 10 ? 2 : 0,
   }).format(value);
 }
 
@@ -166,7 +166,11 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
   const inRange = selected?.convertedSales.filter((sale) => cutoff === null || saleTime(String(sale.sold_date)) >= cutoff) ?? [];
   const usingFallback = Boolean(selected && cutoff !== null && !inRange.length);
   const shownSales = usingFallback ? selected?.convertedSales ?? [] : inRange;
-  const hasLine = mayDrawPriceLine(shownSales.length);
+  const distinctDates = new Set(shownSales.map((sale) => sale.sold_date)).size;
+  // The three-sale evidence bar belongs to the comparison group, not the
+  // viewport. A short range should never replace an established chart with
+  // a different UI; one sale is a point and two dated sales can retain a line.
+  const hasLine = mayDrawPriceRangeLine(selected?.convertedSales.length ?? 0, shownSales.map((sale) => String(sale.sold_date)));
   const plot = makePlot(shownSales);
   const active = plot?.points.find((point) => pointKey(point.sale) === activeKey) ?? plot?.points.at(-1) ?? null;
   const colourIndex = selected ? seriesColourIndex(prepared.series, selected.id) : 0;
@@ -239,14 +243,12 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
               <p className="market-chart-group-name">{selected.label}</p>
               <strong className="market-chart-active-price">{formatPrice(active.sale.converted_price, currency)}</strong>
               <p className="market-chart-active-date">Sold {formatSaleDate(String(active.sale.sold_date))}{active.sale.currency !== currency ? ` · originally ${formatPrice(active.sale.sale_price, active.sale.currency)}` : ""}</p>
-              {hasLine && active.sale.source_listing_url ? <a className="market-chart-active-source" href={active.sale.source_listing_url} rel="noreferrer" target="_blank">View this sale’s original listing ↗</a> : null}
+              {active.sale.source_listing_url ? <a className="market-chart-active-source" href={active.sale.source_listing_url} rel="noreferrer" target="_blank">View this sale’s original listing ↗</a> : null}
             </div>
             <span className="market-chart-count">{shownSales.length} verified sale{shownSales.length === 1 ? "" : "s"}</span>
           </div>
 
-          {hasLine ? (
-            <>
-              <div className="market-chart-frame">
+          <div className="market-chart-frame">
                 <div className="market-chart-y-axis" aria-label={`Price scale from ${formatPrice(plot.min, currency)} to ${formatPrice(plot.max, currency)}`}>
                   {plot.ruler.major.map(({ value, y }) => (
                     <span key={value} style={{ top: `${y / CHART_HEIGHT * 100}%` }}>{formatAxisPrice(value, currency)}</span>
@@ -257,24 +259,27 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
                     {plot.ruler.major.map(({ value, y }) => <line className="market-chart-grid" key={value} x1="0" x2={CHART_WIDTH} y1={y} y2={y} />)}
                     <line className="market-chart-ruler-spine" x1="0" x2="0" y1={INSET_Y} y2={CHART_HEIGHT - INSET_Y} />
                     {plot.ruler.minor.map(({ y, midpoint }, index) => <line className={midpoint ? "market-chart-ruler-midpoint" : "market-chart-ruler-tick"} key={index} x1="0" x2={midpoint ? 34 : 22} y1={y} y2={y} />)}
-                    <path className="market-chart-area" d={plot.area} />
-                    <path className="market-chart-line" d={plot.line} />
+                    {hasLine ? <><path className="market-chart-area" d={plot.area} /><path className="market-chart-line" d={plot.line} /></> : null}
                     {active ? <line className="market-chart-guide" x1={active.x} x2={active.x} y1={INSET_Y} y2={CHART_HEIGHT - INSET_Y} /> : null}
                   </svg>
                   {plot.points.map((point) => <span aria-hidden="true" className="market-chart-sale-point" key={pointKey(point.sale)} style={{ left: `${point.x / CHART_WIDTH * 100}%`, top: `${point.y / CHART_HEIGHT * 100}%` }} />)}
                   {active ? <span aria-hidden="true" className="market-chart-marker" style={{ left: `${active.x / CHART_WIDTH * 100}%`, top: `${active.y / CHART_HEIGHT * 100}%` }} /> : null}
+                  {distinctDates === 1 && shownSales.length > 1 ? <span className="market-chart-overlap-label">{shownSales.length} sales on {formatAxisDate(plot.firstTime, false)}</span> : null}
                   {active && inspecting ? <span aria-hidden="true" className={`market-chart-tooltip${active.y < 60 ? " is-below" : ""}`} style={{ left: `${Math.max(16, Math.min(84, active.x / CHART_WIDTH * 100))}%`, top: `${active.y / CHART_HEIGHT * 100}%` }}><strong>{formatPrice(active.sale.converted_price, currency)}</strong><small>{formatSaleDate(String(active.sale.sold_date))}</small></span> : null}
                 </div>
-              </div>
-              <div className={`market-chart-x-axis${plot.labels.length === 1 ? " is-single" : ""}${plot.labels.length === 5 ? " has-five-ticks" : ""}`} aria-label="Calendar dates, earliest to latest">
-                {plot.labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
-              </div>
-              {recordedLow !== null && recordedHigh !== null ? <div className="market-chart-recorded-range"><span>Lowest recorded<strong>{formatPrice(recordedLow, currency)}</strong></span><span>Highest recorded<strong>{formatPrice(recordedHigh, currency)}</strong></span></div> : null}
-              <p className="market-chart-footnote">Calendar dates run left to right. Move across the line for each sale’s exact date and price; the line does not estimate prices between sales.</p>
-            </>
-          ) : (
+          </div>
+          <div className={`market-chart-x-axis${plot.labels.length === 1 ? " is-single" : ""}${plot.labels.length === 5 ? " has-five-ticks" : ""}`} aria-label="Calendar dates, earliest to latest">
+            {plot.labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
+          </div>
+          {recordedLow !== null && recordedHigh !== null ? <div className="market-chart-recorded-range"><span>Lowest recorded<strong>{formatPrice(recordedLow, currency)}</strong></span><span>Highest recorded<strong>{formatPrice(recordedHigh, currency)}</strong></span></div> : null}
+          <p className="market-chart-footnote">{hasLine ? "Calendar dates run left to right. Move across the line for each sale’s exact date and price; the line does not estimate prices between sales." : "Each point is a recorded sale. Sales on the same date and at the same price can overlap; their individual receipts are listed below."}</p>
+          {!hasLine ? (
             <div className="market-chart-sparse">
-              <p>{shownSales.length} recorded sale{shownSales.length === 1 ? "" : "s"} for this group. {MIN_COMPARABLE_SALES} are needed for a line, so the receipts are shown directly.</p>
+              <p>{!selected.chartable
+                ? `${shownSales.length} sale${shownSales.length === 1 ? "" : "s"} in this group. ${MIN_COMPARABLE_SALES} comparable sales are needed before RAR draws a trend line.`
+                : distinctDates === 1 && shownSales.length > 1
+                  ? `${shownSales.length} sales share the same date. They remain separate receipts below, even if their points overlap on the chart.`
+                  : "Only one sale falls in this time range. It remains on the chart as a point, with its receipt below."}</p>
               <div className="market-chart-sale-cards">
                 {[...shownSales].reverse().map((sale) => (
                   <div className="market-chart-sale-card" key={pointKey(sale)}>
@@ -286,7 +291,7 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
         </>
       ) : null}
 

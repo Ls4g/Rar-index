@@ -5,7 +5,7 @@
 // rules are exactly as strict as they were when each group had its own chart.
 // Every case here is a way two markets could have been silently pooled into
 // one line.
-import { buildPriceSeries, defaultVisibleSeries, mayDrawPriceLine, seriesColourIndex } from "../lib/priceSeries.ts";
+import { buildPriceSeries, defaultVisibleSeries, mayDrawPriceLine, mayDrawPriceRangeLine, seriesColourIndex } from "../lib/priceSeries.ts";
 
 let failures = 0;
 function check(name, condition, extra = "") {
@@ -92,6 +92,10 @@ console.log("\n--- the three-sale minimum still governs a line ---");
   check("a two-sale group remains selectable for its individual points", defaultVisibleSeries(series).includes(firstSeries.id));
   check("two sales do not make a line after conversion", !mayDrawPriceLine(2));
   check("three same-group sales make a line after conversion", mayDrawPriceLine(3));
+  check("a short range retains a line after the full group earned it", mayDrawPriceRangeLine(3, ["2026-02-01", "2026-03-01"]));
+  check("one sale in range stays a point, not a trend", !mayDrawPriceRangeLine(3, ["2026-03-01"]));
+  check("same-day sales do not create a zero-width line", !mayDrawPriceRangeLine(3, ["2026-03-01", "2026-03-01", "2026-03-01"]));
+  check("two sales in the full group never earn a line", !mayDrawPriceRangeLine(2, ["2026-02-01", "2026-03-01"]));
 }
 
 console.log("\n--- undated sales cannot be plotted ---");
