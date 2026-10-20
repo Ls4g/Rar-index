@@ -529,6 +529,10 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
   font-size: .85rem;
   line-height: 1.55;
 }
+.review-page .price-coverage-inbox { margin: 0 0 2.25rem; padding: 1.25rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
+.review-page .price-coverage-inbox h2 { margin: .3rem 0; color: var(--rar-ink); font-size: clamp(1.4rem, 3vw, 2rem); }
+.review-page .price-coverage-inbox > p:not(.eyebrow) { color: var(--rar-muted); font-size: .85rem; line-height: 1.5; }
+.review-page .price-coverage-inbox .price-coverage-list { margin-top: 1rem; }
 .review-page .price-coverage-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
 .review-page .price-coverage-tabs a {
   padding: .45rem .85rem;

@@ -21,6 +21,7 @@ import FindSalesButton from "@/components/FindSalesButton";
 import PriceCoverageReview from "@/components/PriceCoverageReview";
 import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
+import { isCurrentSalesFinding, isOlderWatchedListing } from "@/lib/salesInbox";
 
 // Getting a current price onto every edition.
 //
@@ -41,12 +42,7 @@ const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13";
 const SALE_COLUMNS =
   "id,edition_id,sold_date,sale_price,currency,listing_title,source_listing_url,match_status,sale_status,is_verified,grading_company,grade_label,print_classification,printing_proof_url,known_printing_number";
 const OUTCOME_COLUMNS =
-  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
-
-// A listing still wanting a human decision. Anything a person has already
-// settled, or that produced a sale, is finished and must not be counted as
-// outstanding work.
-const OUTSTANDING_STATUSES = ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"];
+  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,discovery_provider:original_snapshot->>provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -95,7 +91,7 @@ type OutcomeRecord = {
   sold_price: number | null; sold_currency: string | null; sold_at: string | null;
   buying_format: string | null; bid_count: number | null;
   scheduled_end_at: string | null; first_seen_at: string; last_seen_at: string;
-  outcome_reason: string | null; outcome_provider: string | null;
+  outcome_reason: string | null; outcome_provider: string | null; discovery_provider: string | null;
   match_assessment: { score?: number; confidence?: string; reasons?: string[]; conflicts?: string[] } | null;
   check_attempts: number; next_check_at: string | null; last_error: string | null;
   reviewed_by: string | null; resulting_observation_id: string | null;
@@ -143,8 +139,8 @@ async function loadCoverage(admin: Admin) {
     readAll<CoverageEdition>(admin, "manga_editions", EDITION_COLUMNS),
     readAll<StaffVerifiedSale>(admin, "price_observations", SALE_COLUMNS,
       { column: "match_status", value: "verified_match" }),
-    readAll<{ edition_id: string; status: string; reviewed_by: string | null; resulting_observation_id: string | null }>(
-      admin, "listing_outcomes", "id,edition_id,status,reviewed_by,resulting_observation_id"),
+    readAll<{ edition_id: string; status: string; discovery_provider: string | null; reviewed_by: string | null; resulting_observation_id: string | null }>(
+      admin, "listing_outcomes", "id,edition_id,status,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id"),
   ]);
 
   const salesByEdition = new Map<string, SeriesSale[]>();
@@ -155,15 +151,24 @@ async function loadCoverage(admin: Admin) {
   }
 
   const waitingByEdition = new Map<string, number>();
+  const legacyByEdition = new Map<string, number>();
   for (const outcome of outcomes) {
-    if (outcome.reviewed_by || outcome.resulting_observation_id) continue;
-    if (!OUTSTANDING_STATUSES.includes(outcome.status)) continue;
-    waitingByEdition.set(outcome.edition_id, (waitingByEdition.get(outcome.edition_id) ?? 0) + 1);
+    if (isCurrentSalesFinding(outcome)) waitingByEdition.set(outcome.edition_id, (waitingByEdition.get(outcome.edition_id) ?? 0) + 1);
+    else if (isOlderWatchedListing(outcome)) legacyByEdition.set(outcome.edition_id, (legacyByEdition.get(outcome.edition_id) ?? 0) + 1);
   }
 
   const rows = sortCoverage(editions.map((edition) =>
     assessEditionCoverage(edition, salesByEdition.get(edition.id) ?? [], waitingByEdition.get(edition.id) ?? 0)));
-  return { rows, summary: coverageSummary(rows) };
+  return { rows, summary: coverageSummary(rows), legacyByEdition };
+}
+
+function InboxRow({ row }: { row: EditionCoverage }) {
+  return <li className="price-coverage-row is-thin">
+    <Link className="price-coverage-link" href={`/price-coverage?edition=${row.edition.id}`}>
+      <span className="price-coverage-name">{editionLabel(row.edition)}</span>
+      <span className="price-coverage-state">{row.waitingToCheck} finding{row.waitingToCheck === 1 ? "" : "s"} to review →</span>
+    </Link>
+  </li>;
 }
 
 function CoverageRow({ row }: { row: EditionCoverage }) {
@@ -216,10 +221,11 @@ export default async function PriceCoveragePage({ searchParams }: {
   // A focused listing is one the Decisions page sent here by name, so it must
   // be rendered even when it has already been settled -- otherwise the link
   // lands on a page that does not contain the listing it was about.
-  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing, one(parameters.show) === "all" || Boolean(focusOutcomeId), parameters);
+  if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing,
+    focusOutcomeId || one(parameters.show) === "all" ? "all" : one(parameters.show) === "legacy" ? "legacy" : "current", parameters);
 
-  const { rows, summary } = await loadCoverage(admin);
-  const show = one(parameters.show) ?? "todo";
+  const { rows, summary, legacyByEdition } = await loadCoverage(admin);
+  const show = one(parameters.show) === "all" ? "all" : one(parameters.show) === "legacy" ? "legacy" : "todo";
   const series = (one(parameters.series) ?? "").trim();
 
   // Grouped case-insensitively on purpose. The catalogue holds both "One Piece"
@@ -232,7 +238,11 @@ export default async function PriceCoveragePage({ searchParams }: {
   const selected = seriesOptions.find((option) => option.key === series.toLocaleLowerCase()) ?? null;
 
   const inSeries = selected ? rows.filter((row) => seriesKey(row.edition.series) === selected.key) : rows;
-  const visible = show === "all" ? inSeries : inSeries.filter((row) => row.state !== "priced");
+  const inboxRows = inSeries.filter((row) => row.waitingToCheck > 0);
+  const inboxCount = inboxRows.reduce((count, row) => count + row.waitingToCheck, 0);
+  const legacyRows = inSeries.filter((row) => (legacyByEdition.get(row.edition.id) ?? 0) > 0);
+  const legacyCount = legacyRows.reduce((count, row) => count + (legacyByEdition.get(row.edition.id) ?? 0), 0);
+  const visible = show === "all" ? inSeries : show === "legacy" ? legacyRows : inSeries.filter((row) => row.state !== "priced");
 
   // The headline counts whatever is being looked at. Filtering to One Piece and
   // still being told about all 235 editions would answer a question nobody
@@ -258,7 +268,7 @@ export default async function PriceCoveragePage({ searchParams }: {
             <span style={{ width: `${percent}%` }} />
           </div>
           <p className="price-coverage-note">
-            Each row shows how many more comparable sales it needs for a price. Find sales searches eBay through Apify, then opens the findings for your decision. {shown.waitingToCheck} already waiting for review.
+            Each row shows how many more comparable sales it needs for a price. Find sales searches eBay through Apify, then opens the findings for your decision.
           </p>
 
           {/* A plain GET form, so the filter is a URL anyone can bookmark or
@@ -273,9 +283,9 @@ export default async function PriceCoveragePage({ searchParams }: {
                 </option>
               ))}
             </select>
-            {show === "all" ? <input name="show" type="hidden" value="all" /> : null}
+            {show !== "todo" ? <input name="show" type="hidden" value={show} /> : null}
             <button type="submit">Show</button>
-            {selected ? <Link className="price-coverage-group" href={show === "all" ? "/price-coverage?show=all" : "/price-coverage"}>Clear</Link> : null}
+            {selected ? <Link className="price-coverage-group" href={show === "todo" ? "/price-coverage" : `/price-coverage?show=${show}`}>Clear</Link> : null}
           </form>
 
           <div className="price-coverage-tabs">
@@ -285,18 +295,31 @@ export default async function PriceCoveragePage({ searchParams }: {
             <Link className={show === "all" ? "is-active" : ""} href={`/price-coverage?show=all${keepSeries}`}>
               Everything ({shown.total})
             </Link>
+            <Link className={show === "legacy" ? "is-active" : ""} href={`/price-coverage?show=legacy${keepSeries}`}>
+              Older watched listings ({legacyCount})
+            </Link>
           </div>
         </div>
+        {show === "todo" ? <section className="price-coverage-inbox" aria-labelledby="sales-inbox-heading">
+          <p className="eyebrow">New sales inbox</p>
+          <h2 id="sales-inbox-heading">{inboxCount} finding{inboxCount === 1 ? "" : "s"} ready for review</h2>
+          <p>These are leads from eBay sold searches or explicit sold signals. Open the original listing before approving any sale.</p>
+          {inboxRows.length ? <ol className="price-coverage-list">{inboxRows.map((row) => <InboxRow key={row.edition.id} row={row} />)}</ol>
+            : <p className="outcome-message" role="status">No new findings are waiting.</p>}
+        </section> : null}
+        {show === "legacy" ? <p className="price-coverage-note">Older watched listings are kept here, separate from the new sales inbox. They have not been deleted or counted as sales.</p> : null}
         <ol className="price-coverage-list">
-          {visible.map((row) => <CoverageRow key={row.edition.id} row={row} />)}
+          {visible.map((row) => show === "legacy"
+            ? <li className="price-coverage-row" key={row.edition.id}><Link className="price-coverage-link" href={`/price-coverage?edition=${row.edition.id}&show=legacy`}><span className="price-coverage-name">{editionLabel(row.edition)}</span><span className="price-coverage-state">{legacyByEdition.get(row.edition.id)} older listings →</span></Link></li>
+            : <CoverageRow key={row.edition.id} row={row} />)}
         </ol>
-        {visible.length === 0 ? <p className="outcome-message" role="status">Every edition has a current price.</p> : null}
+        {visible.length === 0 ? <p className="outcome-message" role="status">{show === "legacy" ? "No older watched listings are waiting." : "Every edition has a current price."}</p> : null}
       </section>
     </main>
   );
 }
 
-async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, showSettled: boolean, search: { searched?: string | string[]; found?: string | string[]; queued?: string | string[]; known?: string | string[]; excluded?: string | string[]; recent?: string | string[] }) {
+async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, view: "current" | "legacy" | "all", search: { searched?: string | string[]; found?: string | string[]; queued?: string | string[]; known?: string | string[]; excluded?: string | string[]; recent?: string | string[] }) {
   const [editionResult, outcomeResult, salesResult] = await Promise.all([
     admin.from("manga_editions").select(EDITION_COLUMNS).eq("id", editionId).maybeSingle(),
     admin.from("listing_outcomes").select(OUTCOME_COLUMNS).eq("edition_id", editionId).order("last_seen_at", { ascending: false }),
@@ -310,9 +333,10 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
   const unidentifiedSales = verifiedSales
     .filter((sale) => sale.print_classification === "printing_not_identified")
     .sort((left, right) => right.sale_price - left.sale_price);
+  const currentRecords = records.filter(isCurrentSalesFinding);
+  const legacyRecords = records.filter(isOlderWatchedListing);
   const coverage = edition
-    ? assessEditionCoverage(edition, verifiedSales,
-      records.filter((record) => !record.reviewed_by && !record.resulting_observation_id && OUTSTANDING_STATUSES.includes(record.status)).length)
+    ? assessEditionCoverage(edition, verifiedSales, currentRecords.length)
     : null;
 
   const { data: checkData } = records.length
@@ -336,16 +360,18 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
     checksByOutcome.set(id, list);
   }
 
-  const allRows = records.map((record) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? []));
-  const outstanding = allRows.filter((row) => !row.reviewedBy && !row.observationId && OUTSTANDING_STATUSES.includes(row.status));
-  const settled = allRows.length - outstanding.length;
+  const convert = (record: OutcomeRecord) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? []);
+  const allRows = records.map(convert);
+  const outstanding = currentRecords.map(convert);
+  const legacy = legacyRecords.map(convert);
+  const settled = allRows.length - outstanding.length - legacy.length;
 
   // Only what still needs deciding. Showing the whole history put 43 cards on
   // a page that said 31 needed a decision, so twelve already answered -- seven
   // marked unsold, four finished, one still live -- had to be read and skipped
   // again on every visit. Rechecking a listing you already dismissed is the
   // slowest possible way to work through a queue.
-  const rows = showSettled ? allRows : outstanding;
+  const rows = view === "all" ? allRows : view === "legacy" ? legacy : outstanding;
   const wasSearched = one(search.searched) === "1";
   const searchCount = (key: "found" | "queued" | "known" | "excluded") => Math.max(0, Number(one(search[key]) ?? 0) || 0);
 
@@ -354,7 +380,7 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
   // when someone explicitly opens the advanced evidence view for one listing.
   let counts: Awaited<ReturnType<typeof readWatchToSaleMetrics>> | null = null;
   let capabilities: OutcomeCapability[] = [];
-  if (focusOutcomeId || showSettled) {
+  if (focusOutcomeId || view !== "current") {
     const sample = records[0] ?? null;
     [counts, capabilities] = await Promise.all([
       readWatchToSaleMetrics(admin),
@@ -397,16 +423,13 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             {edition && isbnForSearch(edition.isbn_13)
               ? <FindSalesButton editionId={editionId} label={outstanding.length ? "Find more sales" : "Find sales"} />
               : null}
-            {settled ? (
-              <Link className="price-coverage-group" href={showSettled
-                ? `/price-coverage?edition=${editionId}`
-                : `/price-coverage?edition=${editionId}&show=all`}>
-                {showSettled ? `Hide the ${settled} already dealt with` : `${settled} already dealt with — show them`}
-              </Link>
-            ) : null}
+            {view !== "current" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}`}>← New sales findings</Link> : null}
+            {legacy.length && view !== "legacy" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}&show=legacy`}>Older watched listings ({legacy.length})</Link> : null}
+            {settled && view !== "all" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}&show=all`}>All listing history ({allRows.length})</Link> : null}
           </div>
         </div>
-        {!focusOutcomeId && !showSettled ? <PriceCoverageReview editionId={editionId} initialRows={outstanding} /> : rows.length ? (
+        {view === "legacy" ? <p className="price-coverage-note">These older watched listings remain available for investigation. They are not verified sales.</p> : null}
+        {!focusOutcomeId && view === "current" ? <PriceCoverageReview editionId={editionId} initialRows={outstanding} /> : rows.length ? (
           <ListingOutcomesPanel
             basePath={`/price-coverage?edition=${editionId}`}
             showFilters={false}
@@ -428,13 +451,11 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
             search=""
             sort="priority"
             view="attention"
-            viewCounts={{ attention: outstanding.length, watching: 0, finished: settled }}
+            viewCounts={{ attention: outstanding.length + legacy.length, watching: 0, finished: settled }}
           />
         ) : (
           <p className="outcome-message" role="status">
-            {settled
-              ? `Nothing left to decide here — all ${settled} listings have been dealt with. Find more sales to keep going.`
-              : "No listings have been found for this edition yet. Run a sold-listing search for its ISBN to find some."}
+            {view === "legacy" ? "No older watched listings for this edition." : "No new findings for this edition. Run a sold-listing search for its ISBN to find some."}
           </p>
         )}
         {unidentifiedSales.length ? <details className="coverage-print-corrections" id="printing-corrections">

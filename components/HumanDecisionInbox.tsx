@@ -143,6 +143,7 @@ function confidenceLabel(value: number | null) {
 export default function HumanDecisionInbox({
   initialFilter = "all",
   sales,
+  salesFindingCount,
   printing,
   catalogue,
   covers,
@@ -154,6 +155,7 @@ export default function HumanDecisionInbox({
 }: {
   initialFilter?: "all" | DecisionLane;
   sales: SaleDecision[];
+  salesFindingCount: number;
   printing: PrintDecision[];
   catalogue: CatalogueDecision[];
   covers: CoverDecision[];
@@ -190,8 +192,8 @@ export default function HumanDecisionInbox({
   const catalogueReports = visibleCommunityReports.filter((item) => item.reportType !== "sale");
 
   const counts = {
-    all: visibleSales.length + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleGradingConflicts.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
-    sales: visibleSales.length + visiblePrinting.length + visibleOutcomes.length + visibleGradingConflicts.length + saleReports.length,
+    all: visibleSales.length + salesFindingCount + visiblePrinting.length + visibleCatalogue.length + visibleCovers.length + visibleOutcomes.length + visibleGradingConflicts.length + visibleCommunityReports.length + visibleCatalogueRequests.length + highConfidenceProposals.length,
+    sales: visibleSales.length + salesFindingCount + visiblePrinting.length + visibleOutcomes.length + visibleGradingConflicts.length + saleReports.length,
     catalogue: visibleCatalogue.length + visibleCovers.length + visibleCatalogueRequests.length + catalogueReports.length,
     plans: highConfidenceProposals.length,
   };
@@ -395,6 +397,12 @@ export default function HumanDecisionInbox({
       </nav>
 
       {empty ? <div className="review-empty"><strong>No human input is needed.</strong><p>The agents can continue preparing work in the background.</p></div> : null}
+
+      {canShow("sales") && salesFindingCount > 0 ? <article className="human-decision-card">
+        <div className="human-decision-question"><span>New sales inbox</span><h2>{salesFindingCount} eBay sold-search finding{salesFindingCount === 1 ? "" : "s"} need your check</h2></div>
+        <p>They are organised by edition in Sales inbox. A sold-search result is a lead, not a verified sale; check its original listing before approving it.</p>
+        <div className="human-decision-actions"><Link href="/price-coverage">Review findings →</Link></div>
+      </article> : null}
 
       {canShow("sales") && visibleSales.map((item) => (
         <article className="human-decision-card" key={item.observationId}>

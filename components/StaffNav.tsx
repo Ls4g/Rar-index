@@ -6,8 +6,8 @@ type NavGroup = { label: string; links: NavLink[] };
 
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/review", label: "Decisions" },
-  { href: "/price-coverage", label: "Price coverage" },
-  { href: "/add-sale", label: "Sales" },
+  { href: "/price-coverage", label: "Sales inbox" },
+  { href: "/add-sale", label: "Add sale" },
   { href: "/catalogue-review", label: "Catalogue" },
 ];
 

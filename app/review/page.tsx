@@ -6,6 +6,7 @@ import { catalogueOneClickApprovalBlocker, type CatalogueApprovalQueueRow, type 
 import { looksGraded } from "@/lib/editionMatch";
 import { hasUnresolvedGrading } from "@/lib/gradingEvidence";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { APIFY_SOLD_SEARCH_PROVIDER } from "@/lib/salesInbox";
 
 export const dynamic = "force-dynamic";
 
@@ -170,7 +171,7 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
   const parameters = await searchParams;
   const initialFilter = parameters.lane === "sales" || parameters.lane === "catalogue" || parameters.lane === "plans" ? parameters.lane : "all";
   const admin = getSupabaseAdmin();
-  const [saleResult, printResult, actionResult, catalogueResult, coverResult, outcomeResult, communityResult, requestResult, gradingResult, knownEditionResult, latestCycleResult, incidentResult] = await Promise.all([
+  const [saleResult, printResult, actionResult, catalogueResult, coverResult, outcomeResult, salesFindingResult, communityResult, requestResult, gradingResult, knownEditionResult, latestCycleResult, incidentResult] = await Promise.all([
     admin.from("price_review_queue").select("observation_id,listing_title,source_listing_url,sold_date,sale_price,currency,match_notes,edition_title,edition_series,edition_volume_number,edition_language").eq("match_status", "needs_review").order("queued_at", { ascending: false }).limit(40),
     admin.from("print_classification_queue").select("observation_id,title,series,volume_number,language,listing_title,source_listing_url").limit(40),
     admin.from("agent_actions").select("id,agent_key,action_type,title,rationale,confidence,target_id,evidence,proposed_payload").eq("status", "proposed").order("created_at", { ascending: false }).limit(100),
@@ -180,6 +181,10 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
     // stay available in Sales > Investigate watched listings, but do not ask
     // staff to repeatedly approve another watch cycle.
     admin.from("listing_outcomes").select("id,status,buying_format,outcome_provider,listing_title,source_listing_url,sold_price,sold_currency,sold_at,asking_price,currency,match_assessment,edition:manga_editions(title,series,volume_number,language)").eq("status", "sold_candidate").is("reviewed_by", null).order("sold_at", { ascending: false, nullsFirst: false }).limit(80),
+    admin.from("listing_outcomes").select("id", { count: "exact", head: true })
+      .contains("original_snapshot", { provider: APIFY_SOLD_SEARCH_PROVIDER })
+      .in("status", ["ended_pending_check", "ambiguous", "inaccessible"])
+      .is("reviewed_by", null).is("resulting_observation_id", null),
     admin.from("community_sale_reports").select("id,report_type,source_listing_url,listing_title,reported_price,currency,reporter_notes,edition:manga_editions(title,series,volume_number,language)").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
     admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,original_source_url,requester_notes").eq("status", "pending").order("created_at", { ascending: false }).limit(30),
     // Verified sales whose grading contradicts itself: a title that mentions
@@ -207,7 +212,8 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
     ? null
     : (["degraded", "failed"].includes(latestCycle?.status ?? "") || (incidentResult.count ?? 0) > 0);
 
-  const errors = [saleResult.error, printResult.error, actionResult.error, catalogueResult.error, coverResult.error, outcomeResult.error, communityResult.error, requestResult.error, gradingResult.error].filter(Boolean);
+  const errors = [saleResult.error, printResult.error, actionResult.error, catalogueResult.error, coverResult.error, outcomeResult.error, salesFindingResult.error, communityResult.error, requestResult.error, gradingResult.error].filter(Boolean);
+  const salesFindingCount = salesFindingResult.count ?? 0;
   const actions = (actionResult.data ?? []) as AgentAction[];
   const printByObservation = new Map(((printResult.data ?? []) as PrintRow[]).map((row) => [row.observation_id, row]));
   const printActions = actions.filter((action) => action.action_type === "suggest_print_classification" && action.target_id && printByObservation.has(action.target_id));
@@ -355,7 +361,7 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
       editionLabel: editionLabel({ title: row.edition?.title, series: row.edition?.series, volume: row.edition?.volume_number, language: row.edition?.language }),
     }));
 
-  const actionableCount = sales.length + printing.length + catalogue.length + covers.length + outcomes.length + communityReports.length + catalogueRequests.length + gradingConflicts.length + agentProposals.filter((action) => action.confidence !== null && action.confidence >= 0.9).length;
+  const actionableCount = sales.length + salesFindingCount + printing.length + catalogue.length + covers.length + outcomes.length + communityReports.length + catalogueRequests.length + gradingConflicts.length + agentProposals.filter((action) => action.confidence !== null && action.confidence >= 0.9).length;
 
   return (
     <main className="review-page human-decisions-page">
@@ -373,7 +379,7 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
 
       {errors.length ? <section className="review-list-section"><div className="review-empty"><strong>Part of the decision inbox could not load.</strong><p>{errors[0]?.message}</p></div></section> : (
         <section className="review-list-section human-decisions-section">
-          <HumanDecisionInbox key={initialFilter} initialFilter={initialFilter} catalogue={catalogue} catalogueRequests={catalogueRequests} communityReports={communityReports} covers={covers} gradingConflicts={gradingConflicts} outcomes={outcomes} printing={printing} proposals={agentProposals} sales={sales} />
+          <HumanDecisionInbox key={initialFilter} initialFilter={initialFilter} catalogue={catalogue} catalogueRequests={catalogueRequests} communityReports={communityReports} covers={covers} gradingConflicts={gradingConflicts} outcomes={outcomes} printing={printing} proposals={agentProposals} sales={sales} salesFindingCount={salesFindingCount} />
         </section>
       )}
     </main>

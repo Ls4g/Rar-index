@@ -36,6 +36,7 @@ export default async function GradingFixturePage() {
           </p>
         </div>
         <HumanDecisionInbox
+          salesFindingCount={0}
           catalogue={[]}
           catalogueRequests={[]}
           communityReports={[]}
