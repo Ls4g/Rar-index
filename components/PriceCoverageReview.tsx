@@ -24,10 +24,10 @@ type SaleInput = {
 
 function initialInput(row: OutcomeRow): SaleInput {
   return {
-    total: row.soldPrice === null ? "" : String(row.soldPrice),
+    total: row.soldPrice === null ? row.apifyDraft?.amount ?? "" : String(row.soldPrice),
     fee: "",
-    currency: row.soldCurrency ?? row.currency ?? "USD",
-    date: row.soldAt?.slice(0, 10) ?? "",
+    currency: row.soldCurrency ?? row.apifyDraft?.currency ?? row.currency ?? "",
+    date: row.soldAt?.slice(0, 10) ?? row.apifyDraft?.endedDate ?? "",
     grading: "",
     company: "",
     grade: "",
@@ -170,6 +170,8 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
       const expanded = openId === row.id;
       const busy = savingId === row.id;
       const alreadyPriced = row.status === "sold_candidate" && row.soldPrice !== null && Boolean(row.soldCurrency && row.soldAt);
+      const draft = !alreadyPriced ? row.apifyDraft : null;
+      const bestOffer = outcomeIsBestOffer(row.buyingFormat, row.listingTitle);
       return <article className="coverage-review-card" key={row.id}>
         {row.imageUrl ? <Image alt="" className="coverage-review-cover" height={112} loading="lazy" src={row.imageUrl} unoptimized width={84} /> : null}
         <div className="coverage-review-body">
@@ -185,11 +187,12 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
             {row.status !== "sold_candidate" ? <button disabled={busy} onClick={() => void decide(row, "keep_watching")} type="button">Still live</button> : null}
           </div>
           {expanded ? <form className="coverage-review-form" onSubmit={(event) => { event.preventDefault(); void approve(row); }}>
+            {draft ? <p className="coverage-review-draft-note">Apify suggestions are not verified sale details. Check the original eBay page and correct the paid total, fee, currency and sale date before saving. The suggested date is when the listing ended, which may differ from when it sold.{bestOffer ? " Best Offer amount is left blank until you confirm the accepted price." : ""}</p> : null}
             {!alreadyPriced ? <div className="coverage-review-fields">
-              <label>eBay displayed total<input min="0.01" onChange={(event) => updateInput(row.id, row, { total: event.target.value })} required step="0.01" type="number" value={input.total} /></label>
+              <label>eBay displayed total{draft?.amount ? " · Apify draft" : ""}<input min="0.01" onChange={(event) => updateInput(row.id, row, { total: event.target.value })} required step="0.01" type="number" value={input.total} /></label>
               <label>Buyer Protection fee<input min="0" onChange={(event) => updateInput(row.id, row, { fee: event.target.value })} placeholder="0 if none" step="0.01" type="number" value={input.fee} /></label>
-              <label>Currency<select onChange={(event) => updateInput(row.id, row, { currency: event.target.value })} value={input.currency}>{["GBP", "USD", "EUR", "JPY", "CAD", "AUD"].map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>
-              <label>Sold date<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => updateInput(row.id, row, { date: event.target.value })} required type="date" value={input.date} /></label>
+              <label>Currency<select onChange={(event) => updateInput(row.id, row, { currency: event.target.value })} required value={input.currency}><option value="">Choose currency</option>{["GBP", "USD", "EUR", "JPY", "CAD", "AUD"].map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+              <label>Sold date{draft?.endedDate ? " · Apify end-date draft" : ""}<input max={new Date().toISOString().slice(0, 10)} onChange={(event) => updateInput(row.id, row, { date: event.target.value })} required type="date" value={input.date} /></label>
             </div> : null}
             <div className="coverage-review-fields">
               <label>Copy type<select onChange={(event) => updateInput(row.id, row, { grading: event.target.value })} required value={input.grading}><option value="">Choose</option><option value="raw">Raw / ungraded</option><option value="graded">Graded</option></select></label>
@@ -200,7 +203,7 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
               {input.printClassification === "first_print_proven" ? <label>Copyright-page proof URL<input onChange={(event) => updateInput(row.id, row, { proofUrl: event.target.value })} placeholder="https://... exact sold copy" required type="url" value={input.proofUrl} /></label> : null}
               {input.printClassification === "known_later_print" ? <label>Printing number, if shown<input inputMode="numeric" min="2" onChange={(event) => updateInput(row.id, row, { printingNumber: event.target.value })} type="number" value={input.printingNumber} /></label> : null}
             </div>
-            <label className="coverage-review-confirm"><input checked={input.inspected} onChange={(event) => updateInput(row.id, row, { inspected: event.target.checked })} required type="checkbox" /> I checked the original sold page, paid item price, one copy and exact RAR edition{input.printClassification === "first_print_proven" ? ", and opened the linked copyright-page proof for this sold copy" : ""}.</label>
+            <label className="coverage-review-confirm"><input checked={input.inspected} onChange={(event) => updateInput(row.id, row, { inspected: event.target.checked })} required type="checkbox" /> I checked the original sold page, actual paid total and sale date, one copy and exact RAR edition{input.printClassification === "first_print_proven" ? ", and opened the linked copyright-page proof for this sold copy" : ""}.</label>
             <button disabled={busy} type="submit">{busy ? "Saving…" : "Verify sale"}</button>
           </form> : null}
           {errors[row.id] ? <p className="coverage-review-error" role="alert">{errors[row.id]}</p> : null}

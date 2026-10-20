@@ -16,6 +16,7 @@ import { outcomeIsBestOffer, type OutcomeSaleConfirmation } from "@/lib/outcomeS
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 import { assessOutcomeConfidence } from "@/lib/listingOutcomeConfidence";
 import type { StaffPageSignal } from "@/lib/listingPageEvidence";
+import type { ApifyReviewDraft } from "@/lib/apifyReviewDraft";
 
 export type OutcomeRow = {
   id: string;
@@ -32,6 +33,7 @@ export type OutcomeRow = {
   soldPrice: number | null;
   soldCurrency: string | null;
   soldAt: string | null;
+  apifyDraft?: ApifyReviewDraft | null;
   buyingFormat: string | null;
   bidCount: number | null;
   scheduledEndAt: string | null;

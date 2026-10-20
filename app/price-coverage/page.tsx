@@ -22,6 +22,8 @@ import PriceCoverageReview from "@/components/PriceCoverageReview";
 import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
 import { isCurrentSalesFinding, isOlderWatchedListing } from "@/lib/salesInbox";
+import { apifyReviewDraft } from "@/lib/apifyReviewDraft";
+import { outcomeIsBestOffer } from "@/lib/outcomeSaleConfirmation";
 
 // Getting a current price onto every edition.
 //
@@ -42,7 +44,7 @@ const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13";
 const SALE_COLUMNS =
   "id,edition_id,sold_date,sale_price,currency,listing_title,source_listing_url,match_status,sale_status,is_verified,grading_company,grade_label,print_classification,printing_proof_url,known_printing_number";
 const OUTCOME_COLUMNS =
-  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,discovery_provider:original_snapshot->>provider,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
+  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,discovery_provider:original_snapshot->>provider,original_snapshot,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -92,6 +94,7 @@ type OutcomeRecord = {
   buying_format: string | null; bid_count: number | null;
   scheduled_end_at: string | null; first_seen_at: string; last_seen_at: string;
   outcome_reason: string | null; outcome_provider: string | null; discovery_provider: string | null;
+  original_snapshot: unknown;
   match_assessment: { score?: number; confidence?: string; reasons?: string[]; conflicts?: string[] } | null;
   check_attempts: number; next_check_at: string | null; last_error: string | null;
   reviewed_by: string | null; resulting_observation_id: string | null;
@@ -114,6 +117,7 @@ function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"]): Outc
     soldPrice: record.sold_price,
     soldCurrency: record.sold_currency,
     soldAt: record.sold_at,
+    apifyDraft: apifyReviewDraft(record.original_snapshot, outcomeIsBestOffer(record.buying_format, record.listing_title)),
     buyingFormat: record.buying_format,
     bidCount: record.bid_count,
     scheduledEndAt: record.scheduled_end_at,

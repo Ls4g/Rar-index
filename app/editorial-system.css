@@ -630,6 +630,7 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .coverage-review-actions button:first-child, .review-page .coverage-review-form > button { background: var(--rar-ink); border-color: var(--rar-ink); color: var(--rar-canvas); }
 .review-page .coverage-review-actions button:disabled, .review-page .coverage-review-form > button:disabled { opacity: .55; cursor: progress; }
 .review-page .coverage-review-form { display: grid; gap: .8rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
+.review-page .coverage-review-form .coverage-review-draft-note { margin: 0; padding: .7rem .8rem; border-left: 3px solid var(--rar-red); background: var(--rar-surface); color: var(--rar-ink); font-size: .76rem; line-height: 1.5; }
 .review-page .coverage-review-fields { display: flex; flex-wrap: wrap; gap: .75rem; }
 .review-page .coverage-review-fields label { display: grid; flex: 1 1 9rem; gap: .3rem; color: var(--rar-muted); font-size: .72rem; }
 .review-page .coverage-review-fields :is(input, select), .review-page .coverage-review-heading input { box-sizing: border-box; width: 100%; padding: .45rem .6rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-ink); font: inherit; }
