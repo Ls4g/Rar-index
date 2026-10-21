@@ -21,7 +21,11 @@ function database(failEvaluation = false, lookupError = false) {
       if (values) Object.assign(rule, values);
       return { data: rule, error: null };
     };
-    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, in() { return q; }, order() { return q; }, range() { return q; }, limit() { return q; },
+    // neq/not exist because readHumanScoutDecisions now excludes the automated
+    // reviewers by name. A stub missing a method the real code calls fails with
+    // "neq is not a function", which reads like a bug in the code under test
+    // rather than a gap in the fake.
+    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, neq() { return q; }, not() { return q; }, in() { return q; }, order() { return q; }, range() { return q; }, limit() { return q; },
       update(v) { values=v; return q; }, insert(v) { inserting=true; values=v; return q; },
       maybeSingle: async () => result(), single: async () => result(), then(resolve, reject) { return Promise.resolve(result()).then(resolve,reject); } };
     return q;
