@@ -1,3 +1,4 @@
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { createPortfolioSnapshot, DEFAULT_SNAPSHOT_CURRENCY } from "@/lib/portfolioSnapshot";
 
@@ -18,7 +19,7 @@ function isAuthorizedCron(request: Request) {
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return Response.json({ error: "Unauthorized cron request." }, { status: 401 });
 
-  const admin = getSupabaseAdmin();
+  return runRecordedCron("portfolio-snapshots", getSupabaseAdmin, async (admin) => {
   const { data, error } = await admin.from("portfolio_holdings").select("user_id");
   if (error) return Response.json({ error: "Could not load portfolio holders." }, { status: 500 });
 
@@ -37,4 +38,5 @@ export async function GET(request: Request) {
   }
 
   return Response.json({ usersChecked: userIds.length, created, skipped, failed });
+  });
 }

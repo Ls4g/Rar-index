@@ -1,3 +1,4 @@
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { findActiveEbayListings, getEbayApplicationToken } from "@/lib/ebayScout";
 import { buildScoutLeadRow, storeScoutLeads } from "@/lib/scoutIngest";
@@ -43,7 +44,7 @@ function isAuthorizedCron(request: Request) {
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return Response.json({ error: "Unauthorized cron request." }, { status: 401 });
 
-  const admin = getSupabaseAdmin();
+  return runRecordedCron("ebay-scout", getSupabaseAdmin, async (admin) => {
   let createdProfiles = 0;
   try {
     createdProfiles = (await seedMissingEbayProfiles(admin)).created;
@@ -125,5 +126,6 @@ export async function GET(request: Request) {
     scannedProfiles,
     activeLeads,
     failures,
+  });
   });
 }

@@ -1,4 +1,5 @@
 import { runChangedReliabilitySuites } from "@/lib/agentReliability";
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const maxDuration = 60;
@@ -8,8 +9,8 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return Response.json({ error: "Cron authorization failed." }, { status: 401 });
   }
+  return runRecordedCron("agent-reliability", getSupabaseAdmin, async (admin) => {
   try {
-    const admin = getSupabaseAdmin();
     // Return work whose worker never reported back. An expired lease becomes a
     // failed run with the reason attached, never a completed one -- RAR does
     // not know whether the work finished, and saying so is the whole point.
@@ -29,4 +30,5 @@ export async function GET(request: Request) {
   } catch (caught) {
     return Response.json({ error: caught instanceof Error ? caught.message : "The scheduled reliability check failed." }, { status: 500 });
   }
+  });
 }
