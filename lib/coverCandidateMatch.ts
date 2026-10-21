@@ -5,6 +5,13 @@ export type CoverMatchTarget = {
   language: string | null;
   publisher: string | null;
   isbn13: string | null;
+  // Optional, and read only by providers that address covers BY ISBN. A
+  // variant or a later printing shares its ISBN with the plain edition, so an
+  // ISBN-addressed image is knowingly the wrong artwork for it -- see
+  // isbnAddressableCover in vizCover.ts. Providers that read a real product
+  // record ignore these.
+  variantName?: string | null;
+  printingNumber?: number | null;
 };
 
 export type CoverMatchCandidate = {

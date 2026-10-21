@@ -1,9 +1,12 @@
 import { assessCoverCandidate, normalizeIsbn, type CoverMatchTarget } from "@/lib/coverCandidateMatch";
 import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 import { findDirectOpenLibraryCover } from "@/lib/openLibraryCover";
+import { findVizCover } from "@/lib/vizCover";
+
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media";
 
 export type DiscoveredCoverCandidate = {
-  sourceName: "Google Books" | "Open Library";
+  sourceName: CoverSourceName;
   externalId: string;
   coverImageUrl: string;
   sourceRecordUrl: string;
@@ -21,7 +24,7 @@ export type CoverDiscoveryResult = {
   candidates: DiscoveredCoverCandidate[];
   errors: string[];
   providerStates: Array<{
-    sourceName: "Google Books" | "Open Library";
+    sourceName: CoverSourceName;
     status: "checked" | "skipped" | "rate_limited" | "failed";
     message?: string;
   }>;
@@ -163,8 +166,14 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
   const candidates: DiscoveredCoverCandidate[] = [];
   const errors: string[] = [];
   const providerStates: CoverDiscoveryResult["providerStates"] = [];
-  const jobs: Array<{ sourceName: "Google Books" | "Open Library"; promise: Promise<ProviderCheck> }> = [
+  const jobs: Array<{ sourceName: CoverSourceName; promise: Promise<ProviderCheck> }> = [
     { sourceName: "Open Library", promise: findOpenLibrary(target) },
+    // VIZ publishes 110 of RAR's 235 editions and, until this existed, could
+    // not be asked at all: Google Books is skipped for want of a key and Open
+    // Library carries nothing for recent releases, so a VIZ book Open Library
+    // lacked had nowhere left to be looked for. Needs no key and no rate
+    // budget -- one conditional GET against a URL derived from the ISBN.
+    { sourceName: "VIZ Media", promise: findVizCover(target) },
   ];
   if (googleBooksGate?.canRequest() && googleBooksGate.apiKey) {
     jobs.push({ sourceName: "Google Books", promise: findGoogleBooks(target, googleBooksGate.apiKey) });

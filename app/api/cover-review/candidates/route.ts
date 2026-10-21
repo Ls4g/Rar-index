@@ -75,7 +75,18 @@ export async function POST(request: Request) {
   const schedule = chooseCoverResearchBatch(queue, pendingIds, lastScan, limit);
   const editions = schedule.editions;
   const googleBooksGate = createGoogleBooksBatchGate(process.env.GOOGLE_BOOKS_API_KEY);
+  // The queue view does not carry variant_name or printing_number, and a
+  // provider that addresses covers by ISBN needs them: a variant shares its
+  // ISBN with the plain edition, so an ISBN lookup returns knowingly wrong
+  // artwork for it. Read for this batch only -- at most MAX_BATCH_SIZE rows.
+  const { data: variantRows, error: variantError } = editions.length
+    ? await admin.from("manga_editions").select("id,variant_name,printing_number").in("id", editions.map((edition) => edition.edition_id))
+    : { data: [], error: null };
+  if (variantError) return Response.json({ error: "Edition variants could not be read, so no covers were searched." }, { status: 500 });
+  const variants = new Map((variantRows ?? []).map((row) => [row.id as string, row]));
+
   const discovered = await mapWithConcurrency(editions, 4, async (edition) => {
+    const variant = variants.get(edition.edition_id);
     const result = await discoverCoverCandidates({
       title: edition.title,
       series: edition.series,
@@ -83,6 +94,8 @@ export async function POST(request: Request) {
       language: edition.language,
       publisher: edition.publisher,
       isbn13: edition.isbn_13,
+      variantName: (variant?.variant_name as string | null) ?? null,
+      printingNumber: (variant?.printing_number as number | null) ?? null,
     }, googleBooksGate);
     return { edition, ...result };
   });
