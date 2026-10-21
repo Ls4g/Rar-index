@@ -2,6 +2,24 @@ import { compareCoverResearchPriority } from "./coveragePriority.ts";
 
 const RESCAN_AFTER_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * When the set of cover sources last changed.
+ *
+ * The 24-hour cooldown stops RAR asking the same sources about the same book
+ * repeatedly. But a scan is only as good as the providers that existed when it
+ * ran, and "checked yesterday, found nothing" says nothing about a source added
+ * this morning. Seven VIZ editions were scanned at 19:07 on 20 October, hours
+ * before the VIZ provider shipped, and were then locked out of the very source
+ * that could fix them until the next evening.
+ *
+ * So a scan older than this is not treated as recent, whatever the clock says.
+ * It costs one extra pass per edition after a provider is added and then stops
+ * mattering, because every later scan is newer than the date.
+ *
+ * Bump this whenever a cover provider is added or materially changed.
+ */
+export const COVER_PROVIDERS_CHANGED_AT = "2026-10-21T11:00:00.000Z";
+
 export type CoverResearchQueueItem = {
   edition_id: string;
   series: string | null;
@@ -14,6 +32,7 @@ export function chooseCoverResearchBatch<T extends CoverResearchQueueItem>(
   lastScan: Map<string, string>,
   limit: number,
   now = new Date(),
+  providersChangedAt = COVER_PROVIDERS_CHANGED_AT,
 ) {
   let awaitingReview = 0;
   let recentlyChecked = 0;
@@ -23,7 +42,8 @@ export function chooseCoverResearchBatch<T extends CoverResearchQueueItem>(
       return false;
     }
     const scanDate = Date.parse(lastScan.get(edition.edition_id) ?? "");
-    if (Number.isFinite(scanDate) && now.getTime() - scanDate < RESCAN_AFTER_MS) {
+    const scannedWithCurrentProviders = scanDate >= Date.parse(providersChangedAt);
+    if (Number.isFinite(scanDate) && scannedWithCurrentProviders && now.getTime() - scanDate < RESCAN_AFTER_MS) {
       recentlyChecked += 1;
       return false;
     }
