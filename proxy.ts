@@ -1,9 +1,28 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { hasValidBasicAuthorization, hasValidStaffSession, staffBasicAuthorization } from "@/lib/staffSession";
+import { claimLoginAttempt, loginFingerprint, tooManyAttemptsResponse } from "@/lib/staffLoginRateLimit";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export default async function proxy(request: NextRequest) {
   if (hasValidBasicAuthorization(request)) return NextResponse.next();
+
+  // A wrong Basic header is a sign-in attempt, and it used to be an uncounted
+  // one: three wrong credentials against /review returned the same redirect
+  // three times, with nothing recorded. Limiting only the sign-in form would
+  // have left this door open, so it is counted on the same budget.
+  //
+  // Only a PRESENT-but-wrong header counts. An ordinary unauthenticated visit
+  // -- a person, a crawler -- carries no Authorization header and must not
+  // cost a database write, or refusing anonymous traffic would become a way to
+  // hammer the database.
+  if (request.headers.get("authorization")?.startsWith("Basic ")) {
+    const fingerprint = await loginFingerprint(request);
+    const gate = await claimLoginAttempt(getSupabaseAdmin(), fingerprint);
+    // Failing closed costs nothing here: these credentials are already wrong,
+    // so the request was going to be refused either way.
+    if (!gate || !gate.allowed) return tooManyAttemptsResponse(gate?.retryAfterSeconds ?? 60);
+  }
 
   if (await hasValidStaffSession(request)) {
     const authorization = staffBasicAuthorization();
