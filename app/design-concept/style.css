@@ -90,7 +90,7 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: transparent; }
 .rar-concept-hero-feature-ink { position: absolute; inset: -8px 0 54px 0; z-index: -1; background: url("/rar-one-piece-cover-sketch-v2.png") center right / contain no-repeat; opacity: .35; filter: grayscale(1); mix-blend-mode: multiply; }
 .rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: var(--rc-muted); font-size: 10px; font-weight: 850; letter-spacing: .15em; }
-.rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; }
+.rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; transform: scale(1.1); transform-origin: center bottom; }
 .rar-concept-hero-feature-book .edition-cover { height: 350px; }
 .rar-concept-hero-feature-bottom { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; display: flex; align-items: end; justify-content: space-between; gap: 15px; border-top: 1px solid rgba(52, 45, 38, .22); padding-top: 14px; }
 .rar-concept-hero-feature-bottom div { display: grid; gap: 2px; }
