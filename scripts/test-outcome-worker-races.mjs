@@ -14,7 +14,7 @@ function database({ auditError = false, queueError = false } = {}) {
     const result = () => {
       if (table === "listing_outcome_checks") { state.audits++; return { data: null, error: auditError ? { message: "audit unavailable" } : null }; }
       assert.equal(table, "listing_outcomes");
-      const matches = filters.every(([key,value]) => state.row[key] === value);
+      const matches = filters.every(([key,value]) => key === "__id_in" ? value.includes(state.row.id) : state.row[key] === value);
       if (update) {
         assert.ok(filters.some(([key]) => key === "reviewed_by"));
         assert.ok(filters.some(([key]) => key === "check_attempts"));
@@ -23,7 +23,7 @@ function database({ auditError = false, queueError = false } = {}) {
       }
       return { data: matches ? [{ ...state.row }] : [], error: queueError ? { message: "offline" } : null };
     };
-    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, is(k,v) { filters.push([k,v]); return q; }, in() { return q; }, or(v) { state.queueFilter = v; return q; }, order() { return q; }, limit() { return q; },
+    const q = { select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, is(k,v) { filters.push([k,v]); return q; }, in(k,v) { if (k === "id") filters.push(["__id_in", v]); return q; }, or(v) { state.queueFilter = v; return q; }, order() { return q; }, limit() { return q; },
       update(v) { update=v; return q; }, insert() { return q; }, maybeSingle: async () => result(), then(a,b) { return Promise.resolve(result()).then(a,b); } }; return q;
   }};
 }
@@ -37,6 +37,20 @@ assert.match(healthy.state.queueFilter, /^and\(status\.eq\.ended_pending_check,n
 assert.equal(healthy.state.row.status, "unsold");
 assert.equal(completed.unsold, 1);
 assert.equal(healthy.state.audits, 1);
+const newFinding = database();
+newFinding.state.row.status = "ended_pending_check";
+newFinding.state.row.check_attempts = 0;
+newFinding.state.row.outcome_provider = "Apify eBay sold search (discovery only)";
+newFinding.state.row.next_check_at = new Date(Date.now() + 30 * 60_000).toISOString();
+assert.equal((await runOutcomeChecks(newFinding, 1, async () => signal)).checked, 0,
+  "the ordinary worker preserves the initial waiting period");
+assert.equal((await runOutcomeChecks(newFinding, 1, async () => signal,
+  { outcomeIds: ["another-outcome"], immediateFirstCheck: true })).checked, 0,
+  "a focused check never processes a different listing");
+const focused = await runOutcomeChecks(newFinding, 1, async () => signal,
+  { outcomeIds: ["outcome"], immediateFirstCheck: true });
+assert.equal(focused.checked, 1, "a staff-triggered first check can run immediately for an old sold-index finding");
+assert.equal(newFinding.state.row.status, "unsold");
 const activeDb = database();
 activeDb.state.row.check_attempts = 4;
 const activeSignal = { ...signal, signal: { ...signal.signal, listingState: "active", detail: "GetItem reports active", scheduledEndAt: base.scheduled_end_at } };

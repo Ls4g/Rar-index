@@ -5,6 +5,7 @@ import {
   isDueForCheck,
   MAX_OUTCOME_ATTEMPTS,
   nextOutcomeCheckAt,
+  SOLD_SEARCH_DISCOVERY_PROVIDER,
   type OutcomeStatus,
 } from "./listingOutcome.ts";
 import { resolveListingOutcome } from "./listingOutcomeProviders.ts";
@@ -198,7 +199,12 @@ export async function promoteEndedListings(admin: SupabaseClient) {
   return (explicitlyEnded?.length ?? 0) + (unseen?.length ?? 0);
 }
 
-export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OUTCOME_CHECK_LIMIT, resolve = resolveListingOutcome): Promise<OutcomeCheckResult> {
+export async function runOutcomeChecks(
+  admin: SupabaseClient,
+  limit = DEFAULT_OUTCOME_CHECK_LIMIT,
+  resolve = resolveListingOutcome,
+  selected?: { outcomeIds: string[]; immediateFirstCheck: boolean },
+): Promise<OutcomeCheckResult> {
   const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [], dailySpent: null, dailyRemaining: null, dailyReserved: null, budgetUnavailable: false, ceilingReached: false };
   const reservationId = crypto.randomUUID();
   let budget: { granted: number; spent: number; reserved: number; remaining: number; day: string };
@@ -221,13 +227,15 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
   if (!effectiveLimit) { result.ceilingReached = budget.remaining === 0; return result; }
   const nowIso = new Date().toISOString();
 
-  const { data, error: queueError } = await admin
+  let query = admin
     .from("listing_outcomes")
     .select("id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts, outcome_provider")
     .in("status", ["ended_pending_check", "ambiguous"])
     .is("reviewed_by", null)
-    .is("resulting_observation_id", null)
-    .or(outcomeCheckQueueFilter(nowIso))
+    .is("resulting_observation_id", null);
+  if (selected) query = query.in("id", selected.outcomeIds);
+  else query = query.or(outcomeCheckQueueFilter(nowIso));
+  const { data, error: queueError } = await query
     .order("next_check_at", { ascending: true, nullsFirst: true })
     .limit(effectiveLimit);
   if (queueError) throw new Error("RAR could not load outcome checks. Retry the pipeline; no listings were changed.");
@@ -238,7 +246,14 @@ export async function runOutcomeChecks(admin: SupabaseClient, limit = DEFAULT_OU
   }>;
   // A staff observation is stronger than another automatic retry. Preserve it
   // until staff either supplies the missing sale details or dismisses it.
-  const due = rows.filter((row) => row.outcome_provider !== "eBay page — staff observed" && isDueForCheck(row));
+  const due = rows.filter((row) => row.outcome_provider !== "eBay page — staff observed" && (
+    isDueForCheck(row) || Boolean(selected?.immediateFirstCheck
+      && row.status === "ended_pending_check"
+      && row.check_attempts === 0
+      && row.outcome_provider === SOLD_SEARCH_DISCOVERY_PROVIDER
+      && row.scheduled_end_at
+      && new Date(row.scheduled_end_at).getTime() <= Date.now() - 24 * 60 * 60_000)
+  ));
   result.due = due.length;
 
   for (let index = 0; index < due.length; index += OUTCOME_CHECK_CONCURRENCY) {

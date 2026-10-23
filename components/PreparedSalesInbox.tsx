@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { OutcomeRow } from "@/components/ListingOutcomesPanel";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
+import PriceCoverageReview from "@/components/PriceCoverageReview";
 
 export type NeedsEvidenceItem = {
   id: string;
@@ -21,9 +21,11 @@ function money(value: number | null, currency: string | null) {
   catch { return `${currency} ${value.toFixed(2)}`; }
 }
 
-export default function PreparedSalesInbox({ initialRows, needsEvidence }: {
+export default function PreparedSalesInbox({ initialRows, needsEvidence, reviewRows, openNeedsEvidence = false }: {
   initialRows: OutcomeRow[];
   needsEvidence: NeedsEvidenceItem[];
+  reviewRows: OutcomeRow[];
+  openNeedsEvidence?: boolean;
 }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useStaffReviewer();
@@ -32,8 +34,35 @@ export default function PreparedSalesInbox({ initialRows, needsEvidence }: {
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({});
   const [error, setError] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
 
   useEffect(() => { setRows(initialRows); }, [initialRows]);
+
+  const firstCheckIds = reviewRows.filter((row) => row.status === "ended_pending_check"
+    && row.checkAttempts === 0 && !row.checks.length && row.scheduledEndAt
+    && new Date(row.scheduledEndAt).getTime() <= Date.now() - 24 * 60 * 60_000)
+    .slice(0, 10).map((row) => row.id);
+
+  async function checkNow() {
+    setChecking(true);
+    setCheckError("");
+    try {
+      const response = await fetch("/api/listing-outcomes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check-findings-now", outcomeIds: firstCheckIds }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string; checks?: { checked: number; errors: string[]; ceilingReached: boolean } };
+      if (!response.ok || result.error) throw new Error(result.error ?? "The eBay check could not run.");
+      setMessage(result.checks?.checked
+        ? `RAR checked ${result.checks.checked} listing${result.checks.checked === 1 ? "" : "s"} against eBay. Review the updated results below.`
+        : result.checks?.ceilingReached ? "Today's eBay check limit is reached. No listing was changed."
+          : result.checks?.errors[0] ?? "No listing could be checked yet. No sale was published.");
+      router.refresh();
+    } catch (caught) {
+      setCheckError(caught instanceof Error ? caught.message : "The eBay check could not run.");
+    } finally { setChecking(false); }
+  }
 
   async function decide(row: OutcomeRow, approve: boolean) {
     if (!reviewer.trim()) { setError((current) => ({ ...current, [row.id]: "Add your initials above first." })); return; }
@@ -93,10 +122,13 @@ export default function PreparedSalesInbox({ initialRows, needsEvidence }: {
         </div>
       </article>;
     })}</div> : <p className="coverage-review-empty">No sale is ready for a one-tap decision yet. Incomplete findings are kept below, not published.</p>}
-    <details className="prepared-sale-exceptions">
+    <details className="prepared-sale-exceptions" open={openNeedsEvidence || undefined}>
       <summary>Needs more evidence ({needsEvidence.length})</summary>
-      <p>These are not ready for one-tap approval. RAR has not established a usable price, single-copy sale, exact grade or printing proof.</p>
-      <ul>{needsEvidence.slice(0, 50).map((row) => <li key={row.id}><Link href={`/price-coverage?edition=${encodeURIComponent(row.editionId)}&outcome=${encodeURIComponent(row.id)}`}>{row.editionLabel} · {row.listingTitle}</Link><span>{row.reason}</span></li>)}</ul>
+      <p>These are not ready for one-tap approval. You can check and resolve the findings here, without leaving this page.</p>
+      {firstCheckIds.length ? <button className="prepared-sale-check-now" disabled={checking} onClick={() => void checkNow()} type="button">{checking ? "Checking eBay…" : `Check ${firstCheckIds.length} new finding${firstCheckIds.length === 1 ? "" : "s"} now`}</button> : null}
+      {checkError ? <p className="coverage-review-error" role="alert">{checkError}</p> : null}
+      {reviewRows.length ? <PriceCoverageReview initialRows={reviewRows} /> : null}
+      {needsEvidence.length && !reviewRows.length ? <p>The findings are still available by edition below.</p> : null}
       {needsEvidence.length > 50 ? <p>Showing 50 of {needsEvidence.length}. The edition list below includes the rest.</p> : null}
     </details>
   </section>;

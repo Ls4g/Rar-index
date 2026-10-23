@@ -676,6 +676,9 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .prepared-sale-exceptions li { font-size: .8rem; line-height: 1.45; }
 .review-page .prepared-sale-exceptions li span { display: block; color: var(--rar-muted); }
 .review-page .prepared-sale-exceptions a { color: var(--rar-ink); }
+.review-page .prepared-sale-check-now { margin: .25rem 0 1rem; padding: .65rem 1rem; border: 1px solid var(--rar-red); background: var(--rar-red); color: #fff; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.review-page .prepared-sale-check-now:disabled { opacity: .55; cursor: wait; }
+.review-page .coverage-review-card .coverage-review-blocker { margin: .35rem 0; color: var(--rar-red); font-weight: 650; }
 .review-page .coverage-print-corrections { margin: 2rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
 .review-page .coverage-print-corrections > summary { cursor: pointer; color: var(--rar-ink); font-weight: 700; }
 .review-page .coverage-print-corrections > p { color: var(--rar-muted); font-size: .85rem; line-height: 1.5; }

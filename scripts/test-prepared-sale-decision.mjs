@@ -17,7 +17,7 @@ const row = (overrides = {}) => ({
   sourceListingUrl: "https://www.ebay.co.uk/itm/123456789012",
   listingTitle: "Naruto Vol. 1 English VIZ Manga", soldPrice: 42,
   soldCurrency: "GBP", soldAt: "2026-10-21T18:00:00Z", buyingFormat: "AUCTION",
-  matchConflicts: [], checks: [check()], ...overrides,
+  matchConflicts: [], matchConfidence: "partial", checks: [check()], ...overrides,
 });
 
 const raw = prepareSaleDecision(row());
@@ -39,6 +39,12 @@ assert.equal(prepareSaleDecision(row({ buyingFormat: "BEST_OFFER" })).ready, fal
 assert.match(prepareSaleDecision(row({ checks: [check({ quantitySold: 2 })] })).reason, /more than one copy/);
 assert.match(prepareSaleDecision(row({ soldPrice: 99 })).reason, /does not agree/);
 assert.match(prepareSaleDecision(row({ matchConflicts: ["wrong publisher"] })).reason, /Edition conflict/);
+assert.match(prepareSaleDecision(row({ matchConfidence: "insufficient" })).reason, /does not establish/);
+assert.match(prepareSaleDecision(row({
+  listingTitle: "Kagurabachi, 2024 official convention banner Chicago comic Con",
+  matchConfidence: "insufficient",
+  checks: [check({ title: "Kagurabachi, 2024 official convention banner Chicago comic Con" })],
+})).reason, /does not establish/);
 assert.match(prepareSaleDecision(row({ sourceListingUrl: "https://www.ebay.co.uk/itm/999999999999" })).reason, /do not match/);
 assert.match(prepareSaleDecision(row({ checks: [check({ imageUrls: [] })] })).reason, /photos/);
 assert.match(prepareSaleDecision(row({
@@ -54,5 +60,6 @@ assert.match(prepareSaleDecision(row({
   checks: [check({ title: "Dr Stone Manga Volumes 1 2 3" })],
 })).reason, /multi-volume lot/);
 assert.equal(prepareSaleDecision(row({ status: "ended_pending_check" })).ready, false);
+assert.match(prepareSaleDecision(row({ status: "ended_pending_check", checks: [] })).reason, /eBay has not checked/);
 
 console.log("Prepared sale decisions: all checks passed.");

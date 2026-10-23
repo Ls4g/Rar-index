@@ -9,6 +9,7 @@ import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
 import { prepareSaleDecision } from "@/lib/preparedSaleDecision";
+import { SOLD_SEARCH_DISCOVERY_PROVIDER } from "@/lib/listingOutcome";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -245,12 +246,13 @@ export async function POST(request: Request) {
       .eq("outcome_id", outcome.id).eq("provider", "eBay Trading GetItem")
       .order("checked_at", { ascending: false }).limit(1);
     if (checkError) return Response.json({ error: "RAR could not recheck the source evidence. Nothing was approved." }, { status: 503 });
-    const assessment = outcome.match_assessment as { conflicts?: string[] } | null;
+    const assessment = outcome.match_assessment as { conflicts?: string[]; confidence?: string } | null;
     const prepared = prepareSaleDecision({
       id: outcome.id, externalId: outcome.external_id, status: outcome.status,
       sourceListingUrl: outcome.source_listing_url, listingTitle: outcome.listing_title,
       soldPrice: outcome.sold_price, soldCurrency: outcome.sold_currency, soldAt: outcome.sold_at,
       buyingFormat: outcome.buying_format, matchConflicts: assessment?.conflicts ?? [],
+      matchConfidence: assessment?.confidence ?? null,
       checks: (checks ?? []).map((check) => ({
         provider: check.provider, state: check.listing_state, httpStatus: check.http_status,
         checkedAt: check.checked_at, rawResponse: check.raw_response,
@@ -272,6 +274,28 @@ export async function POST(request: Request) {
       return Response.json(result);
     } catch (error) {
       return Response.json({ error: error instanceof Error ? error.message : "The prepared sale could not be saved." }, { status: 409 });
+    }
+  }
+
+  if (body.action === "check-findings-now") {
+    const ids = [...new Set((body.outcomeIds ?? []).filter((id): id is string =>
+      typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)))];
+    if (!ids.length || ids.length > 10) return Response.json({ error: "Choose 1 to 10 new findings to check." }, { status: 400 });
+    const { data: candidates, error } = await admin.from("listing_outcomes")
+      .select("id,status,check_attempts,outcome_provider,scheduled_end_at,reviewed_by,resulting_observation_id")
+      .in("id", ids);
+    if (error) return Response.json({ error: "RAR could not load these findings." }, { status: 503 });
+    const oldEnough = (date: string | null) => Boolean(date && new Date(date).getTime() <= Date.now() - 24 * 60 * 60_000);
+    const eligible = (candidates ?? []).filter((row) => row.status === "ended_pending_check"
+      && row.check_attempts === 0 && row.outcome_provider === SOLD_SEARCH_DISCOVERY_PROVIDER
+      && !row.reviewed_by && !row.resulting_observation_id && oldEnough(row.scheduled_end_at));
+    if (eligible.length !== ids.length) return Response.json({ error: "Some findings have changed or are not ready for an immediate first check. Refresh and try again." }, { status: 409 });
+    try {
+      const checks = await runOutcomeChecks(admin, ids.length, undefined, { outcomeIds: ids, immediateFirstCheck: true });
+      if (checks.budgetUnavailable) return Response.json({ error: checks.errors[0] }, { status: 503 });
+      return Response.json({ ok: true, checks });
+    } catch {
+      return Response.json({ error: "The eBay checks could not finish. Refresh before retrying." }, { status: 503 });
     }
   }
 

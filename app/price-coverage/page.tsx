@@ -18,7 +18,6 @@ import type { SeriesSale } from "@/lib/priceSeries";
 import { isbnForSearch } from "@/lib/apifySoldSearch";
 import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
 import FindSalesButton from "@/components/FindSalesButton";
-import PriceCoverageReview from "@/components/PriceCoverageReview";
 import PrintClassificationDecisionForm from "@/components/PrintClassificationDecisionForm";
 import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
 import { isCurrentSalesFinding, isOlderWatchedListing } from "@/lib/salesInbox";
@@ -125,7 +124,8 @@ function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"], evide
       id: record.id, externalId: record.external_id, status: record.status,
       sourceListingUrl: record.source_listing_url, listingTitle: record.listing_title,
       soldPrice: record.sold_price, soldCurrency: record.sold_currency, soldAt: record.sold_at,
-      buyingFormat: record.buying_format, matchConflicts: record.match_assessment?.conflicts ?? [], checks: evidence,
+      buyingFormat: record.buying_format, matchConflicts: record.match_assessment?.conflicts ?? [],
+      matchConfidence: record.match_assessment?.confidence ?? null, checks: evidence,
     }),
     buyingFormat: record.buying_format,
     bidCount: record.bid_count,
@@ -215,6 +215,34 @@ async function loadPreparedInbox(admin: Admin) {
   return { ready: rows.filter((row) => row.preparedSale?.ready), needsEvidence: rows.filter((row) => !row.preparedSale?.ready) };
 }
 
+async function loadReviewRows(admin: Admin, ids: string[]) {
+  if (!ids.length) return [];
+  const [{ data: records, error: recordError }, { data: checks, error: checkError }] = await Promise.all([
+    admin.from("listing_outcomes").select(OUTCOME_COLUMNS).in("id", ids),
+    admin.from("listing_outcome_checks")
+      .select("outcome_id,provider,attempt_number,listing_state,http_status,detail,checked_at,raw_response")
+      .in("outcome_id", ids).order("checked_at", { ascending: false }),
+  ]);
+  if (recordError || checkError) throw new Error("The sales findings could not be loaded for review.");
+  const evidenceById = new Map<string, SaleCheckEvidence[]>();
+  const checksById = new Map<string, OutcomeRow["checks"]>();
+  for (const check of checks ?? []) {
+    const evidence = evidenceById.get(check.outcome_id) ?? [];
+    evidence.push({ provider: check.provider, state: check.listing_state, httpStatus: check.http_status,
+      checkedAt: check.checked_at, rawResponse: check.raw_response });
+    evidenceById.set(check.outcome_id, evidence);
+    const visible = checksById.get(check.outcome_id) ?? [];
+    visible.push({ provider: check.provider, attempt: check.attempt_number ?? 0, state: check.listing_state,
+      httpStatus: check.http_status, detail: check.detail, checkedAt: check.checked_at });
+    checksById.set(check.outcome_id, visible);
+  }
+  const byId = new Map(((records ?? []) as unknown as OutcomeRecord[]).map((record) => [record.id, record]));
+  return ids.flatMap((id) => {
+    const record = byId.get(id);
+    return record ? [toOutcomeRow(record, checksById.get(id) ?? [], evidenceById.get(id) ?? [])] : [];
+  });
+}
+
 function CoverageRow({ row }: { row: EditionCoverage }) {
   const hasIsbn = Boolean(isbnForSearch(row.edition.isbn_13));
   const missing = comparableSalesNeeded(row);
@@ -291,6 +319,7 @@ export default async function PriceCoveragePage({ searchParams }: {
     .filter((row) => !selected || seriesByEdition.get(row.editionId) === selected.key)
     .map((row) => ({ ...row, reason: soldNeeds.get(row.id) ?? row.reason }));
   const readyRows = preparedInbox.ready.filter((row) => !selected || seriesByEdition.get(row.editionId) === selected.key);
+  const reviewRows = show === "todo" ? await loadReviewRows(admin, needsEvidence.slice(0, 50).map((row) => row.id)) : [];
   const legacyRows = inSeries.filter((row) => (legacyByEdition.get(row.edition.id) ?? 0) > 0);
   const legacyCount = legacyRows.reduce((count, row) => count + (legacyByEdition.get(row.edition.id) ?? 0), 0);
   const visible = show === "all" ? inSeries : show === "legacy" ? legacyRows : inSeries.filter((row) => row.state !== "priced");
@@ -310,7 +339,7 @@ export default async function PriceCoveragePage({ searchParams }: {
         <StaffNav current="/price-coverage" />
       </header>
       <section className="catalogue-content">
-        {show === "todo" ? <PreparedSalesInbox initialRows={readyRows} needsEvidence={needsEvidence} /> : null}
+        {show === "todo" ? <PreparedSalesInbox initialRows={readyRows} needsEvidence={needsEvidence} reviewRows={reviewRows} /> : null}
         <div className="price-coverage-header">
           <p className="eyebrow">{selected ? selected.label : "Price coverage"}</p>
           <h1>
@@ -483,8 +512,7 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
         </div>
         {view === "legacy" ? <p className="price-coverage-note">These older watched listings remain available for investigation. They are not verified sales.</p> : null}
         {!focusOutcomeId && view === "current" ? <>
-          <PreparedSalesInbox initialRows={outstanding.filter((row) => row.preparedSale?.ready)} needsEvidence={outstanding.filter((row) => !row.preparedSale?.ready).map((row) => ({ id: row.id, editionId: row.editionId, editionLabel: row.editionLabel, listingTitle: row.listingTitle, reason: row.preparedSale?.reason ?? "Needs a closer review" }))} />
-          {outstanding.some((row) => !row.preparedSale?.ready) ? <details className="prepared-sale-manual"><summary>Manual review tools for incomplete findings</summary><PriceCoverageReview editionId={editionId} initialRows={outstanding.filter((row) => !row.preparedSale?.ready)} /></details> : null}
+          <PreparedSalesInbox initialRows={outstanding.filter((row) => row.preparedSale?.ready)} needsEvidence={outstanding.filter((row) => !row.preparedSale?.ready).map((row) => ({ id: row.id, editionId: row.editionId, editionLabel: row.editionLabel, listingTitle: row.listingTitle, reason: row.preparedSale?.reason ?? "Needs a closer review" }))} reviewRows={outstanding.filter((row) => !row.preparedSale?.ready)} openNeedsEvidence />
         </> : rows.length ? (
           <ListingOutcomesPanel
             basePath={`/price-coverage?edition=${editionId}`}

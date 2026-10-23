@@ -57,7 +57,7 @@ async function postDecision(path: string, body: Record<string, unknown>) {
   return result;
 }
 
-export default function PriceCoverageReview({ editionId, initialRows }: { editionId: string; initialRows: OutcomeRow[] }) {
+export default function PriceCoverageReview({ initialRows }: { initialRows: OutcomeRow[] }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useStaffReviewer();
   const [rows, setRows] = useState(initialRows);
@@ -178,8 +178,9 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
         {row.imageUrl ? <Image alt="" className="coverage-review-cover" height={112} loading="lazy" src={row.imageUrl} unoptimized width={84} /> : null}
         <div className="coverage-review-body">
           <div className="coverage-review-top"><span>{alreadyPriced ? "Sale details available" : "Needs sale check"}</span><span>{row.matchScore !== null ? `Match ${row.matchScore}` : ""}</span></div>
-          <h3>{row.listingTitle}</h3>
+          <h3>{row.editionLabel} · {row.listingTitle}</h3>
           <p>{alreadyPriced ? `${money(row.soldPrice, row.soldCurrency)} · ${row.soldAt?.slice(0, 10)}` : "Sale and paid price not yet verified"}{row.matchConflicts.length ? ` · Caution: ${row.matchConflicts[0]}` : ""}</p>
+          {row.preparedSale?.reason ? <p className="coverage-review-blocker">Why it needs review: {row.preparedSale.reason}</p> : null}
           <a href={row.sourceListingUrl} rel="noopener noreferrer" target="_blank">Open original eBay listing ↗</a>
           <div className="coverage-review-actions">
             <button disabled={busy} onClick={() => setOpenId(expanded ? null : row.id)} type="button">{expanded ? "Close sale form" : "Approve sale"}</button>
@@ -210,7 +211,7 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
             <button disabled={busy} type="submit">{busy ? "Saving…" : "Verify sale"}</button>
           </form> : null}
           {errors[row.id] ? <p className="coverage-review-error" role="alert">{errors[row.id]}</p> : null}
-          <Link className="coverage-review-more" href={`/price-coverage?edition=${encodeURIComponent(editionId)}&outcome=${encodeURIComponent(row.id)}`}>Full evidence and review tools</Link>
+          <Link className="coverage-review-more" href={`/price-coverage?edition=${encodeURIComponent(row.editionId)}&outcome=${encodeURIComponent(row.id)}`}>Full evidence and review tools</Link>
         </div>
       </article>;
     })}</div>

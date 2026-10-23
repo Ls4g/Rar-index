@@ -22,6 +22,7 @@ export type PreparedSaleInput = {
   soldAt: string | null;
   buyingFormat: string | null;
   matchConflicts: string[];
+  matchConfidence: string | null;
   checks: SaleCheckEvidence[];
 };
 
@@ -82,8 +83,12 @@ export function prepareSaleDecision(input: PreparedSaleInput): PreparedSaleDecis
   };
   const needs = (reason: string): PreparedSaleDecision => ({ ...draft, ready: false, reason });
 
+  if (input.status === "ended_pending_check" && !input.checks.length) {
+    return needs("Apify found this in sold search, but eBay has not checked the original item yet.");
+  }
   if (input.status !== "sold_candidate") return needs("The sale and its paid amount have not been established yet.");
   if (input.matchConflicts.length) return needs(`Edition conflict: ${input.matchConflicts[0]}`);
+  if (input.matchConfidence === "insufficient") return needs("The listing does not establish that this is the selected manga edition.");
   if ([title, input.listingTitle].some((value) => listingIsMultiVolumeLot(value, 1)
     || /\b(?:vol(?:ume)?s?\.?|bk|books?)\s*\d+(?:\s*,?\s+\d+){2,}\b/i.test(value))) {
     return needs("This may be a multi-volume lot, not one copy of the selected edition.");
