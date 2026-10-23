@@ -8,6 +8,7 @@ import { outcomeHumanSnoozedUntil } from "@/lib/outcomeHumanAttention";
 import { isBulkSafeDecision } from "@/lib/listingOutcomeDecisions";
 import { classifyStaffPageSignal, type StaffPageSignal } from "@/lib/listingPageEvidence";
 import { snapshotHoldersOfEdition } from "@/lib/portfolioSnapshot";
+import { prepareSaleDecision } from "@/lib/preparedSaleDecision";
 
 // Watch-to-Sale staff endpoint.
 //
@@ -215,7 +216,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: failures.length === 0, saved: saved.length, savedIds: saved, failed: failures.length, failures });
   }
 
-  if (!body.outcomeId || (!body.decision && !["record-best-offer-price", "record-observed-sale", "record-page-signal"].includes(body.action ?? ""))) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
+  if (!body.outcomeId || (!body.decision && !["record-best-offer-price", "record-observed-sale", "record-page-signal", "approve-prepared-sale"].includes(body.action ?? ""))) return Response.json({ error: "An outcome and a decision are required." }, { status: 400 });
   if (!reviewer) return Response.json({ error: "Add your name or initials so the decision is attributable." }, { status: 400 });
   // Notes stay optional throughout RAR: the decision and the reviewer are the
   // accountable parts, and demanding prose on an obvious call only produces
@@ -224,7 +225,7 @@ export async function POST(request: Request) {
 
   const { data: outcome } = await admin
     .from("listing_outcomes")
-    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, resulting_observation_id, reviewed_by, check_attempts, outcome_provider, outcome_reason, last_seen_at")
+    .select("id, status, edition_id, source_id, external_id, source_listing_url, listing_title, sold_price, sold_currency, sold_at, buying_format, original_snapshot, match_assessment, resulting_observation_id, reviewed_by, check_attempts, outcome_provider, outcome_reason, last_seen_at")
     .eq("id", body.outcomeId)
     .maybeSingle();
   if (!outcome) return Response.json({ error: "That listing outcome no longer exists." }, { status: 404 });
@@ -237,6 +238,42 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+
+  if (body.action === "approve-prepared-sale") {
+    const { data: checks, error: checkError } = await admin.from("listing_outcome_checks")
+      .select("provider,listing_state,http_status,checked_at,raw_response")
+      .eq("outcome_id", outcome.id).eq("provider", "eBay Trading GetItem")
+      .order("checked_at", { ascending: false }).limit(1);
+    if (checkError) return Response.json({ error: "RAR could not recheck the source evidence. Nothing was approved." }, { status: 503 });
+    const assessment = outcome.match_assessment as { conflicts?: string[] } | null;
+    const prepared = prepareSaleDecision({
+      id: outcome.id, externalId: outcome.external_id, status: outcome.status,
+      sourceListingUrl: outcome.source_listing_url, listingTitle: outcome.listing_title,
+      soldPrice: outcome.sold_price, soldCurrency: outcome.sold_currency, soldAt: outcome.sold_at,
+      buyingFormat: outcome.buying_format, matchConflicts: assessment?.conflicts ?? [],
+      checks: (checks ?? []).map((check) => ({
+        provider: check.provider, state: check.listing_state, httpStatus: check.http_status,
+        checkedAt: check.checked_at, rawResponse: check.raw_response,
+      })),
+    });
+    if (!prepared.ready || !prepared.grading) {
+      return Response.json({ error: prepared.reason ?? "This finding needs more evidence before approval." }, { status: 409 });
+    }
+    try {
+      // The server rebuilds this decision from the eBay audit, never from
+      // client-supplied price, grade or copy-type fields. The staff click is
+      // still the sole act of verification and the existing RPC is atomic.
+      const result = await confirmOutcomeSale(admin, outcome, {
+        humanConfirmed: true, grading: prepared.grading,
+        gradingCompany: prepared.gradingCompany ?? undefined,
+        gradeLabel: prepared.gradeLabel ?? undefined,
+      }, reviewer, `Approved prepared eBay evidence checked ${prepared.checkedAt ?? "unknown"}; printing not identified.`);
+      try { await snapshotHoldersOfEdition(admin, outcome.edition_id); } catch { /* Sale is already committed. */ }
+      return Response.json(result);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "The prepared sale could not be saved." }, { status: 409 });
+    }
+  }
 
   if (body.action === "record-page-signal") {
     if (!body.pageSignal || !["green_sold", "red_ended", "still_live", "unclear"].includes(body.pageSignal)) {

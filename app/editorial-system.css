@@ -631,6 +631,11 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .coverage-review-actions button:disabled, .review-page .coverage-review-form > button:disabled { opacity: .55; cursor: progress; }
 .review-page .coverage-review-form { display: grid; gap: .8rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
 .review-page .coverage-review-form .coverage-review-draft-note { margin: 0; padding: .7rem .8rem; border-left: 3px solid var(--rar-red); background: var(--rar-surface); color: var(--rar-ink); font-size: .76rem; line-height: 1.5; }
+.review-page .coverage-review-gallery > p { margin: 0 0 .5rem; color: var(--rar-muted); font-size: .77rem; }
+.review-page .coverage-review-gallery > div { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .4rem; }
+.review-page .coverage-review-gallery button { flex: 0 0 5.5rem; min-height: 7.5rem; padding: .2rem; border: 1px solid var(--rar-line); background: var(--rar-surface); cursor: pointer; }
+.review-page .coverage-review-gallery button[aria-pressed="true"] { border: 2px solid var(--rar-red); }
+.review-page .coverage-review-gallery img { width: 100%; height: 7rem; object-fit: contain; }
 .review-page .coverage-review-fields { display: flex; flex-wrap: wrap; gap: .75rem; }
 .review-page .coverage-review-fields label { display: grid; flex: 1 1 9rem; gap: .3rem; color: var(--rar-muted); font-size: .72rem; }
 .review-page .coverage-review-fields :is(input, select), .review-page .coverage-review-heading input { box-sizing: border-box; width: 100%; padding: .45rem .6rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-ink); font: inherit; }
@@ -641,6 +646,36 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .coverage-review-success { padding: .75rem 1rem; border-left: 3px solid var(--rar-ink); background: var(--rar-surface-soft); color: var(--rar-ink); font-size: .85rem; }
 .review-page .coverage-review-empty { padding: 1.4rem; border: 1px solid var(--rar-line); background: var(--rar-surface); color: var(--rar-muted); }
 .review-page .coverage-review-more { display: inline-block; margin-top: .65rem; color: var(--rar-muted) !important; font-size: .72rem !important; }
+.review-page .prepared-inbox { margin: 1.5rem 0 2rem; padding: clamp(1rem, 2.5vw, 1.6rem); border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
+.review-page .prepared-inbox-list { display: grid; gap: 1rem; margin-top: 1.25rem; }
+.review-page .prepared-sale-card { display: grid; grid-template-columns: minmax(180px, 250px) minmax(0, 1fr); gap: 1.2rem; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface); }
+.review-page .prepared-sale-photo { min-width: 0; }
+.review-page .prepared-sale-photo > img { display: block; width: 100%; height: 16rem; object-fit: contain; background: var(--rar-surface-soft); }
+.review-page .prepared-sale-thumbs { display: flex; gap: .35rem; overflow-x: auto; margin-top: .4rem; padding-bottom: .3rem; }
+.review-page .prepared-sale-thumbs button { flex: 0 0 3.4rem; height: 3.6rem; padding: .15rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); cursor: pointer; }
+.review-page .prepared-sale-thumbs button[aria-pressed="true"] { border: 2px solid var(--rar-red); }
+.review-page .prepared-sale-thumbs img { width: 100%; height: 100%; object-fit: contain; }
+.review-page .prepared-sale-facts { min-width: 0; }
+.review-page .prepared-sale-facts h3 { margin: .25rem 0 .45rem; font-size: 1.05rem; line-height: 1.35; }
+.review-page .prepared-sale-facts p { margin: .4rem 0; color: var(--rar-muted); font-size: .8rem; line-height: 1.45; }
+.review-page .prepared-sale-facts .prepared-sale-price { color: var(--rar-ink); font-size: 1.7rem; font-weight: 750; }
+.review-page .prepared-sale-facts dl { display: grid; gap: .45rem; margin: .8rem 0; }
+.review-page .prepared-sale-facts dl > div { display: grid; grid-template-columns: 6.5rem 1fr; gap: .5rem; padding-top: .45rem; border-top: 1px solid var(--rar-line); font-size: .78rem; }
+.review-page .prepared-sale-facts dt { color: var(--rar-muted); }
+.review-page .prepared-sale-facts dd { margin: 0; color: var(--rar-ink); font-weight: 650; }
+.review-page .prepared-sale-facts dd small { display: block; margin-top: .2rem; color: var(--rar-muted); font-size: .7rem; font-weight: 400; }
+.review-page .prepared-sale-specifics { color: var(--rar-muted); font-size: .75rem; }
+.review-page .prepared-sale-specifics summary { cursor: pointer; color: var(--rar-ink); }
+.review-page .prepared-sale-specifics ul { margin: .45rem 0; padding-left: 1.25rem; }
+.review-page .prepared-sale-source { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.review-page .prepared-sale-source a { color: var(--rar-ink); text-underline-offset: 3px; }
+.review-page .prepared-sale-exceptions, .review-page .prepared-sale-manual { margin-top: 1rem; padding: .8rem 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface); }
+.review-page .prepared-sale-exceptions summary, .review-page .prepared-sale-manual summary { color: var(--rar-ink); cursor: pointer; font-weight: 700; }
+.review-page .prepared-sale-exceptions p { color: var(--rar-muted); font-size: .8rem; }
+.review-page .prepared-sale-exceptions ul { display: grid; gap: .6rem; padding-left: 1rem; }
+.review-page .prepared-sale-exceptions li { font-size: .8rem; line-height: 1.45; }
+.review-page .prepared-sale-exceptions li span { display: block; color: var(--rar-muted); }
+.review-page .prepared-sale-exceptions a { color: var(--rar-ink); }
 .review-page .coverage-print-corrections { margin: 2rem 0; padding: 1rem; border: 1px solid var(--rar-line); background: var(--rar-surface-soft); }
 .review-page .coverage-print-corrections > summary { cursor: pointer; color: var(--rar-ink); font-weight: 700; }
 .review-page .coverage-print-corrections > p { color: var(--rar-muted); font-size: .85rem; line-height: 1.5; }
@@ -650,6 +685,9 @@ html[data-theme="night"] .review-page .outcome-page-signal-actions button.is-liv
 .review-page .review-options label.selected { background: var(--rar-surface-soft); color: var(--rar-ink); }
 .review-page .review-options label.selected small { color: var(--rar-muted); }
 @media (max-width: 600px) {
+  .review-page .prepared-sale-card { grid-template-columns: 1fr; }
+  .review-page .prepared-sale-photo > img { height: 18rem; }
+  .review-page .prepared-sale-facts dl > div { grid-template-columns: 5.6rem 1fr; }
   .review-page .coverage-review-card { gap: .7rem; padding: .8rem; }
   .review-page .coverage-review-cover { width: 3.25rem; height: 4.5rem; }
   .review-page .coverage-review-actions button { flex: 1 1 auto; }

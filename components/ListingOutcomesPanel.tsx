@@ -17,12 +17,14 @@ import { useStaffReviewer } from "@/lib/useStaffReviewer";
 import { assessOutcomeConfidence } from "@/lib/listingOutcomeConfidence";
 import type { StaffPageSignal } from "@/lib/listingPageEvidence";
 import type { ApifyReviewDraft } from "@/lib/apifyReviewDraft";
+import type { PreparedSaleDecision } from "@/lib/preparedSaleDecision";
 
 export type OutcomeRow = {
   id: string;
   externalId: string;
   status: string;
   editionLabel: string;
+  editionDetail?: string;
   editionId: string;
   profileId: string | null;
   listingTitle: string;
@@ -34,6 +36,7 @@ export type OutcomeRow = {
   soldCurrency: string | null;
   soldAt: string | null;
   apifyDraft?: ApifyReviewDraft | null;
+  preparedSale?: PreparedSaleDecision | null;
   buyingFormat: string | null;
   bidCount: number | null;
   scheduledEndAt: string | null;

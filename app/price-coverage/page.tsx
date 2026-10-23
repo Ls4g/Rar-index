@@ -24,6 +24,8 @@ import { comparableSalesNeeded } from "@/lib/editionPriceCoverage";
 import { isCurrentSalesFinding, isOlderWatchedListing } from "@/lib/salesInbox";
 import { apifyReviewDraft } from "@/lib/apifyReviewDraft";
 import { outcomeIsBestOffer } from "@/lib/outcomeSaleConfirmation";
+import { prepareSaleDecision, type SaleCheckEvidence } from "@/lib/preparedSaleDecision";
+import PreparedSalesInbox, { type NeedsEvidenceItem } from "@/components/PreparedSalesInbox";
 
 // Getting a current price onto every edition.
 //
@@ -44,7 +46,7 @@ const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13";
 const SALE_COLUMNS =
   "id,edition_id,sold_date,sale_price,currency,listing_title,source_listing_url,match_status,sale_status,is_verified,grading_company,grade_label,print_classification,printing_proof_url,known_printing_number";
 const OUTCOME_COLUMNS =
-  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,discovery_provider:original_snapshot->>provider,original_snapshot,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language)";
+  "id,external_id,marketplace,status,edition_id,profile_id,listing_title,image_url,source_listing_url,asking_price,currency,sold_price,sold_currency,sold_at,buying_format,bid_count,scheduled_end_at,first_seen_at,last_seen_at,outcome_reason,outcome_provider,discovery_provider:original_snapshot->>provider,original_snapshot,match_assessment,check_attempts,next_check_at,last_error,reviewed_by,resulting_observation_id,edition:manga_editions(title,series,volume_number,language,publisher,isbn_13,format)";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -98,15 +100,16 @@ type OutcomeRecord = {
   match_assessment: { score?: number; confidence?: string; reasons?: string[]; conflicts?: string[] } | null;
   check_attempts: number; next_check_at: string | null; last_error: string | null;
   reviewed_by: string | null; resulting_observation_id: string | null;
-  edition: { title?: string | null; series?: string | null; volume_number?: string | number | null; language?: string | null } | null;
+  edition: { title?: string | null; series?: string | null; volume_number?: string | number | null; language?: string | null; publisher?: string | null; isbn_13?: string | null; format?: string | null } | null;
 };
 
-function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"]): OutcomeRow {
+function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"], evidence: SaleCheckEvidence[] = []): OutcomeRow {
   return {
     id: record.id,
     externalId: record.external_id,
     status: record.status,
     editionLabel: editionLabel(record.edition),
+    editionDetail: [record.edition?.publisher, record.edition?.isbn_13 ? `ISBN ${record.edition.isbn_13}` : null, record.edition?.format].filter(Boolean).join(" · "),
     editionId: record.edition_id,
     profileId: record.profile_id,
     listingTitle: record.listing_title,
@@ -118,6 +121,12 @@ function toOutcomeRow(record: OutcomeRecord, checks: OutcomeRow["checks"]): Outc
     soldCurrency: record.sold_currency,
     soldAt: record.sold_at,
     apifyDraft: apifyReviewDraft(record.original_snapshot, outcomeIsBestOffer(record.buying_format, record.listing_title)),
+    preparedSale: prepareSaleDecision({
+      id: record.id, externalId: record.external_id, status: record.status,
+      sourceListingUrl: record.source_listing_url, listingTitle: record.listing_title,
+      soldPrice: record.sold_price, soldCurrency: record.sold_currency, soldAt: record.sold_at,
+      buyingFormat: record.buying_format, matchConflicts: record.match_assessment?.conflicts ?? [], checks: evidence,
+    }),
     buyingFormat: record.buying_format,
     bidCount: record.bid_count,
     scheduledEndAt: record.scheduled_end_at,
@@ -143,8 +152,8 @@ async function loadCoverage(admin: Admin) {
     readAll<CoverageEdition>(admin, "manga_editions", EDITION_COLUMNS),
     readAll<StaffVerifiedSale>(admin, "price_observations", SALE_COLUMNS,
       { column: "match_status", value: "verified_match" }),
-    readAll<{ edition_id: string; status: string; discovery_provider: string | null; reviewed_by: string | null; resulting_observation_id: string | null }>(
-      admin, "listing_outcomes", "id,edition_id,status,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id"),
+    readAll<{ id: string; edition_id: string; listing_title: string; status: string; outcome_reason: string | null; last_seen_at: string; discovery_provider: string | null; reviewed_by: string | null; resulting_observation_id: string | null }>(
+      admin, "listing_outcomes", "id,edition_id,listing_title,status,outcome_reason,last_seen_at,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id"),
   ]);
 
   const salesByEdition = new Map<string, SeriesSale[]>();
@@ -156,23 +165,54 @@ async function loadCoverage(admin: Admin) {
 
   const waitingByEdition = new Map<string, number>();
   const legacyByEdition = new Map<string, number>();
-  for (const outcome of outcomes) {
-    if (isCurrentSalesFinding(outcome)) waitingByEdition.set(outcome.edition_id, (waitingByEdition.get(outcome.edition_id) ?? 0) + 1);
+  const editionsById = new Map(editions.map((edition) => [edition.id, edition]));
+  const pending: NeedsEvidenceItem[] = [];
+  for (const outcome of outcomes.sort((left, right) => right.last_seen_at.localeCompare(left.last_seen_at))) {
+    if (isCurrentSalesFinding(outcome)) {
+      waitingByEdition.set(outcome.edition_id, (waitingByEdition.get(outcome.edition_id) ?? 0) + 1);
+      pending.push({
+        id: outcome.id, editionId: outcome.edition_id,
+        editionLabel: editionLabel(editionsById.get(outcome.edition_id) ?? null),
+        listingTitle: outcome.listing_title,
+        reason: outcome.status === "sold_candidate" ? "Sale details need a closer review."
+          : outcome.outcome_reason ?? "The completed sale and paid amount have not been established.",
+      });
+    }
     else if (isOlderWatchedListing(outcome)) legacyByEdition.set(outcome.edition_id, (legacyByEdition.get(outcome.edition_id) ?? 0) + 1);
   }
 
   const rows = sortCoverage(editions.map((edition) =>
     assessEditionCoverage(edition, salesByEdition.get(edition.id) ?? [], waitingByEdition.get(edition.id) ?? 0)));
-  return { rows, summary: coverageSummary(rows), legacyByEdition };
+  return { rows, summary: coverageSummary(rows), legacyByEdition, pending };
 }
 
-function InboxRow({ row }: { row: EditionCoverage }) {
-  return <li className="price-coverage-row is-thin">
-    <Link className="price-coverage-link" href={`/price-coverage?edition=${row.edition.id}`}>
-      <span className="price-coverage-name">{editionLabel(row.edition)}</span>
-      <span className="price-coverage-state">{row.waitingToCheck} finding{row.waitingToCheck === 1 ? "" : "s"} to review →</span>
-    </Link>
-  </li>;
+async function loadPreparedInbox(admin: Admin) {
+  const records: OutcomeRecord[] = [];
+  for (let from = 0; ; from += 250) {
+    const { data, error } = await admin.from("listing_outcomes").select(OUTCOME_COLUMNS)
+      .eq("status", "sold_candidate").is("reviewed_by", null).is("resulting_observation_id", null)
+      .order("last_seen_at", { ascending: false }).range(from, from + 249);
+    if (error) throw new Error(`Sales inbox could not be read: ${error.message}`);
+    const batch = (data ?? []) as unknown as OutcomeRecord[];
+    records.push(...batch);
+    if (batch.length < 250) break;
+  }
+  const checksByOutcome = new Map<string, SaleCheckEvidence[]>();
+  for (let from = 0; from < records.length; from += 100) {
+    const ids = records.slice(from, from + 100).map((record) => record.id);
+    const { data, error } = await admin.from("listing_outcome_checks")
+      .select("outcome_id,provider,listing_state,http_status,checked_at,raw_response")
+      .in("outcome_id", ids).order("checked_at", { ascending: false });
+    if (error) throw new Error(`Sales evidence could not be read: ${error.message}`);
+    for (const check of data ?? []) {
+      const list = checksByOutcome.get(check.outcome_id) ?? [];
+      list.push({ provider: check.provider, state: check.listing_state, httpStatus: check.http_status,
+        checkedAt: check.checked_at, rawResponse: check.raw_response });
+      checksByOutcome.set(check.outcome_id, list);
+    }
+  }
+  const rows = records.map((record) => toOutcomeRow(record, [], checksByOutcome.get(record.id) ?? []));
+  return { ready: rows.filter((row) => row.preparedSale?.ready), needsEvidence: rows.filter((row) => !row.preparedSale?.ready) };
 }
 
 function CoverageRow({ row }: { row: EditionCoverage }) {
@@ -228,7 +268,9 @@ export default async function PriceCoveragePage({ searchParams }: {
   if (editionId) return renderEdition(admin, editionId, focusOutcomeId, focusMissing,
     focusOutcomeId || one(parameters.show) === "all" ? "all" : one(parameters.show) === "legacy" ? "legacy" : "current", parameters);
 
-  const { rows, summary, legacyByEdition } = await loadCoverage(admin);
+  const [{ rows, summary, legacyByEdition, pending }, preparedInbox] = await Promise.all([
+    loadCoverage(admin), loadPreparedInbox(admin),
+  ]);
   const show = one(parameters.show) === "all" ? "all" : one(parameters.show) === "legacy" ? "legacy" : "todo";
   const series = (one(parameters.series) ?? "").trim();
 
@@ -242,8 +284,13 @@ export default async function PriceCoveragePage({ searchParams }: {
   const selected = seriesOptions.find((option) => option.key === series.toLocaleLowerCase()) ?? null;
 
   const inSeries = selected ? rows.filter((row) => seriesKey(row.edition.series) === selected.key) : rows;
-  const inboxRows = inSeries.filter((row) => row.waitingToCheck > 0);
-  const inboxCount = inboxRows.reduce((count, row) => count + row.waitingToCheck, 0);
+  const seriesByEdition = new Map(rows.map((row) => [row.edition.id, seriesKey(row.edition.series)]));
+  const readyIds = new Set(preparedInbox.ready.map((row) => row.id));
+  const soldNeeds = new Map(preparedInbox.needsEvidence.map((row) => [row.id, row.preparedSale?.reason]));
+  const needsEvidence = pending.filter((row) => !readyIds.has(row.id))
+    .filter((row) => !selected || seriesByEdition.get(row.editionId) === selected.key)
+    .map((row) => ({ ...row, reason: soldNeeds.get(row.id) ?? row.reason }));
+  const readyRows = preparedInbox.ready.filter((row) => !selected || seriesByEdition.get(row.editionId) === selected.key);
   const legacyRows = inSeries.filter((row) => (legacyByEdition.get(row.edition.id) ?? 0) > 0);
   const legacyCount = legacyRows.reduce((count, row) => count + (legacyByEdition.get(row.edition.id) ?? 0), 0);
   const visible = show === "all" ? inSeries : show === "legacy" ? legacyRows : inSeries.filter((row) => row.state !== "priced");
@@ -263,6 +310,7 @@ export default async function PriceCoveragePage({ searchParams }: {
         <StaffNav current="/price-coverage" />
       </header>
       <section className="catalogue-content">
+        {show === "todo" ? <PreparedSalesInbox initialRows={readyRows} needsEvidence={needsEvidence} /> : null}
         <div className="price-coverage-header">
           <p className="eyebrow">{selected ? selected.label : "Price coverage"}</p>
           <h1>
@@ -304,13 +352,6 @@ export default async function PriceCoveragePage({ searchParams }: {
             </Link>
           </div>
         </div>
-        {show === "todo" ? <section className="price-coverage-inbox" aria-labelledby="sales-inbox-heading">
-          <p className="eyebrow">New sales inbox</p>
-          <h2 id="sales-inbox-heading">{inboxCount} finding{inboxCount === 1 ? "" : "s"} ready for review</h2>
-          <p>These are leads from eBay sold searches or explicit sold signals. Open the original listing before approving any sale.</p>
-          {inboxRows.length ? <ol className="price-coverage-list">{inboxRows.map((row) => <InboxRow key={row.edition.id} row={row} />)}</ol>
-            : <p className="outcome-message" role="status">No new findings are waiting.</p>}
-        </section> : null}
         {show === "legacy" ? <p className="price-coverage-note">Older watched listings are kept here, separate from the new sales inbox. They have not been deleted or counted as sales.</p> : null}
         <ol className="price-coverage-list">
           {visible.map((row) => show === "legacy"
@@ -345,11 +386,12 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
 
   const { data: checkData } = records.length
     ? await admin.from("listing_outcome_checks")
-      .select("outcome_id,provider,attempt_number,http_status,listing_state,detail,checked_at")
+      .select("outcome_id,provider,attempt_number,http_status,listing_state,detail,checked_at,raw_response")
       .in("outcome_id", records.map((record) => record.id))
       .order("checked_at", { ascending: false })
     : { data: [] };
   const checksByOutcome = new Map<string, OutcomeRow["checks"]>();
+  const evidenceByOutcome = new Map<string, SaleCheckEvidence[]>();
   for (const check of (checkData ?? []) as Array<Record<string, unknown>>) {
     const id = check.outcome_id as string;
     const list = checksByOutcome.get(id) ?? [];
@@ -362,9 +404,16 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
       checkedAt: check.checked_at as string,
     });
     checksByOutcome.set(id, list);
+    const evidence = evidenceByOutcome.get(id) ?? [];
+    evidence.push({
+      provider: check.provider as string, state: check.listing_state as string | null,
+      httpStatus: check.http_status as number | null, checkedAt: check.checked_at as string,
+      rawResponse: check.raw_response,
+    });
+    evidenceByOutcome.set(id, evidence);
   }
 
-  const convert = (record: OutcomeRecord) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? []);
+  const convert = (record: OutcomeRecord) => toOutcomeRow(record, checksByOutcome.get(record.id) ?? [], evidenceByOutcome.get(record.id) ?? []);
   const allRows = records.map(convert);
   const outstanding = currentRecords.map(convert);
   const legacy = legacyRecords.map(convert);
@@ -433,7 +482,10 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
           </div>
         </div>
         {view === "legacy" ? <p className="price-coverage-note">These older watched listings remain available for investigation. They are not verified sales.</p> : null}
-        {!focusOutcomeId && view === "current" ? <PriceCoverageReview editionId={editionId} initialRows={outstanding} /> : rows.length ? (
+        {!focusOutcomeId && view === "current" ? <>
+          <PreparedSalesInbox initialRows={outstanding.filter((row) => row.preparedSale?.ready)} needsEvidence={outstanding.filter((row) => !row.preparedSale?.ready).map((row) => ({ id: row.id, editionId: row.editionId, editionLabel: row.editionLabel, listingTitle: row.listingTitle, reason: row.preparedSale?.reason ?? "Needs a closer review" }))} />
+          {outstanding.some((row) => !row.preparedSale?.ready) ? <details className="prepared-sale-manual"><summary>Manual review tools for incomplete findings</summary><PriceCoverageReview editionId={editionId} initialRows={outstanding.filter((row) => !row.preparedSale?.ready)} /></details> : null}
+        </> : rows.length ? (
           <ListingOutcomesPanel
             basePath={`/price-coverage?edition=${editionId}`}
             showFilters={false}

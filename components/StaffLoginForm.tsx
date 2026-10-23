@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/review";
+  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/price-coverage";
 }
 
 export default function StaffLoginForm() {

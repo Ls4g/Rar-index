@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import type { OutcomeRow } from "@/components/ListingOutcomesPanel";
 import { outcomeIsBestOffer } from "@/lib/outcomeSaleConfirmation";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
+import { detectGrading } from "@/lib/submittedSale";
 
 type SaleInput = {
   total: string;
@@ -23,14 +24,15 @@ type SaleInput = {
 };
 
 function initialInput(row: OutcomeRow): SaleInput {
+  const detected = detectGrading(row.listingTitle);
   return {
     total: row.soldPrice === null ? row.apifyDraft?.amount ?? "" : String(row.soldPrice),
     fee: "",
     currency: row.soldCurrency ?? row.apifyDraft?.currency ?? row.currency ?? "",
     date: row.soldAt?.slice(0, 10) ?? row.apifyDraft?.endedDate ?? "",
-    grading: "",
-    company: "",
-    grade: "",
+    grading: row.preparedSale?.grading ?? (detected.isGraded ? "graded" : "raw"),
+    company: row.preparedSale?.gradingCompany ?? detected.company,
+    grade: row.preparedSale?.gradeLabel ?? detected.grade,
     printClassification: "printing_not_identified",
     proofUrl: "",
     printingNumber: "",
@@ -187,6 +189,7 @@ export default function PriceCoverageReview({ editionId, initialRows }: { editio
             {row.status !== "sold_candidate" ? <button disabled={busy} onClick={() => void decide(row, "keep_watching")} type="button">Still live</button> : null}
           </div>
           {expanded ? <form className="coverage-review-form" onSubmit={(event) => { event.preventDefault(); void approve(row); }}>
+            {row.preparedSale?.imageUrls.length ? <div className="coverage-review-gallery"><p>eBay listing photos · tap the copyright page to use its direct photo link as printing proof.</p><div>{row.preparedSale.imageUrls.map((url, index) => <button aria-label={`Use listing photo ${index + 1} as printing proof`} aria-pressed={input.proofUrl === url} key={`${url}-${index}`} onClick={() => updateInput(row.id, row, { proofUrl: url })} type="button"><Image alt={`eBay listing photo ${index + 1}`} height={120} src={url} unoptimized width={90} /></button>)}</div></div> : null}
             {draft ? <p className="coverage-review-draft-note">Apify suggestions are not verified sale details. Check the original eBay page and correct the paid total, fee, currency and sale date before saving. The suggested date is when the listing ended, which may differ from when it sold.{bestOffer ? " Best Offer amount is left blank until you confirm the accepted price." : ""}</p> : null}
             {!alreadyPriced ? <div className="coverage-review-fields">
               <label>eBay displayed total{draft?.amount ? " · Apify draft" : ""}<input min="0.01" onChange={(event) => updateInput(row.id, row, { total: event.target.value })} required step="0.01" type="number" value={input.total} /></label>
