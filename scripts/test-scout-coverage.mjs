@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildMarketplaceQuery } from "../lib/marketplaceQuery.ts";
 import { canSeedScoutProfile } from "../lib/scoutProfileSeed.ts";
-import { publicListingCoverage, SCOUT_MAINTENANCE_SLOTS, selectScoutProfiles, surplusScoutLeadIds } from "../lib/scoutCoverage.ts";
+import { publicListingCoverage, selectScoutProfiles, surplusScoutLeadIds } from "../lib/scoutCoverage.ts";
 import { mapScoutBatch, SCOUT_BATCH_CONCURRENCY } from "../lib/scoutBatchConcurrency.ts";
 
 let runningScans = 0;
@@ -28,7 +28,7 @@ assert.equal(publicListingCoverage(profile, [lead({ last_seen_at: "2026-08-20T11
 assert.equal(publicListingCoverage(profile, [lead({ item_end_at: "2026-08-24T10:00:00.000Z" })], now), 0, "ended listings do not count");
 assert.equal(publicListingCoverage(profile, [lead(), lead()], now), 1, "duplicate marketplace items count once");
 assert.equal(publicListingCoverage(profile, [lead({ listing_title: "One Piece manga Vol 8 Shueisha" })], now), 0, "the wrong volume does not count");
-assert.equal(publicListingCoverage(profile, [lead({ listing_title: "CGC 9.0 One Piece manga Vol 1 Shueisha graded" })], now), 0, "graded copies do not fill the raw-listing target");
+assert.equal(publicListingCoverage(profile, [lead({ listing_title: "CGC 9.0 One Piece manga Vol 1 Shueisha graded" })], now), 1, "a graded listing shown on Buy manga counts toward its live-listing target");
 
 const profiles = [
   { ...profile, id: "zero", last_checked_at: "2026-08-20T00:00:00Z" },
@@ -40,9 +40,9 @@ const leads = [
   ...Array.from({ length: 5 }, (_, index) => lead({ profile_id: "covered", external_id: `covered-${index}` })),
 ];
 const selection = selectScoutProfiles(profiles, leads, 2, now);
-assert.deepEqual(selection.selected.map((item) => item.id), ["zero", "covered"], "discovery starts at zero while a maintenance slot preserves covered profiles");
-assert.equal(selection.discoverySelected, 1);
-assert.equal(selection.maintenanceSelected, 1);
+assert.deepEqual(selection.selected.map((item) => item.id), ["zero", "partial"], "only editions below five public listings are searched");
+assert.equal(selection.discoverySelected, 2);
+assert.equal(selection.maintenanceSelected, 0);
 
 const maintenanceProfiles = Array.from({ length: 7 }, (_, index) => ({
   ...profile,
@@ -52,10 +52,12 @@ const maintenanceProfiles = Array.from({ length: 7 }, (_, index) => ({
 const maintenanceLeads = maintenanceProfiles.flatMap((maintenanceProfile) =>
   Array.from({ length: 5 }, (_, index) => lead({ profile_id: maintenanceProfile.id, external_id: `${maintenanceProfile.id}-${index}` })),
 );
-const cappedMaintenance = selectScoutProfiles(maintenanceProfiles, maintenanceLeads, 10, now);
-assert.equal(SCOUT_MAINTENANCE_SLOTS, 5);
-assert.equal(cappedMaintenance.selected.length, 5, "covered profiles never consume more than five maintenance searches");
-assert.equal(cappedMaintenance.maintenanceSelected, 5);
+const coveredSelection = selectScoutProfiles(maintenanceProfiles, maintenanceLeads, 10, now);
+assert.equal(coveredSelection.selected.length, 0, "covered editions consume no search slots");
+assert.equal(coveredSelection.coveredProfiles, 7);
+assert.equal(coveredSelection.maintenanceSelected, 0);
+const oneUnderTarget = maintenanceLeads.filter((item) => item.external_id !== "maintenance-0-4");
+assert.deepEqual(selectScoutProfiles(maintenanceProfiles, oneUnderTarget, 10, now).selected.map((item) => item.id), ["maintenance-0"], "four listings qualify, five do not");
 
 const triageLead = (id, overrides = {}) => ({
   id,

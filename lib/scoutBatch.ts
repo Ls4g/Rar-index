@@ -76,13 +76,15 @@ export async function runScoutBatch(
   const recentLeads: ScoutCoverageLead[] = [];
   const freshnessCutoff = new Date(Date.now() - SCOUT_PUBLIC_FRESHNESS_HOURS * 60 * 60 * 1000).toISOString();
   const pageSize = 1000;
-  for (let from = 0; from < 10_000; from += pageSize) {
+  for (let from = 0; ; from += pageSize) {
     const { data: leadPage, error: leadError } = await admin
       .from("scout_listing_leads")
       .select("profile_id,external_id,listing_title,item_end_at,last_seen_at,review_status")
+      .in("profile_id", candidateProfiles.map((profile) => profile.id))
       .in("review_status", ["new", "watching"])
       .gte("last_seen_at", freshnessCutoff)
       .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
     if (leadError) throw new Error("RAR could not measure current Scout coverage.");
     recentLeads.push(...((leadPage ?? []) as ScoutCoverageLead[]));

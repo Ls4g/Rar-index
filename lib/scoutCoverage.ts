@@ -1,10 +1,8 @@
 import { isPlausibleLiveListing, type PlausibilityEdition } from "./liveListings.ts";
-import { looksGraded } from "./editionMatch.ts";
 import { coveragePriorityRank } from "./coveragePriority.ts";
 
 export const SCOUT_PUBLIC_LISTING_TARGET = 5;
 export const SCOUT_PUBLIC_FRESHNESS_HOURS = 48;
-export const SCOUT_MAINTENANCE_SLOTS = 5;
 
 export type ScoutCoverageProfile = {
   id: string;
@@ -51,7 +49,6 @@ export function publicListingCoverage(
   for (const lead of leads) {
     if (lead.profile_id !== profile.id || seen.has(lead.external_id)) continue;
     if (lead.review_status !== "new" && lead.review_status !== "watching") continue;
-    if (looksGraded(lead.listing_title ?? "")) continue;
     const lastSeen = validDate(lead.last_seen_at);
     if (lastSeen === null || lastSeen < freshnessCutoff) continue;
     const endAt = validDate(lead.item_end_at);
@@ -140,24 +137,13 @@ export function selectScoutProfiles<T extends ScoutCoverageProfile>(
       if (leftPriority && leftRank !== rightRank) return leftRank - rightRank;
       return checkedAt(left) - checkedAt(right);
     });
-  const maintenance = profiles
-    .filter((profile) => (coverageByProfile.get(profile.id) ?? 0) >= SCOUT_PUBLIC_LISTING_TARGET)
-    .sort((left, right) => checkedAt(left) - checkedAt(right));
-
-  const maintenanceLimit = Math.min(SCOUT_MAINTENANCE_SLOTS, maintenance.length, limit);
-  const discoveryLimit = Math.min(discovery.length, Math.max(0, limit - maintenanceLimit));
-  const selectedDiscovery = discovery.slice(0, discoveryLimit);
-  const selectedMaintenance = maintenance.slice(0, maintenanceLimit);
-  let selected = [...selectedDiscovery, ...selectedMaintenance];
-
-  if (selected.length < limit) {
-    selected = selected.concat(discovery.slice(discoveryLimit, discoveryLimit + (limit - selected.length)));
-  }
+  const coveredProfiles = profiles.length - discovery.length;
+  const selected = discovery.slice(0, Math.max(0, limit));
   return {
     selected,
     coverageByProfile,
-    discoverySelected: selected.filter((profile) => (coverageByProfile.get(profile.id) ?? 0) < SCOUT_PUBLIC_LISTING_TARGET).length,
-    maintenanceSelected: selected.filter((profile) => (coverageByProfile.get(profile.id) ?? 0) >= SCOUT_PUBLIC_LISTING_TARGET).length,
-    coveredProfiles: maintenance.length,
+    discoverySelected: selected.length,
+    maintenanceSelected: 0,
+    coveredProfiles,
   };
 }

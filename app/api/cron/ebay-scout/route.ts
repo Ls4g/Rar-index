@@ -73,6 +73,8 @@ export async function GET(request: Request) {
       .in("profile_id", profileIds)
       .in("review_status", ["new", "watching"])
       .gte("last_seen_at", cutoff)
+      .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: true })
       .range(offset, offset + 999);
     if (leadError) return Response.json({ error: "RAR could not measure current Scout coverage." }, { status: 500 });
     recentLeads.push(...((leadRows ?? []) as ScoutCoverageLead[]));
@@ -80,6 +82,16 @@ export async function GET(request: Request) {
   }
   const selection = selectScoutProfiles(activeProfiles, recentLeads, DAILY_PROFILE_LIMIT);
   const profilesToScan = selection.selected;
+  if (!profilesToScan.length) return Response.json({
+    createdProfiles,
+    activeProfiles: activeProfiles.length,
+    coveredProfiles: selection.coveredProfiles,
+    discoveryScans: 0,
+    maintenanceScans: 0,
+    scannedProfiles: 0,
+    activeLeads: 0,
+    failures: 0,
+  });
 
   let token: string;
   try {
