@@ -2,8 +2,9 @@ import { assessCoverCandidate, normalizeIsbn, type CoverMatchTarget } from "@/li
 import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 import { findDirectOpenLibraryCover } from "@/lib/openLibraryCover";
 import { findVizCover } from "@/lib/vizCover";
+import { fetchKodanshaRecord, kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
-export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media";
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Kodansha Japan" | "Kodansha USA";
 
 export type DiscoveredCoverCandidate = {
   sourceName: CoverSourceName;
@@ -31,6 +32,32 @@ export type CoverDiscoveryResult = {
 };
 
 type ProviderCheck = { candidates: DiscoveredCoverCandidate[]; emptyReason?: string };
+
+async function findKodanshaCover(target: CoverMatchTarget, sourceUrl: string): Promise<ProviderCheck> {
+  const record = await fetchKodanshaRecord(sourceUrl);
+  if (!record) return { candidates: [], emptyReason: "The official page has no readable print ISBN or title." };
+  const assessment = assessCoverCandidate(target, {
+    title: record.title, publisher: "Kodansha", language: record.language, isbn13: record.printIsbn13,
+  });
+  if (!assessment.eligible) return { candidates: [], emptyReason: assessment.conflicts.some((reason) => reason.includes("ISBN"))
+    ? `Official publisher lists print ISBN ${record.printIsbn13}; RAR lists ${normalizeIsbn(target.isbn13)}. Review this catalogue identity: ${record.url}`
+    : `The official record conflicts with this edition: ${assessment.conflicts.join("; ")}.` };
+  if (!record.coverUrl) return { candidates: [], emptyReason: "The official print record has no supported cover image." };
+  return { candidates: [{
+    sourceName: record.sourceName,
+    externalId: record.printIsbn13,
+    coverImageUrl: record.coverUrl,
+    sourceRecordUrl: record.url,
+    candidateTitle: record.title,
+    candidatePublisher: "Kodansha",
+    candidateLanguage: record.language,
+    candidateIsbn13: record.printIsbn13,
+    matchScore: assessment.score,
+    matchConfidence: assessment.confidence as "strong" | "partial",
+    matchReasons: [...assessment.reasons, "Official publisher product page"],
+    rawPayload: { importer: "kodansha_official", print_isbn_13: record.printIsbn13 },
+  }] };
+}
 
 type GoogleVolume = {
   id?: string;
@@ -162,7 +189,7 @@ async function findOpenLibrary(target: CoverMatchTarget): Promise<ProviderCheck>
   }] };
 }
 
-export async function discoverCoverCandidates(target: CoverMatchTarget, googleBooksGate?: GoogleBooksBatchGate): Promise<CoverDiscoveryResult> {
+export async function discoverCoverCandidates(target: CoverMatchTarget, googleBooksGate?: GoogleBooksBatchGate, officialRecordUrls: string[] = []): Promise<CoverDiscoveryResult> {
   const candidates: DiscoveredCoverCandidate[] = [];
   const errors: string[] = [];
   const providerStates: CoverDiscoveryResult["providerStates"] = [];
@@ -175,6 +202,9 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
     // budget -- one conditional GET against a URL derived from the ISBN.
     { sourceName: "VIZ Media", promise: findVizCover(target) },
   ];
+  for (const url of [...new Set(officialRecordUrls)].filter((value) => kodanshaRecordKind(value)).slice(0, 2)) {
+    jobs.push({ sourceName: kodanshaRecordKind(url)!, promise: findKodanshaCover(target, url) });
+  }
   if (googleBooksGate?.canRequest() && googleBooksGate.apiKey) {
     jobs.push({ sourceName: "Google Books", promise: findGoogleBooks(target, googleBooksGate.apiKey) });
   } else {

@@ -1,5 +1,7 @@
+import { fetchKodanshaAdjacentRecord, fetchKodanshaRecord, type KodanshaRecord } from "./kodanshaRecord.ts";
+
 export type CatalogueSourceCandidate = {
-  source_name?: "Open Library" | "Shueisha Direct" | "OpenBD";
+  source_name?: "Open Library" | "Shueisha Direct" | "OpenBD" | "Kodansha Japan" | "Kodansha USA";
   external_id: string;
   source_record_url: string;
   raw_payload: Record<string, unknown>;
@@ -176,6 +178,34 @@ export async function searchOpenBdCatalogue(query: string): Promise<CatalogueSou
     candidate_format: record.onix?.DescriptiveDetail?.ProductFormDetail ?? null,
     candidate_cover_image_url: summary.cover?.replace(/^http:\/\//i, "https://") || null,
   }];
+}
+
+function kodanshaCandidate(record: KodanshaRecord | null): CatalogueSourceCandidate[] {
+  if (!record) return [];
+  return [{
+    source_name: record.sourceName,
+    external_id: record.url,
+    source_record_url: record.url,
+    raw_payload: { importer: "kodansha_official", print_isbn_13: record.printIsbn13 },
+    candidate_kind: "edition_candidate",
+    candidate_title: record.title,
+    candidate_volume_number: record.title.normalize("NFKC").match(/[（(](\d{1,3})[）)]/)?.[1]
+      ?? record.title.match(/(?:vol(?:ume)?\.?\s*)(\d{1,3})/i)?.[1] ?? null,
+    candidate_author: null,
+    candidate_publisher: "Kodansha",
+    candidate_language: record.language,
+    candidate_isbn_13: record.printIsbn13,
+    candidate_release_date: null,
+    candidate_cover_image_url: record.coverUrl,
+  }];
+}
+
+export async function searchKodanshaCatalogue(url: string): Promise<CatalogueSourceCandidate[]> {
+  return kodanshaCandidate(await fetchKodanshaRecord(url));
+}
+
+export async function searchKodanshaAdjacentCatalogue(seedUrl: string, direction: "next" | "previous") {
+  return kodanshaCandidate(await fetchKodanshaAdjacentRecord(seedUrl, direction));
 }
 
 export async function searchShueishaCatalogue(query: string): Promise<CatalogueSourceCandidate[]> {

@@ -108,6 +108,11 @@ export function catalogueApprovalProblem(
   row: CatalogueApprovalQueueRow,
   knownEditions: KnownCatalogueEdition[],
 ) {
+  const isbnConflict = row.raw_payload?.official_isbn_conflict;
+  if (isbnConflict && typeof isbnConflict === "object") {
+    const values = isbnConflict as Record<string, unknown>;
+    return `Official publisher print ISBN ${String(values.publisher_print_isbn_13 ?? "unknown")} differs from the requested ISBN ${String(values.rar_target_isbn_13 ?? "unknown")}. Check whether RAR needs a correction or this is a distinct edition before publishing.`;
+  }
   const discovery = discoveryFromPayload(row.raw_payload);
   if (!discovery) return null;
   const target = targetFromDiscovery(discovery);

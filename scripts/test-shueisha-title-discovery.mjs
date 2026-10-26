@@ -43,7 +43,7 @@ try {
     series_key: "jujutsu kaisen", lane: "established", language: "Japanese",
     score: 100, series_status: null, reported_volume_count: null,
     next_missing_volume: 1, status: "watching", source_url: null,
-    source_metadata: {}, last_checked_at: null, next_check_at: null,
+    source_metadata: { expected_publisher: "Shueisha" }, last_checked_at: null, next_check_at: null,
     failure_count: 0, last_result: null,
   };
   const target = backlogTargetToDiscoveryTarget(backlog);
@@ -52,7 +52,8 @@ try {
   assert.equal(target.isbn13, null);
   assert.equal(candidateMatchesDiscoveryTarget(candidates[0], target), true);
   assert.equal(candidateMatchesDiscoveryTarget(candidates[1], target), false);
-  assert.equal(backlogTargetToDiscoveryTarget({ ...backlog, discovery_source: "anilist" }), null);
+  assert.equal(backlogTargetToDiscoveryTarget({ ...backlog, source_metadata: {} }), null);
+  assert.equal(backlogTargetToDiscoveryTarget({ ...backlog, discovery_source: "anilist", source_metadata: {} }), null);
   assert.equal(backlogTargetToDiscoveryTarget({ ...backlog, discovery_source: "anilist", source_metadata: { expected_publisher: "Shueisha" } }).source, "shueisha_direct");
   const planningAdmin = { from: () => ({ select: () => ({ in: () => ({ order: () => ({ limit: async () => ({ data: [
     backlog,

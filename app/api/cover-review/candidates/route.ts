@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
 import { createGoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 import { chooseCoverResearchBatch } from "@/lib/coverResearchSchedule";
+import { kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
 const MAX_BATCH_SIZE = 20;
 
@@ -79,11 +80,21 @@ export async function POST(request: Request) {
   // provider that addresses covers by ISBN needs them: a variant shares its
   // ISBN with the plain edition, so an ISBN lookup returns knowingly wrong
   // artwork for it. Read for this batch only -- at most MAX_BATCH_SIZE rows.
-  const { data: variantRows, error: variantError } = editions.length
-    ? await admin.from("manga_editions").select("id,variant_name,printing_number").in("id", editions.map((edition) => edition.edition_id))
-    : { data: [], error: null };
-  if (variantError) return Response.json({ error: "Edition variants could not be read, so no covers were searched." }, { status: 500 });
+  const editionIds = editions.map((edition) => edition.edition_id);
+  const [variantResult, sourceResult] = await Promise.all(editions.length ? [
+    admin.from("manga_editions").select("id,variant_name,printing_number").in("id", editionIds),
+    admin.from("edition_sources").select("edition_id,source_record_url").in("edition_id", editionIds),
+  ] : [Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null })]);
+  if (variantResult.error || sourceResult.error) return Response.json({ error: "Edition variants or publisher sources could not be read, so no covers were searched." }, { status: 500 });
+  const variantRows = variantResult.data;
   const variants = new Map((variantRows ?? []).map((row) => [row.id as string, row]));
+  const officialUrls = new Map<string, string[]>();
+  for (const row of sourceResult.data ?? []) {
+    if (typeof row.source_record_url !== "string" || !kodanshaRecordKind(row.source_record_url)) continue;
+    const urls = officialUrls.get(row.edition_id) ?? [];
+    urls.push(row.source_record_url);
+    officialUrls.set(row.edition_id, urls);
+  }
 
   const discovered = await mapWithConcurrency(editions, 4, async (edition) => {
     const variant = variants.get(edition.edition_id);
@@ -96,7 +107,7 @@ export async function POST(request: Request) {
       isbn13: edition.isbn_13,
       variantName: (variant?.variant_name as string | null) ?? null,
       printingNumber: (variant?.printing_number as number | null) ?? null,
-    }, googleBooksGate);
+    }, googleBooksGate, officialUrls.get(edition.edition_id) ?? []);
     return { edition, ...result };
   });
 
@@ -120,9 +131,10 @@ export async function POST(request: Request) {
     const { error: scanInsertError } = await admin.from("cover_candidate_scans").insert(discovered.map(({ edition, candidates, errors, providerStates }) => ({
       edition_id: edition.edition_id,
       candidates_found: candidates.length,
-      source_warnings: candidates.length ? errors : [
+      source_warnings: [
         ...errors,
-        ...providerStates.filter((state) => state.message && state.status !== "failed")
+        ...providerStates.filter((state) => state.message && state.status !== "failed"
+          && (!candidates.length || state.message?.startsWith("Official publisher lists print ISBN")))
           .map((state) => `${state.sourceName}: ${state.message}`),
       ],
     })));
@@ -151,7 +163,11 @@ export async function POST(request: Request) {
       title: edition.title ?? edition.series ?? edition.edition_id,
       reasons: providerStates.map((state) => `${state.sourceName}: ${state.message ?? state.status}`),
     })),
-    sourceWarnings: discovered.flatMap(({ edition, errors }) => errors.map((message) => `${edition.title ?? edition.edition_id}: ${message}`)),
+    sourceWarnings: discovered.flatMap(({ edition, errors, providerStates }) => [
+      ...errors,
+      ...providerStates.filter((state) => state.message?.startsWith("Official publisher lists print ISBN"))
+        .map((state) => `${state.sourceName}: ${state.message}`),
+    ].map((message) => `${edition.title ?? edition.edition_id}: ${message}`)),
     providerSummary: {
       googleBooks: googleBooksGate.skipReason() ?? "checked",
       openLibrary: discovered.some(({ providerStates }) => providerStates.some((state) => state.sourceName === "Open Library" && state.status === "checked")) ? "checked" : "failed",

@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIORITY_SERIES, isPrioritySeries } from "./prioritySeries.ts";
-import { searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { searchKodanshaAdjacentCatalogue, searchKodanshaCatalogue, searchOpenBdCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue, type CatalogueSourceCandidate } from "./catalogueSources.ts";
+import { kodanshaRecordKind } from "./kodanshaRecord.ts";
 import { japaneseCatalogueTitle } from "./japaneseTitleAliases.ts";
 import { backlogTargetToDiscoveryTarget, planBacklogRun, recordTargetOutcome } from "./catalogueDiscovery.ts";
-import { describeRunFairness, isStaffFastTrack } from "./catalogueBacklog.ts";
+import { describeRunFairness, isStaffFastTrack, normaliseSeriesKey } from "./catalogueBacklog.ts";
 import { listingIsMultiVolumeLot } from "./liveListings.ts";
 
 const DISCOVERY_TARGET_LIMIT = 10;
@@ -11,7 +12,8 @@ const CANDIDATES_PER_TARGET = 1;
 
 export type CatalogueDiscoveryTarget = {
   key: string;
-  source: "shueisha_direct" | "open_library";
+  source: "shueisha_direct" | "open_library" | "openbd" | "kodansha_direct" | "kodansha_neighbor";
+  neighborDirection?: "next" | "previous";
   query: string;
   title: string;
   series: string | null;
@@ -33,11 +35,13 @@ export type CatalogueDiscoveryRequest = {
   language: string | null;
   publisher: string | null;
   isbn_13: string | null;
+  original_source_url?: string | null;
   collectible_type: string | null;
   status: string;
 };
 
 export type CatalogueDiscoveryEdition = {
+  id?: string;
   title: string | null;
   series: string | null;
   volume_number: string | number | null;
@@ -130,6 +134,10 @@ export function cataloguePublisherMatches(candidate: string | null, target: stri
   const aliases: Record<string, string> = {
     shueisha: "shueisha",
     集英社: "shueisha",
+    kodansha: "kodansha",
+    講談社: "kodansha",
+    kodanshacomics: "kodansha",
+    kodanshausa: "kodansha",
     vizmedia: "vizmedia",
     vizmediallc: "vizmedia",
     shonenjump: "vizmedia",
@@ -190,6 +198,9 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   const targetIsbn = cleanIsbn(target.isbn13);
   const candidateIsbn = cleanIsbn(candidate.candidate_isbn_13);
   if (!languageMatches(candidate.candidate_language, target.language)) return false;
+  const statedVolume = integerVolume(candidate.candidate_volume_number) ?? volumeFromCatalogueTitle(candidate.candidate_title);
+  const wantedVolume = integerVolume(target.volumeNumber);
+  if (wantedVolume !== null && statedVolume !== null && wantedVolume !== statedVolume) return false;
   if (targetIsbn && candidateIsbn) return targetIsbn === candidateIsbn;
   if (!cataloguePublisherMatches(candidate.candidate_publisher, target.publisher)) return false;
 
@@ -224,6 +235,13 @@ export function candidateMatchesDiscoveryTarget(candidate: CatalogueSourceCandid
   if (targetVolume === null) return true;
   const candidateVolume = integerVolume(candidate.candidate_volume_number) ?? volumeFromCatalogueTitle(candidate.candidate_title);
   return candidateVolume === targetVolume;
+}
+
+function officialPublisherIsbnConflict(candidate: CatalogueSourceCandidate, target: CatalogueDiscoveryTarget) {
+  const expected = cleanIsbn(target.isbn13);
+  const official = cleanIsbn(candidate.candidate_isbn_13);
+  return target.source === "kodansha_direct" && Boolean(expected && official && expected !== official)
+    && candidateMatchesDiscoveryTarget(candidate, { ...target, isbn13: null });
 }
 
 function requestWasDiscovered(requestId: string, queued: CatalogueDiscoveryQueued[]) {
@@ -267,13 +285,17 @@ export function planCatalogueDiscoveryTargets(
     // sets and attach the box ISBN to an individual target volume. Only an
     // exact ISBN can enter the autonomous Japanese path, and Shueisha's own
     // product record is the source that staff reviews.
-    if (language === "Japanese" && !exactIsbn) continue;
-    const source = language === "Japanese" ? "shueisha_direct" : "open_library";
+    const kodanshaPage = request.original_source_url && kodanshaRecordKind(request.original_source_url)
+      ? request.original_source_url : null;
+    if (language === "Japanese" && !exactIsbn && !kodanshaPage) continue;
+    const source = kodanshaPage ? "kodansha_direct"
+      : language === "Japanese" && cataloguePublisherMatches(request.publisher, "Shueisha") ? "shueisha_direct"
+        : language === "Japanese" ? "openbd" : "open_library";
     const inferredVolume = volumeFromCatalogueTitle(request.requested_title);
     const volumeNumber = request.volume_number ?? (inferredVolume === null ? null : String(inferredVolume));
     const baseTitle = request.series || request.requested_title;
     const sourceTitle = language === "Japanese" ? japaneseAlias(baseTitle) : baseTitle;
-    const query = exactIsbn || [sourceTitle, volumeNumber].filter(Boolean).join(" ");
+    const query = kodanshaPage || exactIsbn || [sourceTitle, volumeNumber].filter(Boolean).join(" ");
     targets.push({
       key: `request:${request.id}`,
       source,
@@ -338,7 +360,7 @@ export function planCatalogueDiscoveryTargets(
   return targets;
 }
 
-type CuratorSourceName = "Open Library" | "Shueisha Direct" | "OpenBD";
+type CuratorSourceName = "Open Library" | "Shueisha Direct" | "OpenBD" | "Kodansha Japan" | "Kodansha USA";
 
 type CatalogueLookup = {
   sourceName: CuratorSourceName;
@@ -389,6 +411,17 @@ async function findCandidates(target: CatalogueDiscoveryTarget): Promise<Catalog
   if (target.source === "open_library") {
     return { sourceName: "Open Library", candidates: await searchOpenLibraryCatalogue(target.query), warnings: [] };
   }
+  if (target.source === "kodansha_direct") {
+    const sourceName = kodanshaRecordKind(target.query);
+    if (!sourceName) throw new Error("The Kodansha product URL is missing or invalid.");
+    return { sourceName, candidates: await searchKodanshaCatalogue(target.query), warnings: [] };
+  }
+  if (target.source === "kodansha_neighbor") {
+    return { sourceName: "Kodansha Japan", candidates: await searchKodanshaAdjacentCatalogue(target.query, target.neighborDirection ?? "next"), warnings: [] };
+  }
+  if (target.source === "openbd") {
+    return { sourceName: "OpenBD", candidates: await searchOpenBdCatalogue(target.query), warnings: [] };
+  }
 
   if (!/^\d{9}[\dX]$|^97[89]\d{10}$/.test(cleanIsbn(target.query))) {
     const volume = integerVolume(target.volumeNumber);
@@ -422,10 +455,10 @@ async function findCandidates(target: CatalogueDiscoveryTarget): Promise<Catalog
 
 export async function stageCatalogueCandidates(admin: SupabaseClient, runId: string): Promise<CatalogueCuratorResult> {
   const [requestResult, editionResult, queueResult, sourceResult] = await Promise.all([
-    runCataloguePreparationRead("catalogue requests", () => admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100)),
-    runCataloguePreparationRead("verified editions", () => admin.from("manga_editions").select("title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000)),
+    runCataloguePreparationRead("catalogue requests", () => admin.from("catalogue_requests").select("id,requested_title,series,volume_number,language,publisher,isbn_13,original_source_url,collectible_type,status").in("status", ["pending", "queued_for_research"]).order("created_at", { ascending: true }).limit(100)),
+    runCataloguePreparationRead("verified editions", () => admin.from("manga_editions").select("id,title,series,volume_number,language,publisher,isbn_13,collectible_type").eq("is_verified", true).limit(5000)),
     runCataloguePreparationRead("catalogue import queue", () => admin.from("catalogue_import_queue").select("source_id,external_id,candidate_title,candidate_series,candidate_volume_number,candidate_language,candidate_isbn_13,raw_payload").limit(5000)),
-    runCataloguePreparationRead("catalogue sources", () => admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library", "OpenBD"])),
+    runCataloguePreparationRead("catalogue sources", () => admin.from("sources").select("id,name").in("name", ["Shueisha Direct", "Open Library", "OpenBD", "Kodansha Japan", "Kodansha USA"])),
   ]);
   const failedRead = [requestResult, editionResult, queueResult, sourceResult].find((result) => result.error);
   if (failedRead?.error) {
@@ -438,7 +471,24 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
 
   // An explicit staff fast-track is the one deliberate queue jump. It still
   // only stages candidates for human review and never publishes an edition.
-  const { chosen } = await planBacklogRun(admin);
+  const kodanshaEditions = editions.filter((edition) => edition.id && edition.language === "Japanese" && cataloguePublisherMatches(edition.publisher, "Kodansha"));
+  const { data: publisherLinks, error: publisherLinkError } = kodanshaEditions.length
+    ? await admin.from("edition_sources").select("edition_id,source_record_url").in("edition_id", kodanshaEditions.map((edition) => edition.id!))
+    : { data: [], error: null };
+  if (publisherLinkError) throw new Error(`Kodansha source links could not be read: ${publisherLinkError.message}`);
+  const kodanshaSources = new Map<string, Map<number, string>>();
+  const linkedEdition = new Map(kodanshaEditions.map((edition) => [edition.id, edition]));
+  for (const link of publisherLinks ?? []) {
+    if (typeof link.source_record_url !== "string" || kodanshaRecordKind(link.source_record_url) !== "Kodansha Japan") continue;
+    const edition = linkedEdition.get(link.edition_id);
+    const volume = integerVolume(edition?.volume_number);
+    if (!edition?.series || volume === null) continue;
+    const key = normaliseSeriesKey(edition.series);
+    const sources = kodanshaSources.get(key) ?? new Map<number, string>();
+    sources.set(volume, link.source_record_url);
+    kodanshaSources.set(key, sources);
+  }
+  const { chosen } = await planBacklogRun(admin, editions, kodanshaSources);
   const fastTrackChosen = chosen.filter(isStaffFastTrack);
   const regularChosen = chosen.filter((target) => !isStaffFastTrack(target));
 
@@ -508,7 +558,10 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
       return {
         target,
         sourceId: null,
-        sourceName: target.source === "open_library" ? "Open Library" : "OpenBD",
+        sourceName: target.source === "open_library" ? "Open Library"
+          : target.source === "kodansha_direct" ? kodanshaRecordKind(target.query) ?? "Kodansha Japan"
+            : target.source === "kodansha_neighbor" ? "Kodansha Japan"
+            : target.source === "shueisha_direct" ? "Shueisha Direct" : "OpenBD",
         candidates: [] as CatalogueSourceCandidate[],
         warnings: [] as string[],
         error: caught instanceof Error ? caught.message : "source_failed",
@@ -531,7 +584,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
       const eligible = candidates.filter((candidate) => (
         candidate.candidate_isbn_13
         && candidate.candidate_publisher
-        && candidateMatchesDiscoveryTarget(candidate, target)
+        && (candidateMatchesDiscoveryTarget(candidate, target) || officialPublisherIsbnConflict(candidate, target))
       )).sort((left, right) => {
         const leftDate = left.candidate_release_date ?? "9999-12-31";
         const rightDate = right.candidate_release_date ?? "9999-12-31";
@@ -584,6 +637,13 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
           candidate_language: candidate.candidate_language,
           raw_payload: {
             ...candidate.raw_payload,
+            ...(officialPublisherIsbnConflict(candidate, target) ? {
+              official_isbn_conflict: {
+                rar_target_isbn_13: target.isbn13,
+                publisher_print_isbn_13: candidate.candidate_isbn_13,
+                note: "Staff must determine whether RAR has an incorrect ISBN or this is a distinct physical edition. Do not approve as an automatic match.",
+              },
+            } : {}),
             agent_discovery: {
               run_id: runId,
               target_key: target.key,

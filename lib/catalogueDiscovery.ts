@@ -10,6 +10,7 @@ import {
 } from "./catalogueBacklog.ts";
 import type { CatalogueDiscoveryTarget } from "./catalogueCurator.ts";
 import { japaneseCatalogueTitle } from "./japaneseTitleAliases.ts";
+import { kodanshaRecordKind } from "./kodanshaRecord.ts";
 
 export type BacklogRefreshResult = {
   established: number;
@@ -171,15 +172,15 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
         series_status: null,
         reported_volume_count: reported.get(seriesKey) ?? null,
         next_missing_volume: volume,
-        // Japanese gaps are only searched when the existing edition proves
-        // Shueisha is the publisher; other publishers remain watching.
+        // Japanese gaps need a publisher-specific route. A known Kodansha
+        // product URL or an exact ISBN can be supplied in source metadata.
         status: entry.language === "Japanese" ? "watching" : "researchable",
         source_url: null,
         source_metadata: {
           held_volumes: entry.volumes.sort((left, right) => left - right),
           expected_publisher: entry.publisher,
           note: entry.language === "Japanese"
-            ? "Known Shueisha gaps can be researched through the publisher's series and volume records; other Japanese gaps remain watching."
+            ? "Research Japanese gaps only through a supported publisher or exact ISBN source."
             : "Next volume to look for. Existence is not inferred from the previous volume -- the search must find an exact record.",
         },
         updated_at: new Date().toISOString(),
@@ -192,8 +193,7 @@ export async function refreshDiscoveryBacklog(admin: SupabaseClient): Promise<Ba
 }
 
 // Backlog rows the scheduler chose, translated into source-specific searches.
-// Japanese staff fast-tracks and known Shueisha gaps use the publisher's
-// own title/series search, never a broad library match.
+// Japanese targets use the right publisher, not a blanket Shueisha lookup.
 export function backlogTargetToDiscoveryTarget(target: BacklogTarget): CatalogueDiscoveryTarget | null {
   if (target.language !== "English" && target.language !== "Japanese") return null;
   const title = target.title_english || target.title_romaji || target.title_native;
@@ -202,20 +202,38 @@ export function backlogTargetToDiscoveryTarget(target: BacklogTarget): Catalogue
   const expectedPublisher = typeof target.source_metadata?.expected_publisher === "string"
     ? target.source_metadata.expected_publisher
     : null;
-  if (target.language === "Japanese" && target.discovery_source !== "staff_fast_track" && !/^(?:shueisha|集英社)$/i.test(expectedPublisher ?? "")) return null;
+  const sourceUrl = typeof target.source_metadata?.publisher_url === "string"
+    ? target.source_metadata.publisher_url : target.source_url;
+  const kodanshaPage = sourceUrl && kodanshaRecordKind(sourceUrl) === "Kodansha Japan" ? sourceUrl : null;
+  const neighborUrl = typeof target.source_metadata?.kodansha_neighbor_url === "string"
+    && kodanshaRecordKind(target.source_metadata.kodansha_neighbor_url) === "Kodansha Japan"
+    ? target.source_metadata.kodansha_neighbor_url : null;
+  const neighborDirection = target.source_metadata?.kodansha_neighbor_direction === "previous" ? "previous" : "next";
+  const exactIsbn = typeof target.source_metadata?.isbn_13 === "string"
+    && /^97[89]\d{10}$/.test(target.source_metadata.isbn_13)
+    ? target.source_metadata.isbn_13 : null;
+  const shueisha = /^(?:shueisha|集英社)$/i.test(expectedPublisher ?? "");
+  const kodansha = /^(?:kodansha|講談社)(?:\s+(?:comics|japan))?$/i.test(expectedPublisher ?? "");
+  if (target.language === "Japanese" && !kodanshaPage && !neighborUrl && !exactIsbn && !shueisha) return null;
+  const source = target.language === "English" ? "open_library"
+    : kodanshaPage ? "kodansha_direct"
+      : neighborUrl ? "kodansha_neighbor"
+      : exactIsbn && !shueisha ? "openbd" : "shueisha_direct";
   const nativeTitle = target.language === "Japanese"
     ? target.title_native || japaneseCatalogueTitle(title)
     : title;
   return {
     key: `backlog:${target.id}`,
-    source: target.language === "Japanese" ? "shueisha_direct" : "open_library",
-    query: target.language === "Japanese" ? nativeTitle : `${title} ${volume}`,
+    source,
+    neighborDirection: source === "kodansha_neighbor" ? neighborDirection : undefined,
+    query: kodanshaPage ?? neighborUrl ?? (exactIsbn ? exactIsbn
+      : target.language === "Japanese" ? nativeTitle : `${title} ${volume}`),
     title: `${title} Vol. ${volume}`,
     series: title,
     volumeNumber: String(volume),
     language: target.language,
-    publisher: expectedPublisher,
-    isbn13: null,
+    publisher: expectedPublisher ?? (kodanshaPage || kodansha ? "Kodansha" : null),
+    isbn13: exactIsbn,
     requestId: null,
     reason: `lane_${target.lane}`,
   };
@@ -231,14 +249,43 @@ export async function readDueBacklog(admin: SupabaseClient, limit = 400): Promis
   return ((data ?? []) as BacklogTarget[]).filter((target) => isDue(target));
 }
 
-export async function planBacklogRun(admin: SupabaseClient) {
-  const backlog = await readDueBacklog(admin);
+export async function planBacklogRun(
+  admin: SupabaseClient,
+  knownEditions: Array<{ series: string | null; language: string | null; publisher: string | null }> = [],
+  kodanshaSources = new Map<string, Map<number, string>>(),
+) {
+  const knownPublishers = new Map<string, Set<string>>();
+  for (const edition of knownEditions) {
+    if (!edition.series || !edition.language || !edition.publisher) continue;
+    const key = `${normaliseSeriesKey(edition.series)}:${edition.language}`;
+    const publishers = knownPublishers.get(key) ?? new Set<string>();
+    publishers.add(edition.publisher);
+    knownPublishers.set(key, publishers);
+  }
+  const backlog = (await readDueBacklog(admin)).map((target) => {
+    if (target.language !== "Japanese") return target;
+    const publishers = knownPublishers.get(`${target.series_key}:${target.language}`);
+    const publisher = publishers?.size === 1 ? [...publishers][0] : null;
+    const expectedPublisher = target.source_metadata?.expected_publisher ?? publisher;
+    const volume = target.next_missing_volume;
+    const links = kodanshaSources.get(target.series_key);
+    const previous = volume && links?.get(volume - 1);
+    const next = volume && links?.get(volume + 1);
+    return { ...target, source_metadata: {
+      ...target.source_metadata,
+      ...(expectedPublisher ? { expected_publisher: expectedPublisher } : {}),
+      ...(!target.source_url && !target.source_metadata?.publisher_url && /^(?:kodansha|講談社)(?:\s+(?:comics|japan))?$/i.test(String(expectedPublisher ?? ""))
+        && (previous || next) ? {
+          kodansha_neighbor_url: previous ?? next,
+          kodansha_neighbor_direction: previous ? "next" : "previous",
+        } : {}),
+    } };
+  });
   // A staff fast-track or a Shueisha gap has a specific physical volume to
   // research. Other watching titles still cannot consume search slots.
-  const researchable = backlog.filter((target) => target.status === "researchable" || (
-    target.status === "watching" && target.language === "Japanese" && target.next_missing_volume !== null
-    && backlogTargetToDiscoveryTarget(target) !== null
-  ));
+  const researchable = backlog.filter((target) => backlogTargetToDiscoveryTarget(target) !== null
+    && (target.status === "researchable" || (target.status === "watching"
+      && target.language === "Japanese" && target.next_missing_volume !== null)));
   return { backlog, chosen: planRun(researchable.map((target) => target.status === "watching" ? { ...target, status: "researchable" as const } : target)) };
 }
 

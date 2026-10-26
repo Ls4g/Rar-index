@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue } from "@/lib/catalogueSources";
+import { searchKodanshaCatalogue, searchNdlCatalogue, searchOpenLibraryCatalogue, searchShueishaCatalogue, searchShueishaTitleCatalogue } from "@/lib/catalogueSources";
 import { isStaffRequest } from "@/lib/staffSession";
 
 function languageName(value: string | undefined) {
@@ -90,6 +90,9 @@ async function publisherRecordCandidates(query: string, publisherSource: Publish
   let sourceRecordUrl: URL;
   try { sourceRecordUrl = new URL(query); } catch { throw new Error("Enter a full publisher-record URL."); }
   if (sourceRecordUrl.protocol !== "https:" || !source.hosts.includes(sourceRecordUrl.hostname as never)) throw new Error(`That URL is not an approved ${source.name} record.`);
+  if (publisherSource === "kodansha_japan" || publisherSource === "kodansha_usa") {
+    return searchKodanshaCatalogue(sourceRecordUrl.toString());
+  }
   const response = await fetch(sourceRecordUrl, { headers: { "User-Agent": "RAR-Index catalogue importer" }, next: { revalidate: 0 } });
   if (!response.ok) throw new Error(`${source.name} did not return a usable record.`);
   const html = await response.text();

@@ -30,6 +30,7 @@ type CatalogueRecord = {
   source_name: string | null;
   source_record_url: string;
   raw_payload: {
+    official_isbn_conflict?: { rar_target_isbn_13?: string; publisher_print_isbn_13?: string } | null;
     human_readable_url?: string | null;
     human_readable_url_label?: string | null;
     marketplace_lookup_url?: string | null;
@@ -99,6 +100,7 @@ function sourceFacts(record: CatalogueRecord): string[] {
   const payload = record.raw_payload;
   if (!payload) return [];
   const facts: string[] = [];
+  if (payload.official_isbn_conflict) facts.push(`Publisher ISBN ${payload.official_isbn_conflict.publisher_print_isbn_13 ?? "?"} differs from RAR target ${payload.official_isbn_conflict.rar_target_isbn_13 ?? "?"} — check catalogue identity`);
   const cumulative = payload.review_metadata?.cumulative_issue_no;
   if (cumulative) facts.push(`通巻 ${cumulative}`);
   if (payload.madb?.cover_price_yen) facts.push(`¥${payload.madb.cover_price_yen} cover`);
