@@ -21,6 +21,10 @@
       "schedule": "30 9 * * *"
     },
     {
+      "path": "/api/cron/apify-sales",
+      "schedule": "15 7 * * *"
+    },
+    {
       "path": "/api/cron/exchange-rates",
       "schedule": "0 18 * * *"
     }

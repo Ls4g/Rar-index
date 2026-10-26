@@ -9,4 +9,7 @@ assert.equal(isOlderWatchedListing({ ...base, status: "sold_candidate" }), false
 assert.equal(isCurrentSalesFinding({ ...base, status: "active", discovery_provider: "apify_ebay_sold_search" }), false);
 assert.equal(isCurrentSalesFinding({ ...base, reviewed_by: "SP", discovery_provider: "apify_ebay_sold_search" }), false);
 assert.equal(isCurrentSalesFinding({ ...base, resulting_observation_id: "verified-sale", discovery_provider: "apify_ebay_sold_search" }), false);
+assert.equal(isCurrentSalesFinding({ ...base, status: "ambiguous", check_attempts: 5, next_check_at: null, discovery_provider: "apify_ebay_sold_search" }), false);
+assert.equal(isOlderWatchedListing({ ...base, status: "ambiguous", check_attempts: 5, next_check_at: null }), false);
+assert.equal(isOlderWatchedListing({ ...base, status: "ambiguous", check_attempts: 4, next_check_at: null }), true);
 console.log("Sales inbox source separation passed.");

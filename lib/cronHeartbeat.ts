@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes";
+export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes" | "apify-sales";
 
 // Only bounded operational counts enter the heartbeat. Never persist request
 // URLs/headers, raw errors, listing payloads or holder identities here.
@@ -14,7 +14,7 @@ export function summarizeCronResponse(name: CronName, status: number, body: Reco
       if (typeof item === "boolean" || (typeof item === "number" && Number.isFinite(item))) summary[prefix + key] = item;
     }
   };
-  collect(body, ["createdProfiles", "scannedProfiles", "activeLeads", "failures", "usersChecked", "created", "skipped", "failed", "promoted"]);
+  collect(body, ["createdProfiles", "scannedProfiles", "activeLeads", "failures", "usersChecked", "created", "skipped", "failed", "promoted", "searched", "queued", "alreadyKnown", "cooldowns", "configured"]);
   collect(body.captured, ["captured", "updated", "skipped"], "capture_");
   collect(body.checks, ["checked", "soldCandidates", "unsold", "ambiguous", "inaccessible", "stillActive", "budgetUnavailable", "ceilingReached"], "checks_");
   collect(body.cycle, ["successful", "failed", "blocked"], "cycle_");

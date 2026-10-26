@@ -152,8 +152,7 @@ async function loadCoverage(admin: Admin) {
     readAll<CoverageEdition>(admin, "manga_editions", EDITION_COLUMNS),
     readAll<StaffVerifiedSale>(admin, "price_observations", SALE_COLUMNS,
       { column: "match_status", value: "verified_match" }),
-    readAll<{ id: string; edition_id: string; listing_title: string; status: string; outcome_reason: string | null; last_seen_at: string; discovery_provider: string | null; reviewed_by: string | null; resulting_observation_id: string | null }>(
-      admin, "listing_outcomes", "id,edition_id,listing_title,status,outcome_reason,last_seen_at,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id"),
+    readWorklistOutcomes(admin),
   ]);
 
   const salesByEdition = new Map<string, SeriesSale[]>();
@@ -184,6 +183,32 @@ async function loadCoverage(admin: Admin) {
   const rows = sortCoverage(editions.map((edition) =>
     assessEditionCoverage(edition, salesByEdition.get(edition.id) ?? [], waitingByEdition.get(edition.id) ?? 0)));
   return { rows, summary: coverageSummary(rows), legacyByEdition, pending };
+}
+
+type WorklistOutcome = {
+  id: string; edition_id: string; listing_title: string; status: string;
+  outcome_reason: string | null; last_seen_at: string; discovery_provider: string | null;
+  reviewed_by: string | null; resulting_observation_id: string | null;
+  check_attempts: number; next_check_at: string | null;
+};
+
+async function readWorklistOutcomes(admin: Admin) {
+  const rows: WorklistOutcome[] = [];
+  for (let from = 0; ; from += 1000) {
+    // The 5-check unknowns are historical records, not a queue. Exclude them
+    // at the database so Price coverage no longer downloads thousands of old
+    // rows on every visit. They remain available in an edition's full history.
+    const { data, error } = await admin.from("listing_outcomes")
+      .select("id,edition_id,listing_title,status,outcome_reason,last_seen_at,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id,check_attempts,next_check_at")
+      .in("status", ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"])
+      .is("reviewed_by", null).is("resulting_observation_id", null)
+      .or("status.neq.ambiguous,check_attempts.lt.5,next_check_at.not.is.null")
+      .order("id", { ascending: true }).range(from, from + 999);
+    if (error) throw new Error(`Sales findings could not be read: ${error.message}`);
+    const batch = (data ?? []) as WorklistOutcome[];
+    rows.push(...batch);
+    if (batch.length < 1000) return rows;
+  }
 }
 
 async function loadPreparedInbox(admin: Admin) {
@@ -394,10 +419,18 @@ export default async function PriceCoveragePage({ searchParams }: {
 }
 
 async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: string | null, focusMissing: boolean, view: "current" | "legacy" | "all", search: { searched?: string | string[]; found?: string | string[]; queued?: string | string[]; known?: string | string[]; excluded?: string | string[]; recent?: string | string[] }) {
-  const [editionResult, outcomeResult, salesResult] = await Promise.all([
+  const currentView = view === "current" && !focusOutcomeId;
+  const outcomeQuery = admin.from("listing_outcomes").select(OUTCOME_COLUMNS)
+    .eq("edition_id", editionId).order("last_seen_at", { ascending: false });
+  const [editionResult, outcomeResult, salesResult, totalResult] = await Promise.all([
     admin.from("manga_editions").select(EDITION_COLUMNS).eq("id", editionId).maybeSingle(),
-    admin.from("listing_outcomes").select(OUTCOME_COLUMNS).eq("edition_id", editionId).order("last_seen_at", { ascending: false }),
+    currentView ? outcomeQuery
+      .in("status", ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"])
+      .is("reviewed_by", null).is("resulting_observation_id", null)
+      .or("status.neq.ambiguous,check_attempts.lt.5,next_check_at.not.is.null") : outcomeQuery,
     admin.from("price_observations").select(SALE_COLUMNS).eq("edition_id", editionId).eq("match_status", "verified_match"),
+    currentView ? admin.from("listing_outcomes").select("id", { count: "exact", head: true }).eq("edition_id", editionId)
+      : Promise.resolve(null),
   ]);
 
   const edition = editionResult.data as CoverageEdition | null;
@@ -446,7 +479,8 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
   const allRows = records.map(convert);
   const outstanding = currentRecords.map(convert);
   const legacy = legacyRecords.map(convert);
-  const settled = allRows.length - outstanding.length - legacy.length;
+  const historyCount = totalResult?.count ?? allRows.length;
+  const settled = historyCount - outstanding.length - legacy.length;
 
   // Only what still needs deciding. Showing the whole history put 43 cards on
   // a page that said 31 needed a decision, so twelve already answered -- seven
@@ -507,7 +541,7 @@ async function renderEdition(admin: Admin, editionId: string, focusOutcomeId: st
               : null}
             {view !== "current" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}`}>← New sales findings</Link> : null}
             {legacy.length && view !== "legacy" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}&show=legacy`}>Older watched listings ({legacy.length})</Link> : null}
-            {settled && view !== "all" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}&show=all`}>All listing history ({allRows.length})</Link> : null}
+            {settled && view !== "all" ? <Link className="price-coverage-group" href={`/price-coverage?edition=${editionId}&show=all`}>All listing history ({historyCount})</Link> : null}
           </div>
         </div>
         {view === "legacy" ? <p className="price-coverage-note">These older watched listings remain available for investigation. They are not verified sales.</p> : null}
