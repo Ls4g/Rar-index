@@ -3,9 +3,12 @@ import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverPro
 import { findDirectOpenLibraryCover } from "@/lib/openLibraryCover";
 import { findVizCover } from "@/lib/vizCover";
 import { findShueishaCover } from "@/lib/shueishaCover";
+import { findPenguinRandomHouseCover } from "@/lib/penguinRandomHouseCover";
+import { findKodamaCover } from "@/lib/kodamaCover";
+import { findOpenBdCover } from "@/lib/openBdCover";
 import { fetchKodanshaRecord, kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
-export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA";
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA" | "Penguin Random House" | "Kodama Tales" | "OpenBD";
 
 export type DiscoveredCoverCandidate = {
   sourceName: CoverSourceName;
@@ -15,7 +18,7 @@ export type DiscoveredCoverCandidate = {
   candidateTitle: string | null;
   candidatePublisher: string | null;
   candidateLanguage: string | null;
-  candidateIsbn13: string;
+  candidateIsbn13: string | null;
   matchScore: number;
   matchConfidence: "strong" | "partial";
   matchReasons: string[];
@@ -204,6 +207,15 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
     { sourceName: "VIZ Media", promise: findVizCover(target) },
     { sourceName: "Shueisha Direct", promise: findShueishaCover(target) },
   ];
+  if (/^(?:en|eng|english)$/i.test(target.language?.trim() ?? "")) {
+    jobs.push({ sourceName: "Penguin Random House", promise: findPenguinRandomHouseCover(target) });
+    if (/\bkodama(?:\s+tales)?\b/i.test(target.publisher ?? "")) {
+      jobs.push({ sourceName: "Kodama Tales", promise: findKodamaCover(target) });
+    }
+  }
+  if (/^(?:ja|jpn|japanese)$/i.test(target.language?.trim() ?? "")) {
+    jobs.push({ sourceName: "OpenBD", promise: findOpenBdCover(target) });
+  }
   for (const url of [...new Set(officialRecordUrls)].filter((value) => kodanshaRecordKind(value)).slice(0, 2)) {
     jobs.push({ sourceName: kodanshaRecordKind(url)!, promise: findKodanshaCover(target, url) });
   }

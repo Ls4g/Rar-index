@@ -26,6 +26,8 @@ Automation (Scout auto-triage, matching scorers, etc.) may only ever narrow *wha
 - log its own decisions to the same audit-trail tables humans use (e.g. `scout_lead_decisions`, `price_review_decisions`) so it stays inspectable,
 - be validated against real/representative titles before shipping (a standalone Node script reproducing the logic is fine when live API creds aren't available locally).
 
+For missing covers, an official page already saved in `edition_sources` must **not** be a prerequisite to search. Each supported source should attempt a bounded exact-ISBN or title-and-volume lookup from the edition itself, record failures in the cover scan, and put plausible images into staff review only. A publisher page without an ISBN is a partial lead, not an exact-ISBN match; never silently substitute artwork from another edition.
+
 ## Known gotchas
 
 - **Reusable MADB metadata export:** The staff-supplied `metadata101.json` was last attached at `C:/Users/S-P-J/AppData/Local/Temp/metadata101.json` (a temporary path; ask for it again if gone). It contains about 404,269 `MangaBook` records, including about 50,944 Japanese volume-one rows across formats/reprints. The 91-title Japanese fast-track was a pre-existing priority list, **not** the size of this dataset. See `scripts/audit-madb-japanese-vol1.mjs`, `scripts/match-madb-japanese-vol1.mjs`, and `scripts/stage-madb-japanese-vol1.mjs` when expanding catalogue intake. As of the initial pass, 35 source-checked candidates were staged for human review; the rest of the export remains available for future batches.
