@@ -28,6 +28,7 @@ Automation (Scout auto-triage, matching scorers, etc.) may only ever narrow *wha
 
 ## Known gotchas
 
+- **Reusable MADB metadata export:** The staff-supplied `metadata101.json` was last attached at `C:/Users/S-P-J/AppData/Local/Temp/metadata101.json` (a temporary path; ask for it again if gone). It contains about 404,269 `MangaBook` records, including about 50,944 Japanese volume-one rows across formats/reprints. The 91-title Japanese fast-track was a pre-existing priority list, **not** the size of this dataset. See `scripts/audit-madb-japanese-vol1.mjs`, `scripts/match-madb-japanese-vol1.mjs`, and `scripts/stage-madb-japanese-vol1.mjs` when expanding catalogue intake. As of the initial pass, 35 source-checked candidates were staged for human review; the rest of the export remains available for future batches.
 - **Supabase SQL editor**: typing SQL directly into the Monaco editor is unreliable (stale snippet state). Use `window.monaco.editor.getModels()[0].setValue(sql)` via a JS-exec browser tool, then click Run.
 - **`preview_start` browser tool**: has a persistent stale-PATH bug on this machine. Workaround: run `pnpm run dev` via a background shell after prepending `$env:PATH = "C:\Program Files\nodejs;$env:APPDATA\npm;" + $env:PATH`, then open a browser tab to `http://localhost:3000` directly.
 - **Local `.env.local`** has Supabase creds and local-only throwaway staff creds, but no eBay API creds — Scout/eBay-dependent code can't be exercised live from local dev; verify eBay-touching logic with a standalone script instead.
