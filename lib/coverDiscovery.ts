@@ -2,9 +2,10 @@ import { assessCoverCandidate, normalizeIsbn, type CoverMatchTarget } from "@/li
 import { googleBooksRequestUrl, type GoogleBooksBatchGate } from "@/lib/coverProviderPolicy";
 import { findDirectOpenLibraryCover } from "@/lib/openLibraryCover";
 import { findVizCover } from "@/lib/vizCover";
+import { findShueishaCover } from "@/lib/shueishaCover";
 import { fetchKodanshaRecord, kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
-export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Kodansha Japan" | "Kodansha USA";
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA";
 
 export type DiscoveredCoverCandidate = {
   sourceName: CoverSourceName;
@@ -201,6 +202,7 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
     // lacked had nowhere left to be looked for. Needs no key and no rate
     // budget -- one conditional GET against a URL derived from the ISBN.
     { sourceName: "VIZ Media", promise: findVizCover(target) },
+    { sourceName: "Shueisha Direct", promise: findShueishaCover(target) },
   ];
   for (const url of [...new Set(officialRecordUrls)].filter((value) => kodanshaRecordKind(value)).slice(0, 2)) {
     jobs.push({ sourceName: kodanshaRecordKind(url)!, promise: findKodanshaCover(target, url) });

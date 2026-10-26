@@ -18,7 +18,7 @@ const RESCAN_AFTER_MS = 24 * 60 * 60 * 1000;
  *
  * Bump this whenever a cover provider is added or materially changed.
  */
-export const COVER_PROVIDERS_CHANGED_AT = "2026-10-26T18:27:57.000Z";
+export const COVER_PROVIDERS_CHANGED_AT = "2026-10-26T21:22:24.000Z";
 
 export type CoverResearchQueueItem = {
   edition_id: string;
