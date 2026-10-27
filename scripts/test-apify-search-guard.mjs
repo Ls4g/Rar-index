@@ -9,7 +9,11 @@ import {
   MIN_REMAINING_USD,
   RESULTS_PER_SEARCH,
   runSoldSearch,
+  runSoldSearchBatch,
   soldSearchRunUrl,
+  soldSearchBatchRunUrl,
+  MAX_DAILY_BATCH_CHARGE_USD,
+  DAILY_BATCH_RESULTS_PER_SERIES,
 } from "../lib/apifySoldSearch.ts";
 
 const url = new URL(soldSearchRunUrl());
@@ -19,6 +23,11 @@ assert.equal(Number(url.searchParams.get("limit")), RESULTS_PER_SEARCH);
 assert.equal(url.searchParams.get("restartOnError"), "false");
 assert.ok(hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD }));
 assert.ok(!hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD - 0.01 }));
+const batchUrl = new URL(soldSearchBatchRunUrl());
+assert.equal(batchUrl.searchParams.get("maxTotalChargeUsd"), "0.14");
+assert.equal(Number(batchUrl.searchParams.get("maxItems")), 30);
+assert.ok(MAX_DAILY_BATCH_CHARGE_USD < 0.15);
+assert.ok(!hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_DAILY_BATCH_CHARGE_USD - 0.01 }, MAX_DAILY_BATCH_CHARGE_USD));
 
 const originalFetch = globalThis.fetch;
 let calls = 0;
@@ -36,6 +45,41 @@ try {
   const result = await runSoldSearch("test-token", "9781612620244");
   assert.equal(calls, 1);
   assert.equal(result.rows.length, RESULTS_PER_SEARCH);
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
+let batchCalls = 0;
+try {
+  globalThis.fetch = async (requestedUrl, options) => {
+    batchCalls += 1;
+    if (batchCalls === 1) {
+      assert.equal(String(requestedUrl), soldSearchBatchRunUrl());
+      assert.equal(options.method, "POST");
+      const input = JSON.parse(options.body);
+      assert.deepEqual(input.keywords, ["9781612620244", "9781612620245"]);
+      assert.equal(input.count, DAILY_BATCH_RESULTS_PER_SERIES);
+      return Response.json({ data: { id: "testrun1" } });
+    }
+    if (batchCalls === 2) {
+      assert.match(String(requestedUrl), /actor-runs\/testrun1\?waitForFinish=60$/);
+      return Response.json({ data: { status: "SUCCEEDED", usageTotalUsd: 0.0081 } });
+    }
+    if (batchCalls === 3) {
+      assert.match(String(requestedUrl), /actor-runs\/testrun1\/dataset\/items\?limit=10$/);
+      return Response.json([
+        { itemId: "1", keyword: "9781612620244" },
+        { itemId: "2", keyword: "9781612620245" },
+      ]);
+    }
+    assert.match(String(requestedUrl), /actor-runs\/testrun1$/);
+    return Response.json({ data: { status: "SUCCEEDED", usageTotalUsd: 0.0081 } });
+  };
+  const result = await runSoldSearchBatch("test-token", ["9781612620244", "9781612620245"]);
+  assert.equal(batchCalls, 4);
+  assert.equal(result.rows.length, 2);
+  assert.equal(result.costUsd, 0.0081);
+  await assert.rejects(runSoldSearchBatch("test-token", ["9781612620244", "9781612620244"]), /distinct ISBNs/);
 } finally {
   globalThis.fetch = originalFetch;
 }

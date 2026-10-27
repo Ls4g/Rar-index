@@ -31,6 +31,10 @@ export const APIFY_SOLD_ACTOR = "oTtB3VgfuE9GtxQt2";
 // a timeout alone is a spending guarantee.
 export const RESULTS_PER_SEARCH = 25;
 export const MAX_SEARCH_CHARGE_USD = 0.12;
+export const DAILY_BATCH_RESULTS_PER_SERIES = 5;
+export const MAX_DAILY_BATCH_SERIES = 6;
+// One scheduled run per UTC day stays below the staff-requested $0.15 ceiling.
+export const MAX_DAILY_BATCH_CHARGE_USD = 0.14;
 
 // How far back a search looks. Also the window `PRICE_CURRENT_WITHIN_DAYS`
 // uses for "current", deliberately: a price RAR quotes should be refreshable
@@ -47,8 +51,8 @@ export const SEARCH_COOLDOWN_HOURS = 12;
 
 export type ApifyBudget = { usedUsd: number; maxUsd: number; remainingUsd: number };
 
-export function hasSearchReserve(budget: ApifyBudget): boolean {
-  return budget.remainingUsd >= MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD;
+export function hasSearchReserve(budget: ApifyBudget, maxChargeUsd = MAX_SEARCH_CHARGE_USD): boolean {
+  return budget.remainingUsd >= MIN_REMAINING_USD + maxChargeUsd;
 }
 
 export async function readApifyBudget(token: string): Promise<ApifyBudget> {
@@ -62,7 +66,7 @@ export async function readApifyBudget(token: string): Promise<ApifyBudget> {
   return { usedUsd, maxUsd, remainingUsd: Math.max(0, maxUsd - usedUsd) };
 }
 
-export type SoldSearchResult = { rows: ApifyEbayRow[]; runId: string; costUsd: number };
+export type SoldSearchResult = { rows: ApifyEbayRow[]; runId: string; costUsd: number | null };
 
 export function soldSearchRunUrl(): string {
   const url = new URL(`https://api.apify.com/v2/acts/${APIFY_SOLD_ACTOR}/run-sync-get-dataset-items`);
@@ -109,6 +113,72 @@ export async function runSoldSearch(token: string, isbn: string): Promise<SoldSe
   const rows = (await response.json()) as ApifyEbayRow[];
   const runId = response.headers.get("x-apify-pagination-total") ?? "";
   return { rows: Array.isArray(rows) ? rows.slice(0, RESULTS_PER_SEARCH) : [], runId, costUsd: 0 };
+}
+
+export function soldSearchBatchRunUrl(): string {
+  const url = new URL(`https://api.apify.com/v2/actors/${APIFY_SOLD_ACTOR}/runs`);
+  url.searchParams.set("timeout", "120");
+  url.searchParams.set("maxItems", String(DAILY_BATCH_RESULTS_PER_SERIES * MAX_DAILY_BATCH_SERIES));
+  url.searchParams.set("maxTotalChargeUsd", MAX_DAILY_BATCH_CHARGE_USD.toFixed(2));
+  url.searchParams.set("restartOnError", "false");
+  return url.toString();
+}
+
+/** One paid run searches up to six ISBNs, with the actor's per-keyword count. */
+export async function runSoldSearchBatch(token: string, isbns: string[]): Promise<SoldSearchResult> {
+  if (!isbns.length || isbns.length > MAX_DAILY_BATCH_SERIES || new Set(isbns).size !== isbns.length
+    || isbns.some((isbn) => isbnForSearch(isbn) !== isbn)) {
+    throw new Error("A scheduled search needs one to six distinct ISBNs.");
+  }
+  const headers = { Authorization: `Bearer ${token}` };
+  const start = await fetch(soldSearchBatchRunUrl(), {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      categoryId: "0", count: DAILY_BATCH_RESULTS_PER_SERIES, daysToScrape: SEARCH_DAYS,
+      ebaySite: "ebay.com", includeCompletedListings: false, itemCondition: "any",
+      itemLocation: "default", keywords: isbns, sortOrder: "endedRecently",
+      subcategoryId: "", buyingFormat: "all",
+    }),
+  });
+  if (!start.ok) throw new Error(`The scheduled sold-listing batch failed (HTTP ${start.status}).`);
+  const started = (await start.json()) as { data?: { id?: string } };
+  const runId = started.data?.id;
+  if (!runId || !/^[A-Za-z0-9]+$/.test(runId)) throw new Error("Apify did not return a batch run ID.");
+
+  let run: { status?: string; usageTotalUsd?: number | null } = {};
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?waitForFinish=60`, { headers });
+    if (!response.ok) throw new Error(`The scheduled sold-listing batch could not be checked (HTTP ${response.status}).`);
+    run = ((await response.json()) as { data?: typeof run }).data ?? {};
+    if (run.status === "SUCCEEDED") break;
+    if (["FAILED", "ABORTED", "TIMED-OUT"].includes(run.status ?? "")) {
+      throw new Error(`The scheduled sold-listing batch ended as ${run.status}.`);
+    }
+  }
+  if (run.status !== "SUCCEEDED") throw new Error("The scheduled sold-listing batch did not finish in time.");
+  if (typeof run.usageTotalUsd === "number" && run.usageTotalUsd > MAX_DAILY_BATCH_CHARGE_USD + 0.0001) {
+    throw new Error("The scheduled sold-listing batch exceeded its charge ceiling.");
+  }
+
+  const output = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?limit=${DAILY_BATCH_RESULTS_PER_SERIES * isbns.length}`, { headers });
+  if (!output.ok) throw new Error(`The scheduled sold-listing batch results could not be read (HTTP ${output.status}).`);
+  const rows = (await output.json()) as ApifyEbayRow[];
+  if (!Array.isArray(rows)) throw new Error("Apify returned invalid batch results.");
+  const requested = new Set(isbns);
+  if (rows.some((row) => !requested.has(normaliseIsbnKey(row.keyword)))) {
+    throw new Error("Apify returned a listing without a requested ISBN keyword.");
+  }
+  // Apify warns that the first terminal response may show preliminary costs.
+  const latest = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, { headers }).catch(() => null);
+  if (latest?.ok) {
+    const refreshed = await latest.json().catch(() => null) as { data?: typeof run } | null;
+    if (typeof refreshed?.data?.usageTotalUsd === "number") run = refreshed.data;
+  }
+  if (typeof run.usageTotalUsd === "number" && run.usageTotalUsd > MAX_DAILY_BATCH_CHARGE_USD + 0.0001) {
+    throw new Error("The scheduled sold-listing batch exceeded its charge ceiling.");
+  }
+  return { rows, runId, costUsd: run.usageTotalUsd ?? null };
 }
 
 export type QueueOutcome = {

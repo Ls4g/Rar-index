@@ -1,5 +1,5 @@
 import { assessEditionCoverage, sortCoverage, type CoverageEdition } from "./editionPriceCoverage.ts";
-import { isbnForSearch } from "./apifySoldSearch.ts";
+import { isbnForSearch, MAX_DAILY_BATCH_SERIES } from "./apifySoldSearch.ts";
 import { isCurrentSalesFinding, type SalesInboxOutcome } from "./salesInbox.ts";
 import type { SeriesSale } from "./priceSeries.ts";
 
@@ -13,6 +13,27 @@ export function configuredDailySearchLimit(value: string | undefined) {
 }
 
 export type DailySearchTarget = { editionId: string; isbn: string };
+
+/** A daily batch should show staff different manga, not six volumes of one series. */
+export function distinctSeriesTargets(
+  targets: DailySearchTarget[],
+  editions: CoverageEdition[],
+  limit = MAX_DAILY_BATCH_SERIES,
+): DailySearchTarget[] {
+  const byId = new Map(editions.map((edition) => [edition.id, edition]));
+  const seen = new Set<string>();
+  const selected: DailySearchTarget[] = [];
+  for (const target of targets) {
+    const edition = byId.get(target.editionId);
+    const series = (edition?.series ?? "").trim().toLocaleLowerCase();
+    if (!series) continue;
+    if (seen.has(series)) continue;
+    seen.add(series);
+    selected.push(target);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
 
 export function dailySearchTargets(
   editions: CoverageEdition[],

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { configuredDailySearchLimit, dailySearchTargets } from "../lib/dailyApifySearch.ts";
+import { configuredDailySearchLimit, dailySearchTargets, distinctSeriesTargets } from "../lib/dailyApifySearch.ts";
 
 assert.equal(configuredDailySearchLimit(undefined), 0);
 assert.equal(configuredDailySearchLimit("0"), 0);
@@ -29,6 +29,12 @@ assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], [], [
 assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], [], [],
   new Map([["9781612620244", "2026-10-01T00:00:00Z"]]), new Date("2026-10-26T00:00:00Z")),
   [], "a recently paid search is not repeated every morning");
+
+const sixSeries = Array.from({ length: 7 }, (_, i) => ({ ...edition(`edition-${i}`, `9781612620${String(240 + i)}`),
+  series: i === 1 ? " SERIES-0 " : `Series-${i}` }));
+assert.deepEqual(distinctSeriesTargets(sixSeries.map((item) => ({ editionId: item.id, isbn: item.isbn_13 })), sixSeries)
+  .map((item) => item.editionId), ["edition-0", "edition-2", "edition-3", "edition-4", "edition-5", "edition-6"],
+"one batch selects six different series even when one title has another volume");
 
 const db = new PGlite();
 try {
