@@ -199,7 +199,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
                 {record.kind === "edition_candidate" && !isApprovable && !record.approvalProblem ? <em>{record.reviewMetadata.collectibleType === "zasshi" ? "Magazine identity is incomplete" : "Missing a title or language"}</em> : null}
                 {record.marketplaceUrl ? <a className="is-visual" href={record.marketplaceUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (JP title) ↗</a> : null}
                 {record.marketplaceAltUrl ? <a className="is-visual" href={record.marketplaceAltUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">See copies on eBay (EN title) ↗</a> : null}
-                {record.readableUrl ? <a className="is-raw" href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrlLabel ?? "Library record"} ↗</a> : null}
+                {record.readableUrl ? <a className="is-visual" href={record.readableUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrlLabel ?? "Readable record"} ↗</a> : null}
                 <a className={record.readableUrl ? "is-raw" : undefined} href={record.sourceRecordUrl} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank">{record.readableUrl ? "Source data" : (record.sourceName ?? "Source")} ↗</a>
               </span>
             </label>

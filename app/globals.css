@@ -756,6 +756,7 @@ footer span:first-child { color: var(--gold-light); font-weight: 700; letter-spa
 .review-steps strong { display: block; margin-bottom: .35rem; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
 .review-steps p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
 .review-list-section { max-width: 1120px; margin: auto; padding: 3rem 1.5rem 5rem; }
+.catalogue-source-help { margin: 0 0 1.2rem; padding: .8rem 1rem; border-left: 3px solid var(--accent-label-text); background: var(--surface-card); color: var(--muted); font-size: .8rem; line-height: 1.5; }
 .review-list { display: grid; gap: 1rem; }
 .review-card { border: 1px solid var(--line); background: #fbf9f3; padding: 1.3rem; }
 .review-card-topline, .review-card-main { display: flex; justify-content: space-between; gap: 1rem; }

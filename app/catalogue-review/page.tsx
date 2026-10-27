@@ -10,6 +10,7 @@ import { catalogueApprovalProblem, type CatalogueApprovalQueueRow, type KnownCat
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { catalogueWindow, CATALOGUE_PAGE_SIZE } from "@/lib/catalogueWindow";
 import { readCompleteRows } from "@/lib/readCompleteRows";
+import { openBdVisualReference } from "@/lib/catalogueReviewLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +51,10 @@ type CatalogueRecord = {
   imported_at: string;
 };
 
-// Some sources have no browsable page for the record they hold. The Media
-// Arts Database is one: it renders a full page for a book but nothing at all
-// for a magazine issue, so its source link opens onto raw JSON.
+// Some sources have no browsable page for the record they hold. OpenBD is raw
+// JSON, while the Media Arts Database renders a full page for a book but not
+// for a magazine issue. Keep that original data link for the audit and show
+// a separately labelled readable reference when one exists.
 //
 // Pointing the reviewer somewhere else to hunt did not fix that. The National
 // Diet Library holds an exact record for only 1 of the 13 queued issues, and
@@ -62,7 +64,14 @@ type CatalogueRecord = {
 // reaches rather than promising a lookup it cannot do.
 function readableSourceUrl(record: CatalogueRecord) {
   const url = record.raw_payload?.human_readable_url;
-  return typeof url === "string" && url.length ? url : null;
+  return typeof url === "string" && url.length ? url : openBdVisualReference(record.source_name, record.candidate_isbn_13)?.url ?? null;
+}
+
+function readableSourceLabel(record: CatalogueRecord) {
+  const label = record.raw_payload?.human_readable_url_label;
+  if (typeof label === "string" && label.length) return label;
+  if (record.raw_payload?.human_readable_url) return "Readable record";
+  return openBdVisualReference(record.source_name, record.candidate_isbn_13)?.label ?? "Look it up";
 }
 
 // The only links that show the object rather than describing it. Jump cover
@@ -150,7 +159,7 @@ export default async function CatalogueReviewPage({ searchParams }: { searchPara
     sourceName: record.source_name,
     sourceRecordUrl: record.source_record_url,
     readableUrl: readableSourceUrl(record),
-    readableUrlLabel: record.raw_payload?.human_readable_url_label ?? null,
+    readableUrlLabel: readableSourceLabel(record),
     marketplaceUrl: marketplaceLookupUrl(record),
     marketplaceAltUrl: marketplaceLookupAltUrl(record),
     listingPhoto: listingPhoto(record),
@@ -208,6 +217,7 @@ export default async function CatalogueReviewPage({ searchParams }: { searchPara
         </details>
       </section>
       <section className="review-list-section" id="catalogue-review-queue">
+        {records.some((record) => record.source_name === "OpenBD") ? <p className="catalogue-source-help">OpenBD’s original record is raw data. “View ISBN-matched book” opens a readable visual reference with a cover where available. Check the exact edition yourself; the retailer image is not automatically added to RAR.</p> : null}
         <nav className="outcome-pagination" aria-label="Catalogue pages">
           {window.page > 1 ? <Link href={`/catalogue-review?page=${window.page - 1}#catalogue-review-queue`}>Previous</Link> : null}
           <span>Page <strong>{window.page}</strong> of {window.pages} · {queueCount ? (window.page - 1) * CATALOGUE_PAGE_SIZE + 1 : 0}–{(window.page - 1) * CATALOGUE_PAGE_SIZE + window.pageRows} of {queueCount} candidates</span>
@@ -224,7 +234,7 @@ export default async function CatalogueReviewPage({ searchParams }: { searchPara
         {records.length ? <div className="review-list">{records.map((record) => (
           <article className="review-card catalogue-card" id={`candidate-${record.id}`} key={record.id}>
             <div className="review-card-topline"><span>{record.source_name ?? "Catalogue source"} · {record.candidate_kind === "edition_candidate" ? "Edition candidate" : "Series reference"}</span><time>Imported {formatDate(record.imported_at)}</time></div>
-            <div className="review-card-main"><div><h3>{record.candidate_title}</h3><p className="review-condition">{[record.candidate_series, record.candidate_volume_number ? `Vol. ${record.candidate_volume_number}` : null, record.candidate_language].filter(Boolean).join(" · ") || "Details still needed"}</p></div><div className="review-source-links">{readableSourceUrl(record) ? <a className="review-source-link" href={readableSourceUrl(record) as string} target="_blank" rel="noreferrer">{record.raw_payload?.human_readable_url_label ?? "Look it up"} ↗</a> : null}<a className="review-source-link is-raw" href={record.source_record_url} target="_blank" rel="noreferrer">{readableSourceUrl(record) ? "Source data ↗" : "Open source record ↗"}</a></div></div>
+            <div className="review-card-main"><div><h3>{record.candidate_title}</h3><p className="review-condition">{[record.candidate_series, record.candidate_volume_number ? `Vol. ${record.candidate_volume_number}` : null, record.candidate_language].filter(Boolean).join(" · ") || "Details still needed"}</p></div><div className="review-source-links">{readableSourceUrl(record) ? <a className="review-source-link" href={readableSourceUrl(record) as string} target="_blank" rel="noreferrer">{readableSourceLabel(record)} ↗</a> : null}<a className="review-source-link is-raw" href={record.source_record_url} target="_blank" rel="noreferrer">{readableSourceUrl(record) ? "Source data ↗" : "Open source record ↗"}</a></div></div>
             {!record.candidate_language ? <p className="catalogue-language-warning" role="status"><strong>Language needs staff confirmation.</strong> The source left this blank, so RAR has not guessed it. Choose Approve new edition and fill the language before publishing.</p> : null}
             <dl className="catalogue-details">
               {record.candidate_author ? <div><dt>Author</dt><dd>{record.candidate_author}</dd></div> : null}

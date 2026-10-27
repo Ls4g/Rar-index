@@ -18,6 +18,7 @@ These apply to every pricing/valuation feature, no exceptions, even under time p
 - Keep raw and graded sales in separate comparison groups (see `comparisonGroup()` in `lib/fx.ts`); charts need 3+ in the *same* group.
 - Never invent prices, dates, currencies, ISBNs, or edition claims. If data isn't there, say so — don't fill the gap.
 - When scope has to be cut for time, cut it explicitly and report the exact gaps left, rather than silently thinning the evidence bar to cover more ground.
+- For catalogue candidates imported from raw JSON/XML APIs, keep the original record URL for audit but never make it the only reviewer-facing link. Add a labelled, exact-ISBN human-readable reference when available; retailer cover images are visual aids, not automatically verified RAR covers.
 
 ## Human-in-the-loop, not automated verification
 
