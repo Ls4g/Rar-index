@@ -70,6 +70,7 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept h1, .rar-concept h2, .rar-concept h3 { letter-spacing: -.055em; }
 .rar-concept h2 { margin: 0; font-size: clamp(30px, 4vw, 48px); line-height: 1.07; }
 .rar-concept-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(430px, 48%); gap: clamp(36px, 5vw, 76px); align-items: center; padding-block: 80px 96px; }
+.rar-concept-hero-copy { align-self: start; }
 .rar-concept-hero-copy h1 { margin: 0 0 24px; font-size: clamp(52px, 5.5vw, 88px); line-height: .98; }
 .rar-concept-hero-copy h1 em { color: var(--rc-accent); font-style: normal; }
 .rar-concept-hero-copy > p:not(.rar-concept-kicker) { max-width: 530px; margin-bottom: 30px; color: var(--rc-muted); font-size: clamp(16px, 1.4vw, 19px); line-height: 1.55; }
@@ -87,11 +88,11 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-button.is-primary:hover { background: #8e291f; }
 .rar-concept-button.is-secondary { border: 1px solid #b9bcbb; }
 .rar-concept-button.is-secondary:hover { border-color: var(--rc-ink); }
-.rar-concept-hero-feature { position: relative; min-height: 560px; overflow: hidden; isolation: isolate; background: transparent; }
+.rar-concept-hero-feature { position: relative; min-height: 700px; overflow: hidden; isolation: isolate; background: transparent; }
 .rar-concept-hero-feature-ink { position: absolute; inset: -8px 0 54px 0; z-index: -1; background: url("/rar-one-piece-cover-sketch-v2.png") center right / contain no-repeat; opacity: .35; filter: grayscale(1); mix-blend-mode: multiply; }
 .rar-concept-hero-feature-top { position: absolute; z-index: 2; top: 23px; right: 24px; left: 24px; display: flex; justify-content: space-between; gap: 16px; color: var(--rc-muted); font-size: 10px; font-weight: 850; letter-spacing: .15em; }
-.rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 94px; left: 17%; display: grid; place-items: center; width: 250px; height: 360px; transform: scale(1.1); transform-origin: center bottom; }
-.rar-concept-hero-feature-book .edition-cover { height: 350px; }
+.rar-concept-hero-feature-book { position: absolute; z-index: 1; top: 97px; left: 10%; display: grid; place-items: center; width: 325px; height: 468px; transform: scale(1.1); transform-origin: center bottom; }
+.rar-concept-hero-feature-book .edition-cover { height: 455px; }
 .rar-concept-hero-feature-bottom { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; display: flex; align-items: end; justify-content: space-between; gap: 15px; border-top: 1px solid rgba(52, 45, 38, .22); padding-top: 14px; }
 .rar-concept-hero-feature-bottom div { display: grid; gap: 2px; }
 .rar-concept-hero-feature-bottom small { margin-bottom: 4px; color: var(--rc-muted); font-size: 9px; font-weight: 850; letter-spacing: .15em; }
@@ -202,11 +203,11 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
   .rar-concept-hero-search > div { flex-wrap: wrap; }
   .rar-concept-hero-search input { min-height: 52px; flex-basis: 100%; }
   .rar-concept-hero-search button { width: 100%; min-height: 48px; border-top: 1px solid var(--rc-ink); border-left: 0; }
-  .rar-concept-hero-feature { min-height: 435px; }
+  .rar-concept-hero-feature { min-height: 550px; }
   .rar-concept-hero-feature-ink { inset: 12px 0 55px -26px; opacity: .29; }
   .rar-concept-hero-feature-top { top: 17px; right: 16px; left: 16px; }
-  .rar-concept-hero-feature-book { top: 62px; left: 12%; width: 188px; height: 270px; }
-  .rar-concept-hero-feature-book .edition-cover { height: 260px; }
+  .rar-concept-hero-feature-book { top: 77px; left: 12%; width: 244px; height: 351px; }
+  .rar-concept-hero-feature-book .edition-cover { height: 338px; }
   .rar-concept-hero-feature-bottom { right: 16px; bottom: 18px; left: 16px; }
   .rar-concept-hero-feature-bottom strong { font-size: 19px; }
   .rar-concept-hero-feature-bottom > a { max-width: 85px; text-align: right; line-height: 1.25; }
