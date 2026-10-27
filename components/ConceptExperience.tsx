@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { selectHomeLiveListings, type HomeListingCard, type HomeListingEdition, type HomeListingLead, type HomeListingProfile } from "@/lib/homeLiveListings";
 import HomeLiveListingsRail from "@/components/HomeLiveListingsRail";
+import HomeCatalogueSearch from "@/components/HomeCatalogueSearch";
 import "@/app/design-concept/style.css";
 
 type ConceptEdition = {
@@ -155,13 +156,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
             <p className="rar-concept-kicker">THE HOME FOR MANGA COLLECTORS</p>
             <h1>Track your manga.<br /><em>Show off your collection.</em></h1>
             <p>Build a shelf around the exact editions you own. Follow their market with sales you can trace back to the source.</p>
-            <form action="/browse" className="rar-concept-hero-search" role="search">
-              <label htmlFor="rar-home-search">SEARCH THE CATALOGUE</label>
-              <div>
-                <input autoComplete="off" id="rar-home-search" name="q" placeholder="Try One Piece, Vol. 2 or an ISBN" type="search" />
-                <button type="submit">Explore manga <span aria-hidden="true">↗</span></button>
-              </div>
-            </form>
+            <HomeCatalogueSearch />
             <div className="rar-concept-actions">
               <Link className="rar-concept-button is-primary" href={preview ? "#join" : "/portfolio"}>Start your shelf <span>↗</span></Link>
             </div>
