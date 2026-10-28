@@ -10,14 +10,14 @@ type CollectorUsernameControlProps = {
   userId: string;
 };
 
-// Foundation-only: claims/edits the row in collector_profiles (see
-// supabase/migrations/20260811_collector_usernames.sql). No public profile
-// page reads this yet -- claiming a handle here only reserves it for when
-// one exists. Never touches portfolio_holdings, price_observations, or
-// anything else about the account.
+// Collector-controlled publication and social settings. The private holding
+// data remains untouched; only public shelf visibility and optional gallery
+// discovery/conversation change here.
 export default function CollectorUsernameControl({ userId }: CollectorUsernameControlProps) {
   const [username, setUsername] = useState<string | null>(null);
   const [shelfPublic, setShelfPublic] = useState(false);
+  const [directoryVisible, setDirectoryVisible] = useState(false);
+  const [commentsEnabled, setCommentsEnabled] = useState(false);
   const [shelfSaving, setShelfSaving] = useState(false);
   const [shelfMessage, setShelfMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -31,14 +31,16 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
     let active = true;
     supabase
       .from("collector_profiles")
-      .select("username,shelf_is_public")
+      .select("username,shelf_is_public,directory_visible,comments_enabled")
       .eq("user_id", userId)
       .maybeSingle()
       .then(({ data }) => {
         if (!active) return;
-        const row = data as { username: string; shelf_is_public: boolean } | null;
+        const row = data as { username: string; shelf_is_public: boolean; directory_visible: boolean; comments_enabled: boolean } | null;
         setUsername(row?.username ?? null);
         setShelfPublic(Boolean(row?.shelf_is_public));
+        setDirectoryVisible(Boolean(row?.directory_visible));
+        setCommentsEnabled(Boolean(row?.comments_enabled));
         setLoading(false);
       });
     return () => { active = false; };
@@ -113,6 +115,20 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
     setShelfSaving(false);
   }
 
+  async function toggleSocial(field: "directory_visible" | "comments_enabled", next: boolean) {
+    setShelfSaving(true);
+    setShelfMessage("");
+    const { error } = await supabase.from("collector_profiles")
+      .update({ [field]: next, updated_at: new Date().toISOString() }).eq("user_id", userId);
+    if (error) setShelfMessage("Could not change that right now.");
+    else {
+      if (field === "directory_visible") setDirectoryVisible(next);
+      else setCommentsEnabled(next);
+      setShelfMessage("Gallery settings saved.");
+    }
+    setShelfSaving(false);
+  }
+
   if (loading) return null;
 
   const disableSubmit = saving || status === "checking" || status === "blocked" || !draft.trim();
@@ -138,31 +154,17 @@ export default function CollectorUsernameControl({ userId }: CollectorUsernameCo
             <button className="portfolio-text-button" onClick={() => setEditing(false)} type="button">Cancel</button>
           </div>
 
-          {/* Publishing is a separate, explicit act from claiming a handle,
-              and the copy has to say exactly what becomes visible. What is
-              shared is which editions you own -- never a price, a date, a
-              note or a quantity, none of which the public view can even
-              select. */}
-          {username ? (
-            <div className="collector-shelf-visibility">
-              <label>
-                <input
-                  checked={shelfPublic}
-                  disabled={shelfSaving}
-                  onChange={(event) => void toggleShelf(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>Publish my shelf at <code>/collectors/{username}</code></span>
-              </label>
-              <p>
-                Anyone with the link sees <strong>which editions you own</strong>. They never see what you paid, when you bought it, your notes, or how many copies you have.
-              </p>
-              {shelfMessage ? <small className={shelfMessage.startsWith("Could not") ? "collector-handle-status is-negative" : "collector-handle-status is-positive"}>{shelfMessage}</small> : null}
-              {shelfPublic ? <a href={`/collectors/${username}`} rel="noreferrer" target="_blank">View your shelf ↗</a> : null}
-            </div>
-          ) : null}
         </form>
       ) : null}
+      {username ? <div className="collector-shelf-visibility">
+        <label><input checked={shelfPublic} disabled={shelfSaving} onChange={(event) => void toggleShelf(event.target.checked)} type="checkbox" /><span>Publish my shelf at <code>/collectors/{username}</code></span></label>
+        <p>Anyone with the link sees <strong>which editions you own</strong>, never what you paid, when you bought them or your private notes.</p>
+        <label><input checked={directoryVisible} disabled={shelfSaving || !shelfPublic} onChange={(event) => void toggleSocial("directory_visible", event.target.checked)} type="checkbox" /><span>Show my gallery in collector discovery</span></label>
+        <label><input checked={commentsEnabled} disabled={shelfSaving || !shelfPublic} onChange={(event) => void toggleSocial("comments_enabled", event.target.checked)} type="checkbox" /><span>Let signed-in members comment on my gallery</span></label>
+        <p>Both options are off by default. You can change them whenever you like.</p>
+        {shelfMessage ? <small className={shelfMessage.startsWith("Could not") ? "collector-handle-status is-negative" : "collector-handle-status is-positive"}>{shelfMessage}</small> : null}
+        {shelfPublic ? <a href={`/collectors/${username}`} rel="noreferrer" target="_blank">View your shelf ↗</a> : null}
+      </div> : null}
     </div>
   );
 }

@@ -25,6 +25,7 @@ const MORE_GROUPS: NavGroup[] = [
     label: "Other work",
     links: [
       { href: "/community-reports", label: "Community reports" },
+      { href: "/gallery-comment-reports", label: "Gallery comment reports" },
       { href: "/homepage-spotlight", label: "Homepage spotlight" },
     ],
   },

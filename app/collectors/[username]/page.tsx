@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import EditionCover from "@/components/EditionCover";
 import PublicHeader from "@/components/PublicHeader";
+import CollectorShareButton from "@/components/CollectorShareButton";
+import CollectorGalleryComments from "@/components/CollectorGalleryComments";
 import { supabase } from "@/lib/supabase";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
 import { normalizeUsername } from "@/lib/username";
@@ -11,6 +13,7 @@ import "@/app/design-concept/style.css";
 import "@/app/design-concept/collector/style.css";
 import "@/app/design-concept/collector/physical-book.css";
 import "@/app/design-concept/collector/gallery.css";
+import "@/app/collectors/social.css";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +46,7 @@ async function loadShelf(username: string) {
   if (!shelf.length) return null;
 
   const { data: profile } = await supabase.from("collector_profiles")
-    .select("user_id").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
+    .select("user_id,comments_enabled").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
   const { data: layout } = profile?.user_id ? await supabase.from("collector_gallery_layouts")
     .select("edition_ids,title,caption,edition_comments").eq("user_id", profile.user_id).maybeSingle() : { data: null };
 
@@ -118,7 +121,7 @@ async function loadShelf(username: string) {
 
   const galleryComments = Object.fromEntries(Object.entries(layout?.edition_comments ?? {})
     .filter(([id, body]) => wallEditions.some((edition) => edition.id === id) && typeof body === "string")) as Record<string, string>;
-  return { displayName: shelf[0].username, editions, books, wallEditions, galleryTitle: layout?.title ?? "", galleryCaption: layout?.caption ?? "", galleryComments };
+  return { displayName: shelf[0].username, profileUserId: profile?.user_id ?? "", commentsEnabled: profile?.comments_enabled ?? false, editions, books, wallEditions, galleryTitle: layout?.title ?? "", galleryCaption: layout?.caption ?? "", galleryComments };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
@@ -147,15 +150,15 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
     <main className="rar-concept rar-demo-profile rar-public-collector">
       <header className="rar-concept-header">
         <Link className="rar-concept-logo" href="/" aria-label="RAR Index home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
-        <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
+        <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collectors">Collectors</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
-      <ShelfBody displayName={shelf.displayName} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
+      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} commentsEnabled={shelf.commentsEnabled} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
     </main>
   );
 }
 
-function ShelfBody({ displayName, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
+function ShelfBody({ displayName, profileUserId, commentsEnabled, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; profileUserId: string; commentsEnabled: boolean; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
   const withCovers = editions.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url).length;
   const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
   const spotlight = books.slice(0, 3);
@@ -169,6 +172,7 @@ function ShelfBody({ displayName, editions, books, wallEditions, galleryTitle, g
             <p className="rar-demo-handle">@{displayName}</p>
             <h1 id="collector-title">{displayName}<span>.</span></h1>
             <p className="rar-demo-bio">A manga shelf made to be explored. Open a cover to see the volumes this collector chose to share.</p>
+            <CollectorShareButton username={displayName} />
             <div className="rar-demo-stats" aria-label="Public shelf summary">
               <div><strong>{editions.length}</strong><span>SHARED EDITIONS</span></div>
               <div><strong>{books.length}</strong><span>SERIES</span></div>
@@ -183,6 +187,7 @@ function ShelfBody({ displayName, editions, books, wallEditions, galleryTitle, g
         </div>
       </section>
       <DemoBookShelf books={books} wallEditions={wallEditions} isDemo={false} ownerName={displayName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} />
+      {profileUserId ? <CollectorGalleryComments profileUserId={profileUserId} enabled={commentsEnabled} /> : null}
       <section className="rar-demo-join"><div className="rar-concept-container"><div><p className="rar-concept-kicker">BUILD YOUR OWN SHELF</p><h2>Your manga. Your shelf.</h2><p>{withCovers < editions.length ? `${editions.length - withCovers} shared editions are still waiting on a confirmed cover. ` : ""}Choose what to share; what you paid and your private notes stay yours.</p></div><Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span>↗</span></Link></div></section>
     </>
   );

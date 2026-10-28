@@ -9,6 +9,7 @@ export default function PublicHeader() {
       <Link href="/browse">Discover</Link>
       <Link href="/browse?evidence=verified-sales">Editions</Link>
       <Link href="/collection">Collections</Link>
+      <Link href="/collectors">Collectors</Link>
       <Link href="/buy-manga">Buy manga</Link>
       <Link className="rar-public-header-secondary" href="/request-edition">Community</Link>
       <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>
