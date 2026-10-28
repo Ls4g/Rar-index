@@ -64,6 +64,14 @@
 .collector-avatar-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .collector-avatar-upload:focus-within { outline: 2px solid var(--rar-red, #ad322b); outline-offset: 2px; }
 .collector-avatar-actions button { border: 0; background: transparent; color: var(--rar-ink, #222); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
+.collector-bio-control { display: grid; gap: 10px; max-width: 650px; margin: 18px 0 24px; }
+.collector-bio-control label { display: grid; gap: 4px; }
+.collector-bio-control label strong { font-size: .95rem; }
+.collector-bio-control label span, .collector-bio-control p { margin: 0; color: var(--rar-muted, #666); font-size: .76rem; line-height: 1.45; }
+.collector-bio-control textarea { width: 100%; border: 1px solid var(--rar-border, #d5d2ca); padding: 10px 12px; background: var(--rar-surface, #fff); color: var(--rar-ink, #222); font: inherit; resize: vertical; }
+.collector-bio-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--rar-muted, #666); font-size: .76rem; }
+.collector-bio-footer button { border: 1px solid var(--rar-red, #ad322b); padding: 8px 12px; background: var(--rar-red, #ad322b); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.collector-bio-footer button:disabled { opacity: .5; cursor: default; }
 .collector-gallery-copy-fields { display: grid; gap: 12px; max-width: 650px; margin: 24px 0; }
 .collector-gallery-copy-fields label, .collector-gallery-comment { display: grid; gap: 7px; font-size: .82rem; font-weight: 700; }
 .collector-gallery-copy-fields input, .collector-gallery-copy-fields textarea, .collector-gallery-comment textarea { width: 100%; border: 1px solid var(--rar-border, #d5d2ca); border-radius: 0; padding: 10px 12px; background: var(--rar-surface, #fff); color: var(--rar-ink, #222); font: inherit; font-weight: 400; resize: vertical; }

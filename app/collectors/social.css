@@ -22,6 +22,7 @@
 .collector-directory-card-info strong { grid-column: 2; grid-row: 2; font-weight: 400; font-size: .8rem; opacity: .75; }
 .collector-directory-card-info > span:last-child { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 .rar-public-collector .rar-demo-avatar { width: 88px; height: 88px; font-size: 2.7rem; }
+.rar-public-collector .rar-demo-bio { white-space: pre-line; overflow-wrap: anywhere; }
 .collector-directory-card-stats { display: flex; gap: .75rem; flex-wrap: wrap; padding: .6rem .35rem .35rem; border-top: 1px solid color-mix(in srgb, currentColor 13%, transparent); font-size: .73rem; opacity: .78; }
 .collector-directory-card-stats span:first-child { margin-right: auto; }
 .collector-directory-own { display: inline-block; margin-top: 2.5rem; color: inherit; font-weight: 700; }
