@@ -101,12 +101,14 @@ for (const name of names) {
 const db = new PGlite();
 await db.exec("create role anon; create role authenticated; create role service_role;");
 await db.exec(readFileSync(new URL("../supabase/migrations/20260930_cron_invocations.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/20261028_allow_apify_cron_invocations.sql", import.meta.url), "utf8"));
 for (const role of ["anon", "authenticated"]) {
   assert.equal((await db.query(`select has_table_privilege('${role}', 'cron_invocations', 'select') as allowed`)).rows[0].allowed, false);
 }
 assert.equal((await db.query("select relrowsecurity from pg_class where relname='cron_invocations'")).rows[0].relrowsecurity, true);
 assert.equal((await db.query("select has_table_privilege('service_role', 'cron_invocations', 'insert,update,select') as allowed")).rows[0].allowed, true);
 await db.query("insert into cron_invocations(id,route,status) values($1,'/api/cron/listing-outcomes','started')", [crypto.randomUUID()]);
+await db.query("insert into cron_invocations(id,route,status) values($1,'/api/cron/apify-sales','started')", [crypto.randomUUID()]);
 await assert.rejects(db.query("insert into cron_invocations(id,route,status) values($1,'/api/cron/listing-outcomes','completed')", [crypto.randomUUID()]), /check constraint/);
 await db.close();
 console.log("Cron heartbeat: lifecycle, no-op, partial failures, audit outages, privacy, route authorization and schema checks passed (single session).");
