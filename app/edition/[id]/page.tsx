@@ -795,7 +795,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
-                <a className="live-listing-card" href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
+                <a className="live-listing-card" data-rar-listing-click href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
                   <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
                   <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong>{formatListingEndLabel(listing.item_end_at) ? <small>{formatListingEndLabel(listing.item_end_at)}</small> : null}</div>
                 </a>

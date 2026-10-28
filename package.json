@@ -11,6 +11,7 @@
     "test:graded-revisit": "node scripts/test-graded-revisit.mjs",
     "test:scout-inbox": "node --experimental-strip-types scripts/test-scout-inbox-view.mjs",
     "test:daily-apify-search": "node --experimental-strip-types scripts/test-daily-apify-search.mjs",
+    "test:scorecard": "node --experimental-strip-types scripts/test-weekly-scorecard.mjs && node scripts/test-staff-route-protection.mjs",
     "test:kodansha": "node --experimental-strip-types scripts/test-kodansha-integration.mjs",
     "test:cover-sources": "node --experimental-strip-types scripts/test-shueisha-cover.mjs && node --experimental-strip-types scripts/test-cover-source-search.mjs",
     "test:catalogue-review-links": "node --experimental-strip-types scripts/test-catalogue-review-links.mjs",

@@ -52,6 +52,7 @@ export const config = {
     "/collection-profiles/:path*",
     "/data-readiness/:path*",
     "/coverage-dashboard/:path*",
+    "/weekly-scorecard/:path*",
     "/community-reports/:path*",
     "/catalogue-requests/:path*",
     "/scout/:path*",

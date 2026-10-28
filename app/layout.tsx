@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
+import PublicJourneyTracker from "@/components/PublicJourneyTracker";
 import "./globals.css";
 import "./editorial-system.css";
 
@@ -40,7 +41,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
       </head>
-      <body>{children}</body>
+      <body>{children}<PublicJourneyTracker /></body>
     </html>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import EditionCover from "@/components/EditionCover";
 import { editionDescriptor, evidenceStatusLabel, publisherDisplayName } from "@/lib/editionDisplay";
 import { browseSeriesKey, browseSeriesName, browseVolumeNumber, compareBrowseEditions } from "@/lib/browseOrder";
+import { trackPublicJourney } from "@/components/PublicJourneyTracker";
 
 export type BrowseEdition = {
   id: string;
@@ -49,6 +50,12 @@ export default function BrowseEditions({ editions }: { editions: BrowseEdition[]
   const searchParams = useSearchParams();
   const bestDocumented = searchParams.get("collection") === "best-documented";
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
+  const initialQuery = useRef(query);
+  useEffect(() => {
+    if (query.trim().length < 2 || query === initialQuery.current) return;
+    const timer = window.setTimeout(() => trackPublicJourney("catalogue_search"), 900);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   const [language, setLanguage] = useState("all");
   const [publisher, setPublisher] = useState("all");
   const [collectibleType, setCollectibleType] = useState("all");

@@ -24,6 +24,7 @@ import { type PortfolioSnapshotPoint } from "@/components/portfolio/PortfolioVal
 import CollectorUsernameControl from "@/components/portfolio/CollectorUsernameControl";
 import CollectorGalleryEditor from "@/components/portfolio/CollectorGalleryEditor";
 import type { CatalogueVolume } from "@/lib/seriesCompletion";
+import { trackPublicJourney } from "@/components/PublicJourneyTracker";
 
 const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
@@ -332,6 +333,7 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
     const result = editingId ? await supabase.from("portfolio_holdings").update(values).eq("id", editingId) : await supabase.from("portfolio_holdings").insert(values);
     if (result.error) setMessage(result.error.code === "23505" ? "This edition is already in your portfolio. Edit that holding instead." : "Your holding could not be saved.");
     else {
+      if (!wasEditing) trackPublicJourney("shelf_add");
       setModalOpen(false); resetForm(); await loadPortfolio();
       void triggerBackgroundSnapshot(wasEditing ? "holding_updated" : "holding_added");
     }

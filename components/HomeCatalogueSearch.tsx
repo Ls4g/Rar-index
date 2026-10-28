@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import EditionCover from "@/components/EditionCover";
 import { supabase } from "@/lib/supabase";
+import { trackPublicJourney } from "@/components/PublicJourneyTracker";
 
 type Suggestion = {
   id: string;
@@ -70,6 +71,7 @@ export default function HomeCatalogueSearch() {
   const showSuggestions = open && query.trim().length >= 2;
 
   return <form action="/browse" className="rar-concept-hero-search" role="search"
+    onSubmit={() => { if (query.trim().length >= 2) trackPublicJourney("catalogue_search"); }}
     onBlur={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
     }}>
@@ -89,6 +91,7 @@ export default function HomeCatalogueSearch() {
           if (event.key === "Escape") { setOpen(false); setActiveIndex(-1); }
           if (event.key === "Enter" && activeIndex >= 0 && results[activeIndex]) {
             event.preventDefault();
+            trackPublicJourney("catalogue_search");
             router.push(`/edition/${results[activeIndex].id}`);
           }
           if (!results.length || !showSuggestions) return;
@@ -103,7 +106,7 @@ export default function HomeCatalogueSearch() {
       {!loading && !error && !results.length ? <li className="rar-home-suggestion-message" role="status">No matching editions yet. Try the full catalogue search.</li> : null}
       {!loading && !error && results.map((edition, index) => <li key={edition.id} role="presentation">
         <button aria-selected={activeIndex === index} className={activeIndex === index ? "is-active" : ""}
-          id={`rar-home-option-${index}`} onClick={() => router.push(`/edition/${edition.id}`)}
+          id={`rar-home-option-${index}`} onClick={() => { trackPublicJourney("catalogue_search"); router.push(`/edition/${edition.id}`); }}
           onMouseEnter={() => setActiveIndex(index)} role="option" type="button">
           <EditionCover className="rar-home-suggestion-cover" imageStatus={edition.cover_verification_status}
             imageUrl={edition.cover_image_url} language={edition.language} series={edition.series}
@@ -112,7 +115,7 @@ export default function HomeCatalogueSearch() {
             <small>{[edition.volume_number ? `Vol. ${edition.volume_number}` : null, edition.language, edition.publisher].filter(Boolean).join(" · ")}</small></span>
         </button>
       </li>)}
-      {!loading && !error && results.length ? <li role="presentation"><button className="rar-home-suggestion-all" onClick={() => router.push(`/browse?q=${encodeURIComponent(query.trim())}`)} type="button">See all catalogue results ↗</button></li> : null}
+      {!loading && !error && results.length ? <li role="presentation"><button className="rar-home-suggestion-all" onClick={() => { trackPublicJourney("catalogue_search"); router.push(`/browse?q=${encodeURIComponent(query.trim())}`); }} type="button">See all catalogue results ↗</button></li> : null}
     </ul> : null}
   </form>;
 }

@@ -93,6 +93,7 @@ const INTENTIONALLY_PUBLIC = new Set([
   "/api/ebay/account-deletion",// eBay's compliance webhook
   "/api/portfolio-activity",   // public Scout data for a signed-in collector's shelf
   "/api/portfolio-snapshot",   // verifies a Supabase Auth bearer token itself
+  "/api/public-journey",       // same-origin anonymous counts only; no personal fields or sale evidence
 ]);
 
 const ungatedApis = apiRoutes
