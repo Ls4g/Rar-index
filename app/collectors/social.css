@@ -16,10 +16,12 @@
 .collector-directory-book-row .edition-cover { height: auto; max-height: 100%; width: calc((100% - 1.3rem) / 3); min-width: 0; aspect-ratio: 2 / 3; flex: none; overflow: visible; background: transparent; box-shadow: 5px 9px 13px #1f1b1742; transform: perspective(600px) rotateY(-4deg); }
 .collector-directory-book-row .edition-cover::before { content: ""; position: absolute; z-index: 2; left: -4px; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, #38332c, #958e85); }
 .collector-directory-book-row .edition-cover img { height: 100%; width: 100%; object-fit: fill; }
-.collector-directory-card-info { display: grid; grid-template-columns: 1fr auto; gap: .25rem; padding: 1rem .35rem .45rem; }
-.collector-directory-card-info span:first-child { font-weight: 800; font-size: 1.15rem; }
-.collector-directory-card-info strong { grid-row: 2; font-weight: 400; font-size: .85rem; opacity: .75; }
-.collector-directory-card-info span:last-child { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.collector-directory-card-info { display: grid; grid-template-columns: 40px 1fr auto; gap: .15rem .7rem; align-items: center; padding: 1rem .35rem .65rem; }
+.collector-directory-card-info .collector-avatar { grid-column: 1; grid-row: 1 / span 2; width: 40px; height: 40px; }
+.collector-directory-card-info > span:nth-child(2) { grid-column: 2; grid-row: 1; font-weight: 800; font-size: 1.05rem; }
+.collector-directory-card-info strong { grid-column: 2; grid-row: 2; font-weight: 400; font-size: .8rem; opacity: .75; }
+.collector-directory-card-info > span:last-child { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+.rar-public-collector .rar-demo-avatar { width: 88px; height: 88px; font-size: 2.7rem; }
 .collector-directory-card-stats { display: flex; gap: .75rem; flex-wrap: wrap; padding: .6rem .35rem .35rem; border-top: 1px solid color-mix(in srgb, currentColor 13%, transparent); font-size: .73rem; opacity: .78; }
 .collector-directory-card-stats span:first-child { margin-right: auto; }
 .collector-directory-own { display: inline-block; margin-top: 2.5rem; color: inherit; font-weight: 700; }

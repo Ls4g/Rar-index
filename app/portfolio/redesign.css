@@ -54,6 +54,16 @@
 .collector-gallery-editor > summary small { margin-top: 3px; color: var(--rar-muted, #666); }
 .collector-gallery-editor-body { border-top: 1px solid var(--rar-border, #d5d2ca); padding: 22px; }
 .collector-gallery-editor-body > p { color: var(--rar-muted, #666); }
+.collector-avatar-control { display: flex; align-items: center; gap: 18px; max-width: 650px; margin: 22px 0 10px; border: 1px solid var(--rar-border, #d5d2ca); padding: 17px; }
+.collector-avatar-control .collector-avatar { width: 76px; height: 76px; font-size: 2.4rem; }
+.collector-avatar-control > div { min-width: 0; }
+.collector-avatar-control strong { font-size: .95rem; }
+.collector-avatar-control p { margin: 5px 0 9px; color: var(--rar-muted, #666); font-size: .76rem; line-height: 1.45; }
+.collector-avatar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.collector-avatar-upload { position: relative; display: inline-block; overflow: hidden; border: 1px solid var(--rar-red, #ad322b); padding: 8px 11px; color: var(--rar-red, #ad322b); font-size: .8rem; font-weight: 700; cursor: pointer; }
+.collector-avatar-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.collector-avatar-upload:focus-within { outline: 2px solid var(--rar-red, #ad322b); outline-offset: 2px; }
+.collector-avatar-actions button { border: 0; background: transparent; color: var(--rar-ink, #222); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
 .collector-gallery-copy-fields { display: grid; gap: 12px; max-width: 650px; margin: 24px 0; }
 .collector-gallery-copy-fields label, .collector-gallery-comment { display: grid; gap: 7px; font-size: .82rem; font-weight: 700; }
 .collector-gallery-copy-fields input, .collector-gallery-copy-fields textarea, .collector-gallery-comment textarea { width: 100%; border: 1px solid var(--rar-border, #d5d2ca); border-radius: 0; padding: 10px 12px; background: var(--rar-surface, #fff); color: var(--rar-ink, #222); font: inherit; font-weight: 400; resize: vertical; }

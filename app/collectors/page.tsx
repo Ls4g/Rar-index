@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import EditionCover from "@/components/EditionCover";
+import CollectorAvatar from "@/components/CollectorAvatar";
 import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
+import { collectorAvatarUrl } from "@/lib/collectorAvatar";
 import { readCompleteRows } from "@/lib/readCompleteRows";
 import "./social.css";
 
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
   description: "Explore manga collections that RAR members have chosen to share.",
 };
 
-type Profile = { user_id: string; username: string };
+type Profile = { user_id: string; username: string; avatar_updated_at: string | null };
 type Cover = { id: string; title: string | null; series: string | null; volume_number: string | null; cover_image_url: string | null; cover_verification_status: string | null };
 type GalleryLayout = { user_id: string; edition_ids: string[]; title: string };
 type SocialCount = { profile_user_id: string; like_count: number; comment_count: number };
@@ -20,7 +22,7 @@ type SocialCount = { profile_user_id: string; like_count: number; comment_count:
 export default async function CollectorsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
   const search = (q ?? "").trim().replace(/[^a-zA-Z0-9_]/g, "").slice(0, 20);
-  let query = supabase.from("collector_profiles").select("user_id,username")
+  let query = supabase.from("collector_profiles").select("user_id,username,avatar_updated_at")
     .eq("shelf_is_public", true).eq("directory_visible", true).order("updated_at", { ascending: false }).limit(24);
   if (search) query = query.ilike("username", `%${search}%`);
   const { data, error } = await query;
@@ -78,7 +80,7 @@ export default async function CollectorsPage({ searchParams }: { searchParams: P
       {loadError ? <p role="alert">Galleries could not load. Please try again.</p> : galleries.length ? <div className="collector-directory-grid">
         {galleries.map(({ profile, count, covers: galleryCovers, title, likes, comments }) => <Link className="collector-directory-card" href={`/collectors/${profile.username}`} key={profile.user_id}>
           <div className="collector-directory-books"><span className="collector-directory-preview-label">RAR / COLLECTOR GALLERY</span><div className="collector-directory-book-row">{galleryCovers.length ? galleryCovers.map((cover) => <EditionCover key={cover.id} title={cover.title} series={cover.series} volumeNumber={cover.volume_number} imageUrl={cover.cover_image_url} imageStatus={cover.cover_verification_status} />) : <span>No confirmed covers yet</span>}</div></div>
-          <div className="collector-directory-card-info"><span>@{profile.username}</span><strong>{title}</strong><span aria-hidden="true">↗</span></div>
+          <div className="collector-directory-card-info"><CollectorAvatar name={profile.username} url={collectorAvatarUrl(profile.user_id, profile.avatar_updated_at)} /><span>@{profile.username}</span><strong>{title}</strong><span aria-hidden="true">↗</span></div>
           <div className="collector-directory-card-stats"><span>{count} shared {count === 1 ? "edition" : "editions"}</span><span>♥ {likes} {likes === 1 ? "like" : "likes"}</span><span>◌ {comments} {comments === 1 ? "comment" : "comments"}</span></div>
         </Link>)}
       </div> : <p className="collector-directory-empty">{search ? "No public galleries matched that handle." : "No collectors have opted into discovery yet. Your gallery can be the first."}</p>}

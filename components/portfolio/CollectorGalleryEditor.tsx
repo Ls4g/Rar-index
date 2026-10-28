@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
+import CollectorAvatarControl from "./CollectorAvatarControl";
 import { supabase } from "@/lib/supabase";
 import { volumeSortValue } from "@/lib/seriesCompletion";
 import type { Holding } from "./HoldingCard";
@@ -27,7 +28,7 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
   const [search, setSearch] = useState("");
   const [moving, setMoving] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
-  const [profile, setProfile] = useState<{ username: string; shelf_is_public: boolean } | null>(null);
+  const [profile, setProfile] = useState<{ username: string; shelf_is_public: boolean; avatar_updated_at: string | null } | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const latestSave = useRef(0);
   const latestContent = useRef<GalleryContent>({ ids: [], title: "", caption: "", comments: {} });
@@ -37,7 +38,7 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     let active = true;
     void Promise.all([
       supabase.from("collector_gallery_layouts").select("edition_ids,title,caption,edition_comments").eq("user_id", userId).maybeSingle(),
-      supabase.from("collector_profiles").select("username,shelf_is_public").eq("user_id", userId).maybeSingle(),
+      supabase.from("collector_profiles").select("username,shelf_is_public,avatar_updated_at").eq("user_id", userId).maybeSingle(),
     ]).then(([layoutResult, profileResult]) => {
       if (!active) return;
       const saved = (layoutResult.data?.edition_ids ?? null) as string[] | null;
@@ -50,8 +51,8 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
       setTitle(latestContent.current.title);
       setCaption(latestContent.current.caption);
       setComments(validComments);
-      setProfile(profileResult.data as { username: string; shelf_is_public: boolean } | null);
-      if (layoutResult.error) setLoadFailed(true);
+      setProfile(profileResult.data as { username: string; shelf_is_public: boolean; avatar_updated_at: string | null } | null);
+      if (layoutResult.error || profileResult.error) setLoadFailed(true);
       setReady(true);
     });
     return () => {
@@ -121,13 +122,14 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     `${holding.edition?.series ?? ""} ${holding.edition?.title ?? ""} ${holding.edition?.volume_number ?? ""}`.toLowerCase().includes(search.toLowerCase()));
 
   return <details className="collector-gallery-editor" id="arrange-gallery">
-    <summary><span><strong>Arrange your gallery wall</strong><small>Choose up to {MAX_WALL_BOOKS} covers and put them in your order.</small></span><span aria-hidden="true">↗</span></summary>
+    <summary><span><strong>Customise your gallery</strong><small>Add a profile picture, caption and up to {MAX_WALL_BOOKS} covers in your order.</small></span><span aria-hidden="true">↗</span></summary>
     <div className="collector-gallery-editor-body">
       <p>Drag covers to swap places, or tap one and then its destination. This changes only the display—not your collection.</p>
       {profile?.shelf_is_public ? <p className="collector-gallery-public-link"><Link href={`/collectors/${profile.username}#gallery`} target="_blank">View your live gallery ↗</Link></p>
         : <p className="collector-gallery-private">Your shelf is private. Publish it using the @handle control above when you want others to see it.</p>}
       {!profile && ready ? <p>Claim a collector handle above before arranging your display.</p> : null}
       {!ready ? <p>Loading your display…</p> : loadFailed ? <p role="alert">Could not load your gallery. Refresh before editing so your existing display is preserved.</p> : profile ? <>
+        <CollectorAvatarControl userId={userId} username={profile.username} initialUpdatedAt={profile.avatar_updated_at} />
         <div className="collector-gallery-copy-fields">
           <label htmlFor="collector-gallery-title">Gallery title <input id="collector-gallery-title" maxLength={80} value={title} onChange={(event) => changeText({ ...latestContent.current, title: event.target.value })} onBlur={flushText} placeholder={`${profile.username}'s gallery`} /></label>
           <label htmlFor="collector-gallery-caption">Caption <textarea id="collector-gallery-caption" maxLength={240} rows={2} value={caption} onChange={(event) => changeText({ ...latestContent.current, caption: event.target.value })} onBlur={flushText} placeholder="Tell visitors about your collection…" /></label>

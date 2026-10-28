@@ -4,8 +4,10 @@ import EditionCover from "@/components/EditionCover";
 import PublicHeader from "@/components/PublicHeader";
 import CollectorShareButton from "@/components/CollectorShareButton";
 import CollectorGalleryLike from "@/components/CollectorGalleryLike";
+import CollectorAvatar from "@/components/CollectorAvatar";
 import CollectorGalleryComments from "@/components/CollectorGalleryComments";
 import { supabase } from "@/lib/supabase";
+import { collectorAvatarUrl } from "@/lib/collectorAvatar";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
 import { normalizeUsername } from "@/lib/username";
 import { volumeSortValue } from "@/lib/seriesCompletion";
@@ -47,7 +49,7 @@ async function loadShelf(username: string) {
   if (!shelf.length) return null;
 
   const { data: profile } = await supabase.from("collector_profiles")
-    .select("user_id,comments_enabled").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
+    .select("user_id,comments_enabled,avatar_updated_at").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
   const { data: layout } = profile?.user_id ? await supabase.from("collector_gallery_layouts")
     .select("edition_ids,title,caption,edition_comments").eq("user_id", profile.user_id).maybeSingle() : { data: null };
 
@@ -122,7 +124,7 @@ async function loadShelf(username: string) {
 
   const galleryComments = Object.fromEntries(Object.entries(layout?.edition_comments ?? {})
     .filter(([id, body]) => wallEditions.some((edition) => edition.id === id) && typeof body === "string")) as Record<string, string>;
-  return { displayName: shelf[0].username, profileUserId: profile?.user_id ?? "", commentsEnabled: profile?.comments_enabled ?? false, editions, books, wallEditions, galleryTitle: layout?.title ?? "", galleryCaption: layout?.caption ?? "", galleryComments };
+  return { displayName: shelf[0].username, profileUserId: profile?.user_id ?? "", avatarUrl: profile?.user_id ? collectorAvatarUrl(profile.user_id, profile.avatar_updated_at) : null, commentsEnabled: profile?.comments_enabled ?? false, editions, books, wallEditions, galleryTitle: layout?.title ?? "", galleryCaption: layout?.caption ?? "", galleryComments };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
@@ -158,12 +160,12 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
         <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collectors">Collectors</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
-      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
+      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} avatarUrl={shelf.avatarUrl} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
     </main>
   );
 }
 
-function ShelfBody({ displayName, profileUserId, commentsEnabled, likeCount, commentCount, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; profileUserId: string; commentsEnabled: boolean; likeCount: number | null; commentCount: number | null; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
+function ShelfBody({ displayName, profileUserId, avatarUrl, commentsEnabled, likeCount, commentCount, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; profileUserId: string; avatarUrl: string | null; commentsEnabled: boolean; likeCount: number | null; commentCount: number | null; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
   const withCovers = editions.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url).length;
   const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
   const spotlight = books.slice(0, 3);
@@ -173,7 +175,7 @@ function ShelfBody({ displayName, profileUserId, commentsEnabled, likeCount, com
       <section className="rar-demo-hero" aria-labelledby="collector-title">
         <div className="rar-concept-container rar-demo-hero-inner">
           <div className="rar-demo-identity">
-            <div className="rar-demo-identity-top"><span className="rar-demo-avatar" aria-hidden="true">{displayName[0]?.toUpperCase()}</span><span className="rar-demo-identity-type">PUBLIC COLLECTOR SHELF</span></div>
+            <div className="rar-demo-identity-top"><CollectorAvatar name={displayName} url={avatarUrl} className="rar-demo-avatar" /><span className="rar-demo-identity-type">PUBLIC COLLECTOR SHELF</span></div>
             <p className="rar-demo-handle">@{displayName}</p>
             <h1 id="collector-title">{displayName}<span>.</span></h1>
             <p className="rar-demo-bio">A manga shelf made to be explored. Open a cover to see the volumes this collector chose to share.</p>
