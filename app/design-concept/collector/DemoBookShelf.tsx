@@ -78,6 +78,12 @@ export default function DemoBookShelf({ books, wallEditions = [], isDemo = true,
 
   const close = () => dialogRef.current?.close();
 
+  // Published profiles use the gallery as their one public viewing experience.
+  // The editorial/full-shelf sections and flip-book below are concept demos,
+  // not a second (older) portfolio for visitors to fall into.
+  if (!isDemo) return wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={false} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} />
+    : <section className="rar-gallery" id="gallery"><div className="rar-concept-container"><p className="rar-concept-kicker">COLLECTOR GALLERY</p><h2>This wall is being arranged.</h2><p>Books will appear here when this collector chooses editions with confirmed covers to display.</p></div></section>;
+
   return <>
     {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} /> : null}
     <section className="rar-demo-content" id="spotlight">
