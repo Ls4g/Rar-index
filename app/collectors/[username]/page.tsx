@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import EditionCover from "@/components/EditionCover";
 import PublicHeader from "@/components/PublicHeader";
 import CollectorShareButton from "@/components/CollectorShareButton";
+import CollectorGalleryLike from "@/components/CollectorGalleryLike";
 import CollectorGalleryComments from "@/components/CollectorGalleryComments";
 import { supabase } from "@/lib/supabase";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
@@ -137,6 +138,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 export default async function CollectorShelfPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
   const shelf = await loadShelf(username);
+  const { data: socialCounts, error: socialError } = shelf?.profileUserId
+    ? await supabase.rpc("collector_gallery_social_counts", { profile_ids: [shelf.profileUserId] })
+    : { data: [], error: null };
+  const social = socialCounts?.[0] as { like_count: number; comment_count: number } | undefined;
 
   return !shelf ? (
     <main className="public-page collector-shelf-page"><PublicHeader />
@@ -153,12 +158,12 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
         <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collectors">Collectors</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
-      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} commentsEnabled={shelf.commentsEnabled} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
+      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} />
     </main>
   );
 }
 
-function ShelfBody({ displayName, profileUserId, commentsEnabled, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; profileUserId: string; commentsEnabled: boolean; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
+function ShelfBody({ displayName, profileUserId, commentsEnabled, likeCount, commentCount, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments }: { displayName: string; profileUserId: string; commentsEnabled: boolean; likeCount: number | null; commentCount: number | null; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string> }) {
   const withCovers = editions.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url).length;
   const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
   const spotlight = books.slice(0, 3);
@@ -173,6 +178,7 @@ function ShelfBody({ displayName, profileUserId, commentsEnabled, editions, book
             <h1 id="collector-title">{displayName}<span>.</span></h1>
             <p className="rar-demo-bio">A manga shelf made to be explored. Open a cover to see the volumes this collector chose to share.</p>
             <CollectorShareButton username={displayName} />
+            {profileUserId && likeCount !== null ? <div className="collector-gallery-social"><CollectorGalleryLike profileUserId={profileUserId} initialCount={likeCount} />{commentCount !== null && commentsEnabled ? <a href="#gallery-comments">{commentCount} {commentCount === 1 ? "comment" : "comments"} ↓</a> : null}</div> : null}
             <div className="rar-demo-stats" aria-label="Public shelf summary">
               <div><strong>{editions.length}</strong><span>SHARED EDITIONS</span></div>
               <div><strong>{books.length}</strong><span>SERIES</span></div>

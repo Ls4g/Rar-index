@@ -64,7 +64,7 @@ export default function CollectorGalleryComments({ profileUserId, enabled }: { p
     if (!error) setReporting(null);
   }
 
-  return <section className="collector-gallery-conversation" aria-labelledby="gallery-conversation-heading">
+  return <section className="collector-gallery-conversation" id="gallery-comments" aria-labelledby="gallery-conversation-heading">
     <div className="collector-gallery-conversation-head"><p className="rar-concept-kicker">THE CONVERSATION</p><h2 id="gallery-conversation-heading">Gallery comments<span>.</span></h2></div>
     {!enabled ? <p>This collector has comments turned off.</p> : <>
       {comments.length ? <ol className="collector-gallery-comment-list">{comments.map((comment) => <li key={comment.id}>
