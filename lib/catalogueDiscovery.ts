@@ -286,7 +286,18 @@ export async function planBacklogRun(
   const researchable = backlog.filter((target) => backlogTargetToDiscoveryTarget(target) !== null
     && (target.status === "researchable" || (target.status === "watching"
       && target.language === "Japanese" && target.next_missing_volume !== null)));
-  return { backlog, chosen: planRun(researchable.map((target) => target.status === "watching" ? { ...target, status: "researchable" as const } : target)) };
+  const planned = researchable.map((target) => {
+    const source = backlogTargetToDiscoveryTarget(target)!;
+    const planning_strategy = source.isbn13 || source.source === "kodansha_direct" || source.source === "kodansha_neighbor"
+      ? "direct_source" as const
+      : source.source === "shueisha_direct"
+        ? "publisher_title" as const
+        : target.discovery_source === "rar_catalogue" && target.lane === "series_gap"
+          ? "catalogue_gap" as const
+          : "broad_title" as const;
+    return { ...target, planning_strategy };
+  });
+  return { backlog, chosen: planRun(planned) };
 }
 
 /**
@@ -299,7 +310,7 @@ export async function planBacklogRun(
 export async function recordTargetOutcome(
   admin: SupabaseClient,
   targetId: string,
-  outcome: "staged" | "already_known" | "no_exact_candidate" | "failed",
+  outcome: "staged" | "already_known" | "no_exact_candidate" | "failed" | "source_unavailable",
   failureCount: number,
 ) {
   const now = new Date();
@@ -309,6 +320,18 @@ export async function recordTargetOutcome(
       last_checked_at: now.toISOString(),
       next_check_at: nextCheckAfterSuccess(now),
       failure_count: 0,
+      last_result: outcome,
+      updated_at: now.toISOString(),
+    }).eq("id", targetId);
+    return;
+  }
+
+  if (outcome === "source_unavailable") {
+    // An upstream outage is not evidence that this manga is a bad target.
+    // Leave its researchable/watching status and failure count intact.
+    await admin.from("catalogue_discovery_targets").update({
+      last_checked_at: now.toISOString(),
+      next_check_at: new Date(now.getTime() + 3 * 86_400_000).toISOString(),
       last_result: outcome,
       updated_at: now.toISOString(),
     }).eq("id", targetId);

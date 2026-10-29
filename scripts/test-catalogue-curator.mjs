@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { candidateMatchesDiscoveryTarget, cataloguePublisherMatches, planCatalogueDiscoveryTargets, runCataloguePreparationRead, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
+import { candidateMatchesDiscoveryTarget, cataloguePublisherMatches, isCatalogueSourceUnavailable, planCatalogueDiscoveryTargets, runCataloguePreparationRead, volumeFromCatalogueTitle } from "../lib/catalogueCurator.ts";
 import { catalogueApprovalProblem } from "../lib/catalogueApprovalGuard.ts";
 
 assert.equal(volumeFromCatalogueTitle("ONE PIECE 2"), 2);
@@ -35,6 +35,10 @@ const alreadyQueued = [{
   raw_payload: { agent_discovery: { request_id: "request-1" } },
 }];
 assert.equal(planCatalogueDiscoveryTargets([japaneseRequest], [], alreadyQueued, 1).length, 0);
+assert.equal(planCatalogueDiscoveryTargets([japaneseRequest], [{ isbn_13: japaneseRequest.isbn_13 }], [], 1).length, 0);
+assert.equal(isCatalogueSourceUnavailable("Shueisha title search returned HTTP 503."), true);
+assert.equal(isCatalogueSourceUnavailable("Open Library returned HTTP 429."), true);
+assert.equal(isCatalogueSourceUnavailable("Shueisha title search changed its result format."), false);
 
 const editions = [
   { title: "One Piece, Vol. 1", series: "One Piece", volume_number: "1", language: "English", publisher: "VIZ Media", isbn_13: "9781569319017", collectible_type: "tankobon" },

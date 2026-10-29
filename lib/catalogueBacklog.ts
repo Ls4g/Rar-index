@@ -5,9 +5,9 @@
 // so One Piece won every run and the review queue filled with One Piece
 // volumes. Nothing outside that file could ever be discovered.
 //
-// This replaces the ordering with rotation. Everything here is a pure function
-// over rows so the fairness rules can be tested without a database or a
-// network, which is the only way to be sure One Piece cannot monopolise a run.
+// This replaces the ordering with source-quality priority and lane rotation.
+// Everything here is a pure function over rows so the fairness rules can be
+// tested without a database or a network.
 
 export const LANES = ["established", "rising", "new_release", "series_gap"] as const;
 export type DiscoveryLane = (typeof LANES)[number];
@@ -35,6 +35,9 @@ export type BacklogTarget = {
   next_check_at: string | null;
   failure_count: number;
   last_result: string | null;
+  // Ephemeral search quality, assigned by the planner; never stored as an
+  // edition claim or used to bypass human review.
+  planning_strategy?: "direct_source" | "catalogue_gap" | "publisher_title" | "broad_title";
 };
 
 // Roughly ten searches a run, no more than two volumes from any one series,
@@ -44,8 +47,8 @@ export const MAX_PER_SERIES_PER_RUN = 2;
 export const MIN_DISTINCT_SERIES = 5;
 
 // A collector asking for something outranks anything RAR chose for itself.
-// Beyond that the lanes take turns, so a quiet lane is never starved by a
-// loud one.
+// Direct publisher/ISBN sources and known RAR catalogue gaps come next.
+// Remaining broad searches rotate lanes so a loud lane cannot monopolise them.
 //
 // "rising" is deliberately absent. Scored against the decisions staff
 // actually made, it was the only lane accepted less than half the time:
@@ -124,10 +127,9 @@ function compareTargets(left: BacklogTarget, right: BacklogTarget) {
 /**
  * Choose this run's targets.
  *
- * Rotates lane by lane, taking the best available target from each in turn, so
- * no lane and no series can take the run. The per-series cap is applied while
- * selecting rather than afterwards, because filtering a One-Piece-heavy list
- * down at the end just produces a short run instead of a fair one.
+ * Staff fast-tracks, direct sources and known gaps lead; broader searches
+ * rotate lane by lane. The per-series cap is applied while selecting rather
+ * than afterwards so one series cannot shorten or monopolise a run.
  */
 export function planRun(
   backlog: BacklogTarget[],
@@ -139,10 +141,14 @@ export function planRun(
 
   const due = backlog.filter((target) => isDue(target, now));
   const fastTrack = due.filter(isStaffFastTrack).sort(compareTargets);
-  const normal = due.filter((target) => !isStaffFastTrack(target));
+  const normal = due.filter((target) => !isStaffFastTrack(target) && LANE_ROTATION.includes(target.lane));
+  const direct = normal.filter((target) => target.planning_strategy === "direct_source").sort(compareTargets);
+  const catalogueGaps = normal.filter((target) => target.planning_strategy === "catalogue_gap").sort(compareTargets);
+  const publisherTitles = normal.filter((target) => target.planning_strategy === "publisher_title").sort(compareTargets);
+  const rotational = normal.filter((target) => !target.planning_strategy || target.planning_strategy === "broad_title");
   const byLane = new Map<DiscoveryLane, BacklogTarget[]>();
   for (const lane of LANES) byLane.set(lane, []);
-  for (const target of normal) byLane.get(target.lane)?.push(target);
+  for (const target of rotational) byLane.get(target.lane)?.push(target);
 
   for (const lane of LANES) {
     byLane.get(lane)!.sort(compareTargets);
@@ -150,11 +156,17 @@ export function planRun(
 
   const chosen: BacklogTarget[] = [];
   const perSeries = new Map<string, number>();
-  for (const target of fastTrack) {
-    if (chosen.length >= limit) break;
-    if ((perSeries.get(target.series_key) ?? 0) >= maxPerSeries) continue;
+  let publisherTitleCount = 0;
+  const add = (target: BacklogTarget) => {
+    if (chosen.length >= limit || (perSeries.get(target.series_key) ?? 0) >= maxPerSeries) return;
+    // A publisher title endpoint outage must not consume the whole daily run.
+    if (!isStaffFastTrack(target) && target.planning_strategy === "publisher_title" && publisherTitleCount >= 2) return;
     chosen.push(target);
     perSeries.set(target.series_key, (perSeries.get(target.series_key) ?? 0) + 1);
+    if (!isStaffFastTrack(target) && target.planning_strategy === "publisher_title") publisherTitleCount += 1;
+  };
+  for (const group of [fastTrack, direct, catalogueGaps, publisherTitles]) {
+    for (const target of group) add(target);
   }
   let laneIndex = 0;
   let exhaustedLanes = 0;
@@ -172,8 +184,7 @@ export function planRun(
     if (index === -1) { exhaustedLanes += 1; continue; }
     exhaustedLanes = 0;
     const [target] = queue.splice(index, 1);
-    chosen.push(target);
-    perSeries.set(target.series_key, (perSeries.get(target.series_key) ?? 0) + 1);
+    add(target);
   }
 
   return chosen;

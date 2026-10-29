@@ -148,7 +148,7 @@ export async function searchOpenBdCatalogue(query: string): Promise<CatalogueSou
     signal: AbortSignal.timeout(15_000),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`OpenBD returned ${response.status}.`);
+  if (!response.ok) throw new Error(`OpenBD returned HTTP ${response.status}.`);
   const payload = await response.json() as Array<OpenBdRecord | null>;
   const record = payload[0];
   if (!record) return [];
@@ -223,7 +223,7 @@ export async function searchShueishaCatalogue(query: string): Promise<CatalogueS
     signal: AbortSignal.timeout(30_000),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error("Shueisha did not return a usable record.");
+  if (!response.ok) throw new Error(`Shueisha returned HTTP ${response.status}.`);
   const html = await response.text();
   const sourceIsbn = cleanIsbn(htmlMatch(html, /ISBN[：:]\s*([0-9Xx-]+)/) || "");
   if (!sourceIsbn || (sourceIsbn !== isbn && isbn13From10(sourceIsbn) !== isbn13 && sourceIsbn !== isbn13)) return [];
@@ -293,7 +293,7 @@ export async function searchShueishaTitleCatalogue(query: string, volume = 1): P
       headers: { "User-Agent": "RAR-Index catalogue curator" },
       signal: AbortSignal.timeout(30_000), cache: "no-store",
     });
-    if (!response.ok) throw new Error("Shueisha title search did not return a usable response.");
+    if (!response.ok) throw new Error(`Shueisha title search returned HTTP ${response.status}.`);
     const data = shueishaSearchData(await response.text());
     if (!data?.datas) throw new Error("Shueisha title search changed its result format.");
     for (const entry of data.datas) {
@@ -353,7 +353,7 @@ export async function searchNdlCatalogue(query: string): Promise<CatalogueSource
     signal: AbortSignal.timeout(30_000),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error("National Diet Library Search did not return a usable response.");
+  if (!response.ok) throw new Error(`National Diet Library Search returned HTTP ${response.status}.`);
   const xml = await response.text();
 
   return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].flatMap((match, index) => {
@@ -401,7 +401,7 @@ export async function searchOpenLibraryCatalogue(query: string): Promise<Catalog
     signal: AbortSignal.timeout(15_000),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error("Open Library did not return a usable response.");
+  if (!response.ok) throw new Error(`Open Library returned HTTP ${response.status}.`);
   const payload = await response.json() as { docs?: OpenLibraryRecord[] };
 
   const candidates = (payload.docs ?? []).flatMap((record) => {

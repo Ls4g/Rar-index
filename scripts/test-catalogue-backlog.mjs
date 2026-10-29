@@ -137,6 +137,19 @@ const fastRun = planRun([normalHighScore, ...staffBatch]);
 check("fast-track targets fill the run first", fastRun.every((item) => item.discovery_source === "staff_fast_track"), JSON.stringify(fastRun.map((item) => item.discovery_source)));
 check("fast-track run still respects the overall cap", fastRun.length === TARGETS_PER_RUN, `got ${fastRun.length}`);
 
+console.log("\n--- strong sources before broad searches ---");
+const publisherBacklog = [
+  ...Array.from({ length: 8 }, (_, index) => target({ series_key: `shueisha ${index}`, planning_strategy: "publisher_title", lane: "series_gap" })),
+  ...Array.from({ length: 8 }, (_, index) => target({ series_key: `broad ${index}`, planning_strategy: "broad_title", lane: "established" })),
+  target({ series_key: "initial d", planning_strategy: "direct_source", lane: "series_gap", score: 1 }),
+  target({ series_key: "attack on titan", planning_strategy: "direct_source", lane: "series_gap", score: 1 }),
+  target({ series_key: "kagurabachi", planning_strategy: "catalogue_gap", lane: "series_gap", score: 1 }),
+];
+const sourceRun = planRun(publisherBacklog);
+check("Kodansha-style direct sources lead", sourceRun[0].series_key === "initial d" && sourceRun[1].series_key === "attack on titan");
+check("known catalogue gap leads broad AniList discovery", sourceRun.findIndex((item) => item.series_key === "kagurabachi") < sourceRun.findIndex((item) => item.series_key.startsWith("broad ")));
+check("Shueisha title search uses at most two slots", sourceRun.filter((item) => item.planning_strategy === "publisher_title").length === 2);
+
 
 // --- the rising lane is switched off -------------------------------------
 // Scored against real staff decisions, rising was accepted 17% of the time

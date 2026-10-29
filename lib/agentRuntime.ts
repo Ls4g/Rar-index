@@ -441,6 +441,7 @@ export async function runAgentObservation(
       metrics.catalogue_discovery_targets = catalogueDiscoveryResult.targetsPlanned;
       metrics.catalogue_targets_searched = catalogueDiscoveryResult.targetsSearched;
       metrics.catalogue_targets_failed = catalogueDiscoveryResult.targetsFailed;
+      metrics.catalogue_sources_unavailable = catalogueDiscoveryResult.sourcesUnavailable;
       metrics.catalogue_source_records_found = catalogueDiscoveryResult.sourceRecordsFound;
       metrics.catalogue_candidates_eligible = catalogueDiscoveryResult.candidatesEligible;
       metrics.catalogue_candidates_staged = catalogueDiscoveryResult.candidatesStaged;

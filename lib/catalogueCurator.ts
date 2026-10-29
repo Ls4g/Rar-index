@@ -66,6 +66,7 @@ export type CatalogueCuratorResult = {
   targetsPlanned: number;
   targetsSearched: number;
   targetsFailed: number;
+  sourcesUnavailable: number;
   sourceRecordsFound: number;
   candidatesEligible: number;
   candidatesStaged: number;
@@ -75,6 +76,10 @@ export type CatalogueCuratorResult = {
   backlogPlanned?: number;
   targetSummaries: Array<{ key: string; source: string; result: string }>;
 };
+
+export function isCatalogueSourceUnavailable(message: string) {
+  return /HTTP (?:429|5\d\d)\b|fetch failed|timed? out|network error|ECONNRESET|ENOTFOUND|EAI_AGAIN|AbortError/i.test(message);
+}
 
 function normalise(value: string | null | undefined) {
   return (value ?? "")
@@ -275,8 +280,11 @@ export function planCatalogueDiscoveryTargets(
   limit = DISCOVERY_TARGET_LIMIT,
 ) {
   const targets: CatalogueDiscoveryTarget[] = [];
+  const publishedIsbns = new Set(editions.map((edition) => cleanIsbn(edition.isbn_13)).filter(Boolean));
   const tankobonRequests = requests
-    .filter((request) => (request.collectible_type ?? "tankobon") === "tankobon" && !requestWasDiscovered(request.id, queued));
+    .filter((request) => (request.collectible_type ?? "tankobon") === "tankobon"
+      && !requestWasDiscovered(request.id, queued)
+      && (!cleanIsbn(request.isbn_13) || !publishedIsbns.has(cleanIsbn(request.isbn_13))));
 
   for (const request of tankobonRequests) {
     const language = request.language === "Japanese" || request.language === "English" ? request.language : null;
@@ -496,7 +504,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
   // exact-ISBN safeguard for Japanese editions.
   const requestLimit = Math.max(0, DISCOVERY_TARGET_LIMIT - fastTrackChosen.length);
   const requestTargets = requestLimit > 0
-    ? planCatalogueDiscoveryTargets(requests, [], queued, requestLimit)
+    ? planCatalogueDiscoveryTargets(requests, editions, queued, requestLimit)
       .filter((target) => target.reason === "collector_request")
     : [];
 
@@ -532,6 +540,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     targetsPlanned: targets.length,
     targetsSearched: 0,
     targetsFailed: 0,
+    sourcesUnavailable: 0,
     sourceRecordsFound: 0,
     candidatesEligible: 0,
     candidatesStaged: 0,
@@ -575,7 +584,9 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
       result.targetsFailed += 1;
       result.targetSummaries.push({ key: target.key, source: discovery.sourceName, result: discovery.error ?? "source_not_configured" });
       const failedRow = backlogByKey.get(target.key);
-      if (failedRow) await recordTargetOutcome(admin, failedRow.id, "failed", failedRow.failure_count);
+      const unavailable = isCatalogueSourceUnavailable(discovery.error ?? "");
+      if (unavailable) result.sourcesUnavailable += 1;
+      if (failedRow) await recordTargetOutcome(admin, failedRow.id, unavailable ? "source_unavailable" : "failed", failedRow.failure_count);
       continue;
     }
     try {

@@ -129,7 +129,7 @@ export function planAgentActions(agentKey: AgentKey, metrics: AgentMetrics): Age
     }
     return {
       summary: metrics.catalogue_discovery_targets
-        ? `Searched ${metrics.catalogue_targets_searched ?? 0} catalogue target${metrics.catalogue_targets_searched === 1 ? "" : "s"}; staged ${metrics.catalogue_candidates_staged ?? 0} ISBN-backed candidate${metrics.catalogue_candidates_staged === 1 ? "" : "s"} for human review. ${proposals.length} catalogue workstream${proposals.length === 1 ? "" : "s"} now need attention.`
+        ? `Checked ${metrics.catalogue_discovery_targets} catalogue target${metrics.catalogue_discovery_targets === 1 ? "" : "s"}; ${metrics.catalogue_candidates_staged ?? 0} new edition candidate${metrics.catalogue_candidates_staged === 1 ? "" : "s"} to review.${(metrics.catalogue_targets_searched ?? 0) > 0 && (metrics.catalogue_candidates_eligible ?? 0) === 0 ? " No eligible match from the sources that answered." : ""}${(metrics.catalogue_candidates_already_published ?? 0) > 0 ? ` ${metrics.catalogue_candidates_already_published} already in RAR.` : ""}${(metrics.catalogue_sources_unavailable ?? 0) > 0 ? ` ${metrics.catalogue_sources_unavailable} source lookup${metrics.catalogue_sources_unavailable === 1 ? "" : "s"} unavailable; will retry.` : ""}`
         : proposals.length
           ? `Found ${proposals.length} catalogue workstream${proposals.length === 1 ? "" : "s"} needing attention.`
           : "Catalogue intake, requests and verified-cover coverage have no open gaps.",
