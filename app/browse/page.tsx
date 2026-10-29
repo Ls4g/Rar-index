@@ -18,7 +18,6 @@ export default async function BrowsePage() {
       .eq("record_kind", "publication")
       .or("collectible_type.eq.zasshi,isbn_13.not.is.null")
       .not("publisher", "is", null)
-      .not("release_date", "is", null)
       .order("created_at", { ascending: false })
       .limit(500),
     supabase
