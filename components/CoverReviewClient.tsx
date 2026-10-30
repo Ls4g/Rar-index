@@ -218,6 +218,105 @@ function CoverCandidateCard({ candidate, edition, reviewer }: { candidate: Cover
   );
 }
 
+function CoverAlternativeOption({ candidate, edition, savingId, onSelect }: {
+  candidate: CoverCandidateRow; edition: CoverQueueRow; savingId: string | null; onSelect: (candidate: CoverCandidateRow) => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  return (
+    <article className="cover-replacement-option">
+      <span className="cover-replacement-label">Alternative · {candidate.sourceName}</span>
+      <div className="cover-replacement-image">{imageFailed ? <span>Image could not load — do not use this cover.</span> : (
+        // eslint-disable-next-line @next/next/no-img-element -- staff review compares external source images
+        <img alt={`Alternative cover from ${candidate.sourceName}`} onError={() => setImageFailed(true)} src={candidate.coverImageUrl} />
+      )}</div>
+      <strong>{candidate.candidateTitle ?? edition.title ?? "Untitled cover"}</strong>
+      <small>{[candidate.candidatePublisher, candidate.candidateIsbn13].filter(Boolean).join(" · ")}</small>
+      <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Inspect source record ↗</Link>
+      <button disabled={Boolean(savingId) || imageFailed} onClick={() => onSelect(candidate)} type="button">{savingId === candidate.id ? "Saving…" : "Use this cover"}</button>
+    </article>
+  );
+}
+
+function CoverReplacementPanel({ edition, candidates, reviewer }: { edition: CoverQueueRow; candidates: CoverCandidateRow[]; reviewer: string }) {
+  const router = useRouter();
+  const [finding, setFinding] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+
+  async function findAlternatives() {
+    setFinding(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/cover-review/candidates", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ editionId: edition.editionId }),
+      });
+      const result = await response.json() as { error?: string; editionsScanned?: number; candidatesFound?: number; recentlyChecked?: number; noCandidateReasons?: Array<{ reasons: string[] }> };
+      if (!response.ok) { setMessage(result.error ?? "Cover sources could not be checked."); return; }
+      setMessage(result.recentlyChecked
+        ? "Sources were checked within the last 24 hours. Review the results below or use manual correction."
+        : result.candidatesFound
+          ? `Found ${result.candidatesFound} possible cover${result.candidatesFound === 1 ? "" : "s"}. Compare each with the current cover below.`
+          : `No alternative cover was found. ${result.noCandidateReasons?.[0]?.reasons.join(" · ") ?? ""}`.trim());
+      router.refresh();
+    } catch {
+      setMessage("Cover sources could not be checked. Try again.");
+    } finally {
+      setFinding(false);
+    }
+  }
+
+  async function selectCover(candidate: CoverCandidateRow) {
+    if (!reviewer.trim()) { setMessage("Enter your reviewer name or initials above first."); return; }
+    setSavingId(candidate.id);
+    setMessage("");
+    try {
+      const response = await fetch("/api/cover-review", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          editionId: edition.editionId, candidateId: candidate.id, decision: "verified",
+          replaceVerifiedCover: true, expectedCoverImageUrl: edition.coverImageUrl,
+          expectedCoverSourceUrl: edition.coverSourceUrl, reviewer,
+        }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) { setMessage(result.error ?? "The cover could not be replaced."); return; }
+      setMessage("Cover replaced and published. The previous cover remains in the review history.");
+      router.refresh();
+    } catch {
+      setMessage("The cover could not be replaced. Try again.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <section className="cover-replacement">
+      <div className="cover-replacement-heading">
+        <div><span className="eyebrow">Compare before publishing</span><h4>Choose the best cover</h4><p>Inspect the source and exact edition. Your choice replaces the public image; nothing changes until you press “Use this cover”.</p></div>
+        <button disabled={finding || Boolean(savingId) || !edition.isbn13} onClick={() => void findAlternatives()} type="button">{finding ? "Checking sources…" : "Find alternative covers"}</button>
+      </div>
+      {message ? <p className="cover-replacement-message" role="status">{message}</p> : null}
+      <div className="cover-replacement-grid">
+        <article className="cover-replacement-option is-current">
+          <span className="cover-replacement-label">Current public cover</span>
+          <div className="cover-replacement-image">{edition.coverImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- staff review compares external source images
+            <img alt={`Current cover for ${edition.title ?? "this edition"}`} src={edition.coverImageUrl} />
+          ) : <span>No cover image</span>}</div>
+          <strong>{edition.coverSourceName ?? "Source not recorded"}</strong>
+          {edition.coverSourceUrl ? <Link href={edition.coverSourceUrl} target="_blank" rel="noreferrer">View current source ↗</Link> : null}
+          <small>Currently shown on RAR</small>
+        </article>
+        {candidates.filter((candidate) => candidate.coverImageUrl !== edition.coverImageUrl).map((candidate) => (
+          <CoverAlternativeOption candidate={candidate} edition={edition} key={candidate.id} savingId={savingId} onSelect={(item) => void selectCover(item)} />
+        ))}
+      </div>
+      {!candidates.some((candidate) => candidate.coverImageUrl !== edition.coverImageUrl) ? <p className="cover-candidate-empty">No different cover is waiting. Use “Find alternative covers” or the manual correction below.</p> : null}
+    </section>
+  );
+}
+
 // Every pending candidate on one screen, each beside the record it claims to
 // match. A reviewer still decides each one -- ticking is the decision -- but
 // comparing a screenful at once is what makes a wrong cover obvious, which
@@ -319,7 +418,7 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
   );
 }
 
-function CoverQueueRowCard({ edition, candidates, reviewer, onReviewerChange }: { edition: CoverQueueRow; candidates: CoverCandidateRow[]; reviewer: string; onReviewerChange: (value: string) => void }) {
+function CoverQueueRowCard({ edition, candidates, reviewer, onReviewerChange, focused = false }: { edition: CoverQueueRow; candidates: CoverCandidateRow[]; reviewer: string; onReviewerChange: (value: string) => void; focused?: boolean }) {
   return (
     <article className="review-card" id={`edition-${edition.editionId}`}>
       <div className="review-card-topline">
@@ -337,7 +436,9 @@ function CoverQueueRowCard({ edition, candidates, reviewer, onReviewerChange }: 
         </div>
         <Link className="review-source-link" href={`/edition/${edition.editionId}`} target="_blank" rel="noreferrer">Open edition ↗</Link>
       </div>
-      {candidates.length ? (
+      {focused && edition.coverStatus === "verified" ? (
+        <CoverReplacementPanel edition={edition} candidates={candidates} reviewer={reviewer} />
+      ) : candidates.length ? (
         <section className="cover-candidate-results">
           <div className="review-decision-heading"><span>{candidates.length} candidate{candidates.length === 1 ? "" : "s"} found</span><small>Inspect the exact source record, then verify or reject. Nothing appears publicly before verification.</small></div>
           <div className="cover-candidate-grid">
@@ -484,7 +585,7 @@ export default function CoverReviewClient({ rows, focusedRow, candidates }: { ro
         <section className="review-list-section cover-review-focused-section">
           <div className="section-intro"><p className="eyebrow">Reviewing one edition</p><h2>{focusedRow.title ?? "Untitled edition"}</h2></div>
           <div className="review-list">
-            <CoverQueueRowCard candidates={candidatesByEdition.get(focusedRow.editionId) ?? []} edition={focusedRow} reviewer={reviewer} onReviewerChange={setReviewer} />
+            <CoverQueueRowCard candidates={candidatesByEdition.get(focusedRow.editionId) ?? []} edition={focusedRow} reviewer={reviewer} onReviewerChange={setReviewer} focused />
           </div>
         </section>
       ) : null}

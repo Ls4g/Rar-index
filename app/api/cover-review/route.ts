@@ -31,6 +31,9 @@ export async function POST(request: Request) {
   let payload: {
     candidateId?: unknown;
     candidateIds?: unknown;
+    replaceVerifiedCover?: unknown;
+    expectedCoverImageUrl?: unknown;
+    expectedCoverSourceUrl?: unknown;
     editionId?: unknown;
     decision?: unknown;
     coverImageUrl?: unknown;
@@ -61,7 +64,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "Reviewer is required." }, { status: 400 });
   }
 
+  if (payload.replaceVerifiedCover === true && (!candidateId || !editionId || decision !== "verified" || candidateIds.length)) {
+    return Response.json({ error: "Choose one cover candidate to replace this edition's verified cover." }, { status: 400 });
+  }
+
   const admin = getSupabaseAdmin();
+
+  if (payload.replaceVerifiedCover === true) {
+    const { error } = await admin.rpc("replace_verified_cover_from_candidate", {
+      p_candidate_id: candidateId,
+      p_edition_id: editionId,
+      p_expected_cover_image_url: clean(payload.expectedCoverImageUrl) || null,
+      p_expected_cover_source_url: clean(payload.expectedCoverSourceUrl) || null,
+      p_reviewed_by: reviewer,
+    });
+    if (error) return Response.json({ error: error.message || "The cover could not be replaced." }, { status: 500 });
+    return Response.json({ ok: true });
+  }
 
   // Bulk path: many candidates, one decision, no edition id -- each candidate
   // already knows the edition it belongs to.

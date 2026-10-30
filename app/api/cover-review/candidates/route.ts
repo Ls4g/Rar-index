@@ -40,26 +40,39 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) return Response.json({ error: "Staff credentials are required." }, { status: 401 });
 
-  let payload: { limit?: unknown } = {};
+  let payload: { limit?: unknown; editionId?: unknown } = {};
   try {
     payload = await request.json();
   } catch {
     // An empty body means the standard 20-edition batch.
   }
 
-  const limit = requestedLimit(payload.limit);
+  const focusedEditionId = typeof payload.editionId === "string" ? payload.editionId.trim() : "";
+  if (focusedEditionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(focusedEditionId)) {
+    return Response.json({ error: "Choose a valid edition to check." }, { status: 400 });
+  }
+  const limit = focusedEditionId ? 1 : requestedLimit(payload.limit);
   const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("cover_review_queue")
-    .select("edition_id,title,series,volume_number,language,publisher,isbn_13,verified_sale_count")
-    .not("isbn_13", "is", null)
-    .order("verified_sale_count", { ascending: false })
-    .order("series", { ascending: true })
-    .limit(500);
+  const { data, error } = focusedEditionId
+    ? await admin.from("manga_editions")
+      .select("id,title,series,volume_number,language,publisher,isbn_13")
+      .eq("id", focusedEditionId).maybeSingle()
+    : await admin.from("cover_review_queue")
+      .select("edition_id,title,series,volume_number,language,publisher,isbn_13,verified_sale_count")
+      .not("isbn_13", "is", null)
+      .order("verified_sale_count", { ascending: false })
+      .order("series", { ascending: true })
+      .limit(500);
 
   if (error) return Response.json({ error: error.message || "The cover queue could not be loaded." }, { status: 500 });
+  if (focusedEditionId && !data) return Response.json({ error: "This edition no longer exists." }, { status: 404 });
+  if (focusedEditionId && !(data as { isbn_13: string | null }).isbn_13) {
+    return Response.json({ error: "This edition has no ISBN. Use manual cover correction instead." }, { status: 422 });
+  }
 
-  const queue = (data ?? []) as QueueEdition[];
+  const queue = focusedEditionId
+    ? [{ ...(data as { id: string; title: string | null; series: string | null; volume_number: string | null; language: string | null; publisher: string | null; isbn_13: string }), edition_id: focusedEditionId, verified_sale_count: 0 }]
+    : (data ?? []) as QueueEdition[];
   const queueIds = queue.map((edition) => edition.edition_id);
   const [scanResult, pendingResult] = await Promise.all(queueIds.length ? [
     admin.from("cover_candidate_scans").select("edition_id,scanned_at")
@@ -73,7 +86,9 @@ export async function POST(request: Request) {
   const lastScan = new Map<string, string>();
   for (const scan of scanResult.data ?? []) if (!lastScan.has(scan.edition_id)) lastScan.set(scan.edition_id, scan.scanned_at);
   const pendingIds = new Set((pendingResult.data ?? []).map((candidate) => candidate.edition_id));
-  const schedule = chooseCoverResearchBatch(queue, pendingIds, lastScan, limit);
+  // A focused scan is an explicit staff request to compare alternatives for
+  // an existing cover. Pending alternatives must not suppress that request.
+  const schedule = chooseCoverResearchBatch(queue, focusedEditionId ? new Set<string>() : pendingIds, lastScan, limit);
   const editions = schedule.editions;
   const googleBooksGate = createGoogleBooksBatchGate(process.env.GOOGLE_BOOKS_API_KEY);
   // The queue view does not carry variant_name or printing_number, and a
