@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { configuredDailySearchLimit, dailySearchTargets, distinctSeriesTargets } from "../lib/dailyApifySearch.ts";
+import { configuredDailySearchLimit, dailySearchTargets, distinctSeriesTargets, selectScheduledSearchTargets } from "../lib/dailyApifySearch.ts";
 
 assert.equal(configuredDailySearchLimit(undefined), 0);
 assert.equal(configuredDailySearchLimit("0"), 0);
@@ -13,6 +13,9 @@ const sale = (edition_id) => ({ edition_id, sold_date: "2026-10-01", sale_price:
   grading_company: null, grade_label: null, print_classification: "printing_not_identified", known_printing_number: null });
 const outcome = (edition_id, extra = {}) => ({ edition_id, status: "ended_pending_check", discovery_provider: "apify_ebay_sold_search",
   reviewed_by: null, resulting_observation_id: null, ...extra });
+const search = (isbn_13, requested_edition_id, last_started_at, last_result_count = 0) => ({
+  isbn_13, requested_edition_id, last_started_at, last_result_count, last_status: "succeeded",
+});
 const editions = [
   edition("near", "9781612620244"), edition("sibling", "9781612620244"),
   edition("waiting", "9781612620245"), edition("blank", null), edition("none", "9781612620246"),
@@ -35,6 +38,48 @@ const sixSeries = Array.from({ length: 7 }, (_, i) => ({ ...edition(`edition-${i
 assert.deepEqual(distinctSeriesTargets(sixSeries.map((item) => ({ editionId: item.id, isbn: item.isbn_13 })), sixSeries)
   .map((item) => item.editionId), ["edition-0", "edition-2", "edition-3", "edition-4", "edition-5", "edition-6"],
 "one batch selects six different series even when one title has another volume");
+
+const selectionNow = new Date("2026-10-31T08:00:00Z");
+const selectionEditions = [
+  ...["near-a", "near-b", "near-c", "near-d"].map((id, i) => edition(id, `9781612621${String(100 + i)}`)),
+  { ...edition("near-a-copy", "9781612621104"), series: "NEAR-A" },
+  ...["proven-a", "proven-b"].flatMap((series, i) => [
+    { ...edition(`${series}-source`, `9781612621${String(105 + i * 2)}`), series },
+    { ...edition(`${series}-target`, `9781612621${String(106 + i * 2)}`), series },
+  ]),
+  { ...edition("explore-spanish", "9781612621109"), language: "Spanish", volume_number: "2" },
+  edition("explore-english", "9781612621110"),
+];
+const selectionSales = [
+  ...["near-a", "near-b", "near-c", "near-d"].flatMap((id) => [sale(id), sale(id)]),
+  sale("proven-a-source"), sale("proven-b-source"),
+];
+assert.deepEqual(selectScheduledSearchTargets(selectionEditions, selectionSales, [], [], selectionNow), [
+  { editionId: "near-a", isbn: "9781612621100", reason: "near_chart" },
+  { editionId: "near-b", isbn: "9781612621101", reason: "near_chart" },
+  { editionId: "near-c", isbn: "9781612621102", reason: "near_chart" },
+  { editionId: "proven-a-target", isbn: "9781612621106", reason: "proven_series" },
+  { editionId: "proven-b-target", isbn: "9781612621108", reason: "proven_series" },
+  { editionId: "explore-english", isbn: "9781612621110", reason: "exploration" },
+], "six slots mix near-chart, verified-series and exploratory editions without repeating a series");
+assert.deepEqual(selectScheduledSearchTargets(selectionEditions, selectionSales,
+  [outcome("near-a")], [search("9781612621101", "near-b", "2026-10-15T08:00:00Z")], selectionNow, 3)
+  .map((target) => target.editionId), ["near-c", "near-d", "explore-english"],
+"pending human review and recently paid ISBN searches remain excluded, and a smaller configured limit is obeyed");
+assert.deepEqual(selectScheduledSearchTargets(selectionEditions.slice(0, 2), [], [], [], selectionNow)
+  .map((target) => target.reason), ["exploration", "coverage_fallback"],
+"unused slots are filled rather than silently reducing the daily batch");
+const recentEmptyEditions = [
+  { ...edition("empty-source", "9781612621111"), series: "Empty" },
+  { ...edition("empty-next", "9781612621112"), series: "Empty" },
+  edition("untested", "9781612621113"),
+];
+assert.equal(selectScheduledSearchTargets(recentEmptyEditions, [], [],
+  [search("9781612621111", "empty-source", "2026-10-30T08:00:00Z")], selectionNow, 1)[0].editionId,
+"untested", "a zero-result search soft-demotes another edition in that series for a week");
+assert.equal(selectScheduledSearchTargets(recentEmptyEditions.slice(0, 2), [], [],
+  [search("9781612621111", "empty-source", "2026-10-30T08:00:00Z")], selectionNow, 1)[0].editionId,
+"empty-next", "a zero-result series is still eligible when no better series remains");
 
 const db = new PGlite();
 try {

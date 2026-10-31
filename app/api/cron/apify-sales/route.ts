@@ -1,7 +1,7 @@
 import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
-import { dailySearchTargets, distinctSeriesTargets, configuredDailySearchLimit } from "@/lib/dailyApifySearch";
+import { selectScheduledSearchTargets, configuredDailySearchLimit } from "@/lib/dailyApifySearch";
 import {
   hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
   queueDiscoveredListings, readApifyBudget, runSoldSearchBatch, SEARCH_COOLDOWN_HOURS,
@@ -20,7 +20,7 @@ export const maxDuration = 300;
 const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no";
 const SALE_COLUMNS = "id,edition_id,sold_date,sale_price,currency,grading_company,grade_label,print_classification,known_printing_number";
 const OUTCOME_COLUMNS = "edition_id,status,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id,check_attempts,next_check_at";
-const SEARCH_LOG_COLUMNS = "isbn_13,last_started_at";
+const SEARCH_LOG_COLUMNS = "isbn_13,requested_edition_id,last_started_at,last_status,last_result_count";
 async function readPages<T>(admin: SupabaseClient, table: string, columns: string, configure: (query: ReturnType<ReturnType<SupabaseClient["from"]>["select"]>) => ReturnType<ReturnType<SupabaseClient["from"]>["select"]>, orderColumn = "id") {
   const rows: T[] = [];
   for (let from = 0; ; from += 1000) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
         (query) => query.in("status", ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"])
           .is("reviewed_by", null).is("resulting_observation_id", null)
           .or("status.neq.ambiguous,check_attempts.lt.5,next_check_at.not.is.null")),
-      readPages<{ isbn_13: string; last_started_at: string }>(admin, "price_coverage_search_cooldowns", SEARCH_LOG_COLUMNS,
+      readPages<{ isbn_13: string; requested_edition_id: string | null; last_started_at: string; last_status: string; last_result_count: number | null }>(admin, "price_coverage_search_cooldowns", SEARCH_LOG_COLUMNS,
         (query) => query, "isbn_13"),
       admin.from("sources").select("id").eq("name", "eBay Sold").maybeSingle(),
       loadActiveScoutRules(admin),
@@ -63,8 +63,8 @@ export async function GET(request: Request) {
       return Response.json({ ok: false, error: "The eBay Sold source is unavailable." }, { status: 503 });
     }
 
-    const candidates = distinctSeriesTargets(dailySearchTargets(editions, sales, outcomes,
-      new Map(recentSearches.map((row) => [row.isbn_13, row.last_started_at]))), editions, editions.length);
+    const candidates = selectScheduledSearchTargets(editions, sales, outcomes,
+      recentSearches, new Date(), Math.min(limit, MAX_DAILY_BATCH_SERIES));
     if (!candidates.length) return Response.json({ ok: true, configured: true, searched: 0, queued: 0 });
 
     const budget = await readApifyBudget(token).catch(() => null);
@@ -118,6 +118,9 @@ export async function GET(request: Request) {
     }
 
     try {
+      console.info(JSON.stringify({ event: "apify_daily_selection", targets: claimed.map((target) => ({
+        edition_id: target.editionId, reason: target.reason,
+      })) }));
       const isbns = claimed.map((target) => target.isbn);
       const { rows, costUsd } = await runSoldSearchBatch(token, isbns);
       const { data: siblings, error: siblingError } = await admin.from("manga_editions")
