@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -47,10 +47,11 @@ function wallLayout(index: number, count: number, columns: number, size: Gallery
   const column = index % columns;
   const rowCount = Math.min(columns, count - row * columns);
   const rows = Math.ceil(count / columns);
-  const xStep = columns === 2 ? 1.65 : 1.95;
-  const stepY = columns === 4 ? 1.68 : 1.7;
+  const spacious = count <= 3 && columns >= 3;
+  const xStep = columns === 2 ? 1.65 : spacious ? 2.32 : 1.95;
+  const stepY = columns === 2 ? 1.7 : 2.05;
   const topY = (columns === 4 ? 1.62 : 1) + (rows - 1) * stepY;
-  return { x: (column - (rowCount - 1) / 2) * xStep, y: topY - row * stepY, scale: columns === 2 ? 0.6 : 0.68 };
+  return { x: (column - (rowCount - 1) / 2) * xStep, y: topY - row * stepY, scale: columns === 2 ? 0.6 : spacious ? 0.95 : 0.68 };
 }
 
 function Book({ exhibit, index, count, columns, size, focusOnly = false, selectedIndex, dragRotation, onInspect }: {
@@ -119,6 +120,64 @@ function Shelf({ index, count, columns, size, color }: { index: number; count: n
   </mesh>;
 }
 
+function ExhibitLabel({ exhibit, index, count, columns, size }: { exhibit: GalleryBook; index: number; count: number; columns: number; size: GallerySize }) {
+  const texture = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 768;
+    canvas.height = 176;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.fillStyle = "#f8f7f2";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#363b3b";
+    context.fillRect(30, 29, 4, 119);
+    context.font = "600 46px Arial, sans-serif";
+    let title = exhibit.book.name;
+    while (context.measureText(title).width > 690 && title.length > 1) title = `${title.slice(0, -2)}…`;
+    context.fillText(title, 57, 84);
+    context.fillStyle = "#606765";
+    context.font = "32px Arial, sans-serif";
+    context.fillText(`Volume ${exhibit.edition.volumeNumber || "1"}`, 59, 132);
+    const next = new THREE.CanvasTexture(canvas);
+    next.colorSpace = THREE.SRGBColorSpace;
+    next.anisotropy = 8;
+    return next;
+  }, [exhibit.book.name, exhibit.edition.volumeNumber]);
+  useEffect(() => () => texture?.dispose(), [texture]);
+
+  const { x, y, scale } = wallLayout(index, count, columns, size);
+  const shelfY = y - scale * 1.055 - 0.035;
+  return <group position={[x, shelfY - scale * 0.22, -0.395]} scale={scale}>
+    <mesh castShadow><boxGeometry args={[1.72, 0.35, 0.025]} /><meshStandardMaterial color="#ebe9e3" roughness={0.9} /></mesh>
+    {texture ? <mesh position={[0, 0, 0.014]}><planeGeometry args={[1.7, 0.33]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh> : null}
+  </group>;
+}
+
+function usePlasterTexture() {
+  const texture = useMemo(() => {
+    const side = 128;
+    const pixels = new Uint8Array(side * side * 4);
+    for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
+      const hash = (x * 374761393 + y * 668265263) | 0;
+      const grain = 116 + ((hash ^ (hash >>> 13)) & 31);
+      const offset = (y * side + x) * 4;
+      pixels[offset] = grain;
+      pixels[offset + 1] = grain;
+      pixels[offset + 2] = grain;
+      pixels[offset + 3] = 255;
+    }
+    const result = new THREE.DataTexture(pixels, side, side, THREE.RGBAFormat);
+    result.wrapS = THREE.RepeatWrapping;
+    result.wrapT = THREE.RepeatWrapping;
+    result.repeat.set(6, 3);
+    result.needsUpdate = true;
+    return result;
+  }, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return texture;
+}
+
 function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, dragRotation, onInspect, palette }: {
   exhibits: GalleryBook[];
   size: GallerySize;
@@ -130,23 +189,35 @@ function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, drag
   palette: ReturnType<typeof roomPalette>;
 }) {
   const rows = Math.ceil(exhibits.length / columns);
-  const topY = (columns === 4 ? 1.62 : 1) + (rows - 1) * (columns === 4 ? 1.68 : 1.7);
-  const wallCamera = { center: (topY + (columns === 4 ? 1.62 : 1)) / 2, z: 6 + (rows - 1) * 1.6 };
+  const rowStep = columns === 2 ? 1.7 : 2.05;
+  const topY = (columns === 4 ? 1.62 : 1) + (rows - 1) * rowStep;
+  const wallCamera = { center: (topY + (columns === 4 ? 1.62 : 1)) / 2, z: 6.7 + (rows - 1) * (columns === 2 ? 1.7 : 2.25) };
   const center = size === "three" || focusOnly ? 1.43 : wallCamera.center;
   const cameraZ = size === "three" || focusOnly ? 6.7 : wallCamera.z;
-  const roomHeight = size === "three" || focusOnly ? 4.3 : 4.3 + (rows - 1) * 1.55;
+  const roomHeight = size === "three" || focusOnly ? 4.3 : 4.3 + (rows - 1) * rowStep;
   const roomWidth = size === "three" || focusOnly ? 9 : columns === 2 ? 5 : 9;
+  const plaster = usePlasterTexture();
+  const lightXs = size === "three" ? [-2.12, 0, 2.12] : columns === 2 ? [-1, 1] : columns === 3 ? [-2.2, 0, 2.2] : [-2.95, -0.98, 0.98, 2.95];
+  const lightTargets = useMemo(() => Array.from({ length: size === "three" ? 3 : columns }, () => new THREE.Object3D()), [size, columns]);
   return <Canvas key={`${size}-${columns}-${focusOnly}`} shadows flat dpr={[1, size === "wall" ? 1.35 : 1.7]} camera={{ position: [0, center + 0.35, cameraZ], fov: size === "three" || focusOnly ? 37 : 40 }} gl={{ antialias: true, alpha: false }} onCreated={({ camera }) => camera.lookAt(0, center, 0)}>
     <color attach="background" args={[palette.background]} />
-    <ambientLight intensity={1.65} />
-    <directionalLight position={[0, center + 3, 8]} color="#ffffff" intensity={1.2} castShadow shadow-mapSize={[size === "wall" ? 1024 : 2048, size === "wall" ? 1024 : 2048]} shadow-radius={3} shadow-bias={-0.00025} />
-    {[-2.12, 0, 2.12].map((lightX) => <spotLight key={lightX} position={[lightX, center + 2, 2.2]} color="#ffffff" angle={0.5} penumbra={1} intensity={1.7} />)}
-    <mesh receiveShadow position={[0, center + 0.2, -0.52]}><boxGeometry args={[roomWidth, roomHeight, 0.18]} /><meshStandardMaterial color={palette.wall} roughness={1} /></mesh>
+    <ambientLight intensity={1.1} />
+    <directionalLight position={[0, center + 3, 8]} color="#ffffff" intensity={1.05} castShadow shadow-mapSize={[size === "wall" ? 1024 : 2048, size === "wall" ? 1024 : 2048]} shadow-radius={3} shadow-bias={-0.00025} />
+    {lightXs.map((lightX, index) => <group key={lightX}>
+      <primitive object={lightTargets[index]} position={[lightX, center, -0.4]} />
+      <spotLight target={lightTargets[index]} position={[lightX, center + 2, 2.2]} color="#fff0db" angle={0.55} penumbra={0.75} intensity={2.7} />
+    </group>)}
+    <mesh receiveShadow position={[0, center + 0.2, -0.52]}><boxGeometry args={[roomWidth, roomHeight, 0.18]} /><meshStandardMaterial color={palette.wall} roughness={0.98} bumpMap={plaster} bumpScale={0.018} /></mesh>
     <mesh receiveShadow position={[-roomWidth / 2, center + 0.2, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, roomHeight, 0.13]} /><meshStandardMaterial color={palette.side} roughness={1} /></mesh>
     <mesh receiveShadow position={[roomWidth / 2, center + 0.2, 1.22]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[3.5, roomHeight, 0.13]} /><meshStandardMaterial color={palette.side} roughness={1} /></mesh>
     <mesh receiveShadow position={[0, -0.53, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[12, 9]} /><meshStandardMaterial color={palette.floor} roughness={1} /></mesh>
+    {!focusOnly ? <group position={[0, center + roomHeight / 2 - 0.12, -0.24]}>
+      <mesh><boxGeometry args={[roomWidth - 0.65, 0.022, 0.035]} /><meshStandardMaterial color="#242628" roughness={0.65} /></mesh>
+      {lightXs.map((lightX) => <mesh key={lightX} position={[lightX, -0.065, 0.045]} rotation={[0.3, 0, 0]}><cylinderGeometry args={[0.048, 0.065, 0.12, 12]} /><meshStandardMaterial color="#303234" roughness={0.65} /></mesh>)}
+    </group> : null}
     {exhibits.map((exhibit, index) => <group key={exhibit.edition.id}>
       {focusOnly ? null : <Shelf index={index} count={exhibits.length} columns={columns} size={size} color={palette.shelf} />}
+      {focusOnly ? null : <ExhibitLabel exhibit={exhibit} index={index} count={exhibits.length} columns={columns} size={size} />}
       <Book exhibit={exhibit} index={index} count={exhibits.length} columns={columns} size={size} focusOnly={focusOnly} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
     </group>)}
   </Canvas>;
