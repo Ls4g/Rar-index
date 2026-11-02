@@ -23,6 +23,26 @@
 .collector-directory-card-info > span:last-child { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 .rar-public-collector .rar-demo-avatar { width: 88px; height: 88px; font-size: 2.7rem; }
 .rar-public-collector .rar-demo-bio { white-space: pre-line; overflow-wrap: anywhere; }
+.rar-public-collector[data-gallery-theme="saffron"] { --gallery-accent: #805d2b; --gallery-hero: #25221c; --gallery-paper: #f5efe4; --gallery-ink: #27231d; --gallery-muted: #655d51; --gallery-panel: #fff9ef; }
+.rar-public-collector[data-gallery-theme="indigo"] { --gallery-accent: #315a88; --gallery-hero: #192432; --gallery-paper: #eef1f6; --gallery-ink: #202d3d; --gallery-muted: #58687d; --gallery-panel: #f9fbff; }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-demo-hero { background: var(--gallery-hero); }
+.rar-public-collector[data-gallery-theme="saffron"] :is(.rar-demo-handle, .rar-demo-identity h1 span) { color: #d6b16e; }
+.rar-public-collector[data-gallery-theme="indigo"] :is(.rar-demo-handle, .rar-demo-identity h1 span) { color: #a7c2e3; }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery { background: var(--gallery-paper); color: var(--gallery-ink); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery :is(.rar-gallery-caption, .rar-gallery-intro > p, .rar-gallery-footnote) { color: var(--gallery-muted); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery :is(.rar-gallery-details, .rar-gallery-focus) { background: var(--gallery-panel); color: var(--gallery-ink); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery .rar-gallery-stage { background: var(--gallery-paper); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery :is(.rar-gallery-details h3 em, .rar-gallery-collector-note span) { color: var(--gallery-accent); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery .rar-gallery-return { color: var(--gallery-ink); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery .rar-gallery-collector-note { border-color: var(--gallery-accent); }
+.rar-public-collector[data-gallery-theme]:not([data-gallery-theme="studio"]) .rar-gallery .rar-gallery-details > a { background: var(--gallery-accent); border-color: var(--gallery-accent); color: #111; }
+html[data-theme="night"] .rar-public-collector[data-gallery-theme="saffron"] { --gallery-accent: #dfbb7d; --gallery-paper: #24211d; --gallery-ink: #f2eadf; --gallery-muted: #c4b8a8; --gallery-panel: #302b24; }
+html[data-theme="night"] .rar-public-collector[data-gallery-theme="indigo"] { --gallery-accent: #a7c2e3; --gallery-paper: #1b2533; --gallery-ink: #edf2fa; --gallery-muted: #b6c4d6; --gallery-panel: #263447; }
+.collector-premium-badge { display: inline-block; margin-left: .75rem; padding: .28rem .5rem; border: 1px solid currentColor; border-radius: 2px; color: #f0d9a6 !important; font-size: .65rem; font-weight: 800; letter-spacing: .08em; vertical-align: middle; }
+.rar-public-collector .rar-demo-handle .collector-premium-badge { color: #f0d9a6; }
+.collector-directory-card-info .collector-premium-badge { margin-left: .45rem; color: #8a642f !important; font-size: .55rem; }
+.collector-directory-card[data-gallery-theme="saffron"] .collector-directory-books { background: radial-gradient(ellipse at 50% 25%, #fff8eb, #e8ddc9); }
+.collector-directory-card[data-gallery-theme="indigo"] .collector-directory-books { background: radial-gradient(ellipse at 50% 25%, #f9fbff, #dce5f1); }
 .collector-directory-card-stats { display: flex; gap: .75rem; flex-wrap: wrap; padding: .6rem .35rem .35rem; border-top: 1px solid color-mix(in srgb, currentColor 13%, transparent); font-size: .73rem; opacity: .78; }
 .collector-directory-card-stats span:first-child { margin-right: auto; }
 .collector-directory-own { display: inline-block; margin-top: 2.5rem; color: inherit; font-weight: 700; }

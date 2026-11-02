@@ -76,6 +76,17 @@
 .collector-gallery-copy-fields label, .collector-gallery-comment { display: grid; gap: 7px; font-size: .82rem; font-weight: 700; }
 .collector-gallery-copy-fields input, .collector-gallery-copy-fields textarea, .collector-gallery-comment textarea { width: 100%; border: 1px solid var(--rar-border, #d5d2ca); border-radius: 0; padding: 10px 12px; background: var(--rar-surface, #fff); color: var(--rar-ink, #222); font: inherit; font-weight: 400; resize: vertical; }
 .collector-gallery-copy-fields small { color: var(--rar-muted, #666); }
+.collector-gallery-premium { margin: 22px 0 30px; padding: 18px; border: 1px solid var(--rar-border, #d5d2ca); }
+.collector-gallery-premium legend { padding: 0 7px; font-weight: 800; }
+.collector-gallery-premium p, .collector-gallery-premium > small { color: var(--rar-muted, #666); font-size: .82rem; line-height: 1.5; }
+.collector-gallery-theme-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 15px 0; }
+.collector-gallery-theme-options label { display: flex; align-items: flex-start; gap: 9px; padding: 12px; border: 1px solid var(--rar-border, #d5d2ca); cursor: pointer; }
+.collector-gallery-theme-options label:has(input:checked) { border-color: var(--rar-red, #ad342c); box-shadow: inset 0 0 0 1px var(--rar-red, #ad342c); }
+.collector-gallery-theme-options label input { margin-top: 4px; }
+.collector-gallery-theme-options strong, .collector-gallery-theme-options small { display: block; }
+.collector-gallery-theme-options small { margin-top: 3px; color: var(--rar-muted, #666); font-size: .73rem; }
+.collector-gallery-badge-option { display: flex; align-items: center; gap: 9px; margin: 14px 0 7px; font-size: .85rem; font-weight: 700; }
+@media(max-width:700px) { .collector-gallery-theme-options { grid-template-columns: 1fr; } }
 .collector-gallery-comment { margin-top: 12px; }
 .collector-gallery-public-link a { color: var(--rar-red, #ad322b); font-weight: 700; }
 .collector-gallery-wall { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }

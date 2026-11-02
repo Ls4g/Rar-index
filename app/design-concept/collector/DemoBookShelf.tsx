@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
 import PhysicalBookDemo from "./PhysicalBookDemo";
+import type { GalleryTheme } from "@/lib/collectorGalleryTheme";
 
 // The WebGL wall loads only when a collector has editions on display.
 const GalleryPrototype = dynamic(() => import("./GalleryPrototype"), {
@@ -59,7 +60,7 @@ function marketCopy(guide: DemoMarketGuide | null) {
     : "Market guide pending";
 }
 
-export default function DemoBookShelf({ books, wallEditions = [], isDemo = true, ownerName = "The Opening Chapter", galleryTitle = "", galleryCaption = "", galleryComments = {} }: { books: DemoSeriesBook[]; wallEditions?: DemoBookEdition[]; isDemo?: boolean; ownerName?: string; galleryTitle?: string; galleryCaption?: string; galleryComments?: Record<string, string> }) {
+export default function DemoBookShelf({ books, wallEditions = [], isDemo = true, ownerName = "The Opening Chapter", galleryTitle = "", galleryCaption = "", galleryComments = {}, galleryTheme = "studio" }: { books: DemoSeriesBook[]; wallEditions?: DemoBookEdition[]; isDemo?: boolean; ownerName?: string; galleryTitle?: string; galleryCaption?: string; galleryComments?: Record<string, string>; galleryTheme?: GalleryTheme }) {
   const [active, setActive] = useState<DemoSeriesBook | null>(null);
   const [physicalBook, setPhysicalBook] = useState<DemoSeriesBook | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -81,11 +82,11 @@ export default function DemoBookShelf({ books, wallEditions = [], isDemo = true,
   // Published profiles use the gallery as their one public viewing experience.
   // The editorial/full-shelf sections and flip-book below are concept demos,
   // not a second (older) portfolio for visitors to fall into.
-  if (!isDemo) return wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={false} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} />
+  if (!isDemo) return wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={false} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} />
     : <section className="rar-gallery" id="gallery"><div className="rar-concept-container"><p className="rar-concept-kicker">COLLECTOR GALLERY</p><h2>This wall is being arranged.</h2><p>Books will appear here when this collector chooses editions with confirmed covers to display.</p></div></section>;
 
   return <>
-    {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} /> : null}
+    {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} /> : null}
     <section className="rar-demo-content" id="spotlight">
       <div className="rar-concept-container">
         <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Open a cover to explore {isDemo ? "the sample collector’s" : "this collector’s"} volumes, exact editions and source-backed market context.</p></div>

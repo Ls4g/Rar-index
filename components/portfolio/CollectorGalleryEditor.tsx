@@ -7,10 +7,11 @@ import CollectorAvatarControl from "./CollectorAvatarControl";
 import CollectorBioControl from "./CollectorBioControl";
 import { supabase } from "@/lib/supabase";
 import { volumeSortValue } from "@/lib/seriesCompletion";
+import { GALLERY_THEMES, galleryTheme, type GalleryTheme } from "@/lib/collectorGalleryTheme";
 import type { Holding } from "./HoldingCard";
 
 const MAX_WALL_BOOKS = 16;
-type GalleryContent = { ids: string[]; title: string; caption: string; comments: Record<string, string> };
+type GalleryContent = { ids: string[]; title: string; caption: string; comments: Record<string, string>; theme: GalleryTheme; showBadge: boolean };
 
 export default function CollectorGalleryEditor({ userId, holdings }: { userId: string; holdings: Holding[] }) {
   const eligible = useMemo(() => holdings.filter((holding) => holding.edition?.cover_verification_status === "verified" && holding.edition.cover_image_url)
@@ -21,6 +22,9 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [theme, setTheme] = useState<GalleryTheme>("studio");
+  const [showBadge, setShowBadge] = useState(false);
+  const [hasPremiumPreview, setHasPremiumPreview] = useState(false);
   const [previous, setPrevious] = useState<string[] | null>(null);
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -32,28 +36,34 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
   const [profile, setProfile] = useState<{ username: string; shelf_is_public: boolean; avatar_updated_at: string | null; bio: string | null } | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const latestSave = useRef(0);
-  const latestContent = useRef<GalleryContent>({ ids: [], title: "", caption: "", comments: {} });
+  const latestContent = useRef<GalleryContent>({ ids: [], title: "", caption: "", comments: {}, theme: "studio", showBadge: false });
   const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let active = true;
     void Promise.all([
-      supabase.from("collector_gallery_layouts").select("edition_ids,title,caption,edition_comments").eq("user_id", userId).maybeSingle(),
+      supabase.from("collector_gallery_layouts").select("edition_ids,title,caption,edition_comments,gallery_theme,show_premium_badge").eq("user_id", userId).maybeSingle(),
       supabase.from("collector_profiles").select("username,shelf_is_public,avatar_updated_at,bio").eq("user_id", userId).maybeSingle(),
-    ]).then(([layoutResult, profileResult]) => {
+      supabase.from("collector_premium_access").select("user_id").eq("user_id", userId).maybeSingle(),
+    ]).then(([layoutResult, profileResult, premiumResult]) => {
       if (!active) return;
       const saved = (layoutResult.data?.edition_ids ?? null) as string[] | null;
       const validIds = saved ? saved.filter((id) => byId.has(id)) : eligible.slice(0, MAX_WALL_BOOKS).map((holding) => holding.edition_id);
       const savedComments = layoutResult.data?.edition_comments;
       const validComments = Object.fromEntries(Object.entries(savedComments && typeof savedComments === "object" && !Array.isArray(savedComments) ? savedComments : {})
         .filter(([id, body]) => validIds.includes(id) && typeof body === "string")) as Record<string, string>;
-      latestContent.current = { ids: validIds, title: layoutResult.data?.title ?? "", caption: layoutResult.data?.caption ?? "", comments: validComments };
+      const premium = Boolean(premiumResult.data?.user_id);
+      latestContent.current = { ids: validIds, title: layoutResult.data?.title ?? "", caption: layoutResult.data?.caption ?? "", comments: validComments,
+        theme: premium ? galleryTheme(layoutResult.data?.gallery_theme) : "studio", showBadge: premium && Boolean(layoutResult.data?.show_premium_badge) };
       setIds(validIds);
       setTitle(latestContent.current.title);
       setCaption(latestContent.current.caption);
       setComments(validComments);
+      setTheme(latestContent.current.theme);
+      setShowBadge(latestContent.current.showBadge);
+      setHasPremiumPreview(premium);
       setProfile(profileResult.data as { username: string; shelf_is_public: boolean; avatar_updated_at: string | null; bio: string | null } | null);
-      if (layoutResult.error || profileResult.error) setLoadFailed(true);
+      if (layoutResult.error || profileResult.error || premiumResult.error) setLoadFailed(true);
       setReady(true);
     });
     return () => {
@@ -76,7 +86,8 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     const saveNumber = ++latestSave.current;
     saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
       const { error: saveError } = await supabase.from("collector_gallery_layouts")
-        .upsert({ user_id: userId, edition_ids: content.ids, title: content.title.trim(), caption: content.caption.trim(), edition_comments: content.comments }, { onConflict: "user_id" });
+        .upsert({ user_id: userId, edition_ids: content.ids, title: content.title.trim(), caption: content.caption.trim(), edition_comments: content.comments,
+          gallery_theme: content.theme, show_premium_badge: content.showBadge }, { onConflict: "user_id" });
       if (saveNumber === latestSave.current) {
         setSaving(false);
         setError(saveError ? "Could not save your gallery. Refresh and try again." : "");
@@ -89,6 +100,8 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     setTitle(next.title);
     setCaption(next.caption);
     setComments(next.comments);
+    setTheme(next.theme);
+    setShowBadge(next.showBadge);
     setSaving(true);
     if (textSaveTimer.current) clearTimeout(textSaveTimer.current);
     textSaveTimer.current = setTimeout(() => { textSaveTimer.current = null; save(latestContent.current); }, 650);
@@ -137,6 +150,21 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
           <label htmlFor="collector-gallery-caption">Caption <textarea id="collector-gallery-caption" maxLength={240} rows={2} value={caption} onChange={(event) => changeText({ ...latestContent.current, caption: event.target.value })} onBlur={flushText} placeholder="Tell visitors about your collection…" /></label>
           <small>Your title, caption and book comments appear to visitors when your shelf is public. Saved automatically.</small>
         </div>
+        {hasPremiumPreview ? <fieldset className="collector-gallery-premium">
+          <legend>Premium gallery preview</legend>
+          <p>Choose a gallery finish. Visitors keep their own Day/Night setting; your books and notes stay the same.</p>
+          <div className="collector-gallery-theme-options">{GALLERY_THEMES.map((option) => <label key={option.id} data-theme-option={option.id}>
+            <input type="radio" name="gallery-theme" value={option.id} checked={theme === option.id}
+              onChange={() => { if (textSaveTimer.current) { clearTimeout(textSaveTimer.current); textSaveTimer.current = null; } setTheme(option.id); save({ ...latestContent.current, theme: option.id }); }} />
+            <span><strong>{option.name}</strong><small>{option.description}</small></span>
+          </label>)}</div>
+          <label className="collector-gallery-badge-option"><input type="checkbox" checked={showBadge} onChange={(event) => {
+            if (textSaveTimer.current) { clearTimeout(textSaveTimer.current); textSaveTimer.current = null; }
+            setShowBadge(event.target.checked);
+            save({ ...latestContent.current, showBadge: event.target.checked });
+          }} /> Show a Premium badge beside my handle</label>
+          <small>The badge shows gallery access only. It does not verify your collection, books or sales.</small>
+        </fieldset> : null}
         <div className="collector-gallery-wall" aria-label="Your gallery display order">
           {ids.map((id, index) => {
             const holding = byId.get(id);

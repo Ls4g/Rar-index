@@ -10,6 +10,7 @@
     "test:exchange-rates": "node --experimental-strip-types scripts/test-exchange-rates.mjs",
     "test:graded-revisit": "node scripts/test-graded-revisit.mjs",
     "test:scout-inbox": "node --experimental-strip-types scripts/test-scout-inbox-view.mjs",
+    "test:collector-premium": "node --experimental-strip-types scripts/test-collector-premium.mjs",
     "test:daily-apify-search": "node --experimental-strip-types scripts/test-daily-apify-search.mjs",
     "test:scorecard": "node --experimental-strip-types scripts/test-weekly-scorecard.mjs && node scripts/test-staff-route-protection.mjs",
     "test:kodansha": "node --experimental-strip-types scripts/test-kodansha-integration.mjs",

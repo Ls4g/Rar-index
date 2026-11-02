@@ -6,6 +6,7 @@ import PublicHeader from "@/components/PublicHeader";
 import { supabase } from "@/lib/supabase";
 import { collectorAvatarUrl } from "@/lib/collectorAvatar";
 import { readCompleteRows } from "@/lib/readCompleteRows";
+import { galleryTheme, type GalleryTheme } from "@/lib/collectorGalleryTheme";
 import "./social.css";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 type Profile = { user_id: string; username: string; avatar_updated_at: string | null };
 type Cover = { id: string; title: string | null; series: string | null; volume_number: string | null; cover_image_url: string | null; cover_verification_status: string | null };
-type GalleryLayout = { user_id: string; edition_ids: string[]; title: string };
+type GalleryLayout = { user_id: string; edition_ids: string[]; title: string; gallery_theme: string; show_premium_badge: boolean };
 type SocialCount = { profile_user_id: string; like_count: number; comment_count: number };
 
 export default async function CollectorsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -28,17 +29,19 @@ export default async function CollectorsPage({ searchParams }: { searchParams: P
   const { data, error } = await query;
   const profiles = (data ?? []) as Profile[];
   let loadError = Boolean(error);
-  let galleries: Array<{ profile: Profile; count: number; covers: Cover[]; title: string; likes: number; comments: number }> = [];
+  let galleries: Array<{ profile: Profile; count: number; covers: Cover[]; title: string; likes: number; comments: number; theme: GalleryTheme; badge: boolean }> = [];
   try {
     const keys = profiles.map((p) => p.username.toLowerCase());
     const profileIds = profiles.map((p) => p.user_id);
-    const [{ data: layoutData, error: layoutError }, { data: socialData, error: socialError }] = profileIds.length
+    const [{ data: layoutData, error: layoutError }, { data: socialData, error: socialError }, { data: premiumData }] = profileIds.length
       ? await Promise.all([
-        supabase.from("collector_gallery_layouts").select("user_id,edition_ids,title").in("user_id", profileIds),
+        supabase.from("collector_gallery_layouts").select("user_id,edition_ids,title,gallery_theme,show_premium_badge").in("user_id", profileIds),
         supabase.rpc("collector_gallery_social_counts", { profile_ids: profileIds }),
-      ]) : [{ data: [], error: null }, { data: [], error: null }];
+        supabase.from("collector_premium_access").select("user_id").in("user_id", profileIds),
+      ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [] }];
     if (layoutError || socialError) throw new Error("Gallery preview lookup failed");
     const layouts = new Map(((layoutData ?? []) as GalleryLayout[]).map((layout) => [layout.user_id, layout]));
+    const premiumIds = new Set((premiumData ?? []).map((row) => row.user_id));
     const social = new Map(((socialData ?? []) as SocialCount[]).map((row) => [row.profile_user_id, row]));
     const shelfRows = keys.length ? await readCompleteRows<{ username_key: string; edition_id: string }>("collector shelves", (from, to) => supabase.from("public_shelf_editions")
       .select("username_key,edition_id").in("username_key", keys).order("username_key").order("edition_id").range(from, to)) : [];
@@ -64,7 +67,10 @@ export default async function CollectorsPage({ searchParams }: { searchParams: P
       const layout = layouts.get(profile.user_id);
       const selectedIds = previewIds[profiles.indexOf(profile)];
       const count = social.get(profile.user_id);
-      return { profile, count: editionIds.length, title: layout?.title?.trim() || "Collector gallery", likes: Number(count?.like_count ?? 0), comments: Number(count?.comment_count ?? 0), covers: selectedIds.map((id) => covers.get(id)).filter((edition): edition is Cover => Boolean(edition?.cover_image_url && edition.cover_verification_status === "verified")).slice(0, 3) };
+      return { profile, count: editionIds.length, title: layout?.title?.trim() || "Collector gallery", likes: Number(count?.like_count ?? 0), comments: Number(count?.comment_count ?? 0),
+        theme: premiumIds.has(profile.user_id) ? galleryTheme(layout?.gallery_theme) : "studio" as GalleryTheme,
+        badge: premiumIds.has(profile.user_id) && Boolean(layout?.show_premium_badge),
+        covers: selectedIds.map((id) => covers.get(id)).filter((edition): edition is Cover => Boolean(edition?.cover_image_url && edition.cover_verification_status === "verified")).slice(0, 3) };
     }).filter((gallery) => gallery.count > 0);
   } catch { loadError = true; }
 
@@ -78,9 +84,9 @@ export default async function CollectorsPage({ searchParams }: { searchParams: P
         <div><input id="collector-search" name="q" type="search" maxLength={20} defaultValue={search} placeholder="Search by @handle" /><button type="submit">Search</button></div>
       </form>
       {loadError ? <p role="alert">Galleries could not load. Please try again.</p> : galleries.length ? <div className="collector-directory-grid">
-        {galleries.map(({ profile, count, covers: galleryCovers, title, likes, comments }) => <Link className="collector-directory-card" href={`/collectors/${profile.username}`} key={profile.user_id}>
+        {galleries.map(({ profile, count, covers: galleryCovers, title, likes, comments, theme, badge }) => <Link className="collector-directory-card" data-gallery-theme={theme} href={`/collectors/${profile.username}`} key={profile.user_id}>
           <div className="collector-directory-books"><span className="collector-directory-preview-label">RAR / COLLECTOR GALLERY</span><div className="collector-directory-book-row">{galleryCovers.length ? galleryCovers.map((cover) => <EditionCover key={cover.id} title={cover.title} series={cover.series} volumeNumber={cover.volume_number} imageUrl={cover.cover_image_url} imageStatus={cover.cover_verification_status} />) : <span>No confirmed covers yet</span>}</div></div>
-          <div className="collector-directory-card-info"><CollectorAvatar name={profile.username} url={collectorAvatarUrl(profile.user_id, profile.avatar_updated_at)} /><span>@{profile.username}</span><strong>{title}</strong><span aria-hidden="true">↗</span></div>
+          <div className="collector-directory-card-info"><CollectorAvatar name={profile.username} url={collectorAvatarUrl(profile.user_id, profile.avatar_updated_at)} /><span>@{profile.username}{badge ? <span className="collector-premium-badge" title="Gallery access only; not a verification mark">Premium</span> : null}</span><strong>{title}</strong><span aria-hidden="true">↗</span></div>
           <div className="collector-directory-card-stats"><span>{count} shared {count === 1 ? "edition" : "editions"}</span><span>♥ {likes} {likes === 1 ? "like" : "likes"}</span><span>◌ {comments} {comments === 1 ? "comment" : "comments"}</span></div>
         </Link>)}
       </div> : <p className="collector-directory-empty">{search ? "No public galleries matched that handle." : "No collectors have opted into discovery yet. Your gallery can be the first."}</p>}
