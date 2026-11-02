@@ -120,36 +120,6 @@ function Shelf({ index, count, columns, size, color }: { index: number; count: n
   </mesh>;
 }
 
-function ExhibitLabel({ exhibit, index, count, columns, size }: { exhibit: GalleryBook; index: number; count: number; columns: number; size: GallerySize }) {
-  const texture = useMemo(() => {
-    if (typeof document === "undefined") return null;
-    const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 120;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    context.fillStyle = "#fffefa";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#242829";
-    context.font = "700 50px Arial, sans-serif";
-    let title = exhibit.book.name;
-    while (context.measureText(title).width > 474 && title.length > 1) title = `${title.slice(0, -2)}…`;
-    context.fillText(title, 18, 77);
-    const next = new THREE.CanvasTexture(canvas);
-    next.colorSpace = THREE.SRGBColorSpace;
-    next.anisotropy = 8;
-    return next;
-  }, [exhibit.book.name]);
-  useEffect(() => () => texture?.dispose(), [texture]);
-
-  const { x, y, scale } = wallLayout(index, count, columns, size);
-  const shelfY = y - scale * 1.055 - 0.035;
-  return <group position={[x, shelfY - scale * 0.2, -0.395]} scale={scale}>
-    <mesh castShadow><boxGeometry args={[1.28, 0.31, 0.025]} /><meshStandardMaterial color="#8d8c86" roughness={0.9} /></mesh>
-    {texture ? <mesh position={[0, 0, 0.014]}><planeGeometry args={[1.23, 0.27]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh> : null}
-  </group>;
-}
-
 function useSpotlightPool() {
   const texture = useMemo(() => {
     const side = 128;
@@ -247,7 +217,6 @@ function Scene({ exhibits, size, columns, focusOnly = false, selectedIndex, drag
     </group> : null}
     {exhibits.map((exhibit, index) => <group key={exhibit.edition.id}>
       {focusOnly ? null : <Shelf index={index} count={exhibits.length} columns={columns} size={size} color={palette.shelf} />}
-      {focusOnly ? null : <ExhibitLabel exhibit={exhibit} index={index} count={exhibits.length} columns={columns} size={size} />}
       <Book exhibit={exhibit} index={index} count={exhibits.length} columns={columns} size={size} focusOnly={focusOnly} selectedIndex={selectedIndex} dragRotation={dragRotation} onInspect={() => onInspect(index)} />
     </group>)}
   </Canvas>;
