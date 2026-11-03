@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
+import { isMatchingPublisherCover, orderCoverChoices, strongestCoverPerEdition } from "@/lib/coverCandidateChoice";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 export type CoverQueueRow = {
@@ -158,64 +159,18 @@ function CoverDecisionForm({ edition, reviewer, onReviewerChange }: { edition: C
   );
 }
 
-function CoverCandidateCard({ candidate, edition, reviewer }: { candidate: CoverCandidateRow; edition: CoverQueueRow; reviewer: string }) {
-  const router = useRouter();
-  const [saving, setSaving] = useState<"verified" | "rejected" | null>(null);
-  const [message, setMessage] = useState("");
-
-  async function decide(decision: "verified" | "rejected") {
-    if (!reviewer.trim()) {
-      setMessage("Enter your reviewer name or initials above first.");
-      return;
-    }
-    setSaving(decision);
-    setMessage("");
-    const notes = decision === "verified"
-      ? "Exact ISBN and source record reviewed by staff."
-      : "Candidate rejected after exact-edition review.";
-    try {
-      const response = await fetch("/api/cover-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidateId: candidate.id, editionId: edition.editionId, decision, reviewer, notes }),
-      });
-      const result = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        setMessage(result.error ?? "The candidate decision could not be saved.");
-        return;
-      }
-      setMessage(decision === "verified" ? "Cover verified and published." : "Candidate removed from the queue.");
-      router.refresh();
-    } catch {
-      setMessage("The candidate decision could not be saved. Check the connection and try again.");
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  return (
-    <article className="cover-candidate-card">
-      <div className="cover-candidate-image">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt={`Candidate cover for ${edition.title ?? "this edition"}`} src={candidate.coverImageUrl} />
-      </div>
-      <div className="cover-candidate-copy">
-        <div className="cover-candidate-topline">
-          <span>{candidate.sourceName}</span>
-          <strong>{candidate.matchScore}/100 · {candidate.matchConfidence}</strong>
-        </div>
-        <h4>{candidate.candidateTitle ?? edition.title ?? "Untitled candidate"}</h4>
-        <p>{[candidate.candidatePublisher, candidate.candidateLanguage, candidate.candidateIsbn13].filter(Boolean).join(" · ")}</p>
-        <ul>{candidate.matchReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-        <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Inspect source record ↗</Link>
-        <div className="cover-candidate-actions">
-          <button disabled={Boolean(saving)} onClick={() => decide("verified")} type="button">{saving === "verified" ? "Verifying…" : "Verify cover"}</button>
-          <button className="secondary-action" disabled={Boolean(saving)} onClick={() => decide("rejected")} type="button">{saving === "rejected" ? "Rejecting…" : "Reject candidate"}</button>
-        </div>
-        {message ? <p className="cover-candidate-message" role="status">{message}</p> : null}
-      </div>
-    </article>
-  );
+function CoverPreview({ src, alt, onFailure }: { src: string; alt: string; onFailure?: () => void }) {
+  const [dimensions, setDimensions] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  return <div className="cover-choice-preview">
+    {failed ? <span>Image could not load</span> : (
+      // eslint-disable-next-line @next/next/no-img-element -- staff compares external source images
+      <img alt={alt} onError={() => { setFailed(true); onFailure?.(); }} onLoad={(event) => {
+        setDimensions(`${event.currentTarget.naturalWidth} × ${event.currentTarget.naturalHeight} px`);
+      }} src={src} />
+    )}
+    <small>{failed ? "Do not use this image" : dimensions ?? "Checking image size…"}</small>
+  </div>;
 }
 
 function CoverAlternativeOption({ candidate, edition, savingId, onSelect }: {
@@ -224,11 +179,8 @@ function CoverAlternativeOption({ candidate, edition, savingId, onSelect }: {
   const [imageFailed, setImageFailed] = useState(false);
   return (
     <article className="cover-replacement-option">
-      <span className="cover-replacement-label">Alternative · {candidate.sourceName}</span>
-      <div className="cover-replacement-image">{imageFailed ? <span>Image could not load — do not use this cover.</span> : (
-        // eslint-disable-next-line @next/next/no-img-element -- staff review compares external source images
-        <img alt={`Alternative cover from ${candidate.sourceName}`} onError={() => setImageFailed(true)} src={candidate.coverImageUrl} />
-      )}</div>
+      <span className="cover-replacement-label">Alternative · {candidate.sourceName}{isMatchingPublisherCover(candidate.sourceName, edition.publisher) ? " · Publisher source" : ""}</span>
+      <div className="cover-replacement-image"><CoverPreview alt={`Alternative cover from ${candidate.sourceName}`} onFailure={() => setImageFailed(true)} src={candidate.coverImageUrl} /></div>
       <strong>{candidate.candidateTitle ?? edition.title ?? "Untitled cover"}</strong>
       <small>{[candidate.candidatePublisher, candidate.candidateIsbn13].filter(Boolean).join(" · ")}</small>
       <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Inspect source record ↗</Link>
@@ -301,14 +253,13 @@ function CoverReplacementPanel({ edition, candidates, reviewer }: { edition: Cov
         <article className="cover-replacement-option is-current">
           <span className="cover-replacement-label">Current public cover</span>
           <div className="cover-replacement-image">{edition.coverImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- staff review compares external source images
-            <img alt={`Current cover for ${edition.title ?? "this edition"}`} src={edition.coverImageUrl} />
+            <CoverPreview alt={`Current cover for ${edition.title ?? "this edition"}`} src={edition.coverImageUrl} />
           ) : <span>No cover image</span>}</div>
           <strong>{edition.coverSourceName ?? "Source not recorded"}</strong>
           {edition.coverSourceUrl ? <Link href={edition.coverSourceUrl} target="_blank" rel="noreferrer">View current source ↗</Link> : null}
           <small>Currently shown on RAR</small>
         </article>
-        {candidates.filter((candidate) => candidate.coverImageUrl !== edition.coverImageUrl).map((candidate) => (
+        {orderCoverChoices(candidates.filter((candidate) => candidate.coverImageUrl !== edition.coverImageUrl), edition.publisher).map((candidate) => (
           <CoverAlternativeOption candidate={candidate} edition={edition} key={candidate.id} savingId={savingId} onSelect={(item) => void selectCover(item)} />
         ))}
       </div>
@@ -327,17 +278,27 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
   reviewer: string;
   onDecided: (ids: string[]) => void;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState<"verified" | "rejected" | null>(null);
   const [banner, setBanner] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
 
-  const visible = candidates.filter((candidate) => editionsById.has(candidate.editionId));
+  const visible = candidates.filter((candidate) => editionsById.get(candidate.editionId)?.coverStatus !== "verified" && editionsById.has(candidate.editionId));
   if (!visible.length) return null;
+
+  const byEdition = new Map<string, CoverCandidateRow[]>();
+  for (const candidate of visible) byEdition.set(candidate.editionId, [...(byEdition.get(candidate.editionId) ?? []), candidate]);
 
   function toggle(id: string) {
     setSelected((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else {
+        const editionId = visible.find((candidate) => candidate.id === id)?.editionId;
+        for (const candidate of visible) if (candidate.editionId === editionId) next.delete(candidate.id);
+        next.add(id);
+      }
       return next;
     });
   }
@@ -345,7 +306,7 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
   async function decideSelected(decision: "verified" | "rejected") {
     if (!reviewer.trim()) { setBanner({ tone: "error", text: "Add your name or initials above before saving." }); return; }
     const ids = [...selected];
-    if (!ids.length) { setBanner({ tone: "error", text: "Tick at least one candidate first." }); return; }
+    if (!ids.length) { setBanner({ tone: "error", text: "Choose at least one cover first." }); return; }
     setSaving(decision);
     setBanner(null);
     try {
@@ -365,8 +326,13 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
       const succeeded = ids.filter((id) => !failedIds.has(id));
       // Removed from view without a server round trip, so a reviewer can see
       // progress through a long queue instead of waiting on a refresh.
-      onDecided(succeeded);
+      const succeededEditions = new Set(visible.filter((candidate) => succeeded.includes(candidate.id)).map((candidate) => candidate.editionId));
+      const decided = decision === "verified"
+        ? visible.filter((candidate) => succeededEditions.has(candidate.editionId)).map((candidate) => candidate.id)
+        : succeeded;
+      onDecided(decided);
       setSelected(new Set(failedIds));
+      router.refresh();
       setBanner(failedIds.size
         ? { tone: "error", text: `${succeeded.length} saved. ${failedIds.size} could not be saved and are still selected: ${(result.failed ?? [])[0]?.error ?? ""}` }
         : { tone: "ok", text: `${succeeded.length} candidate${succeeded.length === 1 ? "" : "s"} ${decision === "verified" ? "verified and published" : "rejected"}.` });
@@ -377,17 +343,18 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
     }
   }
 
-  const strongIds = visible.filter((candidate) => candidate.matchConfidence === "strong").map((candidate) => candidate.id);
+  const strongIds = strongestCoverPerEdition(visible.filter((candidate) => !failedImages.has(candidate.id)),
+    new Map([...byEdition.keys()].map((id) => [id, editionsById.get(id)?.publisher ?? null]))).map((candidate) => candidate.id);
 
   return (
     <section className="cover-bulk-panel">
       <div className="section-intro">
         <p className="eyebrow">Review a screenful at once</p>
-        <h2>{visible.length} candidate{visible.length === 1 ? "" : "s"} waiting</h2>
-        <p className="section-copy">Each cover sits beside the record it claims to match. Tick the ones that are right, then save. Nothing is decided for you — an untouched candidate stays pending.</p>
+        <h2>{byEdition.size} edition{byEdition.size === 1 ? "" : "s"} · {visible.length} cover option{visible.length === 1 ? "" : "s"}</h2>
+        <p className="section-copy">Compare each edition’s covers side by side. Choose no more than one per edition, inspect its source and ISBN, then verify or reject. Nothing is published until you decide.</p>
       </div>
       <div className="cover-bulk-actions">
-        <button onClick={() => setSelected(new Set(strongIds))} type="button" disabled={!strongIds.length}>Select {strongIds.length} strong match{strongIds.length === 1 ? "" : "es"}</button>
+        <button onClick={() => setSelected(new Set(strongIds))} type="button" disabled={!strongIds.length}>Select one strong cover for {strongIds.length} edition{strongIds.length === 1 ? "" : "s"}</button>
         <button onClick={() => setSelected(new Set())} type="button" disabled={!selected.size}>Clear</button>
         <span className="cover-bulk-count">{selected.size} selected</span>
         <button className="cover-bulk-verify" disabled={Boolean(saving) || !selected.size} onClick={() => void decideSelected("verified")} type="button">{saving === "verified" ? "Verifying…" : "Verify selected"}</button>
@@ -395,23 +362,29 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
       </div>
       {banner ? <p className={`cover-bulk-banner ${banner.tone === "error" ? "is-error" : "is-ok"}`} role="status">{banner.text}</p> : null}
       <div className="cover-bulk-grid">
-        {visible.map((candidate) => {
-          const edition = editionsById.get(candidate.editionId)!;
-          const isSelected = selected.has(candidate.id);
-          return (
-            <label className={`cover-bulk-item${isSelected ? " is-selected" : ""}`} key={candidate.id}>
-              <input checked={isSelected} onChange={() => toggle(candidate.id)} type="checkbox" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt={`Candidate cover for ${edition.title ?? "this edition"}`} src={candidate.coverImageUrl} />
-              <div className="cover-bulk-meta">
-                <strong>{edition.title ?? "Untitled edition"}</strong>
-                <span>{[edition.series, edition.volumeNumber ? `Vol. ${edition.volumeNumber}` : null, edition.language].filter(Boolean).join(" · ")}</span>
-                <span className="cover-bulk-isbn">{edition.isbn13 ?? "ISBN pending"}</span>
-                <em className={candidate.matchConfidence === "strong" ? "is-strong" : ""}>{candidate.sourceName} · {candidate.matchScore}/100 · {candidate.matchConfidence}</em>
-                <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Source record ↗</Link>
-              </div>
-            </label>
-          );
+        {[...byEdition].map(([editionId, choices]) => {
+          const edition = editionsById.get(editionId)!;
+          return <section className="cover-bulk-edition" id={`cover-choice-${editionId}`} key={editionId}>
+            <div className="cover-bulk-edition-head"><strong>{edition.title ?? "Untitled edition"}</strong><span>{[edition.series, edition.volumeNumber ? `Vol. ${edition.volumeNumber}` : null, edition.language, publisherDisplayName(edition.publisher), edition.isbn13 ?? "ISBN pending"].filter(Boolean).join(" · ")}</span></div>
+            <div className="cover-bulk-choices">{orderCoverChoices(choices, edition.publisher).map((candidate) => {
+              const isSelected = selected.has(candidate.id);
+              const imageFailed = failedImages.has(candidate.id);
+              return <article className={`cover-bulk-item${isSelected ? " is-selected" : ""}`} key={candidate.id}>
+                <CoverPreview alt={`Candidate cover for ${edition.title ?? "this edition"} from ${candidate.sourceName}`} onFailure={() => {
+                  setFailedImages((current) => new Set([...current, candidate.id]));
+                  setSelected((current) => { const next = new Set(current); next.delete(candidate.id); return next; });
+                }} src={candidate.coverImageUrl} />
+                <div className="cover-bulk-meta">
+                  <strong>{candidate.sourceName}{isMatchingPublisherCover(candidate.sourceName, edition.publisher) ? " · Publisher source" : ""}</strong>
+                  <span>{candidate.candidateTitle ?? "Title not supplied"}</span>
+                  <span>{[candidate.candidatePublisher, candidate.candidateIsbn13].filter(Boolean).join(" · ") || "Publisher / ISBN not supplied"}</span>
+                  <em className={candidate.matchConfidence === "strong" ? "is-strong" : ""}>{candidate.matchScore}/100 · {candidate.matchConfidence} match</em>
+                  <Link href={candidate.sourceRecordUrl} target="_blank" rel="noreferrer">Inspect source record ↗</Link>
+                </div>
+                <label className="cover-bulk-select"><input checked={isSelected} disabled={imageFailed} name={`cover-choice-${editionId}`} onChange={() => toggle(candidate.id)} type="checkbox" /> {isSelected ? "Selected for review" : "Choose this cover"}</label>
+              </article>;
+            })}</div>
+          </section>;
         })}
       </div>
     </section>
@@ -440,10 +413,8 @@ function CoverQueueRowCard({ edition, candidates, reviewer, onReviewerChange, fo
         <CoverReplacementPanel edition={edition} candidates={candidates} reviewer={reviewer} />
       ) : candidates.length ? (
         <section className="cover-candidate-results">
-          <div className="review-decision-heading"><span>{candidates.length} candidate{candidates.length === 1 ? "" : "s"} found</span><small>Inspect the exact source record, then verify or reject. Nothing appears publicly before verification.</small></div>
-          <div className="cover-candidate-grid">
-            {candidates.map((candidate) => <CoverCandidateCard candidate={candidate} edition={edition} key={candidate.id} reviewer={reviewer} />)}
-          </div>
+          <div className="review-decision-heading"><span>{candidates.length} cover option{candidates.length === 1 ? "" : "s"} found</span><small>Compare this edition’s options together above. Nothing appears publicly before verification.</small></div>
+          <a className="cover-candidate-jump" href={`#cover-choice-${edition.editionId}`}>Compare and choose a cover ↑</a>
         </section>
       ) : (
         <div className="cover-candidate-empty">
@@ -544,7 +515,11 @@ export default function CoverReviewClient({ rows, focusedRow, candidates }: { ro
   const [decidedIds, setDecidedIds] = useState<Set<string>>(new Set());
 
   const liveCandidates = useMemo(() => candidates.filter((candidate) => !decidedIds.has(candidate.id)), [candidates, decidedIds]);
-  const editionsById = useMemo(() => new Map(rows.map((row) => [row.editionId, row])), [rows]);
+  const editionsById = useMemo(() => {
+    const mapped = new Map(rows.map((row) => [row.editionId, row]));
+    if (focusedRow && focusedRow.coverStatus !== "verified") mapped.set(focusedRow.editionId, focusedRow);
+    return mapped;
+  }, [rows, focusedRow]);
 
   const candidatesByEdition = useMemo(() => {
     const grouped = new Map<string, CoverCandidateRow[]>();

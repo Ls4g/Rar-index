@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStaffRequest } from "@/lib/staffSession";
+import { hasOneCoverPerEdition } from "@/lib/coverCandidateChoice";
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -90,6 +91,16 @@ export async function POST(request: Request) {
     }
     if (candidateIds.length > MAX_BULK_CANDIDATES) {
       return Response.json({ error: `Decide at most ${MAX_BULK_CANDIDATES} candidates at a time.` }, { status: 400 });
+    }
+    if (decision === "verified") {
+      const { data: choices, error: choiceError } = await admin.from("cover_candidates")
+        .select("id, edition_id").in("id", candidateIds);
+      if (choiceError || !choices || choices.length !== candidateIds.length) {
+        return Response.json({ error: "One or more cover choices could not be found. Refresh and try again." }, { status: 400 });
+      }
+      if (!hasOneCoverPerEdition(choices)) {
+        return Response.json({ error: "Choose only one cover for each edition before verifying." }, { status: 400 });
+      }
     }
     const outcomes = await mapWithConcurrency(candidateIds, 5, async (id) => {
       const { error } = await admin.rpc("apply_cover_candidate_decision", {
