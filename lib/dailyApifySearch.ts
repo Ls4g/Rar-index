@@ -5,6 +5,10 @@ import type { SeriesSale } from "./priceSeries.ts";
 
 export const MAX_DAILY_APIFY_SEARCHES = 10;
 export const SCHEDULED_ISBN_REFRESH_DAYS = 30;
+// Keep this projection aligned with SeriesSale/buildPriceSeries. Without the
+// title and human grading review, an unresolved graded listing can appear raw
+// and incorrectly make an edition look fully covered to the daily search.
+export const SCHEDULED_SALE_COLUMNS = "id,edition_id,sold_date,sale_price,currency,grading_company,grade_label,grading_reviewed_at,listing_title,print_classification,known_printing_number";
 
 export function configuredDailySearchLimit(value: string | undefined) {
   if (!value || !/^\d+$/.test(value)) return 0;

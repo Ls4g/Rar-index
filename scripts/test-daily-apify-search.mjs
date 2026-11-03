@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { configuredDailySearchLimit, dailySearchTargets, distinctSeriesTargets, selectScheduledSearchTargets } from "../lib/dailyApifySearch.ts";
+import { configuredDailySearchLimit, dailySearchTargets, distinctSeriesTargets, selectScheduledSearchTargets, SCHEDULED_SALE_COLUMNS } from "../lib/dailyApifySearch.ts";
 
 assert.equal(configuredDailySearchLimit(undefined), 0);
 assert.equal(configuredDailySearchLimit("0"), 0);
@@ -32,6 +32,24 @@ assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], [], [
 assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], [], [],
   new Map([["9781612620244", "2026-10-01T00:00:00Z"]]), new Date("2026-10-26T00:00:00Z")),
   [], "a recently paid search is not repeated every morning");
+
+const saleColumns = SCHEDULED_SALE_COLUMNS.split(",");
+assert(saleColumns.includes("listing_title") && saleColumns.includes("grading_reviewed_at"),
+  "the cron must load both fields used to withhold unresolved graded evidence");
+const projectScheduledSale = (row) => Object.fromEntries(saleColumns.map((column) => [column, row[column] ?? null]));
+const gradedTitleSale = { ...sale("near"), listing_title: "BGS 9.8 manga vol 1", grading_reviewed_at: null };
+const gradedTitleRows = Array.from({ length: 3 }, () => projectScheduledSale(gradedTitleSale));
+assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], gradedTitleRows, [],
+  new Map(), new Date("2026-10-26T00:00:00Z")), [{ editionId: "near", isbn: "9781612620244" }],
+  "three unresolved graded-title sales must not suppress the edition's next search");
+assert.deepEqual(selectScheduledSearchTargets([edition("near", "9781612620244")], gradedTitleRows, [], [],
+  new Date("2026-10-26T00:00:00Z"), 1),
+  [{ editionId: "near", isbn: "9781612620244", reason: "coverage_fallback" }],
+  "the scheduled batch must still select an edition with unresolved graded evidence");
+assert.deepEqual(dailySearchTargets([edition("near", "9781612620244")], gradedTitleRows.map((row) => ({
+  ...row, grading_reviewed_at: "2026-10-20T00:00:00Z",
+})), [], new Map(), new Date("2026-10-26T00:00:00Z")), [],
+  "an explicit human raw-grading review can make the same three sales comparable");
 
 const sixSeries = Array.from({ length: 7 }, (_, i) => ({ ...edition(`edition-${i}`, `9781612620${String(240 + i)}`),
   series: i === 1 ? " SERIES-0 " : `Series-${i}` }));

@@ -1,7 +1,7 @@
 import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
-import { selectScheduledSearchTargets, configuredDailySearchLimit } from "@/lib/dailyApifySearch";
+import { selectScheduledSearchTargets, configuredDailySearchLimit, SCHEDULED_SALE_COLUMNS } from "@/lib/dailyApifySearch";
 import {
   hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
   queueDiscoveredListings, readApifyBudget, runSoldSearchBatch, SEARCH_COOLDOWN_HOURS,
@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const EDITION_COLUMNS = "id,title,series,volume_number,language,isbn_13,publisher,format,printing_number,edition_statement,variant_name,collectible_type,issue_year,issue_number_label,cumulative_issue_no";
-const SALE_COLUMNS = "id,edition_id,sold_date,sale_price,currency,grading_company,grade_label,print_classification,known_printing_number";
 const OUTCOME_COLUMNS = "edition_id,status,discovery_provider:original_snapshot->>provider,reviewed_by,resulting_observation_id,check_attempts,next_check_at";
 const SEARCH_LOG_COLUMNS = "isbn_13,requested_edition_id,last_started_at,last_status,last_result_count";
 async function readPages<T>(admin: SupabaseClient, table: string, columns: string, configure: (query: ReturnType<ReturnType<SupabaseClient["from"]>["select"]>) => ReturnType<ReturnType<SupabaseClient["from"]>["select"]>, orderColumn = "id") {
@@ -48,7 +47,7 @@ export async function GET(request: Request) {
     const [editions, sales, outcomes, recentSearches, sourceResult, rules] = await Promise.all([
       readPages<CoverageEdition>(admin, "manga_editions", EDITION_COLUMNS,
         (query) => query.eq("is_verified", true)),
-      readPages<SeriesSale & { edition_id: string }>(admin, "price_observations", SALE_COLUMNS,
+      readPages<SeriesSale & { edition_id: string }>(admin, "price_observations", SCHEDULED_SALE_COLUMNS,
         (query) => query.eq("match_status", "verified_match").eq("sale_status", "confirmed").eq("is_verified", true)),
       readPages<SalesInboxOutcome & { edition_id: string }>(admin, "listing_outcomes", OUTCOME_COLUMNS,
         (query) => query.in("status", ["ended_pending_check", "sold_candidate", "ambiguous", "inaccessible"])
