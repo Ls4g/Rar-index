@@ -195,3 +195,26 @@ export function buildOutcomeRow(
     updated_at: nowIso,
   };
 }
+
+export function buildTitleSearchOutcomeRow(
+  row: ApifyEbayRow,
+  searchedEdition: IntakeEdition,
+  rules: ScoutRule[],
+  sourceId: string,
+): OutcomeInsert {
+  const assessment = assessScoutListing(searchedEdition, row.title ?? "", rules);
+  const provisionalAssessment: EditionMatchAssessment = {
+    ...assessment,
+    confidence: assessment.confidence === "conflict" ? "conflict" : "insufficient",
+    reasons: [
+      "Found by title, volume and language search; exact ISBN, publisher, printing and binding require human review.",
+      ...assessment.reasons,
+    ],
+  };
+  const outcome = buildOutcomeRow(row, { edition: searchedEdition, assessment: provisionalAssessment }, sourceId);
+  return {
+    ...outcome,
+    original_snapshot: { provider: "apify_ebay_sold_search", search_basis: "title_volume_language_manga", item: row },
+    outcome_reason: "Provisional title-search lead, not an exact-edition match or confirmed sale. A reviewer must check the original listing against this edition's ISBN, publisher, printing and binding, then verify the completed sale and paid price.",
+  };
+}

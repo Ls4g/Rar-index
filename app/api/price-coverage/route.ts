@@ -4,6 +4,7 @@ import { loadActiveScoutRules } from "@/lib/scoutRules";
 import { SOLD_SEARCH_DISCOVERY_PROVIDER } from "@/lib/listingOutcome";
 import type { IntakeEdition } from "@/lib/apifyListingIntake";
 import {
+  buildSoldSearchPlan,
   isbnForSearch,
   hasSearchReserve,
   queueDiscoveredListings,
@@ -74,8 +75,8 @@ export async function POST(request: Request) {
   if (editionError) return Response.json({ error: "The edition could not be read." }, { status: 500 });
   if (!edition) return Response.json({ error: "That edition does not exist." }, { status: 404 });
 
-  // The search is by ISBN, because that is the only thing that ties a listing
-  // to a specific edition. A title search would return the whole series.
+  // ISBN anchors the requested edition. The complementary title query only
+  // supplies provisional leads for human edition and sale verification.
   const isbn = isbnForSearch((edition as { isbn_13: string | null }).isbn_13);
   if (!isbn) {
     return Response.json({
@@ -140,8 +141,9 @@ export async function POST(request: Request) {
   }
 
   let rows;
+  const plan = buildSoldSearchPlan([edition as IntakeEdition]);
   try {
-    ({ rows } = await runSoldSearch(token, isbn));
+    ({ rows } = await runSoldSearch(token, plan));
   } catch (error) {
     const message = error instanceof Error ? error.message : "The search failed.";
     await finishSearch("failed", null, message);
@@ -157,7 +159,7 @@ export async function POST(request: Request) {
   let outcome;
   try {
     const rules = await loadActiveScoutRules(admin);
-    outcome = await queueDiscoveredListings(admin, rows, editions, rules, sourceRow.id as string);
+    outcome = await queueDiscoveredListings(admin, rows, editions, rules, sourceRow.id as string, plan);
   } catch (error) {
     const message = error instanceof Error ? error.message : "The listings could not be queued.";
     await finishSearch("failed", rows.length, message);
@@ -186,6 +188,6 @@ export async function POST(request: Request) {
         ? "Every listing found was already in RAR."
         : outcome.found
           ? `${outcome.found} listings found, none usable. ${outcome.dropReasons[0] ?? ""}`.trim()
-          : `No sold listings for this ISBN in the last ${SEARCH_DAYS} days.`,
+          : `No sold-listing leads for this edition in the last ${SEARCH_DAYS} days.`,
   });
 }

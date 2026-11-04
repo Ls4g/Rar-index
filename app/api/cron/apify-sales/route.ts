@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
 import { selectScheduledSearchTargets, configuredDailySearchLimit, SCHEDULED_SALE_COLUMNS } from "@/lib/dailyApifySearch";
 import {
-  hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
+  buildSoldSearchPlan, hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
   queueDiscoveredListings, readApifyBudget, runSoldSearchBatch, SEARCH_COOLDOWN_HOURS,
 } from "@/lib/apifySoldSearch";
 import type { IntakeEdition } from "@/lib/apifyListingIntake";
@@ -74,9 +74,7 @@ export async function GET(request: Request) {
 
     const claimed: typeof candidates = [];
     let cooldowns = 0;
-    const finish = async (status: "succeeded" | "failed", rows: Array<{ keyword?: string | null }> = []) => {
-      const counts = new Map<string, number>();
-      for (const row of rows) counts.set(row.keyword ?? "", (counts.get(row.keyword ?? "") ?? 0) + 1);
+    const finish = async (status: "succeeded" | "failed", counts = new Map<string, number>()) => {
       for (const target of claimed) {
         const { error } = await admin.from("price_coverage_search_cooldowns")
           .update({ last_finished_at: new Date().toISOString(), last_status: status,
@@ -121,12 +119,20 @@ export async function GET(request: Request) {
         edition_id: target.editionId, reason: target.reason,
       })) }));
       const isbns = claimed.map((target) => target.isbn);
-      const { rows, costUsd } = await runSoldSearchBatch(token, isbns);
+      const targets = claimed.map((target) => editions.find((edition) => edition.id === target.editionId) as IntakeEdition | undefined);
+      if (targets.some((target) => !target)) throw new Error("A selected edition could not be read.");
+      const plan = buildSoldSearchPlan(targets as IntakeEdition[]);
+      const { rows, costUsd } = await runSoldSearchBatch(token, plan);
       const { data: siblings, error: siblingError } = await admin.from("manga_editions")
         .select(EDITION_COLUMNS).in("isbn_13", isbns);
       if (siblingError || !siblings?.length) throw new Error("Edition variants could not be read.");
-      const result = await queueDiscoveredListings(admin, rows, siblings as IntakeEdition[], rules, sourceResult.data.id);
-      await finish("succeeded", rows);
+      const result = await queueDiscoveredListings(admin, rows, siblings as IntakeEdition[], rules, sourceResult.data.id, plan);
+      const counts = new Map<string, number>();
+      for (const row of rows) {
+        const isbn = plan.queryToIsbn.get(row.keyword ?? "");
+        if (isbn) counts.set(isbn, (counts.get(isbn) ?? 0) + 1);
+      }
+      await finish("succeeded", counts);
       return Response.json({ ok: true, configured: true, searched: claimed.length, seriesSearched: claimed.length,
         found: rows.length, queued: result.queued, alreadyKnown: result.alreadyKnown,
         cooldowns, spentUsd: costUsd });

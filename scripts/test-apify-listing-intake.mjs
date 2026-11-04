@@ -12,7 +12,7 @@
 // So the assertions below are mostly about what must NOT appear in a built
 // row, and about which rows never get that far.
 import assert from "node:assert/strict";
-import { buildOutcomeRow, classifyApifyRow, indexEditionsByIsbn, priceDisqualifier } from "../lib/apifyListingIntake.ts";
+import { buildOutcomeRow, buildTitleSearchOutcomeRow, classifyApifyRow, indexEditionsByIsbn, priceDisqualifier } from "../lib/apifyListingIntake.ts";
 
 const EDITION = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -49,6 +49,19 @@ const SOUND_ROW = {
   bidCount: null,
   fullResThumbnailUrl: "https://i.ebayimg.com/images/g/x/s-l1600.webp",
 };
+
+const titleLead = buildTitleSearchOutcomeRow({
+  ...SOUND_ROW, keyword: "Attack on Titan Vol 1 English manga", soldPrice: "147.00",
+  title: "Attack on Titan manga volume 9 set", isBestOfferAccepted: true,
+}, EDITION, [], "source-id");
+assert.equal(titleLead.status, "ended_pending_check");
+assert.equal(titleLead.edition_id, EDITION.id);
+assert.equal(titleLead.match_assessment.confidence, "conflict");
+assert.equal(titleLead.original_snapshot.search_basis, "title_volume_language_manga");
+assert.equal(titleLead.asking_price, null);
+assert.ok(!Object.hasOwn(titleLead, "sold_price"));
+assert.ok(!Object.hasOwn(titleLead, "sold_at"));
+assert.match(titleLead.outcome_reason, /Provisional title-search lead/);
 
 const checks = [];
 function check(label, fn) {
