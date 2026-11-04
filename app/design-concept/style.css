@@ -147,17 +147,20 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-sale-list a { display: flex; align-items: center; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--rc-line); font-size: 14px; font-weight: 750; }
 .rar-concept-sale-list a small { color: var(--rc-muted); font-weight: 400; }
 .rar-concept-sale-list a b { margin-left: auto; font-size: 12px; }
-.rar-concept-showcase { overflow: hidden; padding: 66px 0 75px; background: #101416; color: #f8f7f2; }
-.rar-concept-showcase-hero { position: relative; display: flex; align-items: center; min-height: 310px; }
-.rar-concept-showcase-hero > div { position: relative; z-index: 1; max-width: 760px; }
-.rar-concept-showcase-hero h2 { margin-top: 15px; font-size: clamp(52px, 6.5vw, 92px); line-height: .95; letter-spacing: -.065em; }
+.rar-concept-showcase { padding: 82px 0; background: #101416; color: #f8f7f2; }
+.rar-concept-showcase-hero { display: grid; grid-template-columns: minmax(0, 45%) minmax(0, 55%); align-items: center; gap: 24px; }
+.rar-concept-showcase-copy { min-width: 0; padding-right: 20px; }
+.rar-concept-showcase-hero h2 { margin-top: 15px; font-size: clamp(48px, 5.6vw, 80px); line-height: .95; letter-spacing: -.065em; }
 .rar-concept-showcase-hero h2 span { color: #e65349; }
-.rar-concept-showcase-hero p:not(.rar-concept-kicker) { max-width: 510px; margin: 24px 0 26px; color: #b4bab8; font-size: 16px; line-height: 1.5; }
-.rar-concept-showcase-hero a { display: inline-flex; align-items: center; gap: 28px; min-height: 49px; padding: 12px 18px; background: #c43231; color: #fff; font-size: 13px; font-weight: 800; }
-.rar-concept-showcase-hero a:hover { background: #e0443c; }
-.rar-concept-showcase-hero a:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
-.rar-concept-showcase-hero small { display: block; margin-top: 11px; color: #909b98; font-size: 11px; }
-.rar-concept-showcase-watermark { position: absolute; right: 2%; bottom: -129px; color: #394541; font-family: Georgia, serif; font-size: clamp(370px, 40vw, 610px); font-style: italic; line-height: 1; pointer-events: none; user-select: none; }
+.rar-concept-showcase-copy > p:not(.rar-concept-kicker) { max-width: 510px; margin: 24px 0 26px; color: #b4bab8; font-size: 16px; line-height: 1.5; }
+.rar-concept-showcase-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 20px; }
+.rar-concept-showcase-actions a { min-height: 49px; font-size: 13px; font-weight: 800; }
+.rar-concept-showcase-actions .rar-concept-button { display: inline-flex; align-items: center; gap: 28px; padding: 12px 18px; background: #c43231; color: #fff; }
+.rar-concept-showcase-actions .rar-concept-button:hover { background: #e0443c; }
+.rar-concept-showcase-demo-link { display: inline-flex; align-items: center; gap: 10px; border-bottom: 1px solid currentColor; }
+.rar-concept-showcase-demo-link:hover { color: #e65349; }
+.rar-concept-showcase-actions a:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+.rar-concept-showcase-copy small { display: block; margin-top: 17px; color: #909b98; font-size: 11px; }
 .rar-concept-buy { padding-block: 88px 78px; }
 .rar-concept-buy-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
 .rar-concept-buy-heading > div > p:last-child { max-width: 600px; margin: 18px 0 0; color: var(--rc-muted); line-height: 1.5; }
@@ -184,9 +187,7 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-live-card-bottom strong small { display: block; margin-top: 2px; color: var(--rc-muted); font-size: 10px; font-weight: 600; }
 .rar-concept-live-card-bottom > a { flex: none; border-bottom: 1px solid currentColor; padding-bottom: 2px; color: var(--rc-accent); font-size: 11px; font-weight: 750; white-space: nowrap; }
 .rar-concept-live-note { margin-top: 13px; color: var(--rc-muted); font-size: 11px; line-height: 1.45; }
-.rar-concept-join { display: grid; grid-template-columns: minmax(0, 62%) minmax(0, 38%); min-height: 540px; background: var(--rc-white); }
-.rar-concept-join-preview { --join-panel: #f6f5f1; --join-wall: #e7e6e2; --join-floor: #d5d2cc; --join-ink: #292e31; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; overflow: hidden; background: var(--join-panel); color: var(--join-ink); }
-html[data-theme="night"] .rar-concept-join-preview { --join-panel: #1b2635; --join-wall: #29374a; --join-floor: #182331; --join-ink: #f4f3ee; }
+.rar-concept-join-preview { --join-panel: #1b2635; --join-wall: #29374a; --join-floor: #182331; --join-ink: #f4f3ee; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 440px; overflow: hidden; background: var(--join-panel); color: var(--join-ink); }
 .rar-concept-join-preview:focus-visible { outline: 3px solid var(--rc-accent); outline-offset: -4px; }
 .rar-concept-join-preview-heading { display: flex; align-items: center; gap: 15px; padding: 24px clamp(20px, 3vw, 44px) 14px; }
 .rar-concept-join-avatar { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border: 1px solid currentColor; border-radius: 50%; font-family: Georgia, serif; font-size: 24px; }
@@ -206,15 +207,12 @@ html[data-theme="night"] .rar-concept-join-preview { --join-panel: #1b2635; --jo
 .rar-concept-join-ledge { display: block; width: min(94%, 180px); height: 7px; margin-top: 3px; background: color-mix(in srgb, var(--join-ink) 24%, var(--join-wall)); box-shadow: 4px 7px 9px #0004; transform: skewX(-15deg); }
 .rar-concept-join-preview-foot { display: flex; justify-content: space-between; gap: 12px; padding: 14px clamp(20px, 3vw, 44px) 22px; font-size: 10px; font-weight: 750; letter-spacing: .04em; opacity: .72; }
 .rar-concept-join-preview:hover .rar-concept-join-preview-link { color: var(--rc-accent); }
-.rar-concept-join-copy { display: flex; flex-direction: column; align-items: start; justify-content: center; padding: clamp(30px, 5vw, 90px); }
-.rar-concept-join-copy h2 { font-size: clamp(40px, 4vw, 65px); }
-.rar-concept-join-copy > p:not(.rar-concept-kicker) { max-width: 320px; margin: 20px 0 28px; color: var(--rc-muted); line-height: 1.5; }
-.rar-concept-join-demo-link { margin-top: 17px; border-bottom: 1px solid currentColor; padding-bottom: 4px; color: var(--rc-ink); font-size: 12px; font-weight: 750; }
 @media (max-width: 980px) {
   .rar-concept-hero { grid-template-columns: 1fr; }
   .rar-concept-hero-feature { width: min(100%, 640px); }
   .rar-concept-book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rar-concept-join { grid-template-columns: 58% 42%; }
+  .rar-concept-showcase-hero { grid-template-columns: 1fr; gap: 36px; }
+  .rar-concept-showcase-copy { padding-right: 0; }
   .rar-concept-join-books { width: 90%; }
 }
 @media (max-width: 700px) {
@@ -254,9 +252,7 @@ html[data-theme="night"] .rar-concept-join-preview { --join-panel: #1b2635; --jo
   .rar-concept-market { margin-top: 55px; }
   .rar-concept-market-heading { align-items: start; flex-direction: column; }
   .rar-concept-showcase { padding-block: 62px 68px; }
-  .rar-concept-showcase-hero { min-height: 0; }
   .rar-concept-showcase-hero h2 { font-size: clamp(49px, 13vw, 67px); }
-  .rar-concept-showcase-watermark { right: -45px; bottom: -100px; font-size: 350px; opacity: .55; }
   .rar-concept-buy { padding-block: 60px; }
   .rar-concept-buy-heading { align-items: start; flex-direction: column; gap: 24px; }
   .rar-concept-live-market { margin-top: 34px; }
@@ -264,7 +260,7 @@ html[data-theme="night"] .rar-concept-join-preview { --join-panel: #1b2635; --jo
   .rar-concept-live-card { flex-basis: min(65vw, 230px); }
   .rar-concept-live-cover { height: 195px; }
   .rar-concept-live-cover .edition-cover { height: 175px; }
-  .rar-concept-join { grid-template-columns: 1fr; }
+  .rar-concept-join-preview { min-height: 0; }
   .rar-concept-join-preview-heading { padding: 20px 18px 12px; }
   .rar-concept-join-preview-link { display: none; }
   .rar-concept-join-room { min-height: 270px; margin-inline: 10px; }
@@ -274,7 +270,6 @@ html[data-theme="night"] .rar-concept-join-preview { --join-panel: #1b2635; --jo
   .rar-concept-join-book .edition-cover { height: min(100%, 155px); }
   .rar-concept-join-spotlight { top: -30px; height: 175px; }
   .rar-concept-join-preview-foot { padding: 10px 18px 17px; font-size: 9px; }
-  .rar-concept-join-copy { padding: 48px 22px 60px; }
 }
 .rar-concept .edition-cover.has-image {
   --book-depth: clamp(3px, .4vw, 6px);

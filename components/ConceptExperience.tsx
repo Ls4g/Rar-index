@@ -211,17 +211,17 @@ export default async function ConceptExperience({ preview = false }: { preview?:
           </div>
         </section> : null}
 
-        <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container rar-concept-showcase-hero">
-          <div><p className="rar-concept-kicker">A SHELF TO SHARE</p><h2>Show your manga<br />collection<span>.</span></h2><p>Turn the editions you collect into a public portfolio people can explore. Open a series to see its volumes and the books behind them.</p><Link href="/design-concept/collector#gallery">View portfolio demo <span aria-hidden="true">↗</span></Link><small>Fictional collector · real RAR catalogue editions</small></div>
-          <span className="rar-concept-showcase-watermark" aria-hidden="true">O</span>
-        </div></section>
-
-        <section className="rar-concept-buy" id="buy">
-          <div className="rar-concept-container rar-concept-buy-heading"><div><p className="rar-concept-kicker">BUY MANGA</p><h2>See the edition. Then find a copy.</h2><p>Browse copies listed for sale, with their asking prices clearly separate from completed sales.</p></div><Link href={preview ? (product ? `/edition/${product.id}` : "/browse") : "/buy-manga"}>View available copies ↗</Link></div>
-          {liveListings.length ? <HomeLiveListingsRail listings={liveListings} /> : <p className="rar-concept-buy-empty rar-concept-container">No recently checked copies to show right now. Browse the catalogue while Scout looks for more.</p>}
-        </section>
-
-        <section className="rar-concept-join" id="join">
+        <section className="rar-concept-showcase" id="showcase"><div className="rar-concept-container rar-concept-showcase-hero" id="join">
+          <div className="rar-concept-showcase-copy">
+            <p className="rar-concept-kicker">A SHELF TO SHARE</p>
+            <h2>Show your manga<br />collection<span>.</span></h2>
+            <p>Build your shelf from the editions you own, choose what to show, and let visitors open each book to explore it.</p>
+            <div className="rar-concept-showcase-actions">
+              <Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span aria-hidden="true">↗</span></Link>
+              <Link className="rar-concept-showcase-demo-link" href="/design-concept/collector#gallery">View portfolio demo <span aria-hidden="true">↗</span></Link>
+            </div>
+            <small>Fictional gallery preview · real RAR catalogue covers</small>
+          </div>
           <Link className="rar-concept-join-preview" href="/design-concept/collector#gallery" aria-label="Explore a fictional collector gallery example">
             <div className="rar-concept-join-preview-heading">
               <span className="rar-concept-join-avatar" aria-hidden="true">O</span>
@@ -239,7 +239,11 @@ export default async function ConceptExperience({ preview = false }: { preview?:
             </div>
             <div className="rar-concept-join-preview-foot"><span>{showcaseCovers.length} editions on one wall</span><span>Real RAR covers · demo display</span></div>
           </Link>
-          <div className="rar-concept-join-copy"><p className="rar-concept-kicker">YOUR COLLECTION STARTS HERE</p><h2>Build your shelf.</h2><p>Choose the manga you want to show. Visitors can open each book and explore the edition behind it.</p><Link className="rar-concept-button is-primary" href="/portfolio">Open your collection <span>↗</span></Link><Link className="rar-concept-join-demo-link" href="/design-concept/collector#gallery">View the gallery example ↗</Link></div>
+        </div></section>
+
+        <section className="rar-concept-buy" id="buy">
+          <div className="rar-concept-container rar-concept-buy-heading"><div><p className="rar-concept-kicker">BUY MANGA</p><h2>See the edition. Then find a copy.</h2><p>Browse copies listed for sale, with their asking prices clearly separate from completed sales.</p></div><Link href={preview ? (product ? `/edition/${product.id}` : "/browse") : "/buy-manga"}>View available copies ↗</Link></div>
+          {liveListings.length ? <HomeLiveListingsRail listings={liveListings} /> : <p className="rar-concept-buy-empty rar-concept-container">No recently checked copies to show right now. Browse the catalogue while Scout looks for more.</p>}
         </section>
       </main>
     </MarketCurrencyProvider>
