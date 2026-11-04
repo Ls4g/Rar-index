@@ -133,7 +133,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
     ? "/rar-dragon-ball-hero-sketch-clean.png"
     : heroEdition?.series?.toLowerCase() === "one piece"
       ? "/rar-one-piece-cover-sketch-v2.png" : null;
-  const showcaseCovers = featured.slice(0, 10);
+  const showcaseCovers = featured.slice(0, 3);
   const liveListings = await liveListingsPromise;
 
   return (
@@ -221,7 +221,26 @@ export default async function ConceptExperience({ preview = false }: { preview?:
           {liveListings.length ? <HomeLiveListingsRail listings={liveListings} /> : <p className="rar-concept-buy-empty rar-concept-container">No recently checked copies to show right now. Browse the catalogue while Scout looks for more.</p>}
         </section>
 
-        <section className="rar-concept-join" id="join"><div className="rar-concept-join-wall" aria-hidden="true">{showcaseCovers.map((edition) => <div key={edition.id}>{cover(edition)}</div>)}</div><div className="rar-concept-join-copy"><p className="rar-concept-kicker">YOUR COLLECTION STARTS HERE</p><h2>Build your shelf.</h2><p>Track every edition you own and choose what the world gets to see.</p><Link className="rar-concept-button is-primary" href="/portfolio">Open your collection <span>↗</span></Link></div></section>
+        <section className="rar-concept-join" id="join">
+          <Link className="rar-concept-join-preview" href="/design-concept/collector#gallery" aria-label="Explore a fictional collector gallery example">
+            <div className="rar-concept-join-preview-heading">
+              <span className="rar-concept-join-avatar" aria-hidden="true">O</span>
+              <div><span>FICTIONAL COLLECTOR GALLERY</span><h3>The Opening Chapter</h3><p>A few favourites, on display.</p></div>
+              <span className="rar-concept-join-preview-link" aria-hidden="true">Explore gallery ↗</span>
+            </div>
+            <div className="rar-concept-join-room">
+              <div className="rar-concept-join-books">
+                {showcaseCovers.map((edition) => <div className="rar-concept-join-exhibit" key={edition.id}>
+                  <div className="rar-concept-join-spotlight" aria-hidden="true" />
+                  <div className="rar-concept-join-book">{cover(edition)}</div>
+                  <span className="rar-concept-join-ledge" aria-hidden="true" />
+                </div>)}
+              </div>
+            </div>
+            <div className="rar-concept-join-preview-foot"><span>{showcaseCovers.length} editions on one wall</span><span>Real RAR covers · demo display</span></div>
+          </Link>
+          <div className="rar-concept-join-copy"><p className="rar-concept-kicker">YOUR COLLECTION STARTS HERE</p><h2>Build your shelf.</h2><p>Choose the manga you want to show. Visitors can open each book and explore the edition behind it.</p><Link className="rar-concept-button is-primary" href="/portfolio">Open your collection <span>↗</span></Link><Link className="rar-concept-join-demo-link" href="/design-concept/collector#gallery">View the gallery example ↗</Link></div>
+        </section>
       </main>
     </MarketCurrencyProvider>
   );
