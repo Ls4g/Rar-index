@@ -1,4 +1,4 @@
-import { median } from "./fx.ts";
+import { convertSale, DISPLAY_CURRENCIES, median, type DisplayCurrency, type FxRate } from "./fx.ts";
 import { buildPriceSeries, type SeriesSale } from "./priceSeries.ts";
 import { MIN_COMPARABLE_SALES } from "./printClassification.ts";
 
@@ -51,11 +51,20 @@ export type CoverageState =
 export type EditionCoverage = {
   edition: CoverageEdition;
   state: CoverageState;
-  /** Median of the strongest comparable group, in that group's own currency. */
+  /** Median of the strongest comparable group, in `currency`. */
   medianPrice: number | null;
+  /** The currency the median is quoted in: the group's most-supported one. */
   currency: string | null;
-  /** Sales behind the median -- one comparable group, one currency. */
+  /** Sales in the strongest comparable group, whatever currency they sold in. */
   comparableSales: number;
+  /**
+   * How many of those sales the median was actually worked out from. Lower
+   * than comparableSales when a sale in another currency had no exchange rate
+   * for its date and so could not be converted.
+   */
+  medianSales: number;
+  /** Every currency in the group, most-supported first. */
+  currencies: string[];
   /** Every verified sale for the edition, including other groups. */
   totalSales: number;
   latestSaleDate: string | null;
@@ -83,6 +92,7 @@ export function assessEditionCoverage(
   sales: SeriesSale[],
   waitingToCheck = 0,
   now = new Date(),
+  rates: FxRate[] = [],
 ): EditionCoverage {
   const base: EditionCoverage = {
     edition,
@@ -90,6 +100,8 @@ export function assessEditionCoverage(
     medianPrice: null,
     currency: null,
     comparableSales: 0,
+    medianSales: 0,
+    currencies: [],
     totalSales: sales.length,
     latestSaleDate: null,
     groupLabel: null,
@@ -103,17 +115,33 @@ export function assessEditionCoverage(
   const strongest = [...series].sort((left, right) => right.sales.length - left.sales.length)[0];
   if (!strongest) return base;
 
-  // A median across currencies would be meaningless, so the strongest group's
-  // most-supported currency is the one quoted. Converting to one display
-  // currency is the viewer's choice and belongs on the page, not in the figure.
-  const byCurrency = new Map<string, SeriesSale[]>();
-  for (const sale of strongest.sales) {
-    const group = byCurrency.get(sale.currency);
-    if (group) group.push(sale);
-    else byCurrency.set(sale.currency, [sale]);
-  }
-  const [currency, group] = [...byCurrency.entries()]
-    .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]))[0];
+  // Currency no longer splits the group. Until 10 November 2026 only the
+  // group's most common currency counted, so an edition with two USD sales and
+  // one GBP sale of the same printing and grade had "2 of 3" and no price,
+  // while its public chart, which has always drawn the whole group converted
+  // to the viewer's currency, showed all three. Measured that day: 45 editions
+  // held three or more verified sales and only 36 were priced. Where a book
+  // sold says nothing about which book it was, so whether a price exists is
+  // decided by the group: same printing class, same raw-or-graded standing.
+  const group = strongest.sales;
+  const byCurrency = new Map<string, number>();
+  for (const sale of group) byCurrency.set(sale.currency, (byCurrency.get(sale.currency) ?? 0) + 1);
+  const currencies = [...byCurrency.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([code]) => code);
+  const currency = currencies[0];
+
+  // The median still has to be one currency, so every sale is converted to the
+  // group's most-supported one at the ECB rate for the day it sold, exactly as
+  // the chart does. A sale with no rate for its date is left out of the median
+  // rather than converted at a guessed rate; it still counts as a sale.
+  const quotable = (DISPLAY_CURRENCIES as readonly string[]).includes(currency);
+  const amounts = group.flatMap((sale) => {
+    if (sale.currency === currency) return [sale.sale_price];
+    if (!quotable) return [];
+    const converted = convertSale(sale, currency as DisplayCurrency, rates);
+    return converted ? [converted.converted_price] : [];
+  });
 
   const latestSaleDate = group
     .map((sale) => sale.sold_date)
@@ -127,9 +155,11 @@ export function assessEditionCoverage(
   return {
     ...base,
     state: enough ? (current ? "priced" : "stale") : "thin",
-    medianPrice: median(group.map((sale) => sale.sale_price)),
+    medianPrice: median(amounts),
     currency,
     comparableSales: group.length,
+    medianSales: amounts.length,
+    currencies,
     latestSaleDate,
     groupLabel: strongest.label,
   };
