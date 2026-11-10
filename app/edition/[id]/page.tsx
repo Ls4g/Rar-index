@@ -10,7 +10,7 @@ import PublicHeader from "@/components/PublicHeader";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { dedupeLiveListings, formatListingEndLabel, isPublicLiveListing, listingType } from "@/lib/liveListings";
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
@@ -396,10 +396,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .limit(50)
     : { data: [] };
   const liveListings = dedupeLiveListings(((liveLeadData ?? []) as LiveListing[])
-    // A staff member marking a listing as Watching is an explicit human
-    // confirmation that it belongs on this exact publication's live feed.
-    // New leads still need the conservative automatic plausibility check.
-    .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition)))
+    // New leads need the conservative plausibility check; a Watching lead is
+    // shown unless its own title contradicts this edition. See
+    // isPublicLiveListing for why Watching alone stopped being enough.
+    .filter((listing) => isPublicLiveListing(listing, edition)))
     .slice(0, 5);
   const latestScoutCheck = liveProfiles
     .map((profile) => profile.last_checked_at)

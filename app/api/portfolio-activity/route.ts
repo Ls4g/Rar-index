@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { isPlausibleLiveListing } from "@/lib/liveListings";
+import { isPublicLiveListing } from "@/lib/liveListings";
 
 // Active Scout listings are already public on every edition page (server
 // -rendered there with no auth check) — this route surfaces the same
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   const admin = getSupabaseAdmin();
   const [{ data: editionsData }, { data: profileData }] = await Promise.all([
-    admin.from("manga_editions").select("id,title,series,volume_number,isbn_13").in("id", editionIds),
+    admin.from("manga_editions").select("id,title,series,volume_number,isbn_13,language,publisher,format").in("id", editionIds),
     admin
       .from("marketplace_search_profiles")
       .select("id,edition_id,source:sources!inner(name)")
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const editionId = editionIdByProfileId.get(lead.profile_id);
     const edition = editionId ? editionsById.get(editionId) : null;
     if (!edition) return [];
-    if (lead.review_status !== "watching" && !isPlausibleLiveListing(lead, edition)) return [];
+    if (!isPublicLiveListing(lead, edition)) return [];
     return [{
       id: lead.id,
       editionId: edition.id,

@@ -21,6 +21,26 @@ function listingIdentity(value: { external_id?: string | null; source_listing_ur
   }
 }
 
+/**
+ * The link RAR shows for a marketplace listing.
+ *
+ * Stored eBay URLs keep whatever the search returned: the keywords RAR
+ * searched with (_skw), eBay's own tracking hash and, on promoted results, a
+ * long opaque amdata token. None of it is needed to open the listing, and it
+ * publishes RAR's search terms on every outbound link. An eBay item link is
+ * cut back to its item id; any other URL is returned untouched.
+ */
+export function publicListingUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (!/(^|\.)ebay\.[a-z.]+$/i.test(url.hostname)) return value;
+    const itemId = url.pathname.match(/\/itm\/(?:[^/]+\/)?(\d+)/)?.[1];
+    return itemId ? `${url.origin}/itm/${itemId}` : value;
+  } catch {
+    return value;
+  }
+}
+
 /** One marketplace listing may be found by several profiles in a print family. */
 export function dedupeLiveListings<T extends { external_id?: string | null; source_listing_url?: string | null }>(listings: T[]) {
   const seen = new Set<string>();
@@ -51,13 +71,25 @@ export function seriesSearchName(edition: { series?: string | null; title?: stri
 // signal as an explicit dash range, and a real, observed listing pattern.
 const MULTI_VOLUME_WORDS = /(?:\b(?:vol(?:ume)?\.?|book|part)|#)\s*\d+\s*(?:-|–|to|&|and|,)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
 
+// "Part N" is ambiguous. Some listings use it as the volume ("Akira Part 1"),
+// but in series such as JoJo's Bizarre Adventure it names a story arc and sits
+// beside the real volume ("Part 5 Vol. 1"). Read as a volume, that title
+// matched a Vol. 5 profile and five Part 5 books were shown publicly against
+// the 2006 Vol. 5 edition. So an explicit volume token (Vol., Book, #, 巻)
+// always wins, and "Part N" is only read as the volume when the title names
+// no other.
+const EXPLICIT_VOLUME_TOKEN = /\b(?:vol(?:ume)?\.?|book)\s*\d+\b|#\s*\d+\b|\b\d+\s*(?:巻|kan\b)/i;
+
 export function hasMatchingVolume(listingTitle: string, volumeNumber: string | number | null) {
   if (!volumeNumber) return true;
   const rawVolume = String(volumeNumber).trim();
   const numericVolume = /^\d+$/.test(rawVolume) ? String(Number(rawVolume)) : null;
   const volume = (numericVolume ? `0*${numericVolume}` : rawVolume.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const exactVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book|part)\\s*${volume}\\b|#\\s*${volume}\\b|\\b${volume}\\s*(?:巻|kan)`, "i");
-  return exactVolume.test(listingTitle) && !MULTI_VOLUME_WORDS.test(listingTitle);
+  const exactVolume = new RegExp(`\\b(?:vol(?:ume)?\\.?|book)\\s*${volume}\\b|#\\s*${volume}\\b|\\b${volume}\\s*(?:巻|kan)`, "i");
+  const partAsVolume = new RegExp(`\\bpart\\s*${volume}\\b`, "i");
+  const named = exactVolume.test(listingTitle)
+    || (!EXPLICIT_VOLUME_TOKEN.test(listingTitle) && partAsVolume.test(listingTitle));
+  return named && !MULTI_VOLUME_WORDS.test(listingTitle);
 }
 
 // A listing whose title describes several volumes together (a "set", "lot",
@@ -75,7 +107,10 @@ export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: stri
 // the other volume number found (for feeding a match assessment) or null.
 export function listingNamesOtherVolume(listingTitle: string, volumeNumber: string | number | null): string | null {
   if (!volumeNumber) return null;
-  const match = listingTitle.match(/\b(?:vol(?:ume)?\.?|book|part)\s*(\d+)\b/i);
+  // An explicit volume token outranks "Part N" (see EXPLICIT_VOLUME_TOKEN):
+  // "Part 5 Vol. 1" names volume 1, and "Part 3 Vol. 5" names volume 5.
+  const match = listingTitle.match(/\b(?:vol(?:ume)?\.?|book)\s*(\d+)\b/i)
+    ?? listingTitle.match(/\bpart\s*(\d+)\b/i);
   if (match && Number(match[1]) !== Number(volumeNumber)) return match[1];
   return null;
 }
@@ -204,6 +239,24 @@ export function listingConflictsWithEdition(listingTitle: string, edition: Plaus
     if (editionKey === null || !mentioned.includes(editionKey)) return true;
   }
   return false;
+}
+
+// Whether a Scout lead may be shown to the public as a copy of this edition.
+//
+// A new lead has to pass the conservative plausibility check. A lead a person
+// marked Watching used to be shown unconditionally, on the reasoning that a
+// human had confirmed it. That is not what Watching records: it means "keep
+// this in RAR", and 1,242 leads carry it. Listings for other books reached
+// public edition pages that way. A Watching lead is still trusted over the
+// automatic check, but not when its own title confidently contradicts the
+// edition. The staff decision itself is never changed here; the lead stays
+// Watching in Scout and only its public display is withheld.
+export function isPublicLiveListing(
+  listing: PlausibilityListing & { review_status: string },
+  edition: PlausibilityEdition,
+) {
+  if (listing.review_status === "watching") return !listingConflictsWithEdition(listing.listing_title ?? "", edition);
+  return listing.review_status === "new" && isPlausibleLiveListing(listing, edition);
 }
 
 const PUBLISHER_DISPLAY_NAMES: Record<string, string> = {

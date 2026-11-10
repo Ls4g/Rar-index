@@ -1,4 +1,4 @@
-import { dedupeLiveListings, isPlausibleLiveListing } from "./liveListings.ts";
+import { dedupeLiveListings, isPublicLiveListing } from "./liveListings.ts";
 
 export type HomeListingLead = {
   id: string;
@@ -60,7 +60,7 @@ export function selectHomeLiveListings(
     if (!edition || edition.cover_verification_status !== "verified" || !edition.cover_image_url) return [];
     if (!Number.isFinite(seenAt) || seenAt < cutoff || seenAt > now.getTime()) return [];
     if (lead.item_end_at && Date.parse(lead.item_end_at) <= now.getTime()) return [];
-    if (lead.review_status !== "watching" && (lead.review_status !== "new" || !isPlausibleLiveListing(lead, edition))) return [];
+    if (!isPublicLiveListing(lead, edition)) return [];
     if (lead.listing_price === null || !Number.isFinite(lead.listing_price) || lead.listing_price <= 0 || !lead.currency) return [];
     return [{ lead, edition, external_id: lead.external_id, source_listing_url: lead.source_listing_url }];
   }));

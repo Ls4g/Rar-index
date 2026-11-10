@@ -2,7 +2,7 @@ import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import PublicHeader from "@/components/PublicHeader";
 import { matchesBuyMangaFilters, sortBuyMangaItems, type BuyMangaFilters, type BuyMangaSort } from "@/lib/buyMangaSearch";
-import { dedupeLiveListings, isPlausibleLiveListing } from "@/lib/liveListings";
+import { dedupeLiveListings, isPublicLiveListing } from "@/lib/liveListings";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import "@/app/public-redesign.css";
 
@@ -80,7 +80,7 @@ export default async function BuyMangaPage({ searchParams }: { searchParams: Pro
   const candidates = leads.flatMap((lead) => {
     const profile = profileById.get(lead.profile_id);
     const edition = profile && editionById.get(profile.edition_id);
-    return edition && (lead.review_status === "watching" || isPlausibleLiveListing(lead, edition)) ? [{ lead, edition }] : [];
+    return edition && isPublicLiveListing(lead, edition) ? [{ lead, edition }] : [];
   });
   const languages = [...new Set(candidates.map(({ edition }) => edition.language).filter((value): value is string => Boolean(value)))].sort();
   const currencies = [...new Set(candidates.map(({ lead }) => lead.currency).filter((value): value is string => Boolean(value)))].sort();
