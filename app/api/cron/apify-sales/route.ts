@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadActiveScoutRules } from "@/lib/scoutRules";
 import { selectScheduledSearchTargets, configuredDailySearchLimit, SCHEDULED_SALE_COLUMNS } from "@/lib/dailyApifySearch";
 import {
-  buildSoldSearchPlan, hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
+  buildScheduledSoldSearchPlan, hasSearchReserve, MAX_DAILY_BATCH_CHARGE_USD, MAX_DAILY_BATCH_SERIES, MIN_REMAINING_USD,
   queueDiscoveredListings, readApifyBudget, runSoldSearchBatch, SEARCH_COOLDOWN_HOURS,
 } from "@/lib/apifySoldSearch";
 import type { IntakeEdition } from "@/lib/apifyListingIntake";
@@ -121,7 +121,7 @@ export async function GET(request: Request) {
       const isbns = claimed.map((target) => target.isbn);
       const targets = claimed.map((target) => editions.find((edition) => edition.id === target.editionId) as IntakeEdition | undefined);
       if (targets.some((target) => !target)) throw new Error("A selected edition could not be read.");
-      const plan = buildSoldSearchPlan(targets as IntakeEdition[]);
+      const plan = buildScheduledSoldSearchPlan(targets as IntakeEdition[]);
       const { rows, costUsd } = await runSoldSearchBatch(token, plan);
       const { data: siblings, error: siblingError } = await admin.from("manga_editions")
         .select(EDITION_COLUMNS).in("isbn_13", isbns);

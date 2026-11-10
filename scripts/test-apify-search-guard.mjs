@@ -15,6 +15,7 @@ import {
   MAX_DAILY_BATCH_CHARGE_USD,
   DAILY_BATCH_RESULTS_PER_SERIES,
   buildSoldSearchPlan,
+  buildScheduledSoldSearchPlan,
   queueDiscoveredListings,
 } from "../lib/apifySoldSearch.ts";
 
@@ -24,9 +25,11 @@ const makeEdition = (isbn, volume, series = "Attack on Titan") => ({
   printing_number: null, edition_statement: null, variant_name: null, collectible_type: "tankobon",
 });
 const manualPlan = buildSoldSearchPlan([makeEdition("9781612620244", 1)]);
-const batchPlan = buildSoldSearchPlan([makeEdition("9781612620244", 1), makeEdition("9781612620245", 2)]);
+const batchPlan = buildScheduledSoldSearchPlan([makeEdition("9781612620244", 1), makeEdition("9781612620245", 2)]);
 assert.deepEqual(manualPlan.keywords, ["9781612620244", "Attack on Titan Vol 1 English manga"]);
-assert.deepEqual(batchPlan.keywords, ["9781612620244", "Attack on Titan Vol 1 English manga", "9781612620245", "Attack on Titan Vol 2 English manga"]);
+assert.deepEqual(batchPlan.keywords, ["Attack on Titan Vol 1 English manga", "Attack on Titan Vol 2 English manga"]);
+const sixSeries = Array.from({ length: 6 }, (_, index) => makeEdition(`978161262024${index}`, 1, `Series ${index}`));
+assert.equal(buildScheduledSoldSearchPlan(sixSeries).keywords.length, 6);
 assert.deepEqual(buildSoldSearchPlan([{ ...makeEdition("9784063144239", 1, "Blame!"), language: "Japanese" }]).keywords,
   ["9784063144239", "Blame! Vol 1 Japanese manga"]);
 assert.equal(buildSoldSearchPlan([makeEdition("9781612620244", 1), makeEdition("9781612620245", 1)]).keywords.length, 2);
@@ -92,7 +95,7 @@ try {
       assert.equal(options.method, "POST");
       const input = JSON.parse(options.body);
       assert.deepEqual(input.keywords, batchPlan.keywords);
-      assert.equal(input.count, 2);
+      assert.equal(input.count, 4);
       return Response.json({ data: { id: "testrun1" } });
     }
     if (batchCalls === 2) {
@@ -102,7 +105,7 @@ try {
     if (batchCalls === 3) {
       assert.match(String(requestedUrl), /actor-runs\/testrun1\/dataset\/items\?limit=8$/);
       return Response.json([
-        { itemId: "1", keyword: "9781612620244" },
+        { itemId: "1", keyword: "Attack on Titan Vol 2 English manga" },
         { itemId: "2", keyword: "Attack on Titan Vol 1 English manga" },
       ]);
     }

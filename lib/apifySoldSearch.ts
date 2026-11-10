@@ -33,7 +33,7 @@ export const APIFY_SOLD_ACTOR = "oTtB3VgfuE9GtxQt2";
 // a timeout alone is a spending guarantee.
 export const RESULTS_PER_SEARCH = 25;
 export const MAX_SEARCH_CHARGE_USD = 0.12;
-// Two results per keyword: one ISBN query and one title/volume/language query.
+// Four results per scheduled edition, using one query per edition.
 export const DAILY_BATCH_RESULTS_PER_SERIES = 4;
 export const MAX_DAILY_BATCH_SERIES = 6;
 // One scheduled run per UTC day stays below the staff-requested $0.15 ceiling.
@@ -115,6 +115,19 @@ export function buildSoldSearchPlan(editions: IntakeEdition[]): SoldSearchPlan {
   return { keywords: paired, queryToIsbn, titleTargets };
 }
 
+/** The Actor accepts at most six keywords, so the daily six-edition batch uses one each. */
+export function buildScheduledSoldSearchPlan(editions: IntakeEdition[]): SoldSearchPlan {
+  const full = buildSoldSearchPlan(editions);
+  const titleByIsbn = new Map([...full.titleTargets].map(([query, edition]) => [isbnForSearch(edition.isbn_13), query]));
+  const keywords = editions.map((edition) => {
+    const isbn = isbnForSearch(edition.isbn_13)!;
+    return titleByIsbn.get(isbn) ?? isbn;
+  });
+  const queryToIsbn = new Map(keywords.map((query) => [query, full.queryToIsbn.get(query)!]));
+  const titleTargets = new Map([...full.titleTargets].filter(([query]) => queryToIsbn.has(query)));
+  return { keywords, queryToIsbn, titleTargets };
+}
+
 export function soldSearchRunUrl(): string {
   const url = new URL(`https://api.apify.com/v2/acts/${APIFY_SOLD_ACTOR}/run-sync-get-dataset-items`);
   url.searchParams.set("timeout", "120");
@@ -175,10 +188,10 @@ export function soldSearchBatchRunUrl(): string {
   return url.toString();
 }
 
-/** One capped paid run searches up to six editions with complementary phrases. */
+/** One capped paid run searches up to six editions with one phrase each. */
 export async function runSoldSearchBatch(token: string, plan: SoldSearchPlan): Promise<SoldSearchResult> {
   const isbns = [...new Set(plan.queryToIsbn.values())];
-  if (!isbns.length || isbns.length > MAX_DAILY_BATCH_SERIES || plan.keywords.length > 2 * isbns.length
+  if (!isbns.length || isbns.length > MAX_DAILY_BATCH_SERIES || plan.keywords.length !== isbns.length
     || isbns.some((isbn) => isbnForSearch(isbn) !== isbn)) {
     throw new Error("A scheduled search needs one to six distinct ISBNs.");
   }
@@ -187,7 +200,7 @@ export async function runSoldSearchBatch(token: string, plan: SoldSearchPlan): P
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({
-      categoryId: "0", count: Math.floor(DAILY_BATCH_RESULTS_PER_SERIES / 2), daysToScrape: SEARCH_DAYS,
+      categoryId: "0", count: DAILY_BATCH_RESULTS_PER_SERIES, daysToScrape: SEARCH_DAYS,
       ebaySite: "ebay.com", includeCompletedListings: false, itemCondition: "any",
       itemLocation: "default", keywords: plan.keywords, sortOrder: "endedRecently",
       subcategoryId: "", buyingFormat: "all",
