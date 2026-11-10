@@ -13,9 +13,12 @@ export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  const authorised = request.headers.get("authorization") === `Bearer ${secret}`
-    || new URL(request.url).searchParams.get("secret") === secret;
-  if (!secret || !authorised) return Response.json({ error: "Unauthorised." }, { status: 401 });
+  // Header only. This route also used to accept ?secret= in the address, which
+  // writes the cron secret into request logs and browser history. Vercel Cron
+  // sends the Authorization header itself, as the other six cron routes expect.
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return Response.json({ error: "Unauthorised." }, { status: 401 });
+  }
 
   return runRecordedCron("listing-outcomes", getSupabaseAdmin, async (admin) => {
     try {
