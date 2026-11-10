@@ -9,9 +9,10 @@ import {
   MIN_REMAINING_USD,
   RESULTS_PER_SEARCH,
   runSoldSearch,
-  runSoldSearchBatch,
+  runScheduledEditionSearch,
   soldSearchRunUrl,
-  soldSearchBatchRunUrl,
+  soldSearchEditionRunUrl,
+  scheduledRunChargeCeilingUsd,
   MAX_DAILY_BATCH_CHARGE_USD,
   DAILY_BATCH_RESULTS_PER_SERIES,
   buildSoldSearchPlan,
@@ -26,6 +27,9 @@ const makeEdition = (isbn, volume, series = "Attack on Titan") => ({
 });
 const manualPlan = buildSoldSearchPlan([makeEdition("9781612620244", 1)]);
 const batchPlan = buildScheduledSoldSearchPlan([makeEdition("9781612620244", 1), makeEdition("9781612620245", 2)]);
+// Changed 11 Nov 2026 (intended): the daily search is one actor run per
+// edition, so the run-level checks below use a one-edition scheduled plan.
+const editionPlan = buildScheduledSoldSearchPlan([makeEdition("9781612620244", 1)]);
 assert.deepEqual(manualPlan.keywords, ["9781612620244", "Attack on Titan Vol 1 English manga"]);
 assert.deepEqual(batchPlan.keywords, ["Attack on Titan Vol 1 English manga", "Attack on Titan Vol 2 English manga"]);
 const sixSeries = Array.from({ length: 6 }, (_, index) => makeEdition(`978161262024${index}`, 1, `Series ${index}`));
@@ -60,9 +64,9 @@ assert.equal(Number(url.searchParams.get("limit")), RESULTS_PER_SEARCH);
 assert.equal(url.searchParams.get("restartOnError"), "false");
 assert.ok(hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD }));
 assert.ok(!hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_SEARCH_CHARGE_USD - 0.01 }));
-const batchUrl = new URL(soldSearchBatchRunUrl());
-assert.equal(batchUrl.searchParams.get("maxTotalChargeUsd"), "0.14");
-assert.equal(Number(batchUrl.searchParams.get("maxItems")), DAILY_BATCH_RESULTS_PER_SERIES * 6);
+const batchUrl = new URL(soldSearchEditionRunUrl(scheduledRunChargeCeilingUsd(6)));
+assert.ok(Number(batchUrl.searchParams.get("maxTotalChargeUsd")) * 6 <= MAX_DAILY_BATCH_CHARGE_USD, "six runs stay inside the daily ceiling");
+assert.equal(Number(batchUrl.searchParams.get("maxItems")), DAILY_BATCH_RESULTS_PER_SERIES, "same results per keyword");
 assert.ok(MAX_DAILY_BATCH_CHARGE_USD < 0.15);
 assert.ok(!hasSearchReserve({ usedUsd: 0, maxUsd: 1, remainingUsd: MIN_REMAINING_USD + MAX_DAILY_BATCH_CHARGE_USD - 0.01 }, MAX_DAILY_BATCH_CHARGE_USD));
 
@@ -91,10 +95,10 @@ try {
   globalThis.fetch = async (requestedUrl, options) => {
     batchCalls += 1;
     if (batchCalls === 1) {
-      assert.equal(String(requestedUrl), soldSearchBatchRunUrl());
+      assert.equal(String(requestedUrl), soldSearchEditionRunUrl(0.0233));
       assert.equal(options.method, "POST");
       const input = JSON.parse(options.body);
-      assert.deepEqual(input.keywords, batchPlan.keywords);
+      assert.deepEqual(input.keywords, editionPlan.keywords);
       assert.equal(input.count, 4);
       return Response.json({ data: { id: "testrun1" } });
     }
@@ -103,7 +107,7 @@ try {
       return Response.json({ data: { status: "SUCCEEDED", usageTotalUsd: 0.0081 } });
     }
     if (batchCalls === 3) {
-      assert.match(String(requestedUrl), /actor-runs\/testrun1\/dataset\/items\?limit=8$/);
+      assert.match(String(requestedUrl), /actor-runs\/testrun1\/dataset\/items\?limit=4$/);
       return Response.json([
         { itemId: "1", keyword: "Attack on Titan Vol 2 English manga" },
         { itemId: "2", keyword: "Attack on Titan Vol 1 English manga" },
@@ -112,9 +116,12 @@ try {
     assert.match(String(requestedUrl), /actor-runs\/testrun1$/);
     return Response.json({ data: { status: "SUCCEEDED", usageTotalUsd: 0.0081 } });
   };
-  const result = await runSoldSearchBatch("test-token", batchPlan);
+  const result = await runScheduledEditionSearch("test-token", editionPlan, { maxChargeUsd: 0.0233, deadlineAt: Date.now() + 120_000 });
   assert.equal(batchCalls, 4);
-  assert.equal(result.rows.length, 2);
+  // Changed 11 Nov 2026 (intended): a row for a keyword this run did not ask
+  // for is dropped on its own instead of failing the whole run.
+  assert.equal(result.rows.length, 1);
+  assert.deepEqual(result.dropCounts, { unexpected_keyword: 1 });
   assert.equal(result.costUsd, 0.0081);
   assert.throws(() => buildSoldSearchPlan([makeEdition("9781612620244", 1), makeEdition("9781612620244", 1)]), /distinct valid ISBNs/);
 } finally {

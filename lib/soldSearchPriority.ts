@@ -1,4 +1,5 @@
 import { coveragePriorityRank } from "./coveragePriority.ts";
+import { MIN_COMPARABLE_SALES } from "./printClassification.ts";
 
 export type SoldSearchCandidate = {
   profileId: string;
@@ -11,6 +12,13 @@ export type SoldSearchCandidate = {
   collectibleType: string | null;
   comparableRawSales: number;
   targetPrintGroup?: string | null;
+  /**
+   * True when the publication already has enough comparable sales for a
+   * price but none recent enough to quote (coverage state "stale"). Optional:
+   * a caller that does not know treats a publication at or above
+   * MIN_COMPARABLE_SALES as already priced.
+   */
+  needsRecentSale?: boolean;
 };
 
 type PublicationRecord = { id: string; printing_of_edition_id: string | null };
@@ -84,16 +92,15 @@ function priorityLane(candidate: SoldSearchCandidate) {
   return isManga(candidate) ? 0 : 1;
 }
 
-function evidenceRank(count: number) {
-  // Consolidate evidence before widening it: first finish publications that
-  // are one sale from strong coverage, then unlock a chart for publications
-  // that already have two comparable sales.
-  if (count === 4) return 0;
-  if (count === 2) return 1;
-  if (count === 3) return 2;
-  if (count === 1) return 3;
-  if (count === 0) return 4;
-  return 4;
+// Closest to a current price first, the same order as the daily scheduled
+// search: (0) enough sales but none recent, (1) one comparable sale short,
+// (2) two short, (3) three short (no sales). A publication that already has a
+// price goes last: another sale there adds confidence, not a price.
+export function evidenceRank(count: number, needsRecentSale = false) {
+  if (needsRecentSale && count >= MIN_COMPARABLE_SALES) return 0;
+  if (count >= MIN_COMPARABLE_SALES) return 4;
+  const short = MIN_COMPARABLE_SALES - Math.max(0, count);
+  return Math.min(3, short);
 }
 
 export function prioritiseSoldSearches(candidates: SoldSearchCandidate[], limit = 10) {
@@ -102,7 +109,8 @@ export function prioritiseSoldSearches(candidates: SoldSearchCandidate[], limit 
     .sort((left, right) => {
       const laneDifference = priorityLane(left) - priorityLane(right);
       if (laneDifference) return laneDifference;
-      const evidenceDifference = evidenceRank(left.comparableRawSales) - evidenceRank(right.comparableRawSales);
+      const evidenceDifference = evidenceRank(left.comparableRawSales, left.needsRecentSale)
+        - evidenceRank(right.comparableRawSales, right.needsRecentSale);
       if (evidenceDifference) return evidenceDifference;
       const priorityDifference = coveragePriorityRank(left.series) - coveragePriorityRank(right.series);
       if (Number.isFinite(priorityDifference) && priorityDifference) return priorityDifference;

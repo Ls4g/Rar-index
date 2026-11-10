@@ -398,6 +398,9 @@ export default function ListingOutcomesPanel({
         <div><strong>{queueCounts.parked}</strong><span>Safely parked</span></div>
         <div><strong>{counts.watch_listings_active ?? 0}</strong><span>Still being watched</span></div>
         <div><strong>{counts.watch_confirmed_sales ?? 0}</strong><span>Sales confirmed</span></div>
+        {/* Removed from the queue without producing a sale. Shown apart so
+            the confirmed figure above counts sales only. */}
+        {counts.watch_dismissed !== undefined ? <div><strong>{counts.watch_dismissed ?? 0}</strong><span>Removed, no sale</span></div> : null}
       </div>
       {nextCheck ? <p className={`outcome-next-check${checkOverdue ? " is-overdue" : ""}`}>{checkOverdue ? "Outcome check overdue since" : "Next outcome check due"} {when(nextCheck)}.</p> : null}
 

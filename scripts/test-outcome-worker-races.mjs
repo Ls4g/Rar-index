@@ -57,7 +57,10 @@ const activeSignal = { ...signal, signal: { ...signal.signal, listingState: "act
 const activeResult = await runOutcomeChecks(activeDb, 1, async () => activeSignal);
 assert.equal(activeDb.state.row.status, "active", "a live read must not exhaust into ambiguity");
 assert.equal(activeDb.state.row.check_attempts, 0, "a live read starts a new watch cycle");
-assert.equal(activeDb.state.row.next_check_at, null, "a live listing is not left in the check queue");
+// Changed 11 Nov 2026 (intended): a live listing used to leave the queue with
+// no next check; it now stays on the slow STILL_LIVE_RECHECK_DAYS cadence.
+const recheckDays = (Date.parse(activeDb.state.row.next_check_at) - Date.now()) / 86_400_000;
+assert.ok(recheckDays > 6.9 && recheckDays <= 7, "a live listing is rechecked on the weekly cadence, not exhausted or dropped");
 assert.equal(activeDb.state.row.scheduled_end_at, null, "a stale end date cannot immediately requeue a live listing");
 assert.ok(new Date(activeDb.state.row.last_seen_at).getTime() > new Date(base.scheduled_end_at).getTime());
 assert.equal(activeResult.stillActive, 1);

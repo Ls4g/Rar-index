@@ -72,17 +72,31 @@ const selectionSales = [
   ...["near-a", "near-b", "near-c", "near-d"].flatMap((id) => [sale(id), sale(id)]),
   sale("proven-a-source"), sale("proven-b-source"),
 ];
+// Changed 11 Nov 2026 (intended): every slot goes first to the editions
+// closest to a price. Editions one comparable sale short take all the slots
+// they can (previously capped at three), then editions two short -- here the
+// proven series' own one-sale "source" volumes -- before any proven-series or
+// exploration pick. The old cap reserved half the day for editions with no
+// sales at all.
 assert.deepEqual(selectScheduledSearchTargets(selectionEditions, selectionSales, [], [], selectionNow), [
-  { editionId: "near-a", isbn: "9781612621100", reason: "near_chart" },
-  { editionId: "near-b", isbn: "9781612621101", reason: "near_chart" },
-  { editionId: "near-c", isbn: "9781612621102", reason: "near_chart" },
-  { editionId: "proven-a-target", isbn: "9781612621106", reason: "proven_series" },
-  { editionId: "proven-b-target", isbn: "9781612621108", reason: "proven_series" },
+  { editionId: "near-a", isbn: "9781612621100", reason: "one_sale_short" },
+  { editionId: "near-b", isbn: "9781612621101", reason: "one_sale_short" },
+  { editionId: "near-c", isbn: "9781612621102", reason: "one_sale_short" },
+  { editionId: "near-d", isbn: "9781612621103", reason: "one_sale_short" },
+  { editionId: "proven-a-source", isbn: "9781612621105", reason: "two_sales_short" },
+  { editionId: "proven-b-source", isbn: "9781612621107", reason: "two_sales_short" },
+], "closest-to-a-price editions take every slot first, without repeating a series");
+assert.deepEqual(selectScheduledSearchTargets(selectionEditions, selectionSales.filter((item) => !item.edition_id.startsWith("near-")), [], [], selectionNow), [
+  { editionId: "proven-a-source", isbn: "9781612621105", reason: "two_sales_short" },
+  { editionId: "proven-b-source", isbn: "9781612621107", reason: "two_sales_short" },
   { editionId: "explore-english", isbn: "9781612621110", reason: "exploration" },
-], "six slots mix near-chart, verified-series and exploratory editions without repeating a series");
+  { editionId: "near-a", isbn: "9781612621100", reason: "coverage_fallback" },
+  { editionId: "near-b", isbn: "9781612621101", reason: "coverage_fallback" },
+  { editionId: "near-c", isbn: "9781612621102", reason: "coverage_fallback" },
+], "left-over slots are still filled by exploration and the fallback, one edition per series");
 assert.deepEqual(selectScheduledSearchTargets(selectionEditions, selectionSales,
   [outcome("near-a")], [search("9781612621101", "near-b", "2026-10-15T08:00:00Z")], selectionNow, 3)
-  .map((target) => target.editionId), ["near-c", "near-d", "explore-english"],
+  .map((target) => target.editionId), ["near-c", "near-d", "proven-a-source"], // was explore-english: a two-short edition now outranks exploration (intended)
 "pending human review and recently paid ISBN searches remain excluded, and a smaller configured limit is obeyed");
 assert.deepEqual(selectScheduledSearchTargets(selectionEditions.slice(0, 2), [], [], [], selectionNow)
   .map((target) => target.reason), ["exploration", "coverage_fallback"],

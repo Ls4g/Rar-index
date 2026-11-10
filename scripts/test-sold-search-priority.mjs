@@ -19,7 +19,9 @@ const ordered = prioritiseSoldSearches([
   candidate("three", 3), candidate("one", 1), candidate("two", 2),
   candidate("magazine-zero", 0, "Weekly Shonen Jump", "zasshi"),
 ], 10);
-assert.deepEqual(ordered.map((row) => row.profileId), ["four", "two", "three", "one", "zero", "magazine-zero"]);
+// Changed 11 Nov 2026 (intended): closest to a first price first (2, 1, 0
+// sales), publications that already have a price (3 or 4) last.
+assert.deepEqual(ordered.map((row) => row.profileId), ["two", "one", "zero", "four", "three", "magazine-zero"]);
 assert.equal(ordered.some((row) => row.profileId === "covered"), false);
 assert.equal(soldSearchReason(0, "tankobon"), "Needs three verified raw sales to unlock a chart");
 assert.equal(soldSearchReason(0, "zasshi"), "No verified raw sale yet");

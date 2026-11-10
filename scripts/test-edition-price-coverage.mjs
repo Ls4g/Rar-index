@@ -36,6 +36,12 @@ function sale(overrides = {}) {
   };
 }
 
+// ECB style: units of the currency per one euro, on the day the sales happened.
+const RATES = [
+  { rate_date: "2026-10-01", currency: "USD", rate_per_eur: 1.25 },
+  { rate_date: "2026-10-01", currency: "GBP", rate_per_eur: 0.8 },
+];
+
 const days = (n) => new Date(NOW.getTime() - n * 86_400_000).toISOString().slice(0, 10);
 
 const checks = [];
@@ -112,15 +118,88 @@ check("three sales split across two printings is NOT a price", () => {
   assert.equal(row.totalSales, 3, "all three are still reported as sales for the edition");
 });
 
-check("three sales split across two currencies is NOT a price", () => {
+// Changed on 10 November 2026, at the owner's decision: currency used to split
+// a comparable group, so this case was "thin" with 2 of 3. The public chart
+// has always drawn all three converted, and where a copy sold does not make it
+// a different book.
+check("three sales of one printing and grade across two currencies IS a price", () => {
   const row = assessEditionCoverage(EDITION, [
     sale({ currency: "USD", sale_price: 10 }),
     sale({ currency: "GBP", sale_price: 10 }),
     sale({ currency: "GBP", sale_price: 12 }),
-  ], 0, NOW);
-  assert.equal(row.state, "thin");
+  ], 0, NOW, RATES);
+  assert.equal(row.state, "priced");
+  assert.equal(row.comparableSales, 3);
   assert.equal(row.currency, "GBP", "the most-supported currency is the one quoted");
-  assert.equal(row.comparableSales, 2);
+  assert.deepEqual(row.currencies, ["GBP", "USD"]);
+  // USD 10 at 1.25 USD and 0.80 GBP per euro is GBP 6.40; median of 6.40, 10, 12.
+  assert.equal(row.medianSales, 3);
+  assert.equal(row.medianPrice, 10);
+});
+
+check("the converted figure really is converted, not the foreign number reused", () => {
+  const row = assessEditionCoverage(EDITION, [
+    sale({ currency: "USD", sale_price: 100 }),
+    sale({ currency: "USD", sale_price: 100 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+  ], 0, NOW, RATES);
+  assert.equal(row.currency, "GBP");
+  assert.equal(row.medianSales, 5);
+  // Sorted in GBP: 10, 10, 10, 64, 64. A median taken on raw numbers would be 10
+  // either way, so check the converted amounts through a four-sale case too.
+  const four = assessEditionCoverage(EDITION, [
+    sale({ currency: "USD", sale_price: 100 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "GBP", sale_price: 20 }),
+    sale({ currency: "GBP", sale_price: 90 }),
+  ], 0, NOW, RATES);
+  // GBP amounts: 10, 20, 64, 90 -> median 42. Unconverted it would be 55.
+  assert.equal(four.medianPrice, 42);
+});
+
+check("a sale with no exchange rate still counts as a sale but stays out of the median", () => {
+  const row = assessEditionCoverage(EDITION, [
+    sale({ currency: "USD", sale_price: 999 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "GBP", sale_price: 12 }),
+  ], 0, NOW, []);
+  assert.equal(row.state, "priced", "three comparable sales exist whatever the rate table holds");
+  assert.equal(row.comparableSales, 3);
+  assert.equal(row.medianSales, 2, "the unconvertible sale is not guessed at");
+  assert.equal(row.medianPrice, 11);
+});
+
+check("a rate older than a week is not used to convert a sale", () => {
+  const stale = [
+    { rate_date: "2026-09-01", currency: "USD", rate_per_eur: 1.25 },
+    { rate_date: "2026-09-01", currency: "GBP", rate_per_eur: 0.8 },
+  ];
+  const row = assessEditionCoverage(EDITION, [
+    sale({ currency: "USD", sale_price: 999 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "GBP", sale_price: 12 }),
+  ], 0, NOW, stale);
+  assert.equal(row.medianSales, 2);
+});
+
+check("pooling currencies never pools printings or grades", () => {
+  const row = assessEditionCoverage(EDITION, [
+    sale({ currency: "USD", print_classification: "first_print_proven", sale_price: 400 }),
+    sale({ currency: "GBP", sale_price: 10 }),
+    sale({ currency: "CAD", grading_company: "CGC", grade_label: "9.8", sale_price: 500 }),
+  ], 0, NOW, RATES);
+  assert.equal(row.state, "thin");
+  assert.equal(row.comparableSales, 1);
+});
+
+check("one-currency groups are untouched and need no rates", () => {
+  const row = assessEditionCoverage(EDITION, [sale({ sale_price: 8 }), sale({ sale_price: 10 }), sale({ sale_price: 30 })], 0, NOW);
+  assert.equal(row.state, "priced");
+  assert.equal(row.medianPrice, 10);
+  assert.equal(row.medianSales, 3);
+  assert.deepEqual(row.currencies, ["USD"]);
 });
 
 check("a graded copy is not comparable with a raw one", () => {

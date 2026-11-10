@@ -6,12 +6,14 @@ import {
   MAX_OUTCOME_ATTEMPTS,
   nextOutcomeCheckAt,
   SOLD_SEARCH_DISCOVERY_PROVIDER,
+  STILL_LIVE_RECHECK_DAYS,
+  stillLiveFollowUp,
   type OutcomeStatus,
 } from "./listingOutcome.ts";
 import { resolveListingOutcome } from "./listingOutcomeProviders.ts";
 import { ebayMarketplaceFromUrl } from "./ebayEvidence.ts";
 
-export type WatchCaptureResult = { captured: number; updated: number; skipped: number };
+export type WatchCaptureResult = { captured: number; updated: number; skipped: number; leadsRead?: number; truncated?: boolean };
 export type OutcomeCheckResult = {
   due: number;
   checked: number;
@@ -21,6 +23,10 @@ export type OutcomeCheckResult = {
   inaccessible: number;
   stillActive: number;
   exhausted: number;
+  /** Claimed from the slow still-live lane, after every first-priority row. */
+  stillLiveRechecks: number;
+  /** Still live after MAX_WATCH_DAYS of watching, so recorded as unknown. */
+  watchExpired: number;
   errors: string[];
   /** Recorded checks and shared reservations. Unknown accounting stops work. */
   dailySpent: number | null;
@@ -51,6 +57,25 @@ export function outcomeCheckQueueFilter(nowIso: string) {
   return `and(status.eq.ended_pending_check,next_check_at.is.null),next_check_at.lte.${nowIso}`;
 }
 
+// The second, slower lane: listings a provider last reported still for sale,
+// due for their STILL_LIVE_RECHECK_DAYS recheck. Only ever claimed with the
+// capacity the first lane left unused, so a backlog of long-lived listings can
+// never delay the first check of a listing that has just ended.
+export function stillLiveRecheckQueueFilter(nowIso: string) {
+  return `next_check_at.lte.${nowIso}`;
+}
+
+const OUTCOME_QUEUE_COLUMNS = "id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts, outcome_provider, buying_format, first_seen_at";
+
+// PostgREST returns at most 1,000 rows whatever the limit says; reading one
+// unordered page of 500 meant some watched leads were never captured at all.
+export const CAPTURE_PAGE_SIZE = 1000;
+// Bounds a single run (40,000 leads) so a runaway table cannot hold the cron
+// past its time limit; leads beyond it are reported, not silently dropped.
+export const CAPTURE_MAX_PAGES = 40;
+const CAPTURE_UPSERT_CHUNK = 200;
+const CAPTURE_UPDATE_CONCURRENCY = 8;
+
 type LeadRow = {
   id: string;
   profile_id: string;
@@ -75,73 +100,137 @@ function readItem(payload: unknown) {
 // separate storage from scout_listing_leads: that table caps itself at 20
 // unreviewed leads per profile and deletes the surplus, and a watched listing
 // has to outlive exactly that in order to still be here when the listing ends.
-export async function captureWatchedListings(admin: SupabaseClient, limit = 500): Promise<WatchCaptureResult> {
+export async function captureWatchedListings(admin: SupabaseClient, maxPages = CAPTURE_MAX_PAGES): Promise<WatchCaptureResult> {
   const { data: profileData } = await admin
     .from("marketplace_search_profiles")
     .select("id, edition_id")
     .eq("is_active", true);
-  const editionByProfile = new Map((profileData ?? []).map((row) => [row.id as string, row.edition_id as string]));
-  if (!editionByProfile.size) return { captured: 0, updated: 0, skipped: 0 };
+  const editionByProfile = new Map<string, string>((profileData ?? []).map((row: { id: string; edition_id: string }) => [row.id, row.edition_id]));
+  if (!editionByProfile.size) return { captured: 0, updated: 0, skipped: 0, leadsRead: 0, truncated: false };
 
-  const { data: leadData } = await admin
-    .from("scout_listing_leads")
-    .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,item_end_at,first_seen_at,last_seen_at,raw_payload,match_assessment")
-    .in("profile_id", [...editionByProfile.keys()])
-    .neq("review_status", "dismissed")
-    .limit(limit);
+  const result: WatchCaptureResult = { captured: 0, updated: 0, skipped: 0, leadsRead: 0, truncated: false };
+  const pages = Math.max(1, Math.floor(maxPages));
 
-  const leads = (leadData ?? []) as LeadRow[];
-  const result: WatchCaptureResult = { captured: 0, updated: 0, skipped: 0 };
+  // Every non-dismissed lead, in a deterministic order, a bounded page at a
+  // time. A stable order by id is what makes paging complete: without it,
+  // PostgREST may return overlapping or missing rows across pages.
+  for (let page = 0; page < pages; page += 1) {
+    const from = page * CAPTURE_PAGE_SIZE;
+    const { data: leadData, error: leadError } = await admin
+      .from("scout_listing_leads")
+      .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,item_end_at,first_seen_at,last_seen_at,raw_payload,match_assessment")
+      .in("profile_id", [...editionByProfile.keys()])
+      .neq("review_status", "dismissed")
+      .order("id", { ascending: true })
+      .range(from, from + CAPTURE_PAGE_SIZE - 1);
+    if (leadError) throw new Error(`Watched leads could not be read: ${leadError.message}`);
+    const leads = (leadData ?? []) as LeadRow[];
+    result.leadsRead = (result.leadsRead ?? 0) + leads.length;
+    await captureLeadPage(admin, leads, editionByProfile, result);
+    if (leads.length < CAPTURE_PAGE_SIZE) return result;
+  }
+  // Pages ran out before the leads did. Said, not hidden.
+  result.truncated = true;
+  return result;
+}
 
+function outcomeRowForLead(lead: LeadRow, editionId: string, marketplace: string) {
+  const item = readItem(lead.raw_payload);
+  return {
+    source_id: lead.source_id,
+    external_id: lead.external_id,
+    marketplace,
+    source_listing_url: lead.source_listing_url,
+    profile_id: lead.profile_id,
+    edition_id: editionId,
+    listing_title: lead.listing_title,
+    image_url: (item.image as { imageUrl?: string } | undefined)?.imageUrl ?? null,
+    asking_price: lead.listing_price,
+    currency: lead.currency,
+    buying_format: Array.isArray(item.buyingOptions) ? (item.buyingOptions as string[]).join(",") : null,
+    bid_count: typeof item.bidCount === "number" ? (item.bidCount as number) : null,
+    scheduled_end_at: lead.item_end_at,
+    first_seen_at: lead.first_seen_at,
+    last_seen_at: lead.last_seen_at,
+    // Frozen here on purpose. eBay will stop serving this listing, and a
+    // reviewer weeks later still needs to see what was on offer.
+    original_snapshot: (lead.raw_payload ?? {}) as Record<string, unknown>,
+    match_assessment: (lead.match_assessment ?? {}) as Record<string, unknown>,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function captureLeadPage(
+  admin: SupabaseClient,
+  leads: LeadRow[],
+  editionByProfile: Map<string, string>,
+  result: WatchCaptureResult,
+) {
+  type Prepared = { lead: LeadRow; marketplace: string; row: ReturnType<typeof outcomeRowForLead> };
+  const prepared: Prepared[] = [];
   for (const lead of leads) {
     const editionId = editionByProfile.get(lead.profile_id);
     if (!editionId) { result.skipped += 1; continue; }
-    const item = readItem(lead.raw_payload);
     const marketplace = ebayMarketplaceFromUrl(lead.source_listing_url) ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_GB";
+    prepared.push({ lead, marketplace, row: outcomeRowForLead(lead, editionId, marketplace) });
+  }
 
-    const row = {
-      source_id: lead.source_id,
-      external_id: lead.external_id,
-      marketplace,
-      source_listing_url: lead.source_listing_url,
-      profile_id: lead.profile_id,
-      edition_id: editionId,
-      listing_title: lead.listing_title,
-      image_url: (item.image as { imageUrl?: string } | undefined)?.imageUrl ?? null,
-      asking_price: lead.listing_price,
-      currency: lead.currency,
-      buying_format: Array.isArray(item.buyingOptions) ? (item.buyingOptions as string[]).join(",") : null,
-      bid_count: typeof item.bidCount === "number" ? (item.bidCount as number) : null,
-      scheduled_end_at: lead.item_end_at,
-      first_seen_at: lead.first_seen_at,
-      last_seen_at: lead.last_seen_at,
-      // Frozen here on purpose. eBay will stop serving this listing, and a
-      // reviewer weeks later still needs to see what was on offer.
-      original_snapshot: (lead.raw_payload ?? {}) as Record<string, unknown>,
-      match_assessment: (lead.match_assessment ?? {}) as Record<string, unknown>,
-      updated_at: new Date().toISOString(),
-    };
+  const sightings: Prepared[] = [];
+  for (let index = 0; index < prepared.length; index += CAPTURE_UPSERT_CHUNK) {
+    const chunk = prepared.slice(index, index + CAPTURE_UPSERT_CHUNK);
+    // One listing seen by two profiles is still one listing: the first lead
+    // in id order is offered for insert, later ones are only sightings.
+    const keys = new Set<string>();
+    const offered: Prepared[] = [];
+    for (const entry of chunk) {
+      const key = `${entry.marketplace}|${entry.lead.external_id}`;
+      if (keys.has(key)) sightings.push(entry);
+      else { keys.add(key); offered.push(entry); }
+    }
 
     // ignoreDuplicates keeps the original snapshot and any human decision
     // intact: a listing already being watched is never rewritten by a later
     // sighting of the same listing.
     const { data: inserted, error } = await admin
       .from("listing_outcomes")
-      .upsert(row, { onConflict: "marketplace,external_id", ignoreDuplicates: true })
-      .select("id");
-    if (error) { result.skipped += 1; continue; }
-    if (inserted?.length) result.captured += 1;
-    else {
+      .upsert(offered.map((entry) => entry.row), { onConflict: "marketplace,external_id", ignoreDuplicates: true })
+      .select("marketplace,external_id");
+    if (error) {
+      // One bad row must not cost the other 199 their capture: fall back to
+      // one insert each, which is what this function always used to do.
+      for (const entry of offered) {
+        const { data: single, error: singleError } = await admin
+          .from("listing_outcomes")
+          .upsert(entry.row, { onConflict: "marketplace,external_id", ignoreDuplicates: true })
+          .select("id");
+        if (singleError) { result.skipped += 1; continue; }
+        if (single?.length) result.captured += 1;
+        else sightings.push(entry);
+      }
+      continue;
+    }
+    const insertedKeys = new Set(((inserted ?? []) as Array<{ marketplace: string; external_id: string }>)
+      .map((row) => `${row.marketplace}|${row.external_id}`));
+    for (const entry of offered) {
+      if (insertedKeys.has(`${entry.marketplace}|${entry.lead.external_id}`)) result.captured += 1;
+      else sightings.push(entry);
+    }
+  }
+
+  for (let index = 0; index < sightings.length; index += CAPTURE_UPDATE_CONCURRENCY) {
+    await Promise.all(sightings.slice(index, index + CAPTURE_UPDATE_CONCURRENCY).map(async (entry) => {
       await admin.from("listing_outcomes")
-        .update({ last_seen_at: lead.last_seen_at, updated_at: new Date().toISOString() })
-        .eq("marketplace", marketplace)
-        .eq("external_id", lead.external_id)
+        .update({ last_seen_at: entry.lead.last_seen_at, updated_at: new Date().toISOString() })
+        .eq("marketplace", entry.marketplace)
+        .eq("external_id", entry.lead.external_id)
+        // Only ever forward: an older sighting from a second profile must not
+        // wind back a fresher live confirmation.
+        .lt("last_seen_at", entry.lead.last_seen_at)
         // Never disturb a row a human has finished with.
         .in("status", ["active", "ended_pending_check"]);
       result.updated += 1;
-    }
+    }));
   }
-  return result;
 }
 
 // A fixed-price listing has no end date at all -- eBay only publishes one for
@@ -193,6 +282,10 @@ export async function promoteEndedListings(admin: SupabaseClient) {
     })
     .eq("status", "active")
     .is("scheduled_end_at", null)
+    // A listing a provider confirmed live is already on the STILL_LIVE_RECHECK
+    // cadence (next_check_at set). Promoting it here as well would pull it
+    // into the first-priority lane and defeat the point of the slow lane.
+    .is("next_check_at", null)
     .lt("last_seen_at", unseenBefore)
     .select("id");
 
@@ -205,7 +298,7 @@ export async function runOutcomeChecks(
   resolve = resolveListingOutcome,
   selected?: { outcomeIds: string[]; immediateFirstCheck: boolean },
 ): Promise<OutcomeCheckResult> {
-  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, errors: [], dailySpent: null, dailyRemaining: null, dailyReserved: null, budgetUnavailable: false, ceilingReached: false };
+  const result: OutcomeCheckResult = { due: 0, checked: 0, soldCandidates: 0, unsold: 0, ambiguous: 0, inaccessible: 0, stillActive: 0, exhausted: 0, stillLiveRechecks: 0, watchExpired: 0, errors: [], dailySpent: null, dailyRemaining: null, dailyReserved: null, budgetUnavailable: false, ceilingReached: false };
   const reservationId = crypto.randomUUID();
   let budget: { granted: number; spent: number; reserved: number; remaining: number; day: string };
   try {
@@ -227,9 +320,19 @@ export async function runOutcomeChecks(
   if (!effectiveLimit) { result.ceilingReached = budget.remaining === 0; return result; }
   const nowIso = new Date().toISOString();
 
+  type QueueRow = {
+    id: string; external_id: string; marketplace: string; listing_title: string;
+    status: OutcomeStatus; scheduled_end_at: string | null; next_check_at: string | null; check_attempts: number; outcome_provider: string | null;
+    buying_format?: string | null; first_seen_at?: string | null;
+  };
+  // A staff observation is stronger than another automatic retry. Preserve it
+  // until staff either supplies the missing sale details or dismisses it.
+  const notStaffObserved = (row: QueueRow) => row.outcome_provider !== "eBay page — staff observed";
+
+  // Lane 1: newly ended, never-checked and retrying listings.
   let query = admin
     .from("listing_outcomes")
-    .select("id, external_id, marketplace, listing_title, status, scheduled_end_at, next_check_at, check_attempts, outcome_provider")
+    .select(OUTCOME_QUEUE_COLUMNS)
     .in("status", ["ended_pending_check", "ambiguous"])
     .is("reviewed_by", null)
     .is("resulting_observation_id", null);
@@ -240,13 +343,8 @@ export async function runOutcomeChecks(
     .limit(effectiveLimit);
   if (queueError) throw new Error("RAR could not load outcome checks. Retry the pipeline; no listings were changed.");
 
-  const rows = (data ?? []) as Array<{
-    id: string; external_id: string; marketplace: string; listing_title: string;
-    status: OutcomeStatus; scheduled_end_at: string | null; next_check_at: string | null; check_attempts: number; outcome_provider: string | null;
-  }>;
-  // A staff observation is stronger than another automatic retry. Preserve it
-  // until staff either supplies the missing sale details or dismisses it.
-  const due = rows.filter((row) => row.outcome_provider !== "eBay page — staff observed" && (
+  const rows = (data ?? []) as QueueRow[];
+  const due = rows.filter((row) => notStaffObserved(row) && (
     isDueForCheck(row) || Boolean(selected?.immediateFirstCheck
       && row.status === "ended_pending_check"
       && row.check_attempts === 0
@@ -254,6 +352,26 @@ export async function runOutcomeChecks(
       && row.scheduled_end_at
       && new Date(row.scheduled_end_at).getTime() <= Date.now() - 24 * 60 * 60_000)
   ));
+
+  // Lane 2: still-live listings due their slow recheck, oldest due first,
+  // only with capacity lane 1 did not need. The daily reservation above has
+  // already bounded the total, so this can never add calls beyond it.
+  const spare = effectiveLimit - due.length;
+  if (!selected && spare > 0) {
+    const { data: weeklyData, error: weeklyError } = await admin
+      .from("listing_outcomes")
+      .select(OUTCOME_QUEUE_COLUMNS)
+      .eq("status", "active")
+      .is("reviewed_by", null)
+      .is("resulting_observation_id", null)
+      .or(stillLiveRecheckQueueFilter(nowIso))
+      .order("next_check_at", { ascending: true })
+      .limit(spare);
+    if (weeklyError) result.errors.push("Still-live rechecks could not be loaded this run; first checks were unaffected.");
+    const weekly = ((weeklyData ?? []) as QueueRow[]).filter((row) => notStaffObserved(row) && isDueForCheck(row));
+    result.stillLiveRechecks = weekly.length;
+    due.push(...weekly);
+  }
   result.due = due.length;
 
   for (let index = 0; index < due.length; index += OUTCOME_CHECK_CONCURRENCY) {
@@ -291,9 +409,18 @@ export async function runOutcomeChecks(
     const classification = classifyListingOutcome(providerResult.signal);
     // A positive live read is not an unresolved failure. Retry exhaustion is
     // only for checks that genuinely could not determine the listing state.
+    // A still-live listing goes back on the slow cadence instead, until it
+    // ends or has been watched for MAX_WATCH_DAYS.
     const activeAgain = classification.status === "active";
+    const followUp = activeAgain ? stillLiveFollowUp(providerResult.signal.provider, row.first_seen_at, new Date(nowIso)) : null;
+    const watchExpired = followUp?.kind === "expired";
+    const stillLive = activeAgain && !watchExpired;
     const exhausted = !activeAgain && !classification.resolved && attempt >= MAX_OUTCOME_ATTEMPTS;
-    const final = exhausted ? exhaustedOutcome(providerResult.signal.provider, attempt) : classification;
+    const final = followUp?.kind === "expired"
+      ? followUp.classification
+      : exhausted ? exhaustedOutcome(providerResult.signal.provider, attempt)
+        : stillLive ? { ...classification, reason: `${classification.reason} RAR will check it again in ${STILL_LIVE_RECHECK_DAYS} days.` }
+          : classification;
     const providerTrail = providerResult.attempts ?? [];
     const auditDetail = providerTrail.length > 1
       ? `${final.reason} Provider path: ${providerTrail.map((item) => `${item.provider}=${item.listingState}${item.detail ? ` (${item.detail})` : ""}`).join(" -> ")}`
@@ -322,14 +449,15 @@ export async function runOutcomeChecks(
       sold_at: final.soldAt,
       outcome_reason: final.reason,
       outcome_provider: providerResult.signal.provider,
-      check_attempts: activeAgain ? 0 : attempt,
+      check_attempts: stillLive ? 0 : attempt,
       ...(activeAgain ? {
         last_seen_at: nowIso,
         scheduled_end_at: activeListingEndAt(row.scheduled_end_at, providerResult.signal.scheduledEndAt, nowIso),
       } : {}),
       last_checked_at: nowIso,
       last_error: null,
-      next_check_at: activeAgain || final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
+      next_check_at: followUp?.kind === "recheck" ? followUp.nextCheckAt
+        : final.resolved || exhausted ? null : nextOutcomeCheckAt(attempt),
       updated_at: nowIso,
     }).eq("id", row.id).eq("status", row.status).eq("check_attempts", row.check_attempts)
       .is("reviewed_by", null).is("resulting_observation_id", null).select("id").maybeSingle();
@@ -338,6 +466,7 @@ export async function runOutcomeChecks(
 
     result.checked += 1;
     if (exhausted) result.exhausted += 1;
+    if (watchExpired) result.watchExpired += 1;
     if (final.status === "sold_candidate") result.soldCandidates += 1;
     else if (final.status === "unsold") result.unsold += 1;
     else if (final.status === "inaccessible") result.inaccessible += 1;
@@ -366,8 +495,16 @@ export async function readWatchToSaleMetrics(admin: SupabaseClient) {
     return count ?? 0;
   };
 
-  const [watching, soldCandidates, confirmed, unsold, ambiguous, inaccessible] = await Promise.all([
-    byStatus("active"), byStatus("sold_candidate"), byStatus("review_complete"),
+  // "Remove from queue" also ends in review_complete, so that status alone
+  // is not a sale. A sale is the row that produced a price observation.
+  const reviewComplete = async (producedSale: boolean) => {
+    const query = admin.from("listing_outcomes").select("id", { count: "exact", head: true }).eq("status", "review_complete");
+    const { count } = await (producedSale ? query.not("resulting_observation_id", "is", null) : query.is("resulting_observation_id", null));
+    return count ?? 0;
+  };
+
+  const [watching, soldCandidates, confirmed, dismissed, unsold, ambiguous, inaccessible] = await Promise.all([
+    byStatus("active"), byStatus("sold_candidate"), reviewComplete(true), reviewComplete(false),
     byStatus("unsold"), byStatus("ambiguous"), byStatus("inaccessible"),
   ]);
   const { count: awaitingEndCount } = await admin.from("listing_outcomes")
@@ -395,6 +532,7 @@ export async function readWatchToSaleMetrics(admin: SupabaseClient) {
     watch_checks_due: dueNow,
     watch_sold_candidates: soldCandidates,
     watch_confirmed_sales: confirmed,
+    watch_dismissed: dismissed,
     watch_unsold: unsold,
     watch_ambiguous: ambiguous,
     watch_inaccessible: inaccessible,

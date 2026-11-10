@@ -5,11 +5,18 @@ import {
   indexEditionsByIsbn,
   normaliseIsbnKey,
   buildTitleSearchOutcomeRow,
-  priceDisqualifier,
+  rowDisqualification,
   type ApifyEbayRow,
   type IntakeEdition,
 } from "./apifyListingIntake.ts";
 import type { ScoutRule } from "./scoutRules.ts";
+import {
+  sanitiseDiagnostic,
+  SoldSearchFailure,
+  type SearchFailureCode,
+  type SearchProblem,
+  type SearchWarningCode,
+} from "./apifyRunLog.ts";
 
 // Running a sold-listing search for one edition, and queueing what comes back.
 //
@@ -171,78 +178,233 @@ export async function runSoldSearch(token: string, plan: SoldSearchPlan): Promis
   if (!response.ok) {
     throw new Error(`The sold-listing search failed (HTTP ${response.status}). Nothing was queued.`);
   }
-  const rows = (await response.json()) as ApifyEbayRow[];
-  if (!Array.isArray(rows) || rows.some((row) => !plan.queryToIsbn.has(row.keyword ?? ""))) {
-    throw new Error("Apify returned a listing outside the requested search phrases.");
-  }
+  const rows = (await response.json()) as unknown;
+  if (!Array.isArray(rows)) throw new Error("Apify returned results that were not a list. Nothing was queued.");
+  // A row outside the requested phrases is dropped on its own; it no longer
+  // discards the valid rows the same paid run returned.
+  const { kept } = filterRequestedRows(rows, plan, RESULTS_PER_SEARCH);
   const runId = response.headers.get("x-apify-pagination-total") ?? "";
-  return { rows: rows.slice(0, RESULTS_PER_SEARCH), runId, costUsd: 0 };
+  return { rows: kept, runId, costUsd: 0 };
 }
 
-export function soldSearchBatchRunUrl(): string {
+// ---------------------------------------------------------------------------
+// Scheduled daily search: one independent actor run per edition.
+//
+// Until 10 November 2026 the cron sent every selected edition to ONE actor
+// run, so any problem with any edition (or with the combined input) discarded
+// all of them, and the only record was "failed". Each edition now gets its own
+// small run under the same single daily claim, its own charge ceiling (the
+// daily ceiling divided between them, so the total cannot rise), its own
+// outcome and its own stored reason.
+
+/** Two runs at a time: enough to finish six inside the budget, gentle on Apify. */
+export const SCHEDULED_RUN_CONCURRENCY = 2;
+/** The actor's own run timeout, unchanged from the batch run. */
+export const SCHEDULED_ACTOR_TIMEOUT_SECONDS = 120;
+/** One status poll waits at most this long (Apify caps waitForFinish at 60). */
+export const SCHEDULED_POLL_WAIT_SECONDS = 60;
+/** Polls allowed per run: 3 x 60 s comfortably covers the 120 s actor timeout. */
+export const SCHEDULED_MAX_POLLS = 3;
+/** Any single HTTP request to Apify that is not a long poll. */
+export const SCHEDULED_REQUEST_TIMEOUT_MS = 20_000;
+
+export function scheduledRunChargeCeilingUsd(runCount: number): number {
+  const runs = Math.max(1, Math.min(MAX_DAILY_BATCH_SERIES, Math.floor(runCount) || 1));
+  // Floor to 1/100 cent so the sum of per-run ceilings never exceeds the day's.
+  return Math.floor((MAX_DAILY_BATCH_CHARGE_USD / runs) * 10_000) / 10_000;
+}
+
+export function soldSearchEditionRunUrl(maxChargeUsd: number, keywordCount = 1): string {
   const url = new URL(`https://api.apify.com/v2/actors/${APIFY_SOLD_ACTOR}/runs`);
-  url.searchParams.set("timeout", "120");
-  url.searchParams.set("maxItems", String(DAILY_BATCH_RESULTS_PER_SERIES * MAX_DAILY_BATCH_SERIES));
-  url.searchParams.set("maxTotalChargeUsd", MAX_DAILY_BATCH_CHARGE_USD.toFixed(2));
+  url.searchParams.set("timeout", String(SCHEDULED_ACTOR_TIMEOUT_SECONDS));
+  url.searchParams.set("maxItems", String(DAILY_BATCH_RESULTS_PER_SERIES * keywordCount));
+  url.searchParams.set("maxTotalChargeUsd", maxChargeUsd.toFixed(4));
   url.searchParams.set("restartOnError", "false");
   return url.toString();
 }
 
-/** One capped paid run searches up to six editions with one phrase each. */
-export async function runSoldSearchBatch(token: string, plan: SoldSearchPlan): Promise<SoldSearchResult> {
+/** Actor input for a scheduled run. Same filters as the old batch run. */
+export function scheduledActorInput(plan: SoldSearchPlan) {
+  return {
+    categoryId: "0", count: DAILY_BATCH_RESULTS_PER_SERIES, daysToScrape: SEARCH_DAYS,
+    ebaySite: "ebay.com", includeCompletedListings: false, itemCondition: "any",
+    itemLocation: "default", keywords: plan.keywords, sortOrder: "endedRecently",
+    subcategoryId: "", buyingFormat: "all",
+  };
+}
+
+/**
+ * Keep the rows that belong to this search; count the rest by reason.
+ *
+ * A row whose keyword was not requested used to throw away the whole batch.
+ * It is now dropped on its own, so one odd row (for example a placeholder the
+ * actor emits for a keyword with no results) cannot cost the good ones.
+ */
+export function filterRequestedRows(rows: unknown[], plan: SoldSearchPlan, cap = Number.POSITIVE_INFINITY) {
+  const kept: ApifyEbayRow[] = [];
+  const dropCounts: Record<string, number> = {};
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      dropCounts.invalid_row = (dropCounts.invalid_row ?? 0) + 1;
+      continue;
+    }
+    const keyword = (row as ApifyEbayRow).keyword;
+    if (typeof keyword !== "string" || !plan.queryToIsbn.has(keyword)) {
+      dropCounts.unexpected_keyword = (dropCounts.unexpected_keyword ?? 0) + 1;
+      continue;
+    }
+    if (kept.length >= cap) {
+      dropCounts.over_result_cap = (dropCounts.over_result_cap ?? 0) + 1;
+      continue;
+    }
+    kept.push(row as ApifyEbayRow);
+  }
+  return { kept, dropCounts };
+}
+
+async function apifyErrorDetail(response: Response): Promise<string> {
+  const body = await response.json().catch(() => null) as { error?: { type?: unknown; message?: unknown } } | null;
+  const type = typeof body?.error?.type === "string" ? body.error.type : "";
+  const message = typeof body?.error?.message === "string" ? body.error.message : "";
+  const detail = sanitiseDiagnostic([type, message].filter(Boolean).join(": "), 160);
+  return detail ? ` Apify said: ${detail}` : "";
+}
+
+export type EditionSearchResult = {
+  rows: ApifyEbayRow[];
+  runId: string;
+  costUsd: number | null;
+  dropCounts: Record<string, number>;
+  warnings: SearchProblem<SearchWarningCode>[];
+};
+
+export type EditionSearchOptions = {
+  maxChargeUsd: number;
+  /** Epoch ms; past this the search stops and reports `time_budget`. */
+  deadlineAt: number;
+  signal?: AbortSignal;
+  now?: () => number;
+};
+
+/**
+ * One capped actor run for one edition. Throws SoldSearchFailure with a code
+ * on every failure path; returns the valid rows otherwise.
+ *
+ * A charge above the ceiling is a warning, not a failure: the money is already
+ * spent, and discarding the rows it bought would only waste it.
+ */
+export async function runScheduledEditionSearch(
+  token: string,
+  plan: SoldSearchPlan,
+  options: EditionSearchOptions,
+): Promise<EditionSearchResult> {
+  const now = options.now ?? Date.now;
   const isbns = [...new Set(plan.queryToIsbn.values())];
-  if (!isbns.length || isbns.length > MAX_DAILY_BATCH_SERIES || plan.keywords.length !== isbns.length
-    || isbns.some((isbn) => isbnForSearch(isbn) !== isbn)) {
-    throw new Error("A scheduled search needs one to six distinct ISBNs.");
+  if (isbns.length !== 1 || !plan.keywords.length || plan.keywords.length > 2
+    || plan.keywords.some((keyword) => !plan.queryToIsbn.has(keyword)) || isbnForSearch(isbns[0]) !== isbns[0]) {
+    throw new SoldSearchFailure("invalid_plan", "A scheduled run needs exactly one edition with a valid ISBN.");
   }
   const headers = { Authorization: `Bearer ${token}` };
-  const start = await fetch(soldSearchBatchRunUrl(), {
+  const outer = options.signal;
+  const remaining = () => options.deadlineAt - now();
+  const budgetGone = () => remaining() <= 0 || Boolean(outer?.aborted);
+  const signalFor = (ms: number) => {
+    const timeout = AbortSignal.timeout(Math.max(1, Math.min(ms, remaining())));
+    return outer ? AbortSignal.any([outer, timeout]) : timeout;
+  };
+  const call = async (url: string, init: RequestInit, ms: number, failCode: SearchFailureCode, what: string) => {
+    if (budgetGone()) throw new SoldSearchFailure("time_budget", `RAR's time budget ran out before ${what}.`);
+    try {
+      return await fetch(url, { ...init, signal: signalFor(ms) });
+    } catch (error) {
+      if (budgetGone()) throw new SoldSearchFailure("time_budget", `RAR's time budget ran out while ${what}.`);
+      const name = (error as { name?: unknown } | null)?.name;
+      if (name === "TimeoutError" || name === "AbortError") {
+        throw new SoldSearchFailure("request_timeout", `Apify did not answer in time while ${what}.`);
+      }
+      throw new SoldSearchFailure(failCode, `The request to Apify failed while ${what}.`);
+    }
+  };
+
+  const start = await call(soldSearchEditionRunUrl(options.maxChargeUsd, plan.keywords.length), {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      categoryId: "0", count: DAILY_BATCH_RESULTS_PER_SERIES, daysToScrape: SEARCH_DAYS,
-      ebaySite: "ebay.com", includeCompletedListings: false, itemCondition: "any",
-      itemLocation: "default", keywords: plan.keywords, sortOrder: "endedRecently",
-      subcategoryId: "", buyingFormat: "all",
-    }),
-  });
-  if (!start.ok) throw new Error(`The scheduled sold-listing batch failed (HTTP ${start.status}).`);
-  const started = (await start.json()) as { data?: { id?: string } };
-  const runId = started.data?.id;
-  if (!runId || !/^[A-Za-z0-9]+$/.test(runId)) throw new Error("Apify did not return a batch run ID.");
+    body: JSON.stringify(scheduledActorInput(plan)),
+  }, SCHEDULED_REQUEST_TIMEOUT_MS, "start_http_error", "starting the actor run");
+  if (!start.ok) {
+    throw new SoldSearchFailure("start_http_error",
+      `Apify refused to start the run (HTTP ${start.status}).${await apifyErrorDetail(start)}`);
+  }
+  const started = await start.json().catch(() => null) as { data?: { id?: string } } | null;
+  const runId = started?.data?.id;
+  if (!runId || !/^[A-Za-z0-9]+$/.test(runId)) {
+    throw new SoldSearchFailure("no_run_id", "Apify accepted the request but returned no usable run id.");
+  }
 
-  let run: { status?: string; usageTotalUsd?: number | null } = {};
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?waitForFinish=60`, { headers });
-    if (!response.ok) throw new Error(`The scheduled sold-listing batch could not be checked (HTTP ${response.status}).`);
-    run = ((await response.json()) as { data?: typeof run }).data ?? {};
-    if (run.status === "SUCCEEDED") break;
-    if (["FAILED", "ABORTED", "TIMED-OUT"].includes(run.status ?? "")) {
-      throw new Error(`The scheduled sold-listing batch ended as ${run.status}.`);
+  type RunState = { status?: string; statusMessage?: string | null; usageTotalUsd?: number | null };
+  let run: RunState = {};
+  try {
+    for (let attempt = 0; attempt < SCHEDULED_MAX_POLLS; attempt += 1) {
+      const wait = Math.max(1, Math.min(SCHEDULED_POLL_WAIT_SECONDS, Math.floor((remaining() - 5_000) / 1000)));
+      const response = await call(`https://api.apify.com/v2/actor-runs/${runId}?waitForFinish=${wait}`, { headers },
+        wait * 1000 + SCHEDULED_REQUEST_TIMEOUT_MS, "poll_http_error", "waiting for the actor run");
+      if (!response.ok) {
+        throw new SoldSearchFailure("poll_http_error", `The run's status could not be read (HTTP ${response.status}).`);
+      }
+      run = ((await response.json().catch(() => null)) as { data?: RunState } | null)?.data ?? {};
+      if (run.status === "SUCCEEDED") break;
+      const terminal = { FAILED: "actor_failed", ABORTED: "actor_aborted", "TIMED-OUT": "actor_timed_out" } as const;
+      const code = terminal[run.status as keyof typeof terminal];
+      if (code) {
+        const said = sanitiseDiagnostic(run.statusMessage ?? "", 160);
+        throw new SoldSearchFailure(code, `The actor run ended as ${run.status}.${said ? ` Apify said: ${said}` : ""}`);
+      }
+      if (budgetGone()) throw new SoldSearchFailure("time_budget", "RAR's time budget ran out while the actor was still running.");
+    }
+    if (run.status !== "SUCCEEDED") {
+      throw new SoldSearchFailure("not_finished",
+        `The actor run was still ${run.status ?? "in an unknown state"} after ${SCHEDULED_MAX_POLLS} status checks.`);
+    }
+  } catch (error) {
+    // Stop a run RAR has given up on, so it cannot keep charging. Best effort
+    // with its own short timeout: the cron's own signal may already be spent.
+    if (error instanceof SoldSearchFailure && ["time_budget", "not_finished", "request_timeout", "poll_http_error"].includes(error.code)) {
+      await fetch(`https://api.apify.com/v2/actor-runs/${runId}/abort`, {
+        method: "POST", headers, signal: AbortSignal.timeout(5_000),
+      }).catch(() => null);
+    }
+    throw error;
+  }
+
+  const limit = DAILY_BATCH_RESULTS_PER_SERIES * plan.keywords.length;
+  const output = await call(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?limit=${limit}`, { headers },
+    SCHEDULED_REQUEST_TIMEOUT_MS, "dataset_http_error", "reading the run's results");
+  if (!output.ok) {
+    throw new SoldSearchFailure("dataset_http_error", `The run's results could not be read (HTTP ${output.status}).`);
+  }
+  const rawRows = await output.json().catch(() => null) as unknown;
+  if (!Array.isArray(rawRows)) throw new SoldSearchFailure("invalid_dataset", "Apify returned results that were not a list.");
+  const { kept, dropCounts } = filterRequestedRows(rawRows, plan, limit);
+
+  // Apify warns that the first terminal response may show preliminary costs.
+  if (remaining() > 2_000) {
+    const latest = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+      headers, signal: signalFor(SCHEDULED_REQUEST_TIMEOUT_MS),
+    }).catch(() => null);
+    if (latest?.ok) {
+      const refreshed = await latest.json().catch(() => null) as { data?: RunState } | null;
+      if (typeof refreshed?.data?.usageTotalUsd === "number") run = refreshed.data;
     }
   }
-  if (run.status !== "SUCCEEDED") throw new Error("The scheduled sold-listing batch did not finish in time.");
-  if (typeof run.usageTotalUsd === "number" && run.usageTotalUsd > MAX_DAILY_BATCH_CHARGE_USD + 0.0001) {
-    throw new Error("The scheduled sold-listing batch exceeded its charge ceiling.");
+  const costUsd = typeof run.usageTotalUsd === "number" && Number.isFinite(run.usageTotalUsd) ? run.usageTotalUsd : null;
+  const warnings: SearchProblem<SearchWarningCode>[] = [];
+  if (costUsd === null) {
+    warnings.push({ code: "cost_unknown", message: "Apify did not report what this run cost." });
+  } else if (costUsd > options.maxChargeUsd + 0.0001) {
+    warnings.push({ code: "charge_ceiling",
+      message: `The run cost $${costUsd.toFixed(4)}, above its $${options.maxChargeUsd.toFixed(4)} ceiling; its results were kept because the charge cannot be undone.` });
   }
-
-  const output = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?limit=${DAILY_BATCH_RESULTS_PER_SERIES * isbns.length}`, { headers });
-  if (!output.ok) throw new Error(`The scheduled sold-listing batch results could not be read (HTTP ${output.status}).`);
-  const rows = (await output.json()) as ApifyEbayRow[];
-  if (!Array.isArray(rows)) throw new Error("Apify returned invalid batch results.");
-  if (rows.some((row) => !plan.queryToIsbn.has(row.keyword ?? ""))) {
-    throw new Error("Apify returned a listing without a requested keyword.");
-  }
-  // Apify warns that the first terminal response may show preliminary costs.
-  const latest = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, { headers }).catch(() => null);
-  if (latest?.ok) {
-    const refreshed = await latest.json().catch(() => null) as { data?: typeof run } | null;
-    if (typeof refreshed?.data?.usageTotalUsd === "number") run = refreshed.data;
-  }
-  if (typeof run.usageTotalUsd === "number" && run.usageTotalUsd > MAX_DAILY_BATCH_CHARGE_USD + 0.0001) {
-    throw new Error("The scheduled sold-listing batch exceeded its charge ceiling.");
-  }
-  return { rows, runId, costUsd: run.usageTotalUsd ?? null };
+  return { rows: kept, runId, costUsd, dropCounts, warnings };
 }
 
 export type QueueOutcome = {
@@ -252,6 +414,16 @@ export type QueueOutcome = {
   dropped: number;
   alreadyKnown: number;
   dropReasons: string[];
+  /** Rows dropped, counted by stable code (see RowDropCode). */
+  dropCounts: Record<string, number>;
+  /**
+   * eBay item ids not queued because their ISBN covers two printings and the
+   * title does not say which. Counted in needsHuman. They are NOT inserted:
+   * a listing_outcomes row is tied to one edition_id and nothing in the review
+   * flow can move it to the other printing, so attaching it to either would
+   * risk a sale on the wrong printing. Surfaced in the cron summary instead.
+   */
+  ambiguousItemIds: string[];
 };
 
 /**
@@ -270,7 +442,14 @@ export async function queueDiscoveredListings(
   plan?: SoldSearchPlan,
 ): Promise<QueueOutcome> {
   const byIsbn = indexEditionsByIsbn(editions);
-  const result: QueueOutcome = { found: rows.length, queued: 0, needsHuman: 0, dropped: 0, alreadyKnown: 0, dropReasons: [] };
+  const result: QueueOutcome = {
+    found: rows.length, queued: 0, needsHuman: 0, dropped: 0, alreadyKnown: 0, dropReasons: [], dropCounts: {}, ambiguousItemIds: [],
+  };
+  const drop = (code: string, why: string) => {
+    result.dropped += 1;
+    result.dropCounts[code] = (result.dropCounts[code] ?? 0) + 1;
+    if (!result.dropReasons.includes(why)) result.dropReasons.push(why);
+  };
 
   const toInsert = [];
   // If one eBay item appears in both queries, the ISBN-scored lead takes
@@ -283,20 +462,22 @@ export async function queueDiscoveredListings(
     if (titleTarget) {
       // A text hit has no edition identity. Keep it visible as a provisional
       // lead for a person, including conflicts, rather than silently deciding.
-      const unusable = priceDisqualifier(row);
+      const unusable = rowDisqualification(row);
       if (!unusable) {
         toInsert.push(buildTitleSearchOutcomeRow(row, titleTarget, rules, sourceId));
       } else {
-        result.dropped += 1;
-        if (!result.dropReasons.includes(unusable)) result.dropReasons.push(unusable);
+        drop(unusable.code, unusable.why);
       }
       continue;
     }
     const decision = classifyApifyRow(row, byIsbn, rules);
-    if (decision.kind === "human") { result.needsHuman += 1; continue; }
+    if (decision.kind === "human") {
+      result.needsHuman += 1;
+      if (row.itemId) result.ambiguousItemIds.push(String(row.itemId));
+      continue;
+    }
     if (decision.kind === "drop") {
-      result.dropped += 1;
-      if (!result.dropReasons.includes(decision.why)) result.dropReasons.push(decision.why);
+      drop(decision.code, decision.why);
       continue;
     }
     toInsert.push(buildOutcomeRow(row, decision.pick, sourceId));

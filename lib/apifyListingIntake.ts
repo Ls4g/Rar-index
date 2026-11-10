@@ -51,7 +51,7 @@ export type ScoredEdition = { edition: IntakeEdition; assessment: EditionMatchAs
 export type IntakeDecision =
   | { kind: "queue"; pick: ScoredEdition; runnerUp: ScoredEdition | null }
   | { kind: "human"; why: string; candidates: ScoredEdition[] }
-  | { kind: "drop"; why: string };
+  | { kind: "drop"; why: string; code: RowDropCode };
 
 export function normaliseIsbnKey(value: string | null | undefined) {
   return (value ?? "").toUpperCase().replace(/[^0-9X]/g, "");
@@ -70,13 +70,18 @@ export function indexEditionsByIsbn(editions: IntakeEdition[]) {
 }
 
 // Reasons a row is unusable whichever edition it turns out to be. These are
-// about whether a price could ever be trusted, not about matching.
-export function priceDisqualifier(row: ApifyEbayRow): string | null {
-  if (!row.itemId) return "no eBay item id, so RAR could never check it";
-  if (!row.url) return "no listing URL, so there is nothing for a reviewer to open";
-  if (!row.title?.trim()) return "no listing title to match on";
+// about whether a price could ever be trusted, not about matching. Each one
+// carries a stable code so a scheduled run can count what it dropped.
+export type RowDropCode =
+  | "no_item_id" | "no_url" | "no_title" | "price_range" | "id_url_mismatch"
+  | "free_text_keyword" | "isbn_not_in_catalogue" | "title_conflict";
+
+export function rowDisqualification(row: ApifyEbayRow): { code: RowDropCode; why: string } | null {
+  if (!row.itemId) return { code: "no_item_id", why: "no eBay item id, so RAR could never check it" };
+  if (!row.url) return { code: "no_url", why: "no listing URL, so there is nothing for a reviewer to open" };
+  if (!row.title?.trim()) return { code: "no_title", why: "no listing title to match on" };
   if (row.soldPriceMax != null) {
-    return "a price range, not one sale (eBay shows these for multi-quantity listings)";
+    return { code: "price_range", why: "a price range, not one sale (eBay shows these for multi-quantity listings)" };
   }
   // Confirming a sale later requires the stored item id and the stored link to
   // agree -- outcomeSaleConfirmation refuses the pair otherwise. Catching a
@@ -84,9 +89,13 @@ export function priceDisqualifier(row: ApifyEbayRow): string | null {
   // queue in the first place.
   const idInUrl = /\/itm\/(?:[^/?#]*\/)?(\d{6,})/.exec(row.url)?.[1] ?? null;
   if (idInUrl && idInUrl !== String(row.itemId)) {
-    return `the link points at item ${idInUrl} but the row says ${row.itemId}`;
+    return { code: "id_url_mismatch", why: `the link points at item ${idInUrl} but the row says ${row.itemId}` };
   }
   return null;
+}
+
+export function priceDisqualifier(row: ApifyEbayRow): string | null {
+  return rowDisqualification(row)?.why ?? null;
 }
 
 export function classifyApifyRow(
@@ -94,17 +103,17 @@ export function classifyApifyRow(
   editionsByIsbn: Map<string, IntakeEdition[]>,
   rules: ScoutRule[] = [],
 ): IntakeDecision {
-  const unusable = priceDisqualifier(row);
-  if (unusable) return { kind: "drop", why: unusable };
+  const unusable = rowDisqualification(row);
+  if (unusable) return { kind: "drop", why: unusable.why, code: unusable.code };
 
   // `keyword` is whatever the search was given. When that was an ISBN it ties
   // the row to a specific edition; anything else cannot, and says so.
   const isbn = normaliseIsbnKey(row.keyword);
   if (isbn.length < 10) {
-    return { kind: "drop", why: `searched by free text ${JSON.stringify(row.keyword ?? "")}, which names no edition` };
+    return { kind: "drop", code: "free_text_keyword", why: `searched by free text ${JSON.stringify(row.keyword ?? "")}, which names no edition` };
   }
   const candidates = editionsByIsbn.get(isbn) ?? [];
-  if (!candidates.length) return { kind: "drop", why: `ISBN ${isbn} is not in the catalogue` };
+  if (!candidates.length) return { kind: "drop", code: "isbn_not_in_catalogue", why: `ISBN ${isbn} is not in the catalogue` };
 
   const title = row.title ?? "";
   const scored = candidates
@@ -123,7 +132,7 @@ export function classifyApifyRow(
   // and a person still confirms before it becomes evidence.
   const viable = scored.filter((entry) => entry.assessment.confidence !== "conflict");
   if (!viable.length) {
-    return { kind: "drop", why: scored[0].assessment.conflicts.join("; ") || "title contradicts this edition" };
+    return { kind: "drop", code: "title_conflict", why: scored[0].assessment.conflicts.join("; ") || "title contradicts this edition" };
   }
 
   // On the three ISBNs that carry two printings, a clear score gap means the

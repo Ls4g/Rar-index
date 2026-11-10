@@ -274,8 +274,58 @@ export function exhaustedOutcome(provider: string, attempts: number): OutcomeCla
   };
 }
 
-export function isDueForCheck(row: { status: OutcomeStatus; next_check_at: string | null; scheduled_end_at: string | null }, now = Date.now()) {
+// A listing eBay says is still for sale has not failed to produce an outcome;
+// it simply has not finished. Fixed-price listings in particular stay live for
+// months and sell later. So instead of exhausting into "ambiguous" after the
+// short retry schedule, a still-live listing stays in the watch cycle and is
+// looked at again on a slow cadence, until it ends or has been watched for a
+// year. These rechecks are claimed only after every newly ended or
+// never-checked listing (see runOutcomeChecks), and the daily budget still
+// bounds the total.
+export const STILL_LIVE_RECHECK_DAYS = 7;
+export const MAX_WATCH_DAYS = 365;
+
+export function isFixedPriceFormat(value: string | null | undefined) {
+  return /FIXED_?PRICE|FIXEDPRICEITEM|BUY_?IT_?NOW|STORESFIXEDPRICE/i.test(value ?? "");
+}
+
+export type StillLiveFollowUp =
+  | { kind: "recheck"; nextCheckAt: string }
+  | { kind: "expired"; classification: OutcomeClassification };
+
+/**
+ * What happens after a provider reports a watched listing is still active.
+ * Watched age is measured from first_seen_at. A missing or unreadable
+ * first_seen_at cannot prove a year has passed, so the listing keeps its
+ * weekly cadence (the column is NOT NULL in the database).
+ */
+export function stillLiveFollowUp(provider: string, firstSeenAt: string | null | undefined, now = new Date()): StillLiveFollowUp {
+  const firstSeen = firstSeenAt ? Date.parse(firstSeenAt) : Number.NaN;
+  if (Number.isFinite(firstSeen) && now.getTime() - firstSeen >= MAX_WATCH_DAYS * 86_400_000) {
+    return { kind: "expired", classification: watchedForAYearOutcome(provider) };
+  }
+  return { kind: "recheck", nextCheckAt: new Date(now.getTime() + STILL_LIVE_RECHECK_DAYS * 86_400_000).toISOString() };
+}
+
+// Not unsold and not sold: it never ended while RAR was watching.
+export function watchedForAYearOutcome(provider: string): OutcomeClassification {
+  return {
+    status: "ambiguous",
+    soldPrice: null, soldCurrency: null, soldAt: null,
+    reason: `${provider} still reported this listing as live after RAR had watched it for ${MAX_WATCH_DAYS} days without it ending. Recorded as unknown and no longer rechecked.`,
+    resolved: true,
+  };
+}
+
+export function isDueForCheck(row: { status: OutcomeStatus; next_check_at: string | null; scheduled_end_at: string | null; buying_format?: string | null }, now = Date.now()) {
   if (row.status !== "ended_pending_check" && row.status !== "active" && row.status !== "ambiguous") return false;
+  // A still-live listing on the weekly cadence. A fixed-price listing's end
+  // time is only eBay's next renewal date and it can sell at any moment, so
+  // the end-time guard below does not apply to it; an auction still waits for
+  // its end.
+  if (row.status === "active" && row.next_check_at && isFixedPriceFormat(row.buying_format)) {
+    return new Date(row.next_check_at).getTime() <= now;
+  }
   // Never check a listing that has not reached its own end time. Doing so
   // burns quota to be told what RAR already knows.
   if (row.scheduled_end_at && new Date(row.scheduled_end_at).getTime() > now) return false;
