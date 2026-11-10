@@ -10,6 +10,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { selectHomeLiveListings, type HomeListingCard, type HomeListingEdition, type HomeListingLead, type HomeListingProfile } from "@/lib/homeLiveListings";
 import HomeLiveListingsRail from "@/components/HomeLiveListingsRail";
 import HomeCatalogueSearch from "@/components/HomeCatalogueSearch";
+import { publicListingUrl } from "@/lib/liveListings";
 import "@/app/design-concept/style.css";
 
 type ConceptEdition = {
@@ -146,7 +147,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
         <header className="rar-concept-header">
           <Link className="rar-concept-logo" href={preview ? "#home" : "/"} aria-label="RAR home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
           <nav aria-label="Main navigation">
-            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>Editions</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link>{preview ? null : <Link href="/collectors">Collectors</Link>}<Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>}<ThemeToggle />
+            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>With sale prices</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link>{preview ? null : <Link href="/collectors">Collectors</Link>}<Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link>}<ThemeToggle />
           </nav>
           <Link className="rar-concept-header-cta" href={preview ? "#join" : "/portfolio"}>Your shelf <span>↗</span></Link>
         </header>
@@ -207,7 +208,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
           <div className="rar-concept-market">
             <div className="rar-concept-market-heading"><div><p className="rar-concept-kicker">THE MARKET</p><h3>What copies actually sold for</h3></div><span>{productSales.length} verified sales</span></div>
             <PriceHistoryChart rates={rates} sales={productSales} />
-            {productSales.length ? <div className="rar-concept-sale-list"><span>RECENT ORIGINAL SOURCES</span>{productSales.slice(0, 3).map((sale, index) => <a href={sale.source_listing_url} key={`${sale.source_listing_url}-${index}`} rel="noopener noreferrer" target="_blank">{new Intl.NumberFormat("en-GB", { style: "currency", currency: sale.currency }).format(sale.sale_price)} <small>{sale.sold_date}</small><b>View source ↗</b></a>)}</div> : null}
+            {productSales.length ? <div className="rar-concept-sale-list"><span>RECENT ORIGINAL SOURCES</span>{productSales.slice(0, 3).map((sale, index) => <a href={publicListingUrl(sale.source_listing_url)} key={`${sale.source_listing_url}-${index}`} rel="noopener noreferrer" target="_blank">{new Intl.NumberFormat("en-GB", { style: "currency", currency: sale.currency }).format(sale.sale_price)} <small>{sale.sold_date}</small><b>View source ↗</b></a>)}</div> : null}
           </div>
         </section> : null}
 

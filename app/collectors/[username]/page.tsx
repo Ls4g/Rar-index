@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import EditionCover from "@/components/EditionCover";
 import PublicHeader from "@/components/PublicHeader";
+import ThemeToggle from "@/components/ThemeToggle";
 import CollectorShareButton from "@/components/CollectorShareButton";
 import CollectorGalleryLike from "@/components/CollectorGalleryLike";
 import CollectorAvatar from "@/components/CollectorAvatar";
@@ -163,7 +164,7 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
     <main className="rar-concept rar-demo-profile rar-public-collector" data-gallery-theme={shelf.galleryTheme}>
       <header className="rar-concept-header">
         <Link className="rar-concept-logo" href="/" aria-label="RAR Index home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
-        <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/collectors">Collectors</Link><Link href="/collection">Collections</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></nav>
+        <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/browse?evidence=verified-sales">With sale prices</Link><Link href="/collection">Collections</Link><Link href="/collectors">Collectors</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link><ThemeToggle /></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
       <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} avatarUrl={shelf.avatarUrl} bio={shelf.bio} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} galleryTheme={shelf.galleryTheme} showPremiumBadge={shelf.showPremiumBadge} />

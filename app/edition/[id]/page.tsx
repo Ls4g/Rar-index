@@ -10,7 +10,7 @@ import PublicHeader from "@/components/PublicHeader";
 import type { FxRate } from "@/lib/fx";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { dedupeLiveListings, formatListingEndLabel, isPlausibleLiveListing, listingType } from "@/lib/liveListings";
+import { dedupeLiveListings, formatListingEndLabel, isPublicLiveListing, listingType, publicListingUrl } from "@/lib/liveListings";
 import { describeSaleFrequency } from "@/lib/saleFrequency";
 import { describeAvailability, AVAILABILITY_CAVEAT } from "@/lib/availability";
 import { editionDescriptor, publisherDisplayName } from "@/lib/editionDisplay";
@@ -396,10 +396,10 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
       .limit(50)
     : { data: [] };
   const liveListings = dedupeLiveListings(((liveLeadData ?? []) as LiveListing[])
-    // A staff member marking a listing as Watching is an explicit human
-    // confirmation that it belongs on this exact publication's live feed.
-    // New leads still need the conservative automatic plausibility check.
-    .filter((listing) => listing.review_status === "watching" || isPlausibleLiveListing(listing, edition)))
+    // New leads need the conservative plausibility check; a Watching lead is
+    // shown unless its own title contradicts this edition. See
+    // isPublicLiveListing for why Watching alone stopped being enough.
+    .filter((listing) => isPublicLiveListing(listing, edition)))
     .slice(0, 5);
   const latestScoutCheck = liveProfiles
     .map((profile) => profile.last_checked_at)
@@ -619,7 +619,6 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               ) : edition.cover_verification_status === "rejected" ? (
                 <p>A candidate cover was reviewed and did not match this exact publication. RAR is still looking for a confirmed cover source.</p>
               ) : <p>RAR has not yet sourced a cover for this publication from a publisher or licensed catalogue record.</p>}
-              <Link className="staff-action-link" href={`/cover-review?edition=${edition.id}`}>Review this cover -&gt;</Link>
             </div>
 
             {edition.historical_notes ? (
@@ -683,7 +682,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
 
         {isMagazine && edition.listing_photo_url && edition.listing_photo_listing_url && isFreshListingPhoto(edition.listing_photo_captured_at) ? (
           <aside className="edition-live-copy" aria-label="Current eBay listing">
-            <a href={edition.listing_photo_listing_url} target="_blank" rel="noopener noreferrer">
+            <a href={publicListingUrl(edition.listing_photo_listing_url)} target="_blank" rel="noopener noreferrer">
               {/* eBay hosts this short-lived listing image; it is never a RAR cover asset. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={edition.listing_photo_url} alt="Seller's photograph of a recently seen magazine listing" loading="lazy" referrerPolicy="no-referrer" />
@@ -795,7 +794,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
           {liveListings.length ? (
             <div className="live-listings-grid">
               {liveListings.map((listing) => (
-                <a className="live-listing-card" data-rar-listing-click href={listing.source_listing_url} target="_blank" rel="noreferrer" key={listing.id}>
+                <a className="live-listing-card" data-rar-listing-click href={publicListingUrl(listing.source_listing_url)} target="_blank" rel="noreferrer" key={listing.id}>
                   <div><span>{listingType(listing.raw_payload)} · eBay</span><h3>{listing.listing_title}</h3></div>
                   <div className="live-listing-meta"><strong>{listing.listing_price !== null && listing.currency ? formatPrice(listing.listing_price, listing.currency) : "Price not listed"}</strong>{formatListingEndLabel(listing.item_end_at) ? <small>{formatListingEndLabel(listing.item_end_at)}</small> : null}</div>
                 </a>
@@ -827,7 +826,7 @@ export default async function EditionPage({ params, searchParams }: EditionPageP
               <>
                 <div><span>Which book this is</span><strong>{edition.isbn_13 ?? edition.isbn_10 ?? "ISBN still needed"}</strong><small>{[edition.publisher, edition.release_date ? formatDate(edition.release_date) : null].filter(Boolean).join(" · ") || "Publisher or release date still needed"}</small></div>
                 <div><span>First-print proof</span><strong>{firstPrintVerifiedCount > 0 ? `${firstPrintVerifiedCount} proven sale${firstPrintVerifiedCount === 1 ? "" : "s"}` : "Not yet proven"}</strong><small>{firstPrintVerifiedCount > 0 ? "See the First-print sales tab above." : "No sale has a copyright-page photo yet."}</small></div>
-                <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>Later printings, and copies whose printing we could not identify — see the Other tab above.</small></div>
+                <div><span>Other sales on file</span><strong>{otherSales.length} sale{otherSales.length === 1 ? "" : "s"}</strong><small>{observedSales.length ? "Later printings, and copies whose printing we could not identify — see the Other tab above." : "Later printings, and copies whose printing we could not identify."}</small></div>
               </>
             )}
           </div>

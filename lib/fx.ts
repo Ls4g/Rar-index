@@ -28,9 +28,22 @@ export type ConvertedSale<T extends MarketSale = MarketSale> = T & {
 // holiday gap is expected; a months-old rate is not a historical conversion.
 export const MAX_RATE_AGE_DAYS = 7;
 
+// The same grade is recorded as both "6" and "6.0" (and "8" / "8.0"), which
+// split one comparison group into two and left each short of the three sales a
+// chart needs. A purely numeric label is reduced to one spelling, with a whole
+// grade written "6.0" as the existing chart labels already expect; anything
+// else ("Authentic", "9.5 Gem Mint") is left exactly as recorded.
+export function normaliseGradeLabel(label: string | null | undefined) {
+  const trimmed = label?.trim() ?? "";
+  if (!trimmed || !/^\d+(?:\.\d+)?$/.test(trimmed)) return trimmed;
+  const grade = Number(trimmed);
+  return Number.isInteger(grade) ? grade.toFixed(1) : String(grade);
+}
+
 export function comparisonGroup(sale: MarketSale) {
-  const grading = sale.grading_company || sale.grade_label
-    ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${sale.grade_label ? ` ${sale.grade_label}` : ""}`
+  const gradeLabel = normaliseGradeLabel(sale.grade_label);
+  const grading = sale.grading_company || gradeLabel
+    ? `Graded${sale.grading_company ? ` · ${sale.grading_company}` : ""}${gradeLabel ? ` ${gradeLabel}` : ""}`
     : "Raw";
 
   // Raw condition belongs to the source listing. Graded results are still a
