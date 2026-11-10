@@ -50,7 +50,7 @@ export default function MarketValuePanel({ sales, rates, minGroupSales = 1 }: Ma
             const value = median(values);
             return (
               <div className="metric-card" key={group.label}>
-                <span className="metric-label">Median · {currency} · {group.label}</span>
+                <span className="metric-label">{group.sales.length === 1 ? "Single sale" : "Median"} · {currency} · {group.label}</span>
                 <strong>{value === null ? "—" : formatPrice(value, currency)}</strong>
                 <dl>
                   <div><dt>Verified sales</dt><dd>{group.sales.length}</dd></div>

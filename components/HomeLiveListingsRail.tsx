@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import EditionCover from "@/components/EditionCover";
 import type { HomeListingCard } from "@/lib/homeLiveListings";
+import { publicListingUrl } from "@/lib/liveListings";
 
 function askingPrice(value: number, currency: string) {
   try { return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(value); }
@@ -43,8 +44,8 @@ export default function HomeLiveListingsRail({ listings }: { listings: HomeListi
       {listings.map((listing) => <article className="rar-concept-live-card" key={listing.id}>
         <Link aria-label={`View RAR edition for ${listing.series || listing.editionTitle || "manga"}`} className="rar-concept-live-cover" href={`/edition/${listing.editionId}`}><EditionCover imageStatus="verified" imageUrl={listing.coverImageUrl} language={listing.language} series={listing.series} title={listing.editionTitle} volumeNumber={listing.volumeNumber} /></Link>
         <p>{[listing.series || listing.editionTitle, listing.volumeNumber ? `Vol. ${listing.volumeNumber}` : null, listing.language].filter(Boolean).join(" · ")}</p>
-        <h3><a data-rar-listing-click href={listing.listingUrl} rel="noopener noreferrer" target="_blank">{listing.listingTitle}</a></h3>
-        <div className="rar-concept-live-card-bottom"><strong>{askingPrice(listing.askingPrice, listing.currency)} <small>asking</small></strong><a data-rar-listing-click href={listing.listingUrl} rel="noopener noreferrer" target="_blank">Check listing ↗</a></div>
+        <h3><a data-rar-listing-click href={publicListingUrl(listing.listingUrl)} rel="noopener noreferrer" target="_blank">{listing.listingTitle}</a></h3>
+        <div className="rar-concept-live-card-bottom"><strong>{askingPrice(listing.askingPrice, listing.currency)} <small>asking</small></strong><a data-rar-listing-click href={publicListingUrl(listing.listingUrl)} rel="noopener noreferrer" target="_blank">Check listing ↗</a></div>
       </article>)}
     </div>
     <p className="rar-concept-container rar-concept-live-note">Seller asking prices, not completed sales. Edition covers are from RAR’s catalogue; check the seller’s photos and availability before buying.</p>

@@ -7,6 +7,7 @@ import { useMarketCurrency } from "@/components/MarketCurrencyProvider";
 import ChartRangeSelector from "@/components/ChartRangeSelector";
 import { chartRange, chartRangeCutoff, type ChartRangeKey } from "@/lib/chartRanges";
 import { MIN_COMPARABLE_SALES } from "@/lib/printClassification";
+import { publicListingUrl } from "@/lib/liveListings";
 import { buildPriceSeries, mayDrawPriceLine, mayDrawPriceRangeLine, seriesColourIndex, type PriceSeries, type SeriesSale } from "@/lib/priceSeries";
 
 type PriceHistoryChartProps = { sales: SeriesSale[]; rates: FxRate[] };
@@ -243,7 +244,7 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
               <p className="market-chart-group-name">{selected.label}</p>
               <strong className="market-chart-active-price">{formatPrice(active.sale.converted_price, currency)}</strong>
               <p className="market-chart-active-date">Sold {formatSaleDate(String(active.sale.sold_date))}{active.sale.currency !== currency ? ` · originally ${formatPrice(active.sale.sale_price, active.sale.currency)}` : ""}</p>
-              {active.sale.source_listing_url ? <a className="market-chart-active-source" href={active.sale.source_listing_url} rel="noreferrer" target="_blank">View this sale’s original listing ↗</a> : null}
+              {active.sale.source_listing_url ? <a className="market-chart-active-source" href={publicListingUrl(active.sale.source_listing_url)} rel="noreferrer" target="_blank">View this sale’s original listing ↗</a> : null}
             </div>
             <span className="market-chart-count">{shownSales.length} verified sale{shownSales.length === 1 ? "" : "s"}</span>
           </div>
@@ -286,7 +287,7 @@ export default function PriceHistoryChart({ sales, rates }: PriceHistoryChartPro
                     <strong>{formatPrice(sale.converted_price, currency)}</strong>
                     <span>{formatSaleDate(String(sale.sold_date))}</span>
                     {sale.currency !== currency ? <small>Originally {formatPrice(sale.sale_price, sale.currency)}</small> : null}
-                    {sale.source_listing_url ? <a href={sale.source_listing_url} rel="noreferrer" target="_blank">Original sale ↗</a> : null}
+                    {sale.source_listing_url ? <a href={publicListingUrl(sale.source_listing_url)} rel="noreferrer" target="_blank">Original sale ↗</a> : null}
                   </div>
                 ))}
               </div>

@@ -13,7 +13,7 @@ export default function StaffLoginPage() {
       <section className="staff-login-card">
         <p className="eyebrow">RAR internal tools</p>
         <h1>Staff sign in</h1>
-        <p>Enter the staff credentials you created in Vercel. This keeps price imports and review decisions private.</p>
+        <p>Sign in with your staff credentials.</p>
         <Suspense fallback={<p className="staff-login-loading">Loading secure sign-in...</p>}>
           <StaffLoginForm />
         </Suspense>

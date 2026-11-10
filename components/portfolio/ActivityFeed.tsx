@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatPrice } from "@/lib/fx";
+import { publicListingUrl } from "@/lib/liveListings";
 
 export type RecentHoldingActivity = { holdingId: string; editionId: string; editionTitle: string | null; addedAt: string };
 export type RecentSaleActivity = { editionId: string; editionTitle: string | null; salePrice: number; currency: string; soldDate: string | null; classification: "first_print_proven" | "known_later_print" | "printing_not_identified" };
@@ -74,7 +75,7 @@ export default function ActivityFeed({ recentHoldings, recentSales, liveListings
               <ul className="portfolio-activity-list">
                 {liveListings.map((listing) => (
                   <li key={listing.id}>
-                    <a href={listing.sourceListingUrl} rel="noreferrer" target="_blank">{listing.editionTitle ?? listing.listingTitle}</a>
+                    <a href={publicListingUrl(listing.sourceListingUrl)} rel="noreferrer" target="_blank">{listing.editionTitle ?? listing.listingTitle}</a>
                     <small>{listing.listingPrice !== null && listing.currency ? formatPrice(listing.listingPrice, listing.currency) : "Price not listed"} · asking price</small>
                   </li>
                 ))}

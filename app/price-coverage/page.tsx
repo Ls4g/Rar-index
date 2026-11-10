@@ -278,7 +278,7 @@ function CoverageRow({ row }: { row: EditionCoverage }) {
         <span className="price-coverage-state">{missing ? `${missing} sale${missing === 1 ? "" : "s"} missing` : row.state === "stale" ? "Needs a recent sale" : COVERAGE_STATE_LABEL[row.state]}</span>
       </Link>
       <p className="price-coverage-help">
-        {row.comparableSales} of {MIN_COMPARABLE_SALES} comparable sales{row.groupLabel ? ` · ${row.groupLabel}` : ""}
+        {row.comparableSales > MIN_COMPARABLE_SALES ? row.comparableSales : `${row.comparableSales} of ${MIN_COMPARABLE_SALES}`} comparable sales{row.groupLabel ? ` · ${row.groupLabel}` : ""}
         {row.waitingToCheck ? ` · ${row.waitingToCheck} finding${row.waitingToCheck === 1 ? "" : "s"} ready to review` : ""}
       </p>
       <div className="price-coverage-actions">

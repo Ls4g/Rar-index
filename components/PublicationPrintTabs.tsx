@@ -6,6 +6,7 @@ import type { FxRate } from "@/lib/fx";
 import { ordinal } from "@/lib/editionDisplay";
 import { groupKnownLaterPrintSales, splitByPrintClassification, MIN_COMPARABLE_SALES } from "@/lib/printClassification";
 import { buildPriceSeries } from "@/lib/priceSeries";
+import { publicListingUrl } from "@/lib/liveListings";
 import MarketValuePanel from "@/components/MarketValuePanel";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
 
@@ -72,7 +73,7 @@ function SaleRow({ sale, sourceNames, showPrintClassification = true }: { sale: 
         ) : <span className="print-classification-badge is-exact-issue">Exact issue match</span>}
       </div>
       <div className="observed-sale-links">
-        {sale.source_listing_url ? <a href={sale.source_listing_url} target="_blank" rel="noreferrer">View source ↗</a> : null}
+        {sale.source_listing_url ? <a href={publicListingUrl(sale.source_listing_url)} target="_blank" rel="noreferrer">View source ↗</a> : null}
         {sale.print_classification === "first_print_proven" && sale.printing_proof_url ? (
           <a href={sale.printing_proof_url} target="_blank" rel="noreferrer">View printing evidence ↗</a>
         ) : null}

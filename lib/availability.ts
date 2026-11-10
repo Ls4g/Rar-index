@@ -92,7 +92,7 @@ export function describeAvailability(input: AvailabilityInput, now: number = Dat
     return {
       status: "on_sale_now",
       label: `${input.liveNow} on sale now`,
-      detail: `RAR can see ${input.liveNow} active listing${input.liveNow === 1 ? "" : "s"} matching this exact edition.`,
+      detail: `RAR can see ${input.liveNow} active listing${input.liveNow === 1 ? "" : "s"} matching this series and volume.`,
       isSignal: true,
       daysSinceLastLead,
     };
@@ -133,4 +133,4 @@ export function describeAvailability(input: AvailabilityInput, now: number = Dat
 
 /** The caveat that must accompany any availability claim RAR makes. */
 export const AVAILABILITY_CAVEAT =
-  "RAR watches eBay only, and only for listings whose title clearly matches this exact edition. Not finding a copy is not proof that a book is out of print.";
+  "RAR watches eBay only, and only for listings whose title clearly matches this series and volume. Not finding a copy is not proof that a book is out of print.";
