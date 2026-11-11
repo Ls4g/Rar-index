@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/fx";
 import type { DemoBookEdition, DemoMarketGuide, DemoSeriesBook } from "./DemoBookShelf";
@@ -169,14 +169,22 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
       {view === "wall" ? <ul className="rar-inhand-wall">
         {wallEditions.map((item, itemIndex) => {
           const itemMarket = marketCopy(item.marketGuide);
-          return <li key={item.id}>
+          const itemNote = galleryComments[item.id]?.trim() ?? "";
+          return <li key={item.id} style={{ "--i": itemIndex } as CSSProperties}>
             <button type="button" onClick={() => pickFromWall(itemIndex)} aria-label={`Pick up ${editionName(item)}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} />
+              <span className="rar-inhand-wall-cover">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} />
+                <span className="rar-inhand-wall-sheen" aria-hidden="true" />
+              </span>
             </button>
-            <strong>{editionName(item)}</strong>
-            <span>{[item.publisher, item.language].filter(Boolean).join(" · ") || "Edition details not recorded"}</span>
-            <span className="rar-inhand-wall-market">{itemMarket ?? "No market guide yet"}</span>
+            <div className="rar-inhand-wall-plaque">
+              <span className="rar-inhand-wall-number">{String(itemIndex + 1).padStart(2, "0")}</span>
+              <strong>{editionName(item)}</strong>
+              <span>{[item.publisher, item.language].filter(Boolean).join(" · ") || "Edition details not recorded"}</span>
+              <span className="rar-inhand-wall-market">{itemMarket ?? "No market guide yet"}</span>
+              {itemNote ? <q>{itemNote}</q> : null}
+            </div>
           </li>;
         })}
       </ul> : <>

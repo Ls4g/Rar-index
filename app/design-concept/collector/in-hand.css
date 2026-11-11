@@ -14,14 +14,31 @@
 .rar-inhand-views button { min-height: 44px; padding: 0 18px; border: 0; background: transparent; color: #c9cfd8; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .rar-inhand-views button[aria-pressed="true"] { background: #f3efe6; color: #14110f; }
 
-.rar-inhand-wall { list-style: none; margin: 0; padding: 44px 0 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 44px 30px; }
-.rar-inhand-wall li { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.rar-inhand-wall button { display: block; margin: 0 0 10px; padding: 0; border: 0; background: #1c2129; cursor: pointer; aspect-ratio: 300 / 436; overflow: hidden; box-shadow: 0 18px 34px rgba(0,0,0,.55); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; }
-.rar-inhand-wall button:hover { transform: translateY(-8px) rotate(-1.2deg); box-shadow: 0 30px 46px rgba(0,0,0,.7); }
+/* The wall: covers hung like framed pieces under a row of lights. Each hangs
+   very slightly off true and alternate ones sit lower, so it reads as a wall
+   someone arranged rather than a product grid. */
+.rar-inhand-wall { list-style: none; margin: 34px 0 0; padding: 64px 36px 56px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 56px 44px; border-top: 1px solid #323a46; background: linear-gradient(180deg, #1b212a 0%, #10141a 46%, #0b0d11 100%); }
+.rar-inhand-wall li { --hang: -1.4deg; position: relative; display: flex; flex-direction: column; gap: 18px; min-width: 0; animation: rar-inhand-hang .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 70ms); }
+.rar-inhand-wall li:nth-child(3n + 2) { --hang: 1.1deg; }
+.rar-inhand-wall li:nth-child(3n) { --hang: -.5deg; }
+.rar-inhand-wall li:nth-child(even) { margin-top: 44px; }
+/* The pool of light each piece hangs in. */
+.rar-inhand-wall li::before { content: ""; position: absolute; left: -18%; right: -18%; top: -64px; height: 78%; pointer-events: none; background: radial-gradient(ellipse 50% 60% at 50% 0%, rgba(255,236,200,.2), rgba(255,236,200,0) 70%); }
+@keyframes rar-inhand-hang { from { opacity: 0; transform: translateY(34px); } }
+.rar-inhand-wall button { position: relative; display: block; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 900px; }
+.rar-inhand-wall-cover { position: relative; display: block; aspect-ratio: 300 / 436; overflow: hidden; background: #1c2129; transform: rotate(var(--hang)); transform-origin: 50% 0; box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 26px 36px rgba(0,0,0,.65), 0 3px 6px rgba(0,0,0,.5); transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s; }
+.rar-inhand-wall button:hover .rar-inhand-wall-cover, .rar-inhand-wall button:focus-visible .rar-inhand-wall-cover { transform: rotate(0deg) translateY(-12px) rotateY(-14deg) scale(1.03); box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 44px 54px rgba(0,0,0,.75), 0 3px 6px rgba(0,0,0,.5); }
+.rar-inhand-wall button:active .rar-inhand-wall-cover { transform: rotate(0deg) translateY(-4px) scale(.99); }
 .rar-inhand-wall img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.rar-inhand-wall strong { font-size: 15px; line-height: 1.3; }
-.rar-inhand-wall span { color: #aab2bf; font-size: 13px; line-height: 1.4; }
-.rar-inhand-wall .rar-inhand-wall-market { color: #e8c46a; }
+.rar-inhand-wall-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(108deg, rgba(255,255,255,0) 36%, rgba(255,255,255,.28) 50%, rgba(255,255,255,0) 64%); background-size: 300% 100%; background-position: 120% 0; transition: background-position .9s ease; }
+.rar-inhand-wall button:hover .rar-inhand-wall-sheen, .rar-inhand-wall button:focus-visible .rar-inhand-wall-sheen { background-position: -20% 0; }
+.rar-inhand-wall-plaque { position: relative; display: flex; flex-direction: column; gap: 4px; padding-left: 12px; border-left: 2px solid #e5202e; }
+.rar-inhand-wall-number { color: #ff5a63; font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+.rar-inhand-wall-plaque strong { font-size: 16px; line-height: 1.25; letter-spacing: -.01em; }
+.rar-inhand-wall-plaque span { color: #aab2bf; font-size: 13px; line-height: 1.4; }
+.rar-inhand-wall-plaque .rar-inhand-wall-number { color: #ff5a63; font-size: 11px; }
+.rar-inhand-wall-plaque .rar-inhand-wall-market { color: #e8c46a; }
+.rar-inhand-wall-plaque q { margin-top: 6px; color: #f3efe6; font-size: 14px; font-style: italic; line-height: 1.4; overflow-wrap: anywhere; }
 
 .rar-inhand-main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 24px 56px; align-items: center; }
 
@@ -132,9 +149,12 @@
   .rar-inhand-back strong { font-size: 19px; }
   .rar-inhand-back dd { font-size: 12px; }
   .rar-inhand-row { padding: 0 20px; }
+  .rar-inhand-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 22px; padding: 48px 14px 40px; }
+  .rar-inhand-wall li:nth-child(even) { margin-top: 34px; }
+  .rar-inhand-wall-plaque strong { font-size: 14px; }
+  .rar-inhand-wall-plaque span, .rar-inhand-wall-plaque q { font-size: 12px; }
   .rar-inhand-shelf[data-few="true"] .rar-inhand-row { gap: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .rar-inhand-book, .rar-inhand-mini, .rar-inhand-glare, .rar-inhand-wall button { transition: none; animation: none; }
-  .rar-inhand-wall button:hover { transform: none; }
+  .rar-inhand-book, .rar-inhand-mini, .rar-inhand-glare, .rar-inhand-wall li, .rar-inhand-wall-cover, .rar-inhand-wall-sheen { transition: none; animation: none; }
 }
