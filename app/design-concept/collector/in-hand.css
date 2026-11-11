@@ -9,6 +9,20 @@
 .rar-inhand-caption { max-width: 650px; margin: 16px 0 0; color: #c9cfd8; font-size: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rar-inhand-hint { max-width: 340px; margin: 0 0 5px; color: #aab2bf; font-size: 14px; line-height: 1.6; }
 
+.rar-inhand-intro-side { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.rar-inhand-views { display: inline-flex; border: 1px solid #5b6472; }
+.rar-inhand-views button { min-height: 44px; padding: 0 18px; border: 0; background: transparent; color: #c9cfd8; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.rar-inhand-views button[aria-pressed="true"] { background: #f3efe6; color: #14110f; }
+
+.rar-inhand-wall { list-style: none; margin: 0; padding: 44px 0 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 44px 30px; }
+.rar-inhand-wall li { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rar-inhand-wall button { display: block; margin: 0 0 10px; padding: 0; border: 0; background: #1c2129; cursor: pointer; aspect-ratio: 300 / 436; overflow: hidden; box-shadow: 0 18px 34px rgba(0,0,0,.55); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; }
+.rar-inhand-wall button:hover { transform: translateY(-8px) rotate(-1.2deg); box-shadow: 0 30px 46px rgba(0,0,0,.7); }
+.rar-inhand-wall img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rar-inhand-wall strong { font-size: 15px; line-height: 1.3; }
+.rar-inhand-wall span { color: #aab2bf; font-size: 13px; line-height: 1.4; }
+.rar-inhand-wall .rar-inhand-wall-market { color: #e8c46a; }
+
 .rar-inhand-main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 24px 56px; align-items: center; }
 
 .rar-inhand-stage {
@@ -29,7 +43,9 @@
   animation: rar-inhand-arrive .6s cubic-bezier(.2, .8, .2, 1);
 }
 .rar-inhand-book[data-binding="rtl"] { --rest: 24deg; }
-.rar-inhand-stage[data-tracking="true"] .rar-inhand-book { transition: transform .12s ease-out; }
+/* While the pointer is steering, the resting lean is dropped so the turn is
+   even both ways and either side of the book can be brought round. */
+.rar-inhand-stage[data-tracking="true"] .rar-inhand-book { --rest: 0deg; transition: transform .16s ease-out; }
 .rar-inhand-stage[data-flipped="true"] .rar-inhand-book { --flip: 180deg; }
 @keyframes rar-inhand-arrive { from { opacity: 0; transform: translateY(46px) rotateY(-70deg); } }
 
@@ -102,6 +118,7 @@
 
 @media (max-width: 980px) {
   .rar-inhand-intro { flex-direction: column; align-items: flex-start; }
+  .rar-inhand-intro-side { align-items: flex-start; }
   .rar-inhand-main { grid-template-columns: minmax(0, 1fr); }
   .rar-inhand-stage { height: 520px; }
   .rar-inhand-book { --w: 250px; --h: 363px; --d: 28px; }
@@ -118,5 +135,6 @@
   .rar-inhand-shelf[data-few="true"] .rar-inhand-row { gap: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .rar-inhand-book, .rar-inhand-mini, .rar-inhand-glare { transition: none; animation: none; }
+  .rar-inhand-book, .rar-inhand-mini, .rar-inhand-glare, .rar-inhand-wall button { transition: none; animation: none; }
+  .rar-inhand-wall button:hover { transform: none; }
 }
