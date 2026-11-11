@@ -19,6 +19,8 @@ import "@/app/design-concept/collector/style.css";
 import "@/app/design-concept/collector/physical-book.css";
 import "@/app/design-concept/collector/gallery.css";
 import "@/app/collectors/social.css";
+import InHandGallery from "@/components/InHandGallery";
+import "@/app/collectors/in-hand.css";
 
 export const dynamic = "force-dynamic";
 
@@ -144,8 +146,11 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   };
 }
 
-export default async function CollectorShelfPage({ params }: { params: Promise<{ username: string }> }) {
+export default async function CollectorShelfPage({ params, searchParams }: { params: Promise<{ username: string }>; searchParams: Promise<{ view?: string | string[] }> }) {
   const { username } = await params;
+  // Preview switch for the in-hand gallery: /collectors/<name>?view=in-hand.
+  // Without it the page is exactly as before.
+  const inHand = (await searchParams).view === "in-hand";
   const shelf = await loadShelf(username);
   const { data: socialCounts, error: socialError } = shelf?.profileUserId
     ? await supabase.rpc("collector_gallery_social_counts", { profile_ids: [shelf.profileUserId] })
@@ -167,12 +172,12 @@ export default async function CollectorShelfPage({ params }: { params: Promise<{
         <nav aria-label="Main navigation"><Link href="/browse">Discover</Link><Link href="/browse?evidence=verified-sales">With sale prices</Link><Link href="/collection">Collections</Link><Link href="/collectors">Collectors</Link><Link href="/buy-manga">Buy manga</Link><Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link><ThemeToggle /></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
-      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} avatarUrl={shelf.avatarUrl} bio={shelf.bio} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} galleryTheme={shelf.galleryTheme} showPremiumBadge={shelf.showPremiumBadge} />
+      <ShelfBody displayName={shelf.displayName} profileUserId={shelf.profileUserId} avatarUrl={shelf.avatarUrl} bio={shelf.bio} commentsEnabled={shelf.commentsEnabled} likeCount={socialError ? null : Number(social?.like_count ?? 0)} commentCount={socialError ? null : Number(social?.comment_count ?? 0)} editions={shelf.editions} books={shelf.books} wallEditions={shelf.wallEditions} galleryTitle={shelf.galleryTitle} galleryCaption={shelf.galleryCaption} galleryComments={shelf.galleryComments} galleryTheme={shelf.galleryTheme} showPremiumBadge={shelf.showPremiumBadge} inHand={inHand} />
     </main>
   );
 }
 
-function ShelfBody({ displayName, profileUserId, avatarUrl, bio, commentsEnabled, likeCount, commentCount, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments, galleryTheme, showPremiumBadge }: { displayName: string; profileUserId: string; avatarUrl: string | null; bio: string | null; commentsEnabled: boolean; likeCount: number | null; commentCount: number | null; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string>; galleryTheme: GalleryTheme; showPremiumBadge: boolean }) {
+function ShelfBody({ displayName, profileUserId, avatarUrl, bio, commentsEnabled, likeCount, commentCount, editions, books, wallEditions, galleryTitle, galleryCaption, galleryComments, galleryTheme, showPremiumBadge, inHand }: { displayName: string; profileUserId: string; avatarUrl: string | null; bio: string | null; commentsEnabled: boolean; likeCount: number | null; commentCount: number | null; editions: ShelfEdition[]; books: DemoSeriesBook[]; wallEditions: DemoBookEdition[]; galleryTitle: string; galleryCaption: string; galleryComments: Record<string, string>; galleryTheme: GalleryTheme; showPremiumBadge: boolean; inHand: boolean }) {
   const withCovers = editions.filter((edition) => edition.cover_verification_status === "verified" && edition.cover_image_url).length;
   const languages = new Set(editions.map((edition) => edition.language).filter(Boolean));
   const spotlight = books.slice(0, 3);
@@ -201,7 +206,9 @@ function ShelfBody({ displayName, profileUserId, avatarUrl, bio, commentsEnabled
           </div>
         </div>
       </section>
-      <DemoBookShelf books={books} wallEditions={wallEditions} isDemo={false} ownerName={displayName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} />
+      {inHand && wallEditions.length
+        ? <InHandGallery editions={wallEditions} notes={galleryComments} ownerName={displayName} title={galleryTitle} caption={galleryCaption} />
+        : <DemoBookShelf books={books} wallEditions={wallEditions} isDemo={false} ownerName={displayName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} />}
       {profileUserId ? <CollectorGalleryComments profileUserId={profileUserId} enabled={commentsEnabled} /> : null}
       <section className="rar-demo-join"><div className="rar-concept-container"><div><p className="rar-concept-kicker">BUILD YOUR OWN SHELF</p><h2>Your manga. Your shelf.</h2><p>{withCovers < editions.length ? `${editions.length - withCovers} shared editions are still waiting on a confirmed cover. ` : ""}Choose what to share; what you paid and your private notes stay yours.</p></div><Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span>↗</span></Link></div></section>
     </>
