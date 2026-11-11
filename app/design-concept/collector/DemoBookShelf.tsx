@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import EditionCover from "@/components/EditionCover";
 import { formatPrice } from "@/lib/fx";
 import PhysicalBookDemo from "./PhysicalBookDemo";
+import GalleryInHand from "./GalleryInHand";
 import type { GalleryTheme } from "@/lib/collectorGalleryTheme";
 
 // The WebGL wall loads only when a collector has editions on display.
@@ -82,7 +83,7 @@ export default function DemoBookShelf({ books, wallEditions = [], isDemo = true,
   // Published profiles use the gallery as their one public viewing experience.
   // The editorial/full-shelf sections and flip-book below are concept demos,
   // not a second (older) portfolio for visitors to fall into.
-  if (!isDemo) return wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={false} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} />
+  if (!isDemo) return wallEditions.length ? <GalleryInHand books={books} wallEditions={wallEditions} isDemo={false} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} />
     : <section className="rar-gallery" id="gallery"><div className="rar-concept-container"><p className="rar-concept-kicker">COLLECTOR GALLERY</p><h2>This wall is being arranged.</h2><p>Books will appear here when this collector chooses editions with confirmed covers to display.</p></div></section>;
 
   return <>

@@ -18,6 +18,7 @@ import "@/app/design-concept/style.css";
 import "@/app/design-concept/collector/style.css";
 import "@/app/design-concept/collector/physical-book.css";
 import "@/app/design-concept/collector/gallery.css";
+import "@/app/design-concept/collector/in-hand.css";
 import "@/app/collectors/social.css";
 
 export const dynamic = "force-dynamic";
