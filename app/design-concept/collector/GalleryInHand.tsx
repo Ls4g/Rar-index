@@ -20,7 +20,9 @@ import type { GalleryTheme } from "@/lib/collectorGalleryTheme";
 // the same no-referrer policy EditionCover uses, and everything is reachable
 // by keyboard.
 
-const MAX_TILT_Y = 28;
+// Wide enough that the pointer at either edge of the stage shows that side of
+// the book: the spine one way, the page edge the other.
+const MAX_TILT_Y = 44;
 const MAX_TILT_X = 13;
 const TOUCH_TURN_PER_PX = 0.45;
 const MAX_TOUCH_TURN = 75;
@@ -76,6 +78,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
 }) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [view, setView] = useState<"hand" | "wall">("hand");
   const stageRef = useRef<HTMLDivElement>(null);
   const frame = useRef<number | null>(null);
   const touch = useRef<{ id: number; startX: number } | null>(null);
@@ -111,7 +114,9 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
       const box = event.currentTarget.getBoundingClientRect();
       const px = (event.clientX - box.left) / box.width - 0.5;
       const py = (event.clientY - box.top) / box.height - 0.5;
-      setTilt(py * -2 * MAX_TILT_X, px * 2 * MAX_TILT_Y, true);
+      // The book turns as if the visitor leaned towards the pointer: pointer
+      // on the right shows the right-hand side, pointer above shows the top.
+      setTilt(py * 2 * MAX_TILT_X, px * -2 * MAX_TILT_Y, true);
       return;
     }
     if (!touch.current || touch.current.id !== event.pointerId) return;
@@ -129,6 +134,12 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
     setTilt(0, 0, false);
   };
 
+  const pickFromWall = (next: number) => {
+    pick(next);
+    setView("hand");
+    requestAnimationFrame(() => stageRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  };
+
   if (!edition) return null;
 
   const name = editionName(edition);
@@ -144,8 +155,31 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
           <h2 id="rar-inhand-title">{galleryTitle.trim() || "Main gallery"}<span>.</span></h2>
           {galleryCaption.trim() ? <p className="rar-inhand-caption">{galleryCaption.trim()}</p> : null}
         </div>
-        <p className="rar-inhand-hint">{count} {count === 1 ? "edition" : "editions"} on display. Turn the book, flip it for its record, or pick another off the shelf.</p>
+        <div className="rar-inhand-intro-side">
+          <p className="rar-inhand-hint">{view === "hand"
+            ? `${count} ${count === 1 ? "edition" : "editions"} on display. Turn the book, flip it for its record, or pick another off the shelf.`
+            : `${count} ${count === 1 ? "edition" : "editions"} on display. Choose a cover to pick the book up.`}</p>
+          {count > 1 ? <div className="rar-inhand-views" role="group" aria-label="Gallery view">
+            <button type="button" aria-pressed={view === "hand"} onClick={() => setView("hand")}>In hand</button>
+            <button type="button" aria-pressed={view === "wall"} onClick={() => setView("wall")}>Wall</button>
+          </div> : null}
+        </div>
       </div>
+
+      {view === "wall" ? <ul className="rar-inhand-wall">
+        {wallEditions.map((item, itemIndex) => {
+          const itemMarket = marketCopy(item.marketGuide);
+          return <li key={item.id}>
+            <button type="button" onClick={() => pickFromWall(itemIndex)} aria-label={`Pick up ${editionName(item)}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} />
+            </button>
+            <strong>{editionName(item)}</strong>
+            <span>{[item.publisher, item.language].filter(Boolean).join(" · ") || "Edition details not recorded"}</span>
+            <span className="rar-inhand-wall-market">{itemMarket ?? "No market guide yet"}</span>
+          </li>;
+        })}
+      </ul> : <>
 
       <div className="rar-inhand-main">
         <div className="rar-inhand-stage" ref={stageRef} data-tracking="false" data-flipped={flipped}
@@ -194,6 +228,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
           <div className="rar-inhand-plank" aria-hidden="true" />
         </div>
       </div>
+      </>}
 
       <div className="rar-inhand-footnote"><span>COLLECTOR’S CHOSEN DISPLAY · VERIFIED RAR COVERS</span><span>{count} ON DISPLAY</span></div>
     </div>
