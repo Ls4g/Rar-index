@@ -84,7 +84,7 @@
 
 .rar-inhand-shelf-scroll { margin-top: 34px; overflow-x: auto; padding-bottom: 8px; }
 .rar-inhand-shelf { width: max-content; min-width: 100%; }
-.rar-inhand-row { display: flex; align-items: flex-end; gap: 26px; height: 250px; padding: 0 44px; perspective: 1500px; perspective-origin: 50% 30%; }
+.rar-inhand-row { display: flex; align-items: flex-end; gap: 26px; height: 250px; padding: 0 44px; perspective: 1500px; perspective-origin: 50% 100%; }
 .rar-inhand-shelf[data-few="true"] .rar-inhand-row { justify-content: center; gap: 48px; }
 .rar-inhand-mini {
   --w: 118px; --h: 172px; --d: 18px; --lean: -34deg;
