@@ -17,13 +17,13 @@
 /* The wall: covers hung like framed pieces under a row of lights. Each hangs
    very slightly off true and alternate ones sit lower, so it reads as a wall
    someone arranged rather than a product grid. */
-.rar-inhand-wall { list-style: none; margin: 34px 0 0; padding: 64px 36px 56px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 56px 44px; border-top: 1px solid #323a46; background: linear-gradient(180deg, #1b212a 0%, #10141a 46%, #0b0d11 100%); }
+.rar-inhand-wall { list-style: none; margin: 34px 0 0; padding: 64px 36px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 250px)); justify-content: center; gap: 56px 44px; border-top: 1px solid #323a46; background: linear-gradient(180deg, #1b212a 0%, #10141a 46%, #0b0d11 100%); }
 .rar-inhand-wall li { --hang: -1.4deg; position: relative; display: flex; flex-direction: column; gap: 18px; min-width: 0; animation: rar-inhand-hang .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 70ms); }
 .rar-inhand-wall li:nth-child(3n + 2) { --hang: 1.1deg; }
 .rar-inhand-wall li:nth-child(3n) { --hang: -.5deg; }
 .rar-inhand-wall li:nth-child(even) { margin-top: 44px; }
 /* The pool of light each piece hangs in. */
-.rar-inhand-wall li::before { content: ""; position: absolute; left: -18%; right: -18%; top: -64px; height: 78%; pointer-events: none; background: radial-gradient(ellipse 50% 60% at 50% 0%, rgba(255,236,200,.2), rgba(255,236,200,0) 70%); }
+.rar-inhand-wall li::before { content: ""; position: absolute; left: -30%; right: -30%; top: -64px; height: 90%; pointer-events: none; background: radial-gradient(ellipse 38% 100% at 50% -12%, rgba(255,236,200,.26), rgba(255,236,200,.07) 45%, rgba(255,236,200,0) 72%); }
 @keyframes rar-inhand-hang { from { opacity: 0; transform: translateY(34px); } }
 .rar-inhand-wall button { position: relative; display: block; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 900px; }
 .rar-inhand-wall-cover { position: relative; display: block; aspect-ratio: 300 / 436; overflow: hidden; background: #1c2129; transform: rotate(var(--hang)); transform-origin: 50% 0; box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 26px 36px rgba(0,0,0,.65), 0 3px 6px rgba(0,0,0,.5); transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s; }
