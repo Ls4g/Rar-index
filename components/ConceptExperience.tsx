@@ -147,7 +147,7 @@ export default async function ConceptExperience({ preview = false }: { preview?:
         <header className="rar-concept-header">
           <Link className="rar-concept-logo" href={preview ? "#home" : "/"} aria-label="RAR home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
           <nav aria-label="Main navigation">
-            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>With sale prices</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link>{preview ? null : <Link href="/collectors">Collectors</Link>}<Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link>}<ThemeToggle />
+            <Link href={preview ? "#browse" : "/browse"}>Discover</Link><Link href={preview ? "#edition" : "/browse?evidence=verified-sales"}>With sale prices</Link><Link href={preview ? "#showcase" : "/collection"}>Collections</Link>{preview ? null : <Link href="/collectors">Collectors</Link>}<Link href={preview ? "#buy" : "/buy-manga"}>Buy manga</Link>{preview ? null : <><Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link><Link className="rar-public-header-secondary" href="/staff-login">Staff</Link></>}<ThemeToggle />
           </nav>
           <Link className="rar-concept-header-cta" href={preview ? "#join" : "/portfolio"}>Your shelf <span>↗</span></Link>
         </header>
