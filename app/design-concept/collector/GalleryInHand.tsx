@@ -45,13 +45,22 @@ function binding(edition: DemoBookEdition) {
   return edition.language === "Japanese" ? "rtl" : "ltr";
 }
 
+// Covers are not all the same shape, and forcing them into one box cropped the
+// top of some (the "JUMP COMICS" line). Each book takes the height of its own
+// cover image instead, within sane limits for a broken or odd-shaped file.
+function fitCover(img: HTMLImageElement | null) {
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const ratio = Math.max(1.25, Math.min(1.7, img.naturalHeight / img.naturalWidth));
+  img.closest<HTMLElement>(".rar-inhand-book, .rar-inhand-mini, .rar-inhand-wall-cover")?.style.setProperty("--ratio", ratio.toFixed(4));
+}
+
 function BookFaces({ edition, eager = false }: { edition: DemoBookEdition; eager?: boolean }) {
   const alt = `Cover of ${edition.title || edition.series || "this publication"}`;
   return <>
     <span className="rar-inhand-face rar-inhand-front">
       {/* Reviewer-approved external catalogue image, as in EditionCover. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={edition.coverUrl ?? ""} alt={alt} loading={eager ? "eager" : "lazy"} referrerPolicy="no-referrer" draggable={false} />
+      <img src={edition.coverUrl ?? ""} alt={alt} loading={eager ? "eager" : "lazy"} referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
       <span className="rar-inhand-glare" aria-hidden="true" />
       <span className="rar-inhand-hinge" aria-hidden="true" />
     </span>
@@ -174,7 +183,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
             <button type="button" onClick={() => pickFromWall(itemIndex)} aria-label={`Pick up ${editionName(item)}`}>
               <span className="rar-inhand-wall-cover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} />
+                <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
                 <span className="rar-inhand-wall-sheen" aria-hidden="true" />
               </span>
             </button>

@@ -26,7 +26,7 @@
 .rar-inhand-wall li::before { content: ""; position: absolute; left: -30%; right: -30%; top: -64px; height: 90%; pointer-events: none; background: radial-gradient(ellipse 38% 100% at 50% -12%, rgba(255,236,200,.26), rgba(255,236,200,.07) 45%, rgba(255,236,200,0) 72%); }
 @keyframes rar-inhand-hang { from { opacity: 0; transform: translateY(34px); } }
 .rar-inhand-wall button { position: relative; display: block; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 900px; }
-.rar-inhand-wall-cover { position: relative; display: block; aspect-ratio: 300 / 436; overflow: hidden; background: #1c2129; transform: rotate(var(--hang)); transform-origin: 50% 0; box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 26px 36px rgba(0,0,0,.65), 0 3px 6px rgba(0,0,0,.5); transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s; }
+.rar-inhand-wall-cover { position: relative; display: block; aspect-ratio: 1 / var(--ratio, 1.4533); overflow: hidden; background: #1c2129; transform: rotate(var(--hang)); transform-origin: 50% 0; box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 26px 36px rgba(0,0,0,.65), 0 3px 6px rgba(0,0,0,.5); transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s; }
 .rar-inhand-wall button:hover .rar-inhand-wall-cover, .rar-inhand-wall button:focus-visible .rar-inhand-wall-cover { transform: rotate(0deg) translateY(-12px) rotateY(-14deg) scale(1.03); box-shadow: -7px 0 0 -1px #d8d1c2, -8px 2px 0 -1px #8d877b, 0 44px 54px rgba(0,0,0,.75), 0 3px 6px rgba(0,0,0,.5); }
 .rar-inhand-wall button:active .rar-inhand-wall-cover { transform: rotate(0deg) translateY(-4px) scale(.99); }
 .rar-inhand-wall img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -52,9 +52,9 @@
 
 /* One cuboid, sized by three variables so the large book and the shelf books
    share every rule below. */
-.rar-inhand-book, .rar-inhand-mini { position: relative; width: var(--w); height: var(--h); transform-style: preserve-3d; }
+.rar-inhand-book, .rar-inhand-mini { --h: calc(var(--w) * var(--ratio, 1.4533)); position: relative; width: var(--w); height: var(--h); transform-style: preserve-3d; }
 .rar-inhand-book {
-  --w: 300px; --h: 436px; --d: 34px; --rest: -24deg; --flip: 0deg;
+  --w: 300px; --d: 34px; --rest: -24deg; --flip: 0deg;
   transform: rotateX(var(--rar-tilt-x)) rotateY(calc(var(--rest) + var(--rar-tilt-y) + var(--flip)));
   transition: transform .8s cubic-bezier(.2, .8, .2, 1);
   animation: rar-inhand-arrive .6s cubic-bezier(.2, .8, .2, 1);
@@ -120,7 +120,7 @@
 .rar-inhand-row { display: flex; align-items: flex-end; gap: 26px; height: 250px; padding: 0 44px; perspective: 1500px; perspective-origin: 50% 100%; }
 .rar-inhand-shelf[data-few="true"] .rar-inhand-row { justify-content: center; gap: 48px; }
 .rar-inhand-mini {
-  --w: 118px; --h: 172px; --d: 18px; --lean: -34deg;
+  --w: 118px; --d: 18px; --lean: -34deg;
   flex: 0 0 var(--w); padding: 0; border: 0; background: transparent; cursor: pointer;
   transform: rotateY(var(--lean)); transition: transform .45s cubic-bezier(.2, .8, .2, 1);
 }
@@ -138,13 +138,13 @@
   .rar-inhand-intro-side { align-items: flex-start; }
   .rar-inhand-main { grid-template-columns: minmax(0, 1fr); }
   .rar-inhand-stage { height: 520px; }
-  .rar-inhand-book { --w: 250px; --h: 363px; --d: 28px; }
+  .rar-inhand-book { --w: 250px; --d: 28px; }
   .rar-inhand-floor { width: 300px; margin-left: -150px; bottom: 44px; }
 }
 @media (max-width: 520px) {
   .rar-inhand { padding: 64px 0 72px; }
   .rar-inhand-stage { height: 440px; }
-  .rar-inhand-book { --w: 206px; --h: 299px; --d: 24px; }
+  .rar-inhand-book { --w: 206px; --d: 24px; }
   .rar-inhand-back { padding: 18px 16px; gap: 10px; }
   .rar-inhand-back strong { font-size: 19px; }
   .rar-inhand-back dd { font-size: 12px; }
