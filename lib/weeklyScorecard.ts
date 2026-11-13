@@ -1,4 +1,5 @@
 import { APIFY_SOLD_SEARCH_PROVIDER } from "./salesInbox.ts";
+import { AUTO_DISMISS_REVIEWER } from "./apifyListingIntake.ts";
 
 export type ScorecardRun = {
   started_at: string;
@@ -46,6 +47,9 @@ export function buildWeeklyScorecard(runs: ScorecardRun[], reviews: ScorecardRev
   }
   for (const review of reviews) {
     if (!review.reviewed_at || !review.reviewed_by || review.discovery_provider !== APIFY_SOLD_SEARCH_PROVIDER) continue;
+    // Auto-Triage closes results nobody looked at; counting them would make
+    // the review column claim work that no person did.
+    if (review.reviewed_by === AUTO_DISMISS_REVIEWER) continue;
     const day = byDay.get(dayOf(review.reviewed_at));
     if (!day) continue;
     day.reviewed += 1;
