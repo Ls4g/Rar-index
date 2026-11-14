@@ -334,16 +334,25 @@ export async function syncReliabilityBenchmarks(admin: SupabaseClient) {
     if (!latestBySource.has(key)) latestBySource.set(key, row);
   }
 
+  // The same decision can reach the candidate list twice with an identical
+  // snapshot (for example the same row read by two sources). Only the first
+  // may be inserted: a repeat in one batch broke the unique key and stopped
+  // the sync -- and with it the whole scheduled check -- every day from
+  // 18 October 2026.
   const inserts = candidates.flatMap((candidate) => {
     const snapshotHash = hashSnapshot({ input: candidate.input_snapshot, expected: candidate.expected_outcome, reason: candidate.reason_label });
     const uniqueKey = `${candidate.source_decision_table}:${candidate.source_decision_id}:${snapshotHash}`;
     if (existingKeys.has(uniqueKey)) return [];
+    existingKeys.add(uniqueKey);
     const previous = latestBySource.get(`${candidate.source_decision_table}:${candidate.source_decision_id}`);
     return [{ ...candidate, snapshot_hash: snapshotHash, supersedes_case_id: previous?.id ?? null }];
   });
 
   for (let offset = 0; offset < inserts.length; offset += 250) {
-    const { error } = await admin.from("agent_benchmark_cases").insert(inserts.slice(offset, offset + 250));
+    // ignoreDuplicates as a backstop: a case saved by a concurrent run is not an error.
+    const { error } = await admin.from("agent_benchmark_cases").upsert(inserts.slice(offset, offset + 250), {
+      onConflict: "source_decision_table,source_decision_id,snapshot_hash", ignoreDuplicates: true,
+    });
     if (error) throw new Error(`Reliability benchmarks could not be saved: ${error.message}`);
   }
   return { discovered: candidates.length, added: inserts.length, unchanged: candidates.length - inserts.length, failedSources };
