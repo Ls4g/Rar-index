@@ -111,6 +111,8 @@ export type EditionRunOutcome = {
   queued: number;
   alreadyKnown: number;
   needsHuman: number;
+  /** Title-search results RAR Auto-Triage closed instead of queueing. */
+  autoDismissed: number;
   costUsd: number | null;
   /** Rows dropped individually, by code. */
   dropCounts: Record<string, number>;
@@ -126,7 +128,7 @@ export function failedOutcome(
   return {
     editionId: target.editionId, isbn: target.isbn, reason: target.reason,
     status: "failed", failure, warnings: partial.warnings ?? [],
-    found: partial.found ?? 0, queued: 0, alreadyKnown: 0, needsHuman: 0,
+    found: partial.found ?? 0, queued: 0, alreadyKnown: 0, needsHuman: 0, autoDismissed: 0,
     costUsd: partial.costUsd ?? null, dropCounts: partial.dropCounts ?? {}, ambiguousItemIds: [],
   };
 }
@@ -154,7 +156,7 @@ export function summariseRuns(outcomes: EditionRunOutcome[]) {
       spentKnown = true;
     }
   }
-  const sum = (key: "found" | "queued" | "alreadyKnown" | "needsHuman") =>
+  const sum = (key: "found" | "queued" | "alreadyKnown" | "needsHuman" | "autoDismissed") =>
     outcomes.reduce((total, outcome) => total + outcome[key], 0);
   const succeeded = outcomes.filter((outcome) => outcome.status === "succeeded").length;
   return {
@@ -165,6 +167,7 @@ export function summariseRuns(outcomes: EditionRunOutcome[]) {
     queued: sum("queued"),
     alreadyKnown: sum("alreadyKnown"),
     needsHuman: sum("needsHuman"),
+    autoDismissed: sum("autoDismissed"),
     dropped: Object.values(dropCounts).reduce((total, count) => total + count, 0),
     spentUsd: spentKnown ? Math.round(spent * 10_000) / 10_000 : null,
     dropCounts,
@@ -181,6 +184,7 @@ export function summariseRuns(outcomes: EditionRunOutcome[]) {
       found: outcome.found,
       queued: outcome.queued,
       needs_human: outcome.needsHuman,
+      auto_dismissed: outcome.autoDismissed,
       spent_usd: outcome.costUsd,
     })),
     ambiguousPrinting: outcomes.flatMap((outcome) => outcome.ambiguousItemIds.map((itemId) => ({
