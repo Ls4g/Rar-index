@@ -21,10 +21,31 @@ export function summarizeCronResponse(name: CronName, status: number, body: Reco
   const checks = body.checks as { errors?: unknown } | undefined;
   if (Array.isArray(checks?.errors)) summary.check_errors = checks.errors.length;
   if (name === "agent-reliability") {
-    const result = body.result as { runs?: { passed?: boolean }[] } | undefined;
+    const result = body.result as {
+      runs?: { passed?: boolean; metrics?: { evaluation_errors?: unknown } }[];
+      failures?: { stage?: unknown; evaluatorKey?: unknown }[];
+      sync?: { failedSources?: unknown } | null;
+    } | undefined;
     if (Array.isArray(result?.runs)) {
       summary.evaluations = result.runs.length;
       summary.failed_gates = result.runs.filter((run) => run.passed === false).length;
+      const unreadable = result.runs.reduce((total, run) => total + (Number(run.metrics?.evaluation_errors) || 0), 0);
+      if (unreadable) summary.unreadable_cases = unreadable;
+    }
+    // Where it broke, as fixed codes only (never the error text).
+    if (Array.isArray(result?.failures)) {
+      summary.failures = result.failures.length;
+      for (const failure of result.failures) {
+        if (failure.stage === "sync") summary.failed_sync = true;
+        if (failure.stage === "suite" && typeof failure.evaluatorKey === "string" && /^[a-z_]{1,40}$/.test(failure.evaluatorKey)) {
+          summary[`failed_${failure.evaluatorKey}`] = true;
+        }
+      }
+    }
+    if (Array.isArray(result?.sync?.failedSources)) {
+      for (const source of result.sync.failedSources) {
+        if (typeof source === "string" && /^[a-z_]{1,20}$/.test(source)) summary[`failed_source_${source}`] = true;
+      }
     }
   }
   const state = status >= 400 || summary.checks_budgetUnavailable === true ? "failed"
