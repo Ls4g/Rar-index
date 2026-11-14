@@ -62,3 +62,10 @@ assert.equal(summary.summary.error_kind_provider, true);
 assert.ok(!JSON.stringify(summary).includes("secret"));
 
 console.log("job health checks passed");
+
+// Every run in the window failed: say so rather than undercounting.
+{
+  const all = assessJobHealth([run(0.1, "failed"), run(1.1, "failed")], NOW, JOB);
+  assert.match(all[0].reason, /every run in the last 10 days/);
+  console.log("streak wording check passed");
+}

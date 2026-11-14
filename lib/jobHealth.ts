@@ -80,7 +80,9 @@ export function assessJobHealth(runs: JobRun[], now = Date.now(), jobs = SCHEDUL
       for (const run of finished) { if (failed(run)) streak += 1; else break; }
       const firstFailure = finished[streak - 1];
       problems.push({ job: name, label: job.label, severity: "alert",
-        reason: `Failed ${streak} runs in a row.`,
+        reason: streak === finished.length
+          ? `Failed every run in the last 10 days (${streak} in a row, possibly longer).`
+          : `Failed ${streak} runs in a row.`,
         since: firstFailure?.started_at ?? last!.started_at, where: whereCodes(last!.summary) });
     } else if (stuck) {
       problems.push({ job: name, label: job.label, severity: "watch",
