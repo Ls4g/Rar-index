@@ -1,6 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes" | "apify-sales";
+export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes" | "apify-sales" | "exchange-rates";
+
+/**
+ * A failed run's error, reduced to one fixed word so the record says roughly
+ * where it broke without storing provider text (which can hold secrets).
+ */
+export function classifyCronError(message: string): string {
+  const text = message.toLowerCase();
+  if (/timed? ?out|timeout|aborted|deadline|time budget/.test(text)) return "timeout";
+  if (/unauthori[sz]ed|forbidden|permission denied|jwt|api key|token|401|403/.test(text)) return "auth";
+  if (/duplicate key|violates|constraint|relation .* does not exist|column .* does not exist|schema cache|syntax error|could not be saved|could not be read/.test(text)) return "database";
+  if (/fetch failed|econn|enotfound|network|socket|5\d\d|unavailable|outage|rate limit|429/.test(text)) return "provider";
+  return "unknown";
+}
 
 // Only bounded operational counts enter the heartbeat. Never persist request
 // URLs/headers, raw errors, listing payloads or holder identities here.
@@ -48,6 +61,7 @@ export function summarizeCronResponse(name: CronName, status: number, body: Reco
       }
     }
   }
+  if (status >= 400 && typeof body.error === "string") summary[`error_kind_${classifyCronError(body.error)}`] = true;
   const state = status >= 400 || summary.checks_budgetUnavailable === true ? "failed"
     : status === 207 || body.ok === false || Number(summary.failures ?? 0) > 0
       || Number(summary.failed ?? 0) > 0 || Number(summary.cycle_failed ?? 0) > 0

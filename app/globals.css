@@ -4884,3 +4884,17 @@ html[data-theme="night"] .edition-page .price-history-multi {
   .public-mobile-utility a:last-child { border-right: 0; color: #a50c17; }
   .portfolio-account-bar { justify-content: space-between; padding: .55rem 1rem; }
 }
+
+/* Scheduled-job health card (components/JobHealthBanner.tsx). Fixed so it
+   never shifts a staff header; only rendered when something needs a look. */
+.staff-job-health { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid var(--line); border-left: 4px solid #b98a1d; border-radius: .6rem; background: var(--paper); color: var(--ink); box-shadow: 0 12px 30px rgba(0,0,0,.28); font-size: .78rem; line-height: 1.45; }
+.staff-job-health.is-alert { border-left-color: #c8312b; }
+.staff-job-health summary { padding: .7rem .9rem; cursor: pointer; font-weight: 700; list-style: none; }
+.staff-job-health summary::-webkit-details-marker { display: none; }
+.staff-job-health summary::before { content: "● "; color: #b98a1d; }
+.staff-job-health.is-alert summary::before { color: #c8312b; }
+.staff-job-health ul { margin: 0; padding: 0 .9rem .4rem 1.9rem; }
+.staff-job-health li { margin: 0 0 .45rem; }
+.staff-job-health-where { color: var(--muted); font-size: .72rem; }
+.staff-job-health a { display: inline-block; margin: 0 .9rem .75rem; font-weight: 700; text-decoration: underline; }
+@media print { .staff-job-health { display: none; } }
