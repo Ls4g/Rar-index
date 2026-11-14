@@ -1,4 +1,5 @@
 import { EARLIEST_RATE_DATE, ECB_CURRENCIES, fetchEcbRates, upsertEcbRates } from "@/lib/ecbExchangeRates";
+import { runRecordedCron } from "@/lib/cronHeartbeat";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const maxDuration = 60;
@@ -9,8 +10,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized cron request." }, { status: 401 });
   }
 
+  return runRecordedCron("exchange-rates", getSupabaseAdmin, async (admin) => {
   try {
-    const admin = getSupabaseAdmin();
     const { data: existing, error } = await admin.from("exchange_rates")
       .select("rate_date,currency")
       .in("currency", [...ECB_CURRENCIES])
@@ -37,4 +38,5 @@ export async function GET(request: Request) {
     console.error("ECB exchange-rate refresh failed", error);
     return Response.json({ error: "ECB exchange-rate refresh failed." }, { status: 502 });
   }
+  });
 }
