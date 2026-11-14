@@ -26,7 +26,8 @@ export async function GET(request: Request) {
       recovered = recovery.data;
     }
     const result = await runChangedReliabilitySuites(admin, "RAR Reliability Schedule", "schedule");
-    return Response.json({ ok: true, recovered, result });
+    const failed = result.failures.length > 0;
+    return Response.json({ ok: !failed, recovered, result }, { status: failed ? 207 : 200 });
   } catch (caught) {
     return Response.json({ error: caught instanceof Error ? caught.message : "The scheduled reliability check failed." }, { status: 500 });
   }
