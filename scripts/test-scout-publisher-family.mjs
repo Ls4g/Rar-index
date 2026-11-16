@@ -31,3 +31,12 @@ assert.ok(conflictsFor(AOT, "Attack on Titan Vol 1 English VIZ Media").some((c) 
 assert.ok(conflictsFor(edition("Naruto", "VIZ Media"), "Naruto Vol 1 English Kodansha").some((c) => /publisher/.test(c)), "Kodansha vs VIZ must conflict");
 assert.ok(!conflictsFor(edition("Naruto", "VIZ Media"), "Naruto Vol 1 VIZ Media English").some((c) => /publisher/.test(c)), "same publisher must not conflict");
 console.log("publisher family checks passed");
+
+// Boruto is Naruto's sequel series, not Naruto (staff dismissed a Boruto
+// Vol. 1 on the Naruto Vol. 1 profile; no Boruto listing was ever watched).
+{
+  const NARUTO_JP = edition("Naruto", "Shueisha", "Japanese");
+  assert.ok(conflictsFor(NARUTO_JP, "BORUTO Naruto Next Generations Vol.1 First Edition 2016 Japanese Manga").some((c) => /different series/.test(c)));
+  assert.ok(!conflictsFor(NARUTO_JP, "Naruto Vol.1 First Edition 2000 Japanese Manga Shueisha").some((c) => /different series/.test(c)));
+  console.log("Boruto sister-series check passed");
+}
