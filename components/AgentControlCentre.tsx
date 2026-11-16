@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { isExecutableAgentAction } from "@/lib/agentActionExecution";
+import { agentActionAudience } from "@/lib/agentActionAudience";
 import { useStaffReviewer } from "@/lib/useStaffReviewer";
 
 type Control = {
@@ -283,7 +284,12 @@ export default function AgentControlCentre({
 
   const lastRun = new Map<string, Run>();
   for (const run of runs) if (!lastRun.has(run.agent_key)) lastRun.set(run.agent_key, run);
-  const proposed = actions.filter((action) => action.status === "proposed" && !resolvedActionIds.has(action.id));
+  const open = actions.filter((action) => ["proposed", "approved"].includes(action.status) && !resolvedActionIds.has(action.id));
+  // Staff see only proposals their click acts on; scorer investigations go
+  // to a read-only developer list and queue reminders are dropped (see
+  // lib/agentActionAudience.ts).
+  const proposed = open.filter((action) => action.status === "proposed" && agentActionAudience(action.action_type) === "decision");
+  const developerTasks = open.filter((action) => agentActionAudience(action.action_type) === "developer");
   // Everything a person has already approved and that has not finished.
   //
   // This had no surface at all. The proposal list renders only "proposed", so
@@ -292,8 +298,8 @@ export default function AgentControlCentre({
   // as plain text with no controls. An approved machine-executable action
   // could not be run and a finished one could not be cleared, so the backlog
   // could only ever grow.
-  const openApprovals = actions.filter((action) => action.status === "approved" && !resolvedActionIds.has(action.id));
-  const plannedFeedback = actions.filter((action) => action.status === "approved" && isFeedbackAction(action));
+  const openApprovals = open.filter((action) => action.status === "approved" && agentActionAudience(action.action_type) === "decision");
+  const plannedFeedback = openApprovals.filter((action) => isFeedbackAction(action));
   const executed = actions.filter((action) => action.status === "executed").slice(0, 10);
   const operatorBriefing = runs.find((run) => run.agent_key === "rar_operator");
   const marketScoutRun = runs.find((run) => run.agent_key === "market_scout");
@@ -433,6 +439,21 @@ export default function AgentControlCentre({
           return <article className={isFeedbackAction(action) ? "is-feedback" : ""} key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · {descriptor}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}{acceptsExtraPhrases ? <label className="agent-rule-phrases"><span>Optional extra phrases to shadow-test</span><input onChange={(event) => setRulePhrases((current) => ({ ...current, [action.id]: event.target.value }))} placeholder="RAR will derive safe phrases from the examples" value={rulePhrases[action.id] ?? ""} /></label> : null}<small>{formatTime(action.created_at)}</small></div><div>{workQueue ? <Link className="agent-queue-link" href={workQueue.href}>{workQueue.label} →</Link> : null}<button disabled={Boolean(busy)} onClick={() => command(`approve-${action.id}`, { command: "review_action", actionId: action.id, decision: "approved", execute: canExecute, rulePhrases: rulePhrases[action.id] ?? "" })} type="button">{isRunning ? canExecute ? "Running…" : "Saving…" : canExecute ? "Approve and run" : isFeedbackAction(action) ? "Approve investigation" : "Mark planned"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => command(`reject-${action.id}`, { command: "review_action", actionId: action.id, decision: "rejected" })} type="button">Dismiss</button>{actionMessages[action.id] ? <p className="agent-action-message" role="alert">{actionMessages[action.id]}</p> : null}</div></article>;
         })}</div> : <div className="review-empty agent-empty-compact"><strong>Nothing is waiting for approval.</strong><p>The agents have no new recommendations for you.</p></div>}
       </section>
+
+      {developerTasks.length ? <section className="agent-proposals agent-developer-tasks" id="agent-developer-tasks">
+        <div className="section-intro">
+          <p className="eyebrow">Not for you to approve</p>
+          <h2>For the developer</h2>
+          <p className="section-copy">
+            Patterns the agents found that need a code or scorer change. Approving these never did anything, so there
+            is no button: pass them to whoever maintains RAR. They clear when the agents stop seeing the pattern.
+          </p>
+        </div>
+        <div className="agent-proposal-list">{developerTasks.map((action) => {
+          const examples = feedbackExamples(action);
+          return <article className="is-feedback" key={action.id}><div><span>{action.agent_key.replaceAll("_", " ")} · found {formatTime(action.created_at)}</span><h3>{action.title}</h3><p>{action.rationale}</p>{examples.length ? <details className="agent-feedback-examples"><summary>View {examples.length} example{examples.length === 1 ? "" : "s"}</summary><ul>{examples.map((example) => <li key={example.leadId}><strong>{example.editionLabel}</strong><span>{example.listingTitle}</span><small>Current score: {example.score}/100</small></li>)}</ul></details> : null}</div></article>;
+        })}</div>
+      </section> : null}
 
       <section className="agent-proposals agent-open-approvals" id="agent-open-approvals">
         <div className="section-intro">

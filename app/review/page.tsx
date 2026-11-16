@@ -2,6 +2,7 @@ import Link from "next/link";
 import HumanDecisionInbox from "@/components/HumanDecisionInbox";
 import StaffNav from "@/components/StaffNav";
 import { isExecutableAgentAction } from "@/lib/agentActionExecution";
+import { agentActionAudience } from "@/lib/agentActionAudience";
 import { catalogueOneClickApprovalBlocker, type CatalogueApprovalQueueRow, type KnownCatalogueEdition } from "@/lib/catalogueApprovalGuard";
 import { looksGraded } from "@/lib/editionMatch";
 import { hasUnresolvedGrading } from "@/lib/gradingEvidence";
@@ -217,7 +218,11 @@ export default async function HumanDecisionsPage({ searchParams }: { searchParam
   const actions = (actionResult.data ?? []) as AgentAction[];
   const printByObservation = new Map(((printResult.data ?? []) as PrintRow[]).map((row) => [row.observation_id, row]));
   const printActions = actions.filter((action) => action.action_type === "suggest_print_classification" && action.target_id && printByObservation.has(action.target_id));
-  const proposals = actions.filter((action) => action.action_type !== "suggest_print_classification");
+  // Only proposals where a staff click changes something. Developer
+  // investigations live on the Agents page; queue reminders duplicate the
+  // queues already shown here.
+  const proposals = actions.filter((action) => action.action_type !== "suggest_print_classification"
+    && agentActionAudience(action.action_type) === "decision");
 
   const sales = ((saleResult.data ?? []) as PriceRow[])
     .filter((row) => Boolean(row.source_listing_url) && row.sale_price !== null && Boolean(row.currency))
