@@ -307,6 +307,8 @@ export function explicitPrintingNumber(value: string | null | undefined) {
 
 const SERIES_FAMILY_EXTENSIONS: Record<string, string[]> = {
   dragonball: ["dragonballz", "dragonballsuper", "dragonballgt"],
+  // Boruto is Naruto's sequel series; its Vol. 1 is not Naruto Vol. 1.
+  naruto: ["boruto"],
 };
 
 function seriesFamilyConflict(targetSeries: string | null, listingTitle: string | null) {
