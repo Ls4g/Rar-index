@@ -155,6 +155,14 @@ function mentionedPublisherKeys(text: string) {
     .map(([key]) => key);
 }
 
+/**
+ * The publisher family a name belongs to ("Kodansha", "Kodansha USA" and
+ * "Kodansha Comics" are all "kodansha"), or null when RAR does not know it.
+ */
+export function publisherFamilyKey(publisher: string | null | undefined) {
+  return editionPublisherKey(publisher);
+}
+
 function editionPublisherKey(publisher: string | null | undefined) {
   if (!publisher) return null;
   const normalized = publisher.toLocaleLowerCase();
