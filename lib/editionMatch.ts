@@ -16,6 +16,8 @@
 //   通巻, which is what a real magazine listing carries and a book listing
 //   does not.
 
+import { publisherFamilyKey } from "./liveListings.ts";
+
 export type IssueReference = {
   year: number | null;
   // Every issue number the listing names. A 合併号 (combined issue) is printed
@@ -402,7 +404,17 @@ export function assessEditionMatch(target: EditionMatchTarget, candidate: Editio
   const targetPublisher = normalise(target.publisher);
   const candidatePublisher = normalise(candidate.publisher);
   if (targetPublisher && candidatePublisher) {
-    if (targetPublisher === candidatePublisher) {
+    // Compare publisher families, not spellings. A listing that says
+    // "Kodansha" is reported as "Kodansha" while the edition is recorded as
+    // "Kodansha Comics", and the literal comparison called that a conflict:
+    // in November 2026 it auto-dismissed Attack on Titan and Akira leads that
+    // staff had watched. Unknown publishers still compare by spelling.
+    const targetFamily = publisherFamilyKey(target.publisher);
+    const candidateFamily = publisherFamilyKey(candidate.publisher);
+    const samePublisher = targetFamily && candidateFamily
+      ? targetFamily === candidateFamily
+      : targetPublisher === candidatePublisher;
+    if (samePublisher) {
       score += 15;
       reasons.push("publisher matches");
     } else {
