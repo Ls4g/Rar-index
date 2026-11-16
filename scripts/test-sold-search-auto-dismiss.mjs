@@ -47,7 +47,7 @@ const CASES = [
   [ONE_PIECE, "One Piece, Vol. 68", "verified", false],
   [ONE_PIECE, "One Piece Manga Box Set 1 Vol 1-23 East Blue", "rejected", true],
   [ONE_PIECE, "One Piece Manga, German, Used, Volumes 1-2", "rejected", true],
-  [ONE_PIECE, "One Piece (Omnibus Edition), Vol. 13: Includes vols. 37, 38 & 39", "rejected", false],
+  [ONE_PIECE, "One Piece (Omnibus Edition), Vol. 13: Includes vols. 37, 38 & 39", "rejected", true],
 ];
 
 const rowFor = (title, index) => ({

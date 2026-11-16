@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assessEditionMatch, type EditionMatchAssessment, type EditionMatchCandidate } from "./editionMatch.ts";
-import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings.ts";
+import { detectFormatWord, extractListingSignals, hasMatchingVolume, listingConflictsWithEdition, listingEditionTypeConflict, listingIsMultiVolumeLot, listingNamesOtherVolume } from "./liveListings.ts";
 import type { ActiveEbayListing } from "./ebayScout";
 import { applyScoutRules, type ScoutRule } from "./scoutRules.ts";
 
@@ -72,8 +72,16 @@ export function buildCandidateFromListing(edition: ScoutEdition, listingTitle: s
 export function assessScoutListing(edition: ScoutEdition, listingTitle: string, rules: ScoutRule[] = []): EditionMatchAssessment {
   const candidate = buildCandidateFromListing(edition, listingTitle);
   const assessment = assessEditionMatch(edition, candidate);
-  if (listingIsMultiVolumeLot(listingTitle, edition.volume_number)) {
+  const editionText = [edition.title, edition.series, edition.format, edition.edition_statement, edition.variant_name].filter(Boolean).join(" ");
+  if (listingIsMultiVolumeLot(listingTitle, edition.volume_number, editionText)) {
     return { ...assessment, confidence: "conflict", conflicts: [...assessment.conflicts, "listing appears to be a multi-volume lot or set"] };
+  }
+  // Deliberately not on the auto-dismiss list (lib/scoutAutoTriage.ts): a
+  // person still sees these, marked as conflicts, because some catalogue
+  // records do not yet say they are the omnibus or perfect edition.
+  const editionType = listingEditionTypeConflict(listingTitle, editionText);
+  if (editionType) {
+    return { ...assessment, confidence: "conflict", conflicts: [...assessment.conflicts, `listing is ${editionType}, not this edition`] };
   }
   return applyScoutRules(assessment, edition, listingTitle, rules);
 }
