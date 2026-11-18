@@ -33,7 +33,7 @@ export default function AboutPage() {
       <p>RAR is an independent project. It is not affiliated with, endorsed by or sponsored by eBay or any publisher. Prices are a record of past sales, not a valuation or an offer, and not financial advice. See the <Link href="/terms">Terms of use</Link>.</p>
 
       <h2>Contact</h2>
-      <p>RAR Index is run by {SITE_OPERATOR.name}. For questions, corrections, or a request to remove something, email <a href={`mailto:${SITE_OPERATOR.email}`}>{SITE_OPERATOR.email}</a>. To suggest a manga, use <Link href="/request-edition">Request a manga</Link>.</p>
+      <p>For questions, corrections, or a request to remove something, email <a href={`mailto:${SITE_OPERATOR.email}`}>{SITE_OPERATOR.email}</a>. To suggest a manga, use <Link href="/request-edition">Request a manga</Link>.</p>
     </section>
   </main>;
 }

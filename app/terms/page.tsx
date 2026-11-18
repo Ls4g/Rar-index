@@ -15,7 +15,7 @@ export default function TermsPage() {
     </section>
     <section className="tool-content legal-copy">
       <h2>Who we are</h2>
-      <p>RAR Index (the "site") is run by {SITE_OPERATOR.name}. By using the site you agree to these terms. If you do not agree, please do not use it.</p>
+      <p>These terms cover your use of the RAR Index website (the "site"), run by {SITE_OPERATOR.name} ("we" or "us"). By using the site you agree to these terms. If you do not agree, please do not use it.</p>
 
       <h2>Prices are information, not advice</h2>
       <p>Prices on RAR are a record of past completed sales of a specific edition, checked by a person. They are not a valuation, a guarantee of what a copy will sell for, an offer to buy or sell, or financial advice. Condition, printing, grading and the market all change what a copy is worth. Check for yourself before buying or selling.</p>

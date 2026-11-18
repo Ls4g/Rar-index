@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     </section>
     <section className="tool-content legal-copy">
       <h2>Who is responsible</h2>
-      <p>RAR Index is run by {SITE_OPERATOR.name}, the controller of personal data described here under UK data protection law (the UK GDPR and the Data Protection Act 2018). Contact: {email}.</p>
+      <p>This website is run by {SITE_OPERATOR.name} ("we" or "us"), the controller of personal data described here under UK data protection law (the UK GDPR and the Data Protection Act 2018). Contact: {email}.</p>
 
       <h2>You can browse without an account</h2>
       <p>Reading the catalogue and prices needs no account. We do not use advertising or third-party tracking cookies, and we do not sell personal data.</p>
