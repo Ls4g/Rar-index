@@ -11,7 +11,7 @@ import {
 } from "@/lib/portfolioValuation";
 import MarketCurrencyProvider from "@/components/MarketCurrencyProvider";
 import PublicHeader from "@/components/PublicHeader";
-import PortfolioAuth, { type AuthCover } from "@/components/portfolio/PortfolioAuth";
+import PortfolioAuth, { type AuthCover, type AuthMode } from "@/components/portfolio/PortfolioAuth";
 import PortfolioTabs, { type PortfolioTabKey } from "@/components/portfolio/PortfolioTabs";
 import OverviewTab from "@/components/portfolio/OverviewTab";
 import HoldingsTab from "@/components/portfolio/HoldingsTab";
@@ -30,10 +30,18 @@ const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
 const SNAPSHOT_HISTORY_LIMIT = 400;
 
+// Read before the Supabase client clears the link's #...type=recovery hash.
+const arrivedFromRecoveryLink = typeof window !== "undefined" && /type=recovery/.test(window.location.hash);
+
 export default function PortfolioClient({ initialEditionId = "", authCovers = [] }: { initialEditionId?: string; authCovers?: AuthCover[] }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
+  const [mode, setMode] = useState<AuthMode>("sign-up");
+  // True after arriving from a password-reset email: Supabase signs the
+  // visitor in from the link, and they must choose a new password here.
+  const [recovering, setRecovering] = useState(arrivedFromRecoveryLink);
+  const [newPassword, setNewPassword] = useState("");
+  const [recoveryMessage, setRecoveryMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -191,7 +199,10 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
 
   useEffect(() => {
     queueMicrotask(() => { void loadPortfolio(); });
-    const { data: listener } = supabase.auth.onAuthStateChange(() => { void loadPortfolio(); });
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      void loadPortfolio();
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -296,8 +307,25 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
       else setAuthMessage("Check your email to confirm your account, then sign in.");
       return;
     }
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/portfolio` });
+      // Same message whether or not the address has an account, so the form
+      // cannot be used to find out who is signed up.
+      setAuthMessage(error ? error.message : "If an account uses that email, a reset link is on its way. Check your inbox and spam folder.");
+      return;
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setAuthMessage(error.message);
+  }
+
+  async function saveNewPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRecoveryMessage("");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) { setRecoveryMessage(error.message); return; }
+    setNewPassword("");
+    setRecovering(false);
+    setMessage("Your password has been changed.");
   }
 
   // Fires a snapshot in the background after a holding changes -- no button,
@@ -360,6 +388,15 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
 
   return <main className="portfolio-page public-page">
     <PublicHeader />
+
+    {userEmail && recovering ? (
+      <form className="portfolio-auth-form portfolio-recovery-form" onSubmit={saveNewPassword}>
+        <p className="eyebrow">Choose a new password</p>
+        <label>New password<input type="password" required minLength={6} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" /></label>
+        <button type="submit">Save new password</button>
+        {recoveryMessage ? <p role="status">{recoveryMessage}</p> : null}
+      </form>
+    ) : null}
 
     {userEmail ? (
       <div className="portfolio-account-bar">
