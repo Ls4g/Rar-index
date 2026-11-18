@@ -4928,3 +4928,9 @@ html[data-theme="night"] .edition-page .price-history-multi {
 .site-footer a:hover { color: var(--ink); }
 .site-footer p { margin: 0; }
 @media print { .site-footer { display: none; } }
+
+/* Forgot-password link under the sign-in form, and the new-password form a
+   reset link opens. */
+.portfolio-auth-form .portfolio-auth-link { justify-self: start; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.portfolio-auth-form .portfolio-auth-link:hover { color: var(--ink); }
+.portfolio-recovery-form { max-width: 440px; margin: 1.5rem auto; }
