@@ -158,3 +158,18 @@
 @media (prefers-reduced-motion: reduce) {
   .rar-inhand-book, .rar-inhand-mini, .rar-inhand-glare, .rar-inhand-wall li, .rar-inhand-wall-cover, .rar-inhand-wall-sheen { transition: none; animation: none; }
 }
+
+/* Premium preview themes. The gallery stays a dark room so covers carry the
+   colour; Saffron warms it to brass and walnut, Indigo cools it to navy. */
+.rar-inhand[data-gallery-theme="saffron"] { background: #15110c; }
+.rar-inhand[data-gallery-theme="saffron"] .rar-inhand-stage { background: radial-gradient(ellipse 58% 62% at 50% 44%, #3a2f22 0%, #1d1810 55%, #15110c 100%); }
+.rar-inhand[data-gallery-theme="saffron"] .rar-inhand-wall { border-top-color: #4a3c2a; background: linear-gradient(180deg, #2a2117 0%, #1a140d 46%, #15110c 100%); }
+.rar-inhand[data-gallery-theme="saffron"] .rar-inhand-wall li::before { background: radial-gradient(ellipse 38% 100% at 50% -12%, rgba(255,205,130,.3), rgba(255,205,130,.08) 45%, rgba(255,205,130,0) 72%); }
+.rar-inhand[data-gallery-theme="saffron"] .rar-inhand-kicker, .rar-inhand[data-gallery-theme="saffron"] .rar-inhand-wall-number { color: #e0a84a; }
+.rar-inhand[data-gallery-theme="saffron"] .rar-inhand-wall-plaque { border-left-color: #c98f32; }
+.rar-inhand[data-gallery-theme="indigo"] { background: #0a0f1a; }
+.rar-inhand[data-gallery-theme="indigo"] .rar-inhand-stage { background: radial-gradient(ellipse 58% 62% at 50% 44%, #243452 0%, #121b2c 55%, #0a0f1a 100%); }
+.rar-inhand[data-gallery-theme="indigo"] .rar-inhand-wall { border-top-color: #2c3b57; background: linear-gradient(180deg, #18233a 0%, #0f1626 46%, #0a0f1a 100%); }
+.rar-inhand[data-gallery-theme="indigo"] .rar-inhand-wall li::before { background: radial-gradient(ellipse 38% 100% at 50% -12%, rgba(200,220,255,.26), rgba(200,220,255,.07) 45%, rgba(200,220,255,0) 72%); }
+.rar-inhand[data-gallery-theme="indigo"] .rar-inhand-kicker, .rar-inhand[data-gallery-theme="indigo"] .rar-inhand-wall-number { color: #9fb8e8; }
+.rar-inhand[data-gallery-theme="indigo"] .rar-inhand-wall-plaque { border-left-color: #6f8fcf; }
