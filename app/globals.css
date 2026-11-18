@@ -4904,3 +4904,10 @@ html[data-theme="night"] .edition-page .price-history-multi {
   .staff-job-health { left: auto; right: .75rem; bottom: calc(.75rem + env(safe-area-inset-bottom)); max-width: calc(100vw - 1.5rem); font-size: .74rem; }
   .staff-job-health summary { padding: .55rem .75rem; }
 }
+
+/* "Select a series" buttons on the catalogue bulk panel. */
+.catalogue-bulk-series { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .9rem; }
+.catalogue-bulk-series > span { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.catalogue-bulk-series button { min-height: 40px; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.catalogue-bulk-series button small { font-weight: 500; color: var(--muted); }
+.catalogue-bulk-series button:hover { border-color: var(--ink); }
