@@ -13,7 +13,7 @@ import {
 import { resolveListingOutcome } from "./listingOutcomeProviders.ts";
 import { ebayMarketplaceFromUrl } from "./ebayEvidence.ts";
 
-export type WatchCaptureResult = { captured: number; updated: number; skipped: number; leadsRead?: number; truncated?: boolean };
+export type WatchCaptureResult = { captured: number; updated: number; skipped: number; leadsRead?: number; truncated?: boolean; notFollowed?: number };
 export type OutcomeCheckResult = {
   due: number;
   checked: number;
@@ -90,7 +90,26 @@ type LeadRow = {
   last_seen_at: string;
   raw_payload: unknown;
   match_assessment: unknown;
+  review_status?: string | null;
 };
+
+/**
+ * Which Scout leads are followed to their outcome.
+ *
+ * Until 18 Nov 2026 every non-dismissed lead was. The agreed check that day
+ * (sold candidates since 11 Nov, by origin, decided by staff) found:
+ *   - leads nobody had reviewed: 3 confirmed sales in 38 decided (8%),
+ *     average match score about 50;
+ *   - leads staff chose to watch: 4 in 12 (33%), scores 65 to 85.
+ * The rule agreed on 11 Nov for that result: follow watched leads, plus
+ * unreviewed ones the scorer already rates "strong" (75+). Others still
+ * appear in Scout; they just are not chased to a sale for review.
+ */
+export function shouldFollowLead(lead: Pick<LeadRow, "review_status" | "match_assessment">) {
+  if (lead.review_status === "watching") return true;
+  const assessment = (lead.match_assessment ?? {}) as { confidence?: unknown; score?: unknown };
+  return assessment.confidence === "strong" || Number(assessment.score) >= 75;
+}
 
 function readItem(payload: unknown) {
   return (payload as { item?: Record<string, unknown> } | null)?.item ?? {};
@@ -118,16 +137,18 @@ export async function captureWatchedListings(admin: SupabaseClient, maxPages = C
     const from = page * CAPTURE_PAGE_SIZE;
     const { data: leadData, error: leadError } = await admin
       .from("scout_listing_leads")
-      .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,item_end_at,first_seen_at,last_seen_at,raw_payload,match_assessment")
+      .select("id,profile_id,source_id,external_id,source_listing_url,listing_title,listing_price,currency,item_end_at,first_seen_at,last_seen_at,raw_payload,match_assessment,review_status")
       .in("profile_id", [...editionByProfile.keys()])
       .neq("review_status", "dismissed")
       .order("id", { ascending: true })
       .range(from, from + CAPTURE_PAGE_SIZE - 1);
     if (leadError) throw new Error(`Watched leads could not be read: ${leadError.message}`);
-    const leads = (leadData ?? []) as LeadRow[];
-    result.leadsRead = (result.leadsRead ?? 0) + leads.length;
+    const pageRows = (leadData ?? []) as LeadRow[];
+    result.leadsRead = (result.leadsRead ?? 0) + pageRows.length;
+    const leads = pageRows.filter(shouldFollowLead);
+    result.notFollowed = (result.notFollowed ?? 0) + (pageRows.length - leads.length);
     await captureLeadPage(admin, leads, editionByProfile, result);
-    if (leads.length < CAPTURE_PAGE_SIZE) return result;
+    if (pageRows.length < CAPTURE_PAGE_SIZE) return result;
   }
   // Pages ran out before the leads did. Said, not hidden.
   result.truncated = true;
