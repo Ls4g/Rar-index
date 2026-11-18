@@ -1,6 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes" | "apify-sales";
+export type CronName = "ebay-scout" | "portfolio-snapshots" | "rar-agents" | "agent-reliability" | "listing-outcomes" | "apify-sales" | "exchange-rates";
+
+/**
+ * A failed run's error, reduced to one fixed word so the record says roughly
+ * where it broke without storing provider text (which can hold secrets).
+ */
+export function classifyCronError(message: string): string {
+  const text = message.toLowerCase();
+  if (/timed? ?out|timeout|aborted|deadline|time budget/.test(text)) return "timeout";
+  if (/unauthori[sz]ed|forbidden|permission denied|jwt|api key|token|401|403/.test(text)) return "auth";
+  if (/duplicate key|violates|constraint|relation .* does not exist|column .* does not exist|schema cache|syntax error|could not be saved|could not be read/.test(text)) return "database";
+  if (/fetch failed|econn|enotfound|network|socket|5\d\d|unavailable|outage|rate limit|429/.test(text)) return "provider";
+  return "unknown";
+}
 
 // Only bounded operational counts enter the heartbeat. Never persist request
 // URLs/headers, raw errors, listing payloads or holder identities here.
@@ -21,12 +34,34 @@ export function summarizeCronResponse(name: CronName, status: number, body: Reco
   const checks = body.checks as { errors?: unknown } | undefined;
   if (Array.isArray(checks?.errors)) summary.check_errors = checks.errors.length;
   if (name === "agent-reliability") {
-    const result = body.result as { runs?: { passed?: boolean }[] } | undefined;
+    const result = body.result as {
+      runs?: { passed?: boolean; metrics?: { evaluation_errors?: unknown } }[];
+      failures?: { stage?: unknown; evaluatorKey?: unknown }[];
+      sync?: { failedSources?: unknown } | null;
+    } | undefined;
     if (Array.isArray(result?.runs)) {
       summary.evaluations = result.runs.length;
       summary.failed_gates = result.runs.filter((run) => run.passed === false).length;
+      const unreadable = result.runs.reduce((total, run) => total + (Number(run.metrics?.evaluation_errors) || 0), 0);
+      if (unreadable) summary.unreadable_cases = unreadable;
+    }
+    // Where it broke, as fixed codes only (never the error text).
+    if (Array.isArray(result?.failures)) {
+      summary.failures = result.failures.length;
+      for (const failure of result.failures) {
+        if (failure.stage === "sync") summary.failed_sync = true;
+        if (failure.stage === "suite" && typeof failure.evaluatorKey === "string" && /^[a-z_]{1,40}$/.test(failure.evaluatorKey)) {
+          summary[`failed_${failure.evaluatorKey}`] = true;
+        }
+      }
+    }
+    if (Array.isArray(result?.sync?.failedSources)) {
+      for (const source of result.sync.failedSources) {
+        if (typeof source === "string" && /^[a-z_]{1,20}$/.test(source)) summary[`failed_source_${source}`] = true;
+      }
     }
   }
+  if (status >= 400 && typeof body.error === "string") summary[`error_kind_${classifyCronError(body.error)}`] = true;
   const state = status >= 400 || summary.checks_budgetUnavailable === true ? "failed"
     : status === 207 || body.ok === false || Number(summary.failures ?? 0) > 0
       || Number(summary.failed ?? 0) > 0 || Number(summary.cycle_failed ?? 0) > 0

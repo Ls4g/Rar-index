@@ -296,7 +296,21 @@ async function scoutCases(admin: SupabaseClient): Promise<CandidateCase[]> {
 }
 
 export async function syncReliabilityBenchmarks(admin: SupabaseClient) {
-  const groups = await Promise.all([scoutCases(admin), catalogueCases(admin), saleCases(admin), rejectedSaleIntakeCases(admin), printCases(admin), coverCases(admin)]);
+  // One decision table that cannot be read must not stop the others from
+  // syncing. The failed source is named in the result (the cron records it)
+  // instead of failing the whole job without saying where.
+  const sources = [
+    ["scout", scoutCases], ["catalogue", catalogueCases], ["sale", saleCases],
+    ["sale_intake", rejectedSaleIntakeCases], ["print", printCases], ["cover", coverCases],
+  ] as const;
+  const settled = await Promise.allSettled(sources.map(([, read]) => read(admin)));
+  const failedSources: string[] = [];
+  const groups = settled.map((outcome, index) => {
+    if (outcome.status === "fulfilled") return outcome.value;
+    failedSources.push(sources[index][0]);
+    console.error(JSON.stringify({ event: "reliability_source_failed", source: sources[index][0], message: errorText(outcome.reason) }));
+    return [];
+  });
   const feedbackRows = await readAll<{ workflow: string; subject_key: string; outcome: string; reason_label: string | null; note: string | null; reviewed_by: string; created_at: string }>((from, to) => admin
     .from("agent_human_feedback").select("workflow,subject_key,outcome,reason_label,note,reviewed_by,created_at")
     .order("created_at", { ascending: false }).range(from, to));
@@ -320,19 +334,54 @@ export async function syncReliabilityBenchmarks(admin: SupabaseClient) {
     if (!latestBySource.has(key)) latestBySource.set(key, row);
   }
 
+  // The same decision can reach the candidate list twice with an identical
+  // snapshot (for example the same row read by two sources). Only the first
+  // may be inserted: a repeat in one batch broke the unique key and stopped
+  // the sync -- and with it the whole scheduled check -- every day from
+  // 18 October 2026.
   const inserts = candidates.flatMap((candidate) => {
     const snapshotHash = hashSnapshot({ input: candidate.input_snapshot, expected: candidate.expected_outcome, reason: candidate.reason_label });
     const uniqueKey = `${candidate.source_decision_table}:${candidate.source_decision_id}:${snapshotHash}`;
     if (existingKeys.has(uniqueKey)) return [];
+    existingKeys.add(uniqueKey);
     const previous = latestBySource.get(`${candidate.source_decision_table}:${candidate.source_decision_id}`);
     return [{ ...candidate, snapshot_hash: snapshotHash, supersedes_case_id: previous?.id ?? null }];
   });
 
   for (let offset = 0; offset < inserts.length; offset += 250) {
-    const { error } = await admin.from("agent_benchmark_cases").insert(inserts.slice(offset, offset + 250));
+    // ignoreDuplicates as a backstop: a case saved by a concurrent run is not an error.
+    const { error } = await admin.from("agent_benchmark_cases").upsert(inserts.slice(offset, offset + 250), {
+      onConflict: "source_decision_table,source_decision_id,snapshot_hash", ignoreDuplicates: true,
+    });
     if (error) throw new Error(`Reliability benchmarks could not be saved: ${error.message}`);
   }
-  return { discovered: candidates.length, added: inserts.length, unchanged: candidates.length - inserts.length };
+  return { discovered: candidates.length, added: inserts.length, unchanged: candidates.length - inserts.length, failedSources };
+}
+
+function errorText(caught: unknown) {
+  return (caught instanceof Error ? caught.message : String(caught)).slice(0, 300);
+}
+
+/**
+ * A benchmark case whose snapshot the evaluator cannot read is a result in
+ * its own right -- "this case could not be evaluated" -- not a reason to
+ * throw away the whole suite. Before this, one such case made the scheduled
+ * job fail every day from 18 October with no run saved at all.
+ */
+export function evaluateReliabilityCaseSafely(item: BenchmarkCase, rules: ScoutRule[] = []): ReliabilityCaseResult {
+  try {
+    return evaluateReliabilityCase(item, rules);
+  } catch (caught) {
+    return {
+      benchmarkCaseId: item.id,
+      expectedOutcome: item.expected_outcome,
+      predictedOutcome: "error",
+      score: null,
+      passed: false,
+      criticalFailure: false,
+      diagnostics: { evaluation_error: errorText(caught) },
+    };
+  }
 }
 
 export function evaluateReliabilityCase(item: BenchmarkCase, rules: ScoutRule[] = []): ReliabilityCaseResult {
@@ -458,7 +507,9 @@ export async function runReliabilitySuite(
     .eq("evaluator_key", evaluatorKey).order("decided_at", { ascending: false }).range(from, to));
   const cases = latestBySubject(rows);
   const activeRules = evaluatorKey === "market_scout_match" ? await loadActiveScoutRules(admin) : [];
-  const results = cases.map(item => evaluateReliabilityCase(item, activeRules));
+  const results = cases.map(item => evaluateReliabilityCaseSafely(item, activeRules));
+  const evaluationErrors = results.filter((result) => result.predictedOutcome === "error").length;
+  if (evaluationErrors) console.error(JSON.stringify({ event: "reliability_cases_unreadable", evaluatorKey, count: evaluationErrors }));
   const baseMetrics = calculateMetrics(cases, results);
   const positiveCount = Number(baseMetrics.true_positive) + Number(baseMetrics.false_negative);
   const negativeCount = Number(baseMetrics.true_negative) + Number(baseMetrics.false_positive);
@@ -468,6 +519,7 @@ export async function runReliabilitySuite(
   // person's own decision as a safety regression.
   const metrics = {
     ...baseMetrics,
+    evaluation_errors: evaluationErrors,
     ...(raisesIncident(evaluatorKey)
       ? { unattended_losses: criticalFailures }
       : { human_disagreements: criticalFailures }),
@@ -547,18 +599,33 @@ export async function runReliabilitySuite(
 }
 
 export async function runChangedReliabilitySuites(admin: SupabaseClient, initiatedBy: string, triggerSource: "manual" | "schedule" | "changed_suite" = "changed_suite") {
-  const sync = await syncReliabilityBenchmarks(admin);
+  // Each step stands alone: a failed sync still lets the suites replay the
+  // cases already saved, and one evaluator failing does not stop the others.
+  // Failures are named (stage + evaluator) so the cron record says where.
+  const failures: { stage: "sync" | "suite"; evaluatorKey?: ReliabilityEvaluatorKey }[] = [];
+  let sync: Awaited<ReturnType<typeof syncReliabilityBenchmarks>> | null = null;
+  try {
+    sync = await syncReliabilityBenchmarks(admin);
+  } catch (caught) {
+    failures.push({ stage: "sync" });
+    console.error(JSON.stringify({ event: "reliability_sync_failed", message: errorText(caught) }));
+  }
   const runs: ReliabilityRunSummary[] = [];
   for (const evaluatorKey of RELIABILITY_EVALUATORS) {
-    const [{ data: latestCase }, { data: latestRun }] = await Promise.all([
-      admin.from("agent_benchmark_cases").select("created_at").eq("evaluator_key", evaluatorKey).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      admin.from("agent_evaluation_runs").select("created_at,evaluator_version").eq("evaluator_key", evaluatorKey).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
-    const changed = Boolean(latestCase && (!latestRun || Date.parse(latestCase.created_at) > Date.parse(latestRun.created_at) || latestRun.evaluator_version !== EVALUATOR_VERSION));
-    // Active rule changes need a scheduled replay even without new decisions.
-    if (changed || evaluatorKey === "market_scout_match" || triggerSource === "manual") runs.push(await runReliabilitySuite(admin, evaluatorKey, initiatedBy, triggerSource));
+    try {
+      const [{ data: latestCase }, { data: latestRun }] = await Promise.all([
+        admin.from("agent_benchmark_cases").select("created_at").eq("evaluator_key", evaluatorKey).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        admin.from("agent_evaluation_runs").select("created_at,evaluator_version").eq("evaluator_key", evaluatorKey).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      const changed = Boolean(latestCase && (!latestRun || Date.parse(latestCase.created_at) > Date.parse(latestRun.created_at) || latestRun.evaluator_version !== EVALUATOR_VERSION));
+      // Active rule changes need a scheduled replay even without new decisions.
+      if (changed || evaluatorKey === "market_scout_match" || triggerSource === "manual") runs.push(await runReliabilitySuite(admin, evaluatorKey, initiatedBy, triggerSource));
+    } catch (caught) {
+      failures.push({ stage: "suite", evaluatorKey });
+      console.error(JSON.stringify({ event: "reliability_suite_failed", evaluatorKey, message: errorText(caught) }));
+    }
   }
-  return { sync, runs };
+  return { sync, runs, failures };
 }
 
 export async function readReliabilityDashboard(admin: SupabaseClient) {

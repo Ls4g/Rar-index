@@ -188,7 +188,7 @@ export async function GET(request: Request) {
             editionId: target.editionId, isbn: target.isbn, reason: target.reason,
             status: "succeeded", failure: null, warnings: search.warnings,
             found: search.rows.length, queued: queued.queued, alreadyKnown: queued.alreadyKnown,
-            needsHuman: queued.needsHuman, costUsd: search.costUsd, dropCounts,
+            needsHuman: queued.needsHuman, autoDismissed: queued.autoDismissed, costUsd: search.costUsd, dropCounts,
             ambiguousItemIds: queued.ambiguousItemIds,
           };
           return outcome;
@@ -221,7 +221,7 @@ export async function GET(request: Request) {
       searched: summary.searched, seriesSearched: summary.searched,
       succeeded: summary.succeeded, failed: summary.failed,
       found: summary.found, queued: summary.queued, alreadyKnown: summary.alreadyKnown,
-      needsHuman: summary.needsHuman, dropped: summary.dropped,
+      needsHuman: summary.needsHuman, autoDismissed: summary.autoDismissed, dropped: summary.dropped,
       cooldowns, spentUsd: summary.spentUsd,
       dropCounts: summary.dropCounts, failureCodes: summary.failureCodes, warningCodes: summary.warningCodes,
       runs: summary.runs, ambiguousPrinting: summary.ambiguousPrinting,
@@ -253,6 +253,7 @@ export async function GET(request: Request) {
 function flattenCounts(summary: ReturnType<typeof summariseRuns>) {
   const flat: Record<string, number> = {
     succeeded: summary.succeeded, failed: summary.failed, needsHuman: summary.needsHuman, dropped: summary.dropped,
+    autoDismissed: summary.autoDismissed,
   };
   for (const [code, count] of Object.entries(summary.dropCounts)) flat[`drop_${code}`] = count;
   for (const [code, count] of Object.entries(summary.failureCodes)) flat[`fail_${code}`] = count;

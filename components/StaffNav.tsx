@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+import JobHealthBanner from "@/components/JobHealthBanner";
 
 type NavLink = { href: string; label: string };
 type NavGroup = { label: string; links: NavLink[] };
@@ -32,7 +33,7 @@ const MORE_GROUPS: NavGroup[] = [
 ];
 
 export default function StaffNav({ current }: { current: string }) {
-  return (
+  return (<>
     <nav className="staff-workspace-nav" aria-label="Staff workspace">
       <div className="staff-primary-links">
         {PRIMARY_LINKS.map((link) => (
@@ -68,5 +69,6 @@ export default function StaffNav({ current }: { current: string }) {
       </details>
       <ThemeToggle />
     </nav>
-  );
+    <JobHealthBanner />
+  </>);
 }

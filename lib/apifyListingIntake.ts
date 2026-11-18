@@ -205,6 +205,74 @@ export function buildOutcomeRow(
   };
 }
 
+// Which contradictions are certain enough for the daily search to dismiss a
+// title-search result on its own, without a person.
+//
+// Only the ones a title cannot get wrong by accident: a lot or set is never
+// one copy, a magazine issue is never the book, a title in another language
+// is not this edition, and a sister series is a different book. A single
+// different volume number is deliberately NOT here, and neither is the
+// scorer's own language conflict: English listings routinely say "Japanese
+// manga", so only a language named outright (below) counts. On 13 November a
+// listing titled "One Piece, Vol. 68" was in fact the Vol. 13 a reviewer
+// verified from the photos -- sellers mistype volume numbers, so that case
+// stays with a person. Nothing here can confirm anything: it only takes a
+// result out of the queue, records why, and never touches a row a person
+// has already decided (the insert ignores existing listings).
+export const AUTO_DISMISS_REVIEWER = "RAR Auto-Triage";
+
+const AUTO_DISMISS_CONFLICTS: { test: RegExp; label: string }[] = [
+  { test: /multi-volume lot or set/, label: "a multi-volume lot or set" },
+  { test: /magazine issue, not this book/, label: "a magazine issue, not this book" },
+  { test: /different series in the same franchise/, label: "a different series in the same franchise" },
+];
+
+// Gaps in the shared detectors that the 13 November results exposed, kept
+// here so they narrow only this queue and do not change Scout's behaviour:
+//   - a Jump magazine issue that says "Volume" ("Weekly Shonen Jump 2015
+//     Volume 12") reads as a book to the issue parser. VIZ paperbacks also
+//     say "Shonen Jump", so the magazine needs a magazine word, "Weekly", or
+//     a month and year beside it;
+//   - volume runs written "1/2/3, 4/5/6" or "Volumes 1-2";
+//   - a language named outright ("German") that is not the edition's.
+const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const JUMP_MAGAZINE = new RegExp(`\\bweekly\\s+(?:shonen|shounen)\\s+jump\\b|\\b(?:shonen|shounen)\\s+jump\\s+(?:magazine|issue|(?:${MONTHS})\\s+(?:19|20)\\d{2})\\b`, "i");
+const VOLUME_RUN = /\b\d{1,3}\s*\/\s*\d{1,3}\s*\/\s*\d{1,3}\b|\bvol(?:ume)?s\.?\s*\d{1,3}\s*(?:-|–|to)\s*\d{1,3}\b/i;
+const NAMED_LANGUAGES = ["German", "French", "Italian", "Spanish", "Portuguese", "Korean", "Chinese", "Thai", "Polish", "Dutch", "Swedish", "Russian", "Indonesian", "Vietnamese"];
+
+export function autoDismissReasons(
+  assessment: Pick<EditionMatchAssessment, "conflicts">,
+  title = "",
+  edition: { language?: string | null; series?: string | null } = {},
+): string[] {
+  const reasons = AUTO_DISMISS_CONFLICTS
+    .filter((rule) => assessment.conflicts.some((conflict) => rule.test.test(conflict)))
+    .map((rule) => rule.label);
+  const add = (label: string) => { if (!reasons.includes(label)) reasons.push(label); };
+  if (JUMP_MAGAZINE.test(title) && !/jump/i.test(edition.series ?? "")) add("a magazine issue, not this book");
+  if (VOLUME_RUN.test(title)) add("a multi-volume lot or set");
+  const editionLanguage = (edition.language ?? "").trim().toLowerCase();
+  const named = NAMED_LANGUAGES.find((language) => new RegExp(`\\b${language}\\b`, "i").test(title));
+  if (named && editionLanguage && named.toLowerCase() !== editionLanguage) add("a different language");
+  return reasons;
+}
+
+/**
+ * The same row a person would see, already closed as "wrong edition" (the
+ * status the review page's own wrong-edition button sets), with the reviewer
+ * and the reason recorded so it stays inspectable and reversible by eye.
+ */
+export function autoDismissedOutcomeRow(row: OutcomeInsert, reasons: string[], nowIso: string): OutcomeInsert {
+  return {
+    ...row,
+    status: "inaccessible",
+    next_check_at: null,
+    reviewed_by: AUTO_DISMISS_REVIEWER,
+    reviewed_at: nowIso,
+    review_notes: `Dismissed automatically: the title describes ${reasons.join(" and ")}. Not reviewed by a person.`,
+  };
+}
+
 export function buildTitleSearchOutcomeRow(
   row: ApifyEbayRow,
   searchedEdition: IntakeEdition,

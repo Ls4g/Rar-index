@@ -12,6 +12,7 @@ export default function PublicHeader() {
       <Link href="/collectors">Collectors</Link>
       <Link href="/buy-manga">Buy manga</Link>
       <Link className="rar-public-header-secondary" href="/request-edition">Request a manga</Link>
+      <Link className="rar-public-header-secondary" href="/staff-login">Staff</Link>
       <ThemeToggle />
     </nav>
     <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>

@@ -354,7 +354,7 @@ function CandidateBulkPanel({ candidates, editionsById, reviewer, onDecided }: {
         <p className="section-copy">Compare each edition’s covers side by side. Choose no more than one per edition, inspect its source and ISBN, then verify or reject. Nothing is published until you decide.</p>
       </div>
       <div className="cover-bulk-actions">
-        <button onClick={() => setSelected(new Set(strongIds))} type="button" disabled={!strongIds.length}>Select one strong cover for {strongIds.length} edition{strongIds.length === 1 ? "" : "s"}</button>
+        <button onClick={() => setSelected(new Set(strongIds))} type="button" disabled={!strongIds.length}>Select the best cover for {strongIds.length} edition{strongIds.length === 1 ? "" : "s"} (publisher source first)</button>
         <button onClick={() => setSelected(new Set())} type="button" disabled={!selected.size}>Clear</button>
         <span className="cover-bulk-count">{selected.size} selected</span>
         <button className="cover-bulk-verify" disabled={Boolean(saving) || !selected.size} onClick={() => void decideSelected("verified")} type="button">{saving === "verified" ? "Verifying…" : "Verify selected"}</button>

@@ -247,9 +247,12 @@ console.log("\n--- capture every watched lead ---");
     marketplace_search_profiles: [{ id: "p1", edition_id: "e1", is_active: true }, { id: "p2", edition_id: "e2", is_active: true }],
     scout_listing_leads: leads, listing_outcomes: [],
   });
-  const expected = new Set(leads.filter((l) => l.review_status !== "dismissed").map((l) => l.external_id)).size;
+  // Since 18 Nov 2026 only watched leads (and unreviewed ones rated strong)
+  // are followed: see shouldFollowLead in lib/watchToSale.ts.
+  const expected = new Set(leads.filter((l) => l.review_status === "watching").map((l) => l.external_id)).size;
   const first = await captureWatchedListings(db);
-  check("every non-dismissed lead is captured, across pages, beyond the old 500", () => {
+  check("every watched lead is captured, across pages, beyond the old 500; unreviewed weak ones are not", () => {
+    assert.equal(first.notFollowed, leads.filter((l) => l.review_status === "new").length);
     assert.equal(db.tables.listing_outcomes.length, expected);
     assert.equal(first.captured, expected); assert.equal(first.truncated, false);
   });

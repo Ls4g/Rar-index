@@ -70,6 +70,60 @@ export function seriesSearchName(edition: { series?: string | null; title?: stri
 // numbers ("Volume 1 & 2", "Vol 1, 2, 3") — just as unambiguous a lot/set
 // signal as an explicit dash range, and a real, observed listing pattern.
 const MULTI_VOLUME_WORDS = /(?:\b(?:vol(?:ume)?\.?|book|part)|#)\s*\d+\s*(?:-|–|to|&|and|,)\s*\d+\b|\b(?:set|lot|collection|box\s*set|complete)\b/i;
+const SEVERAL_BOOKS = /\b(?:[2-9]|[1-9]\d)\s*books\b/i;
+
+// Volume lists the range pattern above misses, all from lots staff dismissed
+// in autumn 2026: "Vol. 5 6 22 23 24 & 29", "Vol 10 11 12", "# 1 2 3",
+// "Vol.1.3.4.5", "Vol.1 ＋2". A list needs two different numbers, so the
+// common "Vol 1 #1" (one volume, said twice) is not a lot. Numbers separated
+// only by spaces need three of them, so "Vol 1 100% authentic" is not either.
+// Ordinals ("Vol. 1 2nd print") and years ("Vol 1 2016") never count.
+const VOLUME_LIST_START = /(?:\bvol(?:ume)?s?\.?|\bbooks?|#)\s*(?=\d)/gi;
+const LIST_NUMBER = /^(\d{1,3})(?!\d|\s*(?:st|nd|rd|th)\b|%)/i;
+const LIST_SEPARATOR = /^(\s*(?:[,.&+＋/–-]|\band\b|\bto\b)\s*|\s+)(?:#\s*)?/i;
+
+function listsSeveralVolumes(title: string) {
+  if (SEVERAL_BOOKS.test(title)) return true;
+  for (const start of title.matchAll(VOLUME_LIST_START)) {
+    let rest = title.slice((start.index ?? 0) + start[0].length);
+    const numbers: number[] = [];
+    let punctuated = false;
+    let first = LIST_NUMBER.exec(rest);
+    while (first) {
+      numbers.push(Number(first[1]));
+      rest = rest.slice(first[0].length);
+      const separator = LIST_SEPARATOR.exec(rest);
+      if (!separator) break;
+      const next = LIST_NUMBER.exec(rest.slice(separator[0].length));
+      if (!next) break;
+      if (separator[1].trim()) punctuated = true;
+      rest = rest.slice(separator[0].length);
+      first = next;
+    }
+    const distinct = new Set(numbers).size;
+    if (distinct >= 2 && (punctuated || numbers.length >= 3)) return true;
+  }
+  return false;
+}
+
+// A different kind of book that happens to share the series and volume
+// number: an omnibus or 3-in-1 (VIZBIG included), a deluxe or kanzenban
+// (完全版) edition, an anniversary edition. Matched against the edition's own
+// text, so an edition that IS the omnibus or deluxe one is not affected.
+// Owner's rule, 16 Nov 2026: these are not leads for a single-volume record.
+const EDITION_TYPES: { label: string; pattern: RegExp }[] = [
+  { label: "an omnibus or multi-in-one edition", pattern: /\bomnibus\b|\b[2-4]\s*-?\s*in\s*-?\s*(?:1|one)\b|\b(?:two|three|four)\s*-?\s*in\s*-?\s*one\b|\bvizbig\b|\bviz\s+big\b/i },
+  { label: "a deluxe edition", pattern: /\bdeluxe?\b/i },
+  { label: "a kanzenban (perfect) edition", pattern: /完全版|\bkanzenban\b|\bperfect\s+edition\b/i },
+  { label: "an anniversary edition", pattern: /\b\d{1,3}(?:st|nd|rd|th)?\s+anniversary\b|\banniversary\s+edition\b/i },
+];
+
+export function listingEditionTypeConflict(listingTitle: string, editionText: string) {
+  for (const type of EDITION_TYPES) {
+    if (type.pattern.test(listingTitle) && !type.pattern.test(editionText)) return type.label;
+  }
+  return null;
+}
 
 // "Part N" is ambiguous. Some listings use it as the volume ("Akira Part 1"),
 // but in series such as JoJo's Bizarre Adventure it names a story arc and sits
@@ -97,8 +151,14 @@ export function hasMatchingVolume(listingTitle: string, volumeNumber: string | n
 // edition, regardless of what else it says. Scout profiles are scoped to one
 // specific volume, so this alone is enough to rule a lot/set listing out —
 // no ISBN or publisher reading required.
-export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: string | number | null) {
-  return Boolean(volumeNumber) && MULTI_VOLUME_WORDS.test(listingTitle);
+// editionText (the edition's own title, format and statements) switches on the
+// wider volume-list check. It is skipped when the edition is itself an
+// omnibus: "Omnibus Vol. 1 (includes vols. 1, 2 & 3)" describes that one book.
+export function listingIsMultiVolumeLot(listingTitle: string, volumeNumber: string | number | null, editionText?: string) {
+  if (!volumeNumber) return false;
+  if (MULTI_VOLUME_WORDS.test(listingTitle)) return true;
+  if (editionText === undefined || EDITION_TYPES[0].pattern.test(editionText)) return false;
+  return listsSeveralVolumes(listingTitle);
 }
 
 // A title naming one specific volume other than the target's — "Vol 8" on a
@@ -153,6 +213,14 @@ function mentionedPublisherKeys(text: string) {
   return Object.entries(KNOWN_PUBLISHERS)
     .filter(([, tokens]) => tokens.some((token) => normalized.includes(token)))
     .map(([key]) => key);
+}
+
+/**
+ * The publisher family a name belongs to ("Kodansha", "Kodansha USA" and
+ * "Kodansha Comics" are all "kodansha"), or null when RAR does not know it.
+ */
+export function publisherFamilyKey(publisher: string | null | undefined) {
+  return editionPublisherKey(publisher);
 }
 
 function editionPublisherKey(publisher: string | null | undefined) {

@@ -8,6 +8,9 @@ import {
   rowDisqualification,
   type ApifyEbayRow,
   type IntakeEdition,
+  autoDismissReasons,
+  autoDismissedOutcomeRow,
+  AUTO_DISMISS_REVIEWER,
 } from "./apifyListingIntake.ts";
 import type { ScoutRule } from "./scoutRules.ts";
 import {
@@ -424,6 +427,11 @@ export type QueueOutcome = {
    * risk a sale on the wrong printing. Surfaced in the cron summary instead.
    */
   ambiguousItemIds: string[];
+  /**
+   * Title-search results closed by RAR Auto-Triage (see autoDismissReasons)
+   * instead of being queued for a person. Stored and audited, not dropped.
+   */
+  autoDismissed: number;
 };
 
 /**
@@ -444,7 +452,10 @@ export async function queueDiscoveredListings(
   const byIsbn = indexEditionsByIsbn(editions);
   const result: QueueOutcome = {
     found: rows.length, queued: 0, needsHuman: 0, dropped: 0, alreadyKnown: 0, dropReasons: [], dropCounts: {}, ambiguousItemIds: [],
+    autoDismissed: 0,
   };
+  const nowIso = new Date().toISOString();
+  const toDismiss: { row: Record<string, unknown>; reasons: string[] }[] = [];
   const drop = (code: string, why: string) => {
     result.dropped += 1;
     result.dropCounts[code] = (result.dropCounts[code] ?? 0) + 1;
@@ -464,7 +475,10 @@ export async function queueDiscoveredListings(
       // lead for a person, including conflicts, rather than silently deciding.
       const unusable = rowDisqualification(row);
       if (!unusable) {
-        toInsert.push(buildTitleSearchOutcomeRow(row, titleTarget, rules, sourceId));
+        const built = buildTitleSearchOutcomeRow(row, titleTarget, rules, sourceId);
+        const reasons = autoDismissReasons(built.match_assessment as { conflicts: string[] }, row.title ?? "", titleTarget);
+        if (reasons.length) toDismiss.push({ row: autoDismissedOutcomeRow(built, reasons, nowIso), reasons });
+        else toInsert.push(built);
       } else {
         drop(unusable.code, unusable.why);
       }
@@ -481,6 +495,32 @@ export async function queueDiscoveredListings(
       continue;
     }
     toInsert.push(buildOutcomeRow(row, decision.pick, sourceId));
+  }
+
+  if (toDismiss.length) {
+    const { data: dismissed, error } = await admin
+      .from("listing_outcomes")
+      .upsert(toDismiss.map((entry) => entry.row), { onConflict: "marketplace,external_id", ignoreDuplicates: true })
+      .select("id,external_id,review_notes");
+    if (error) throw new Error(`The auto-dismissed listings could not be recorded: ${error.message}`);
+    result.autoDismissed = dismissed?.length ?? 0;
+    result.alreadyKnown += toDismiss.length - result.autoDismissed;
+    if (dismissed?.length) {
+      // The same audit table a person's decision is checked against, so the
+      // automation's choices sit beside theirs.
+      const { error: auditError } = await admin.from("listing_outcome_checks").insert(dismissed.map((outcome) => ({
+        outcome_id: outcome.id,
+        provider: AUTO_DISMISS_REVIEWER,
+        attempt_number: 0,
+        http_status: null,
+        listing_state: null,
+        resulting_status: "inaccessible",
+        detail: outcome.review_notes,
+        raw_response: { decision: "wrong_edition", reviewed_by: AUTO_DISMISS_REVIEWER, automatic: true },
+        checked_at: nowIso,
+      })));
+      if (auditError) console.error(JSON.stringify({ event: "auto_dismiss_audit_unrecorded", count: dismissed.length }));
+    }
   }
   if (!toInsert.length) return result;
 

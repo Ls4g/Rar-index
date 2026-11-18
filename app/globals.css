@@ -4884,3 +4884,47 @@ html[data-theme="night"] .edition-page .price-history-multi {
   .public-mobile-utility a:last-child { border-right: 0; color: #a50c17; }
   .portfolio-account-bar { justify-content: space-between; padding: .55rem 1rem; }
 }
+
+/* Scheduled-job health card (components/JobHealthBanner.tsx). Fixed so it
+   never shifts a staff header; only rendered when something needs a look. */
+.staff-job-health { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid var(--line); border-left: 4px solid #b98a1d; border-radius: .6rem; background: var(--paper); color: var(--ink); box-shadow: 0 12px 30px rgba(0,0,0,.28); font-size: .78rem; line-height: 1.45; }
+.staff-job-health.is-alert { border-left-color: #c8312b; }
+.staff-job-health summary { padding: .7rem .9rem; cursor: pointer; font-weight: 700; list-style: none; }
+.staff-job-health summary::-webkit-details-marker { display: none; }
+.staff-job-health summary::before { content: "● "; color: #b98a1d; }
+.staff-job-health.is-alert summary::before { color: #c8312b; }
+.staff-job-health ul { margin: 0; padding: 0 .9rem .4rem 1.9rem; }
+.staff-job-health li { margin: 0 0 .45rem; }
+.staff-job-health-where { color: var(--muted); font-size: .72rem; }
+.staff-job-health a { display: inline-block; margin: 0 .9rem .75rem; font-weight: 700; text-decoration: underline; }
+@media print { .staff-job-health { display: none; } }
+/* Phones: a compact pill in the bottom-right corner, clear of the logo,
+   the back button and the browser toolbar; it widens when opened. */
+@media (max-width: 600px) {
+  .staff-job-health { left: auto; right: .75rem; bottom: calc(.75rem + env(safe-area-inset-bottom)); max-width: calc(100vw - 1.5rem); font-size: .74rem; }
+  .staff-job-health summary { padding: .55rem .75rem; }
+}
+
+/* "Select a series" buttons on the catalogue bulk panel. */
+.catalogue-bulk-series { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .9rem; }
+.catalogue-bulk-series > span { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.catalogue-bulk-series button { min-height: 40px; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.catalogue-bulk-series button small { font-weight: 500; color: var(--muted); }
+.catalogue-bulk-series button:hover { border-color: var(--ink); }
+
+/* Long-form legal and about pages. */
+.legal-copy { line-height: 1.7; }
+.legal-copy h2 { margin: 2.4rem 0 .6rem; font-size: 1.35rem; }
+.legal-copy h2:first-child { margin-top: 0; }
+.legal-copy p, .legal-copy li { max-width: 68ch; }
+.legal-copy ul { padding-left: 1.2rem; }
+.legal-copy li { margin: 0 0 .6rem; }
+.legal-copy a { text-decoration: underline; }
+
+/* Site-wide footer with the About / Privacy / Terms links. */
+.site-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1.5rem; padding: 1.4rem max(1rem, calc((100vw - 1320px) / 2)); border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+.site-footer nav { display: flex; gap: 1.2rem; }
+.site-footer a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.site-footer a:hover { color: var(--ink); }
+.site-footer p { margin: 0; }
+@media print { .site-footer { display: none; } }
