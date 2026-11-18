@@ -58,6 +58,34 @@ function canApprove(record: CatalogueBulkRecord) {
   return Boolean(record.reviewMetadata.magazineTitleId && record.reviewMetadata.issueYear && record.reviewMetadata.issueNumberLabel);
 }
 
+// Eligible candidates grouped by edition line (series, publisher, language),
+// so a whole series batch can be ticked in one go. Only groups of two or more
+// get a button; volumes are listed in number order so a gap is easy to see.
+export function seriesGroups(records: CatalogueBulkRecord[]) {
+  const groups = new Map<string, { label: string; ids: string[]; volumes: number[] }>();
+  for (const record of records) {
+    if (!canApprove(record) || !record.series) continue;
+    const key = [record.series, record.publisher ?? "", record.language ?? ""].map((part) => part.trim().toLowerCase()).join("|");
+    const group = groups.get(key) ?? { label: [record.series, record.publisher, record.language].filter(Boolean).join(" · "), ids: [], volumes: [] };
+    group.ids.push(record.id);
+    const volume = Number(record.volumeNumber);
+    if (Number.isFinite(volume)) group.volumes.push(volume);
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .filter((group) => group.ids.length >= 2)
+    .map((group) => ({ ...group, volumes: group.volumes.sort((a, b) => a - b) }))
+    .sort((a, b) => b.ids.length - a.ids.length);
+}
+
+function volumeSpan(volumes: number[]) {
+  if (!volumes.length) return "";
+  const first = volumes[0];
+  const last = volumes[volumes.length - 1];
+  const gaps = last - first + 1 - new Set(volumes).size;
+  return `Vol. ${first}${last !== first ? `–${last}` : ""}${gaps > 0 ? `, ${gaps} missing` : ""}`;
+}
+
 export default function CatalogueBulkPanel({ records }: { records: CatalogueBulkRecord[] }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useStaffReviewer();
@@ -71,6 +99,7 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
   if (!visible.length) return null;
 
   const eligible = visible.filter(canApprove);
+  const groups = seriesGroups(visible);
   const selectedEligible = [...selected].filter((id) => eligible.some((record) => record.id === id));
 
   function toggle(id: string) {
@@ -129,6 +158,17 @@ export default function CatalogueBulkPanel({ records }: { records: CatalogueBulk
         <label>Reviewer<input onChange={(event) => setReviewer(event.target.value)} placeholder="Your name or initials — typed once" value={reviewer} /></label>
         <label>Note (optional)<input onChange={(event) => setNotes(event.target.value)} placeholder="Applied to every record in this batch" value={notes} /></label>
       </div>
+
+      {groups.length ? (
+        <div className="catalogue-bulk-series" aria-label="Select a whole series">
+          <span>Select a series:</span>
+          {groups.map((group) => (
+            <button key={group.label} onClick={() => setSelected(new Set(group.ids))} type="button">
+              {group.label} <small>({group.ids.length} · {volumeSpan(group.volumes)})</small>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="catalogue-bulk-actions">
         {/* "Eligible" means the record has the fields needed to create an
