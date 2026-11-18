@@ -5,7 +5,7 @@ export const SITE_OPERATOR = {
   // The person or business responsible for RAR Index (the data controller).
   name: "RAR Index",
   // A monitored email address, ideally on RAR's own domain.
-  email: "[contact email]",
+  email: "rarindex.hq@protonmail.com",
   // Where the operator is based, for the governing-law clause.
   country: "the United Kingdom",
   // Date the legal pages were last changed.
