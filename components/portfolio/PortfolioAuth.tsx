@@ -13,7 +13,8 @@ export type AuthCover = {
   cover_verification_status: string | null;
 };
 
-type Mode = "sign-up" | "sign-in";
+export type AuthMode = "sign-up" | "sign-in" | "forgot";
+type Mode = AuthMode;
 
 type PortfolioAuthProps = {
   mode: Mode;
@@ -65,14 +66,16 @@ export default function PortfolioAuth({ mode, setMode, email, setEmail, password
       <form className="portfolio-auth-form" onSubmit={onSubmit}>
         <div className="portfolio-auth-options" aria-label="Portfolio access">
           <button className={mode === "sign-up" ? "selected" : ""} type="button" onClick={() => setMode("sign-up")}>Create free account</button>
-          <button className={mode === "sign-in" ? "selected" : ""} type="button" onClick={() => setMode("sign-in")}>Sign in</button>
+          <button className={mode !== "sign-up" ? "selected" : ""} type="button" onClick={() => setMode("sign-in")}>Sign in</button>
         </div>
-        <p className="eyebrow">{mode === "sign-in" ? "Welcome back" : "Start your private portfolio"}</p>
+        <p className="eyebrow">{mode === "sign-in" ? "Welcome back" : mode === "forgot" ? "Reset your password" : "Start your private portfolio"}</p>
         <label>Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
-        <label>Password<input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} /></label>
-        <button type="submit">{mode === "sign-in" ? "Sign in" : "Create free account"}</button>
+        {mode === "forgot" ? null : <label>Password<input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} /></label>}
+        <button type="submit">{mode === "sign-in" ? "Sign in" : mode === "forgot" ? "Email me a reset link" : "Create free account"}</button>
+        {mode === "sign-in" ? <button className="portfolio-auth-link" type="button" onClick={() => setMode("forgot")}>Forgot your password?</button> : null}
+        {mode === "forgot" ? <button className="portfolio-auth-link" type="button" onClick={() => setMode("sign-in")}>Back to sign in</button> : null}
         {authMessage ? <p role="status">{authMessage}</p> : null}
-        <p className="portfolio-auth-note">{mode === "sign-up" ? "Create a free account to keep your holdings private and available across devices." : "No holding data is ever shown before you sign in."}</p>
+        <p className="portfolio-auth-note">{mode === "sign-up" ? "Create a free account to keep your holdings private and available across devices." : mode === "forgot" ? "We'll email a link that lets you choose a new password." : "No holding data is ever shown before you sign in."}</p>
       </form>
     </section>
   );
