@@ -4911,3 +4911,20 @@ html[data-theme="night"] .edition-page .price-history-multi {
 .catalogue-bulk-series button { min-height: 40px; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
 .catalogue-bulk-series button small { font-weight: 500; color: var(--muted); }
 .catalogue-bulk-series button:hover { border-color: var(--ink); }
+
+/* Long-form legal and about pages. */
+.legal-copy { line-height: 1.7; }
+.legal-copy h2 { margin: 2.4rem 0 .6rem; font-size: 1.35rem; }
+.legal-copy h2:first-child { margin-top: 0; }
+.legal-copy p, .legal-copy li { max-width: 68ch; }
+.legal-copy ul { padding-left: 1.2rem; }
+.legal-copy li { margin: 0 0 .6rem; }
+.legal-copy a { text-decoration: underline; }
+
+/* Site-wide footer with the About / Privacy / Terms links. */
+.site-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1.5rem; padding: 1.4rem max(1rem, calc((100vw - 1320px) / 2)); border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+.site-footer nav { display: flex; gap: 1.2rem; }
+.site-footer a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.site-footer a:hover { color: var(--ink); }
+.site-footer p { margin: 0; }
+@media print { .site-footer { display: none; } }
