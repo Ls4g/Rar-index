@@ -4898,3 +4898,9 @@ html[data-theme="night"] .edition-page .price-history-multi {
 .staff-job-health-where { color: var(--muted); font-size: .72rem; }
 .staff-job-health a { display: inline-block; margin: 0 .9rem .75rem; font-weight: 700; text-decoration: underline; }
 @media print { .staff-job-health { display: none; } }
+/* Phones: a compact pill in the bottom-right corner, clear of the logo,
+   the back button and the browser toolbar; it widens when opened. */
+@media (max-width: 600px) {
+  .staff-job-health { left: auto; right: .75rem; bottom: calc(.75rem + env(safe-area-inset-bottom)); max-width: calc(100vw - 1.5rem); font-size: .74rem; }
+  .staff-job-health summary { padding: .55rem .75rem; }
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BodyPortal from "@/components/BodyPortal";
 import { readJobHealth } from "@/lib/jobHealth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -20,6 +21,7 @@ export default async function JobHealthBanner() {
   // page to page, and this must not push any of them around. Collapsed to one
   // line by default; open it for the details.
   return (
+    <BodyPortal>
     <aside className={`staff-job-health is-${alerts.length ? "alert" : "watch"}`} role={alerts.length ? "alert" : "status"}>
       <details>
         <summary>{alerts.length ? `${alerts.length} scheduled ${alerts.length === 1 ? "job needs" : "jobs need"} attention` : "A scheduled job to watch"}</summary>
@@ -35,5 +37,6 @@ export default async function JobHealthBanner() {
         <Link href="/agents">Agent runs and health</Link>
       </details>
     </aside>
+    </BodyPortal>
   );
 }
