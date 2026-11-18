@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/fx";
-import type { DemoBookEdition, DemoMarketGuide, DemoSeriesBook } from "./DemoBookShelf";
+import type { DemoBookEdition, DemoMarketGuide, DemoSeriesBook, DemoWallRun } from "./DemoBookShelf";
+
+type WallPiece =
+  | { kind: "single"; edition: DemoBookEdition; index: number }
+  | { kind: "run"; run: DemoWallRun; members: Array<{ edition: DemoBookEdition; index: number }> };
 import type { GalleryTheme } from "@/lib/collectorGalleryTheme";
 
 // The public gallery as books you can handle, replacing the WebGL room.
@@ -151,6 +155,19 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
 
   if (!edition) return null;
 
+  // The Wall shows a run of volumes of one edition as a single bay, placed
+  // where its first volume sits in the collector's order; everything else
+  // hangs on its own as before.
+  const wallPieces: WallPiece[] = [];
+  const seenRuns = new Set<string>();
+  wallEditions.forEach((item, itemIndex) => {
+    if (!item.run) { wallPieces.push({ kind: "single", edition: item, index: itemIndex }); return; }
+    if (seenRuns.has(item.run.key)) return;
+    seenRuns.add(item.run.key);
+    const members = wallEditions.flatMap((other, otherIndex) => other.run?.key === item.run!.key ? [{ edition: other, index: otherIndex }] : []);
+    wallPieces.push({ kind: "run", run: item.run, members });
+  });
+
   const name = editionName(edition);
   const market = marketCopy(edition.marketGuide);
   const note = galleryComments[edition.id]?.trim() ?? "";
@@ -176,11 +193,44 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
       </div>
 
       {view === "wall" ? <ul className="rar-inhand-wall">
-        {wallEditions.map((item, itemIndex) => {
+        {wallPieces.map((piece, pieceIndex) => {
+          if (piece.kind === "run") {
+            const { run, members } = piece;
+            const owned = new Map(members.map((member) => [member.edition.volumeNumber?.trim() ?? "", member]));
+            const missing = run.slots.filter((volume) => !owned.has(volume)).length;
+            return <li key={run.key} className="rar-inhand-wall-run" style={{ "--i": pieceIndex } as CSSProperties}>
+              <div className="rar-inhand-run-row" role="list" aria-label={`${run.name}: ${members.length} of ${run.catalogued} catalogued volumes`}>
+                {run.slots.map((volume) => {
+                  const member = owned.get(volume);
+                  if (!member) return <span role="listitem" className="rar-inhand-run-slot is-gap" key={`gap-${volume}`} aria-label={`Vol. ${volume}, not in this collection`}>
+                    <span className="rar-inhand-run-bay"><span className="rar-inhand-run-outline" aria-hidden="true" /></span>
+                    <span className="rar-inhand-run-label">Vol. {volume}</span>
+                  </span>;
+                  return <span role="listitem" className="rar-inhand-run-slot" key={member.edition.id}>
+                    <button type="button" onClick={() => pickFromWall(member.index)} aria-label={`Pick up ${editionName(member.edition)}`}>
+                      <span className="rar-inhand-wall-cover">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={member.edition.coverUrl ?? ""} alt={`Cover of ${member.edition.title || member.edition.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
+                        <span className="rar-inhand-wall-sheen" aria-hidden="true" />
+                      </span>
+                    </button>
+                    <span className="rar-inhand-run-label">Vol. {volume}</span>
+                  </span>;
+                })}
+              </div>
+              <div className="rar-inhand-wall-plaque">
+                <span className="rar-inhand-wall-number">{String(pieceIndex + 1).padStart(2, "0")} · SERIES RUN</span>
+                <strong>{run.name}</strong>
+                <span>{run.editionLine || "Edition details not recorded"}</span>
+                <span className="rar-inhand-run-count">{members.length} of {run.catalogued} catalogued {run.catalogued === 1 ? "volume" : "volumes"}{missing ? ` · ${missing} still to find` : ""}</span>
+              </div>
+            </li>;
+          }
+          const item = piece.edition;
           const itemMarket = marketCopy(item.marketGuide);
           const itemNote = galleryComments[item.id]?.trim() ?? "";
-          return <li key={item.id} style={{ "--i": itemIndex } as CSSProperties}>
-            <button type="button" onClick={() => pickFromWall(itemIndex)} aria-label={`Pick up ${editionName(item)}`}>
+          return <li key={item.id} style={{ "--i": pieceIndex } as CSSProperties}>
+            <button type="button" onClick={() => pickFromWall(piece.index)} aria-label={`Pick up ${editionName(item)}`}>
               <span className="rar-inhand-wall-cover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
@@ -188,7 +238,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
               </span>
             </button>
             <div className="rar-inhand-wall-plaque">
-              <span className="rar-inhand-wall-number">{String(itemIndex + 1).padStart(2, "0")}</span>
+              <span className="rar-inhand-wall-number">{String(pieceIndex + 1).padStart(2, "0")}</span>
               <strong>{editionName(item)}</strong>
               <span>{[item.publisher, item.language].filter(Boolean).join(" · ") || "Edition details not recorded"}</span>
               <span className="rar-inhand-wall-market">{itemMarket ?? "No market guide yet"}</span>

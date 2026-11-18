@@ -12,8 +12,9 @@ import { collectorAvatarUrl } from "@/lib/collectorAvatar";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
 import { normalizeUsername } from "@/lib/username";
 import { volumeSortValue } from "@/lib/seriesCompletion";
+import { publisherFamilyKey } from "@/lib/liveListings";
 import { galleryTheme, type GalleryTheme } from "@/lib/collectorGalleryTheme";
-import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "@/app/design-concept/collector/DemoBookShelf";
+import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook, type DemoWallRun } from "@/app/design-concept/collector/DemoBookShelf";
 import "@/app/design-concept/style.css";
 import "@/app/design-concept/collector/style.css";
 import "@/app/design-concept/collector/physical-book.css";
@@ -54,7 +55,7 @@ async function loadShelf(username: string) {
   const { data: profile } = await supabase.from("collector_profiles")
     .select("user_id,comments_enabled,avatar_updated_at,bio").eq("username_key", key).eq("shelf_is_public", true).maybeSingle();
   const { data: layout } = profile?.user_id ? await supabase.from("collector_gallery_layouts")
-    .select("edition_ids,title,caption,edition_comments,gallery_theme,show_premium_badge").eq("user_id", profile.user_id).maybeSingle() : { data: null };
+    .select("edition_ids,title,caption,edition_comments,gallery_theme,show_premium_badge,show_missing_volumes").eq("user_id", profile.user_id).maybeSingle() : { data: null };
   const { data: premiumAccess } = profile?.user_id ? await supabase.from("collector_premium_access")
     .select("user_id").eq("user_id", profile.user_id).maybeSingle() : { data: null };
   const hasPremiumPreview = Boolean(premiumAccess?.user_id);
@@ -67,10 +68,10 @@ async function loadShelf(username: string) {
 
   const editions = (editionData ?? []) as ShelfEdition[];
   const seriesNames = [...new Set(editions.map((edition) => edition.series).filter((value): value is string => Boolean(value)))];
-  const catalogueData: Array<{ series: string | null; language: string | null; volume_number: string | null }> = [];
+  const catalogueData: Array<{ series: string | null; language: string | null; volume_number: string | null; publisher: string | null; edition_statement: string | null }> = [];
   for (let offset = 0; seriesNames.length; offset += 1000) {
     const { data, error } = await supabase.from("manga_editions")
-      .select("series,language,volume_number").eq("is_verified", true).eq("record_kind", "publication")
+      .select("series,language,volume_number,publisher,edition_statement").eq("is_verified", true).eq("record_kind", "publication")
       .in("series", seriesNames).order("id").range(offset, offset + 999);
     if (error) break;
     catalogueData.push(...(data ?? []));
@@ -126,7 +127,42 @@ async function loadShelf(username: string) {
   const initialIds = [...galleryEligible.values()].sort((a, b) => (a.series ?? "").localeCompare(b.series ?? "") ||
     (volumeSortValue(a.volumeNumber) ?? 9999) - (volumeSortValue(b.volumeNumber) ?? 9999) || a.id.localeCompare(b.id)).map((edition) => edition.id);
   const chosenIds: string[] = layout?.edition_ids ?? initialIds.slice(0, 16);
-  const wallEditions = chosenIds.flatMap((id) => galleryEligible.has(id) ? [galleryEligible.get(id)!] : []).slice(0, 16);
+  const pickedEditions = chosenIds.flatMap((id) => galleryEligible.has(id) ? [galleryEligible.get(id)!] : []).slice(0, 16);
+
+  // Series runs on the Wall. Volumes only count as one run when they are the
+  // same exact edition (series, language, publisher family and edition
+  // statement), so a VIZ single and a 3-in-1 omnibus never share a bay.
+  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+  const runKey = (row: { series: string | null; language: string | null; publisher: string | null; edition_statement: string | null }) =>
+    row.series ? [row.series.trim().toLowerCase(), (row.language ?? "").toLowerCase(), publisherFamilyKey(row.publisher) ?? "", (row.edition_statement ?? "").trim().toLowerCase()].join("::") : null;
+  const wallByRun = new Map<string, DemoBookEdition[]>();
+  for (const item of pickedEditions) {
+    const key = editionById.has(item.id) ? runKey(editionById.get(item.id)!) : null;
+    if (key) wallByRun.set(key, [...(wallByRun.get(key) ?? []), item]);
+  }
+  const showMissing = layout?.show_missing_volumes ?? true;
+  const runs = new Map<string, DemoWallRun>();
+  for (const [key, members] of wallByRun) {
+    if (members.length < 2) continue;
+    const ownedVolumes = members.map((item) => item.volumeNumber?.trim()).filter((value): value is string => Boolean(value));
+    const catalogued = new Set(catalogueData.filter((row) => runKey(row) === key).map((row) => row.volume_number?.trim()).filter((value): value is string => Boolean(value)));
+    for (const volume of ownedVolumes) catalogued.add(volume);
+    const byVolume = (a: string, b: string) => (volumeSortValue(a) ?? 9999) - (volumeSortValue(b) ?? 9999) || a.localeCompare(b);
+    // A very long series would turn one bay into a wall of outlines, so past
+    // 24 catalogued volumes the bay shows only what the collector owns.
+    const slots = showMissing && catalogued.size <= 24 ? [...catalogued].sort(byVolume) : [...new Set(ownedVolumes)].sort(byVolume);
+    const first = editionById.get(members[0].id)!;
+    runs.set(key, {
+      key, name: first.series ?? members[0].series ?? "Series",
+      editionLine: [first.publisher, first.edition_statement, first.language].filter(Boolean).join(" · "),
+      slots, catalogued: catalogued.size,
+    });
+  }
+  const wallEditions = pickedEditions.map((item) => {
+    const key = editionById.has(item.id) ? runKey(editionById.get(item.id)!) : null;
+    const run = key ? runs.get(key) : undefined;
+    return run ? { ...item, run } : item;
+  });
 
   const galleryComments = Object.fromEntries(Object.entries(layout?.edition_comments ?? {})
     .filter(([id, body]) => wallEditions.some((edition) => edition.id === id) && typeof body === "string")) as Record<string, string>;

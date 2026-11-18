@@ -32,6 +32,19 @@ export type DemoBookEdition = {
   coverUrl: string | null;
   coverStatus: string | null;
   marketGuide: DemoMarketGuide | null;
+  // Set on gallery editions that belong to a run of two or more volumes of
+  // the same exact edition on the wall. `slots` are the volume numbers the
+  // run's bay shows in order: owned ones plus, unless the collector hides
+  // them, the catalogued volumes they do not own.
+  run?: DemoWallRun;
+};
+
+export type DemoWallRun = {
+  key: string;
+  name: string;
+  editionLine: string;
+  slots: string[];
+  catalogued: number;
 };
 
 export type DemoSeriesBook = {

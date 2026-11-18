@@ -30,6 +30,19 @@
 .rar-inhand-wall-cover { position: relative; display: block; width: 100%; aspect-ratio: 1 / var(--ratio, 1.4533); overflow: hidden; background: #1c2129; box-shadow: 0 18px 26px rgba(0,0,0,.6), 0 2px 5px rgba(0,0,0,.45); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; }
 .rar-inhand-wall button:hover .rar-inhand-wall-cover, .rar-inhand-wall button:focus-visible .rar-inhand-wall-cover { transform: translateY(-8px); box-shadow: 0 30px 38px rgba(0,0,0,.7), 0 2px 5px rgba(0,0,0,.45); }
 .rar-inhand-wall button:active .rar-inhand-wall-cover { transform: translateY(-3px); }
+/* A series run takes a whole row: its volumes stand side by side on one
+   ledge, missing ones as outlines, with one plaque for the run. */
+.rar-inhand-wall { grid-auto-flow: row dense; }
+.rar-inhand-wall .rar-inhand-wall-run { grid-column: 1 / -1; }
+.rar-inhand-wall-run::before { left: 0; right: 0; }
+.rar-inhand-run-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 14px; }
+.rar-inhand-run-slot { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rar-inhand-run-bay { position: relative; display: flex; align-items: flex-end; width: 100%; aspect-ratio: 1 / 1.7; padding-bottom: 7px; }
+.rar-inhand-run-bay::after { content: ""; position: absolute; left: -8px; right: -8px; bottom: 0; height: 7px; background: linear-gradient(180deg, #4a525e, #262c35); box-shadow: 0 8px 14px rgba(0,0,0,.55); }
+.rar-inhand-run-outline { display: block; width: 100%; aspect-ratio: 1 / 1.4533; border: 1.5px dashed rgba(243,239,230,.28); background: rgba(243,239,230,.03); }
+.rar-inhand-run-label { color: #aab2bf; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-align: center; }
+.rar-inhand-run-slot.is-gap .rar-inhand-run-label { color: #6c7584; font-weight: 600; }
+.rar-inhand-run-count { color: #e8c46a !important; }
 .rar-inhand-wall img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .rar-inhand-wall-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(108deg, rgba(255,255,255,0) 36%, rgba(255,255,255,.28) 50%, rgba(255,255,255,0) 64%); background-size: 300% 100%; background-position: 120% 0; transition: background-position .9s ease; }
 .rar-inhand-wall button:hover .rar-inhand-wall-sheen, .rar-inhand-wall button:focus-visible .rar-inhand-wall-sheen { background-position: -20% 0; }
@@ -152,6 +165,7 @@
   .rar-inhand-row { padding: 0 20px; }
   .rar-inhand-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 38px 22px; padding: 44px 18px 36px; }
   .rar-inhand-wall-plaque strong { font-size: 14px; }
+  .rar-inhand-run-row { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 14px 10px; }
   .rar-inhand-wall-plaque span, .rar-inhand-wall-plaque q { font-size: 12px; }
   .rar-inhand-shelf[data-few="true"] .rar-inhand-row { gap: 28px; }
 }
