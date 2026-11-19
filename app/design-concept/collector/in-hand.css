@@ -32,7 +32,7 @@
 .rar-inhand-cube-single { position: relative; display: block; width: min(160px, 78%); padding: 0; border: 0; background: transparent; cursor: pointer; }
 .rar-inhand-wall-cover { position: relative; display: block; width: 100%; aspect-ratio: 1 / var(--ratio, 1.4533); overflow: hidden; background: #1c2129; box-shadow: 0 18px 26px rgba(0,0,0,.65); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; }
 .rar-inhand-wall-cover { transform-origin: 50% 100%; }
-.rar-inhand-cube-single:hover .rar-inhand-wall-cover, .rar-inhand-cube-single:focus-visible .rar-inhand-wall-cover { transform: translateY(-14px) scale(1.06); box-shadow: 0 34px 42px rgba(0,0,0,.75); }
+.rar-inhand-cube-single:hover .rar-inhand-wall-cover, .rar-inhand-cube-single:focus-visible .rar-inhand-wall-cover { transform: translateY(-11.9px) scale(1.051); box-shadow: 0 34px 42px rgba(0,0,0,.75); }
 .rar-inhand-wall-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* The stack. --n1 is the number of steps (volumes after the first); each
@@ -44,7 +44,7 @@
 .rar-inhand-stack-card button { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .rar-inhand-stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* The volume being looked at comes out of the stack to the front. */
-.rar-inhand-stack-card.is-peek { transform: translateY(-16px) scale(1.06); box-shadow: 0 26px 34px rgba(0,0,0,.72), 0 0 0 1px rgba(255,236,200,.18); }
+.rar-inhand-stack-card.is-peek { transform: translateY(-13.6px) scale(1.051); box-shadow: 0 26px 34px rgba(0,0,0,.72), 0 0 0 1px rgba(255,236,200,.18); }
 .rar-inhand-stack-card.is-gap.is-peek { background: #1c2027; box-shadow: 0 20px 28px rgba(0,0,0,.6); }
 .rar-inhand-stack-card.is-blank { background: #2a303a; }
 .rar-inhand-stack-card.is-gap { background: #15181d; box-shadow: none; outline: 1.5px dashed rgba(243,239,230,.34); outline-offset: -1.5px; }
