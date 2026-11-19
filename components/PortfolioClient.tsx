@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { type FxRate } from "@/lib/fx";
 import {
@@ -255,8 +255,16 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
     return () => window.clearTimeout(timer);
   }, [query, selectedEdition, userEmail]);
 
+  // Arriving from an edition page (/portfolio?edition=...) opens the add form
+  // for that edition once. Without the ref, saving or closing the form
+  // cleared selectedEdition, this effect ran again and reopened the same
+  // form, so the visitor could never leave it.
+  const requestedEditionHandled = useRef(false);
   useEffect(() => {
-    if (!userEmail || !initialEditionId || selectedEdition || editingId) return;
+    if (!userEmail || !initialEditionId || selectedEdition || editingId || requestedEditionHandled.current) return;
+    requestedEditionHandled.current = true;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("edition")) { url.searchParams.delete("edition"); window.history.replaceState(null, "", url.pathname + url.search + url.hash); }
     const loadRequestedEdition = async () => {
       const { data } = await supabase
         .from("manga_editions")
