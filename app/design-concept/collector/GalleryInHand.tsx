@@ -49,17 +49,30 @@ function binding(edition: DemoBookEdition) {
   return edition.language === "Japanese" ? "rtl" : "ltr";
 }
 
-// Which volume of a stack the pointer is over. Each card's visible strip
-// starts at its left edge, so the volume is the last card whose left edge is
-// at or before the pointer: sweeping right flips through the run in order.
-function stackIndexAt(stack: HTMLElement, clientX: number) {
-  // offsetLeft ignores the lift-and-scale on the card being looked at, so the
-  // strips stay put while the pointer moves.
-  const x = clientX - stack.getBoundingClientRect().left;
+// Which volume of a stack the pointer is over: the card you can actually see
+// there (volume 1's face, or the strip of a later volume showing to its
+// right). `current` is the volume already pulled up; it stays up while the
+// pointer is on its strip or on the part lifted above the stack, so the
+// lift itself never hands the pointer to the card underneath and makes the
+// two flick back and forth. Off every card, nothing is pulled up.
+function stackIndexAt(stack: HTMLElement, clientX: number, clientY: number, current: number | null = null): number | null {
+  const box = stack.getBoundingClientRect();
+  const x = clientX - box.left;
+  const y = clientY - box.top;
   const cards = Array.from(stack.children) as HTMLElement[];
-  let index = 0;
-  cards.forEach((card, cardIndex) => { if (card.offsetLeft <= x) index = cardIndex; });
-  return index;
+  const held = current !== null ? cards[current] : undefined;
+  if (held) {
+    const right = held.offsetLeft + held.offsetWidth;
+    const liftedTop = held.getBoundingClientRect().top - box.top;
+    const before = current! > 0 ? cards[current! - 1] : undefined;
+    const stripStart = before ? before.offsetLeft + before.offsetWidth : held.offsetLeft;
+    const onStrip = x >= stripStart - 6 && x <= right + 6 && y >= liftedTop && y <= held.offsetTop + held.offsetHeight;
+    const onLiftedPart = x >= held.offsetLeft && x <= right && y >= liftedTop && y < held.offsetTop;
+    if (onStrip || onLiftedPart) return current;
+  }
+  const hit = document.elementFromPoint(clientX, clientY)?.closest(".rar-inhand-stack-card");
+  const index = hit ? cards.indexOf(hit as HTMLElement) : -1;
+  return index >= 0 ? index : null;
 }
 
 // Covers are not all the same shape, and forcing them into one box cropped the
@@ -229,13 +242,20 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
                   aria-label={`${run.name}: ${run.owned} of ${run.catalogued} catalogued volumes`}
                   onPointerMove={(event) => {
                     if (event.pointerType !== "mouse") return;
-                    const index = stackIndexAt(event.currentTarget, event.clientX);
-                    setPeek((current) => current?.key === run.key && current.index === index ? current : { key: run.key, index });
+                    const stack = event.currentTarget;
+                    const { clientX, clientY } = event;
+                    setPeek((current) => {
+                      const held = current?.key === run.key ? current.index : null;
+                      const index = stackIndexAt(stack, clientX, clientY, held);
+                      if (index === held) return current;
+                      return index === null ? null : { key: run.key, index };
+                    });
                   }}
                   onPointerLeave={() => setPeek((current) => current?.key === run.key ? null : current)}
                   onClick={(event) => {
                     if (event.detail === 0) return; // keyboard: the button handles it
-                    const index = stackIndexAt(event.currentTarget, event.clientX);
+                    const index = stackIndexAt(event.currentTarget, event.clientX, event.clientY, peek?.key === run.key ? peek.index : null);
+                    if (index === null) return;
                     // On touch the first tap brings a volume forward; tapping
                     // it again picks it up.
                     const pointer = (event.nativeEvent as PointerEvent).pointerType;
@@ -246,7 +266,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
                 >
                   {run.slots.map((volume, slotIndex) => {
                     const peeking = peek?.key === run.key && peek.index === slotIndex;
-                    const place = { "--k": slotIndex, zIndex: peeking ? run.slots.length + 1 : run.slots.length - slotIndex } as CSSProperties;
+                    const place = { "--k": slotIndex, zIndex: run.slots.length - slotIndex } as CSSProperties;
                     const peekClass = peeking ? " is-peek" : "";
                     const member = onWall.get(volume);
                     if (member) return <li key={member.edition.id} className={`rar-inhand-stack-card${peekClass}`} style={place}>

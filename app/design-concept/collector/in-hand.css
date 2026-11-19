@@ -38,14 +38,17 @@
 /* The stack. --n1 is the number of steps (volumes after the first); each
    card steps right by up to 26px, less when the cube is narrow, so a long
    run packs tighter instead of overflowing. */
-.rar-inhand-stack { --card: 150px; position: relative; list-style: none; margin: 0; padding: 0; width: min(100%, calc(var(--card) + var(--n1) * 26px)); height: calc(var(--card) * 1.6); }
-.rar-inhand-stack-card { position: absolute; bottom: 0; transform-origin: 50% 100%; left: calc(var(--k) * min(26px, (100% - var(--card)) / var(--n1))); width: var(--card); aspect-ratio: 1 / var(--ratio, 1.4533); background: #1c2129; box-shadow: -6px 4px 14px rgba(0,0,0,.6); transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
+.rar-inhand-stack { --card: 150px; position: relative; list-style: none; margin: 0; padding: 0; width: min(100%, calc(var(--card) + var(--n1) * 32px)); height: calc(var(--card) * 2.2); }
+.rar-inhand-stack-card { position: absolute; bottom: 0; transform-origin: 50% 100%; left: calc(var(--k) * min(32px, (100% - var(--card)) / var(--n1))); width: var(--card); aspect-ratio: 1 / var(--ratio, 1.4533); background: #1c2129; box-shadow: -6px 4px 14px rgba(0,0,0,.6); transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
 .rar-inhand-stack { cursor: pointer; }
 .rar-inhand-stack-card button { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .rar-inhand-stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* The volume being looked at comes out of the stack to the front. */
-.rar-inhand-stack-card.is-peek { transform: translateY(-13.6px) scale(1.051); box-shadow: 0 26px 34px rgba(0,0,0,.72), 0 0 0 1px rgba(255,236,200,.18); }
-.rar-inhand-stack-card.is-gap.is-peek { background: #1c2027; box-shadow: 0 20px 28px rgba(0,0,0,.6); }
+/* The volume being looked at is pulled straight up out of the stack, like
+   lifting a book out of a pile. It keeps its place in the order, so it never
+   covers more of its neighbours than it already did; its top rises into the
+   clear space above the stack, where the whole width of the cover shows. */
+.rar-inhand-stack-card.is-peek { transform: translateY(calc(var(--card) * -.46)); box-shadow: 0 18px 28px rgba(0,0,0,.7), 0 0 0 1px rgba(255,236,200,.22); }
+.rar-inhand-stack-card.is-gap.is-peek { background: #1c2027; }
 .rar-inhand-stack-card.is-blank { background: #2a303a; }
 .rar-inhand-stack-card.is-gap { background: #15181d; box-shadow: none; outline: 1.5px dashed rgba(243,239,230,.34); outline-offset: -1.5px; }
 /* The number in each card's top corner is what shows of the cards behind. */
