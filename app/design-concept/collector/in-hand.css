@@ -31,17 +31,24 @@
 
 .rar-inhand-cube-single { position: relative; display: block; width: min(160px, 78%); padding: 0; border: 0; background: transparent; cursor: pointer; }
 .rar-inhand-wall-cover { position: relative; display: block; width: 100%; aspect-ratio: 1 / var(--ratio, 1.4533); overflow: hidden; background: #1c2129; box-shadow: 0 18px 26px rgba(0,0,0,.65); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; }
-.rar-inhand-cube-single:hover .rar-inhand-wall-cover, .rar-inhand-cube-single:focus-visible .rar-inhand-wall-cover { transform: translateY(-8px); box-shadow: 0 30px 38px rgba(0,0,0,.72); }
+.rar-inhand-wall-cover { transform-origin: 50% 100%; }
+.rar-inhand-cube-single:hover .rar-inhand-wall-cover, .rar-inhand-cube-single:focus-visible .rar-inhand-wall-cover { transform: translateY(-11.9px) scale(1.051); box-shadow: 0 34px 42px rgba(0,0,0,.75); }
 .rar-inhand-wall-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* The stack. --n1 is the number of steps (volumes after the first); each
    card steps right by up to 26px, less when the cube is narrow, so a long
    run packs tighter instead of overflowing. */
-.rar-inhand-stack { --card: 150px; position: relative; list-style: none; margin: 0; padding: 0; width: min(100%, calc(var(--card) + var(--n1) * 26px)); height: calc(var(--card) * 1.6); }
-.rar-inhand-stack-card { position: absolute; bottom: 0; left: calc(var(--k) * min(26px, (100% - var(--card)) / var(--n1))); width: var(--card); aspect-ratio: 1 / var(--ratio, 1.4533); background: #1c2129; box-shadow: -6px 4px 14px rgba(0,0,0,.6); transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.rar-inhand-stack { --card: 150px; position: relative; list-style: none; margin: 0; padding: 0; width: min(100%, calc(var(--card) + var(--n1) * 32px)); height: calc(var(--card) * 2.2); }
+.rar-inhand-stack-card { position: absolute; bottom: 0; transform-origin: 50% 100%; left: calc(var(--k) * min(32px, (100% - var(--card)) / var(--n1))); width: var(--card); aspect-ratio: 1 / var(--ratio, 1.4533); background: #1c2129; box-shadow: -6px 4px 14px rgba(0,0,0,.6); transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
+.rar-inhand-stack { cursor: pointer; }
 .rar-inhand-stack-card button { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .rar-inhand-stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.rar-inhand-stack-card:has(button:hover), .rar-inhand-stack-card:has(button:focus-visible) { transform: translateY(-10px); }
+/* The volume being looked at is pulled straight up out of the stack, like
+   lifting a book out of a pile. It keeps its place in the order, so it never
+   covers more of its neighbours than it already did; its top rises into the
+   clear space above the stack, where the whole width of the cover shows. */
+.rar-inhand-stack-card.is-peek { transform: translateY(calc(var(--card) * -.46)); box-shadow: 0 18px 28px rgba(0,0,0,.7), 0 0 0 1px rgba(255,236,200,.22); }
+.rar-inhand-stack-card.is-gap.is-peek { background: #1c2027; }
 .rar-inhand-stack-card.is-blank { background: #2a303a; }
 .rar-inhand-stack-card.is-gap { background: #15181d; box-shadow: none; outline: 1.5px dashed rgba(243,239,230,.34); outline-offset: -1.5px; }
 /* The number in each card's top corner is what shows of the cards behind. */
