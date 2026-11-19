@@ -11,7 +11,7 @@ import { GALLERY_THEMES, galleryTheme, type GalleryTheme } from "@/lib/collector
 import type { Holding } from "./HoldingCard";
 
 const MAX_WALL_BOOKS = 16;
-type GalleryContent = { ids: string[]; title: string; caption: string; comments: Record<string, string>; theme: GalleryTheme; showBadge: boolean };
+type GalleryContent = { ids: string[]; title: string; caption: string; comments: Record<string, string>; theme: GalleryTheme; showBadge: boolean; showMissing: boolean };
 
 export default function CollectorGalleryEditor({ userId, holdings }: { userId: string; holdings: Holding[] }) {
   const eligible = useMemo(() => holdings.filter((holding) => holding.edition?.cover_verification_status === "verified" && holding.edition.cover_image_url)
@@ -24,6 +24,7 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
   const [comments, setComments] = useState<Record<string, string>>({});
   const [theme, setTheme] = useState<GalleryTheme>("studio");
   const [showBadge, setShowBadge] = useState(false);
+  const [showMissing, setShowMissing] = useState(true);
   const [hasPremiumPreview, setHasPremiumPreview] = useState(false);
   const [previous, setPrevious] = useState<string[] | null>(null);
   const [ready, setReady] = useState(false);
@@ -36,13 +37,13 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
   const [profile, setProfile] = useState<{ username: string; shelf_is_public: boolean; avatar_updated_at: string | null; bio: string | null } | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const latestSave = useRef(0);
-  const latestContent = useRef<GalleryContent>({ ids: [], title: "", caption: "", comments: {}, theme: "studio", showBadge: false });
+  const latestContent = useRef<GalleryContent>({ ids: [], title: "", caption: "", comments: {}, theme: "studio", showBadge: false, showMissing: true });
   const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let active = true;
     void Promise.all([
-      supabase.from("collector_gallery_layouts").select("edition_ids,title,caption,edition_comments,gallery_theme,show_premium_badge").eq("user_id", userId).maybeSingle(),
+      supabase.from("collector_gallery_layouts").select("edition_ids,title,caption,edition_comments,gallery_theme,show_premium_badge,show_missing_volumes").eq("user_id", userId).maybeSingle(),
       supabase.from("collector_profiles").select("username,shelf_is_public,avatar_updated_at,bio").eq("user_id", userId).maybeSingle(),
       supabase.from("collector_premium_access").select("user_id").eq("user_id", userId).maybeSingle(),
     ]).then(([layoutResult, profileResult, premiumResult]) => {
@@ -54,13 +55,14 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
         .filter(([id, body]) => validIds.includes(id) && typeof body === "string")) as Record<string, string>;
       const premium = Boolean(premiumResult.data?.user_id);
       latestContent.current = { ids: validIds, title: layoutResult.data?.title ?? "", caption: layoutResult.data?.caption ?? "", comments: validComments,
-        theme: premium ? galleryTheme(layoutResult.data?.gallery_theme) : "studio", showBadge: premium && Boolean(layoutResult.data?.show_premium_badge) };
+        theme: premium ? galleryTheme(layoutResult.data?.gallery_theme) : "studio", showBadge: premium && Boolean(layoutResult.data?.show_premium_badge), showMissing: layoutResult.data?.show_missing_volumes ?? true };
       setIds(validIds);
       setTitle(latestContent.current.title);
       setCaption(latestContent.current.caption);
       setComments(validComments);
       setTheme(latestContent.current.theme);
       setShowBadge(latestContent.current.showBadge);
+      setShowMissing(latestContent.current.showMissing);
       setHasPremiumPreview(premium);
       setProfile(profileResult.data as { username: string; shelf_is_public: boolean; avatar_updated_at: string | null; bio: string | null } | null);
       if (layoutResult.error || profileResult.error || premiumResult.error) setLoadFailed(true);
@@ -87,7 +89,7 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
       const { error: saveError } = await supabase.from("collector_gallery_layouts")
         .upsert({ user_id: userId, edition_ids: content.ids, title: content.title.trim(), caption: content.caption.trim(), edition_comments: content.comments,
-          gallery_theme: content.theme, show_premium_badge: content.showBadge }, { onConflict: "user_id" });
+          gallery_theme: content.theme, show_premium_badge: content.showBadge, show_missing_volumes: content.showMissing }, { onConflict: "user_id" });
       if (saveNumber === latestSave.current) {
         setSaving(false);
         setError(saveError ? "Could not save your gallery. Refresh and try again." : "");
@@ -102,6 +104,7 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
     setComments(next.comments);
     setTheme(next.theme);
     setShowBadge(next.showBadge);
+    setShowMissing(next.showMissing);
     setSaving(true);
     if (textSaveTimer.current) clearTimeout(textSaveTimer.current);
     textSaveTimer.current = setTimeout(() => { textSaveTimer.current = null; save(latestContent.current); }, 650);
@@ -149,6 +152,12 @@ export default function CollectorGalleryEditor({ userId, holdings }: { userId: s
           <label htmlFor="collector-gallery-title">Gallery title <input id="collector-gallery-title" maxLength={80} value={title} onChange={(event) => changeText({ ...latestContent.current, title: event.target.value })} onBlur={flushText} placeholder={`${profile.username}'s gallery`} /></label>
           <label htmlFor="collector-gallery-caption">Caption <textarea id="collector-gallery-caption" maxLength={240} rows={2} value={caption} onChange={(event) => changeText({ ...latestContent.current, caption: event.target.value })} onBlur={flushText} placeholder="Tell visitors about your collection…" /></label>
           <small>Your title, caption and book comments appear to visitors when your shelf is public. Saved automatically.</small>
+          <label className="collector-gallery-badge-option"><input type="checkbox" checked={showMissing} onChange={(event) => {
+            if (textSaveTimer.current) { clearTimeout(textSaveTimer.current); textSaveTimer.current = null; }
+            setShowMissing(event.target.checked);
+            save({ ...latestContent.current, showMissing: event.target.checked });
+          }} /> Show the volumes I&apos;m missing in a series run</label>
+          <small>When two or more volumes of one edition are on your wall, they hang together. Missing volumes appear as outlines unless you turn this off.</small>
         </div>
         {hasPremiumPreview ? <fieldset className="collector-gallery-premium">
           <legend>Premium gallery preview</legend>
