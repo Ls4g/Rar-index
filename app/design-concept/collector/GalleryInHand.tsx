@@ -49,6 +49,19 @@ function binding(edition: DemoBookEdition) {
   return edition.language === "Japanese" ? "rtl" : "ltr";
 }
 
+// Which volume of a stack the pointer is over. Each card's visible strip
+// starts at its left edge, so the volume is the last card whose left edge is
+// at or before the pointer: sweeping right flips through the run in order.
+function stackIndexAt(stack: HTMLElement, clientX: number) {
+  // offsetLeft ignores the lift-and-scale on the card being looked at, so the
+  // strips stay put while the pointer moves.
+  const x = clientX - stack.getBoundingClientRect().left;
+  const cards = Array.from(stack.children) as HTMLElement[];
+  let index = 0;
+  cards.forEach((card, cardIndex) => { if (card.offsetLeft <= x) index = cardIndex; });
+  return index;
+}
+
 // Covers are not all the same shape, and forcing them into one box cropped the
 // top of some (the "JUMP COMICS" line). Each book takes the height of its own
 // cover image instead, within sane limits for a broken or odd-shaped file.
@@ -92,6 +105,9 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [view, setView] = useState<"hand" | "wall">("hand");
+  // The volume being looked at in a stacked run on the Wall: it comes to the
+  // front of its stack. Moving the pointer across a stack flips through it.
+  const [peek, setPeek] = useState<{ key: string; index: number } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const frame = useRef<number | null>(null);
   const touch = useRef<{ id: number; startX: number } | null>(null);
@@ -207,24 +223,46 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
                 {/* Volume 1 stands in front and every later volume stands
                     behind it, a step to the right, so each one's edge and
                     number show. Missing volumes keep their place as outlines. */}
-                <ol className="rar-inhand-stack" style={{ "--n1": last } as CSSProperties} aria-label={`${run.name}: ${run.owned} of ${run.catalogued} catalogued volumes`}>
+                <ol
+                  className="rar-inhand-stack"
+                  style={{ "--n1": last } as CSSProperties}
+                  aria-label={`${run.name}: ${run.owned} of ${run.catalogued} catalogued volumes`}
+                  onPointerMove={(event) => {
+                    if (event.pointerType !== "mouse") return;
+                    const index = stackIndexAt(event.currentTarget, event.clientX);
+                    setPeek((current) => current?.key === run.key && current.index === index ? current : { key: run.key, index });
+                  }}
+                  onPointerLeave={() => setPeek((current) => current?.key === run.key ? null : current)}
+                  onClick={(event) => {
+                    if (event.detail === 0) return; // keyboard: the button handles it
+                    const index = stackIndexAt(event.currentTarget, event.clientX);
+                    // On touch the first tap brings a volume forward; tapping
+                    // it again picks it up.
+                    const pointer = (event.nativeEvent as PointerEvent).pointerType;
+                    if (pointer && pointer !== "mouse" && !(peek?.key === run.key && peek.index === index)) { setPeek({ key: run.key, index }); return; }
+                    const member = onWall.get(run.slots[index]);
+                    if (member) pickFromWall(member.index);
+                  }}
+                >
                   {run.slots.map((volume, slotIndex) => {
-                    const place = { "--k": slotIndex, zIndex: run.slots.length - slotIndex } as CSSProperties;
+                    const peeking = peek?.key === run.key && peek.index === slotIndex;
+                    const place = { "--k": slotIndex, zIndex: peeking ? run.slots.length + 1 : run.slots.length - slotIndex } as CSSProperties;
+                    const peekClass = peeking ? " is-peek" : "";
                     const member = onWall.get(volume);
-                    if (member) return <li key={member.edition.id} className="rar-inhand-stack-card" style={place}>
-                      <button type="button" onClick={() => pickFromWall(member.index)} aria-label={`Pick up ${editionName(member.edition)}`}>
+                    if (member) return <li key={member.edition.id} className={`rar-inhand-stack-card${peekClass}`} style={place}>
+                      <button type="button" onFocus={() => setPeek({ key: run.key, index: slotIndex })} onClick={(event) => { if (event.detail === 0) pickFromWall(member.index); }} aria-label={`Pick up ${editionName(member.edition)}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={member.edition.coverUrl ?? ""} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
                         <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
                       </button>
                     </li>;
                     const extra = extras.get(volume);
-                    if (extra) return <li key={`owned-${volume}`} className={`rar-inhand-stack-card is-shelf${extra.coverUrl ? "" : " is-blank"}`} style={place} aria-label={`Vol. ${volume}, on the shelf`}>
+                    if (extra) return <li key={`owned-${volume}`} className={`rar-inhand-stack-card is-shelf${extra.coverUrl ? "" : " is-blank"}${peekClass}`} style={place} aria-label={`Vol. ${volume}, on the shelf`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {extra.coverUrl ? <img src={extra.coverUrl} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} /> : null}
                       <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
                     </li>;
-                    return <li key={`gap-${volume}`} className="rar-inhand-stack-card is-gap" style={place} aria-label={`Vol. ${volume}, not in this collection`}>
+                    return <li key={`gap-${volume}`} className={`rar-inhand-stack-card is-gap${peekClass}`} style={place} aria-label={`Vol. ${volume}, not in this collection`}>
                       <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
                     </li>;
                   })}
