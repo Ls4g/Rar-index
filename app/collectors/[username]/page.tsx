@@ -144,18 +144,27 @@ async function loadShelf(username: string) {
   const runs = new Map<string, DemoWallRun>();
   for (const [key, members] of wallByRun) {
     if (members.length < 2) continue;
-    const ownedVolumes = members.map((item) => item.volumeNumber?.trim()).filter((value): value is string => Boolean(value));
+    // Every volume of this edition on the public shelf counts as owned, even
+    // one the collector has not put on the wall: it must never show as a gap.
+    const memberIds = new Set(members.map((item) => item.id));
+    const shelfVolumes = editions.filter((edition) => runKey(edition) === key);
+    const ownedVolumes = shelfVolumes.map((edition) => edition.volume_number?.trim()).filter((value): value is string => Boolean(value));
+    const extras = shelfVolumes.filter((edition) => !memberIds.has(edition.id) && edition.volume_number?.trim()).map((edition) => ({
+      volume: edition.volume_number!.trim(),
+      coverUrl: edition.cover_verification_status === "verified" ? edition.cover_image_url : null,
+      title: edition.title,
+    }));
     const catalogued = new Set(catalogueData.filter((row) => runKey(row) === key).map((row) => row.volume_number?.trim()).filter((value): value is string => Boolean(value)));
     for (const volume of ownedVolumes) catalogued.add(volume);
     const byVolume = (a: string, b: string) => (volumeSortValue(a) ?? 9999) - (volumeSortValue(b) ?? 9999) || a.localeCompare(b);
-    // A very long series would turn one bay into a wall of outlines, so past
-    // 24 catalogued volumes the bay shows only what the collector owns.
-    const slots = showMissing && catalogued.size <= 24 ? [...catalogued].sort(byVolume) : [...new Set(ownedVolumes)].sort(byVolume);
+    // A very long series would turn one stack into a blur of outlines, so past
+    // 30 catalogued volumes the stack shows only what the collector owns.
+    const slots = showMissing && catalogued.size <= 30 ? [...catalogued].sort(byVolume) : [...new Set(ownedVolumes)].sort(byVolume);
     const first = editionById.get(members[0].id)!;
     runs.set(key, {
       key, name: first.series ?? members[0].series ?? "Series",
       editionLine: [first.publisher, first.edition_statement, first.language].filter(Boolean).join(" · "),
-      slots, catalogued: catalogued.size,
+      slots, catalogued: catalogued.size, owned: new Set(ownedVolumes).size, extras,
     });
   }
   const wallEditions = pickedEditions.map((item) => {

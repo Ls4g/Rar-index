@@ -55,7 +55,7 @@ function binding(edition: DemoBookEdition) {
 function fitCover(img: HTMLImageElement | null) {
   if (!img || !img.complete || !img.naturalWidth) return;
   const ratio = Math.max(1.25, Math.min(1.7, img.naturalHeight / img.naturalWidth));
-  img.closest<HTMLElement>(".rar-inhand-book, .rar-inhand-mini, .rar-inhand-wall-cover")?.style.setProperty("--ratio", ratio.toFixed(4));
+  img.closest<HTMLElement>(".rar-inhand-book, .rar-inhand-mini, .rar-inhand-wall-cover, .rar-inhand-stack-card")?.style.setProperty("--ratio", ratio.toFixed(4));
 }
 
 function BookFaces({ edition, eager = false }: { edition: DemoBookEdition; eager?: boolean }) {
@@ -192,53 +192,70 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
         </div>
       </div>
 
-      {view === "wall" ? <ul className="rar-inhand-wall">
+      {view === "wall" ? <div className="rar-inhand-cabinet"><ul className="rar-inhand-cabinet-grid">
         {wallPieces.map((piece, pieceIndex) => {
+          const kicker = String(pieceIndex + 1).padStart(2, "0");
           if (piece.kind === "run") {
             const { run, members } = piece;
-            const owned = new Map(members.map((member) => [member.edition.volumeNumber?.trim() ?? "", member]));
-            const missing = run.slots.filter((volume) => !owned.has(volume)).length;
-            return <li key={run.key} className="rar-inhand-wall-run" style={{ "--i": pieceIndex } as CSSProperties}>
-              <div className="rar-inhand-run-row" role="list" aria-label={`${run.name}: ${members.length} of ${run.catalogued} catalogued volumes`}>
-                {run.slots.map((volume) => {
-                  const member = owned.get(volume);
-                  if (!member) return <span role="listitem" className="rar-inhand-run-slot is-gap" key={`gap-${volume}`} aria-label={`Vol. ${volume}, not in this collection`}>
-                    <span className="rar-inhand-run-bay"><span className="rar-inhand-run-outline" aria-hidden="true" /></span>
-                    <span className="rar-inhand-run-label">Vol. {volume}</span>
-                  </span>;
-                  return <span role="listitem" className="rar-inhand-run-slot" key={member.edition.id}>
-                    <button type="button" onClick={() => pickFromWall(member.index)} aria-label={`Pick up ${editionName(member.edition)}`}>
-                      <span className="rar-inhand-wall-cover">
+            const onWall = new Map(members.map((member) => [member.edition.volumeNumber?.trim() ?? "", member]));
+            const extras = new Map(run.extras.map((extra) => [extra.volume, extra]));
+            const missing = run.slots.filter((volume) => !onWall.has(volume) && !extras.has(volume)).length;
+            const last = Math.max(run.slots.length - 1, 1);
+            return <li key={run.key} className={`rar-inhand-cube is-run${run.slots.length > 12 ? " is-long" : ""}`} style={{ "--i": pieceIndex } as CSSProperties}>
+              <span className="rar-inhand-cube-light" aria-hidden="true" />
+              <div className="rar-inhand-cube-bay">
+                {/* Volume 1 stands in front and every later volume stands
+                    behind it, a step to the right, so each one's edge and
+                    number show. Missing volumes keep their place as outlines. */}
+                <ol className="rar-inhand-stack" style={{ "--n1": last } as CSSProperties} aria-label={`${run.name}: ${run.owned} of ${run.catalogued} catalogued volumes`}>
+                  {run.slots.map((volume, slotIndex) => {
+                    const place = { "--k": slotIndex, zIndex: run.slots.length - slotIndex } as CSSProperties;
+                    const member = onWall.get(volume);
+                    if (member) return <li key={member.edition.id} className="rar-inhand-stack-card" style={place}>
+                      <button type="button" onClick={() => pickFromWall(member.index)} aria-label={`Pick up ${editionName(member.edition)}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={member.edition.coverUrl ?? ""} alt={`Cover of ${member.edition.title || member.edition.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
-                        <span className="rar-inhand-wall-sheen" aria-hidden="true" />
-                      </span>
-                    </button>
-                    <span className="rar-inhand-run-label">Vol. {volume}</span>
-                  </span>;
-                })}
+                        <img src={member.edition.coverUrl ?? ""} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
+                        <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
+                      </button>
+                    </li>;
+                    const extra = extras.get(volume);
+                    if (extra) return <li key={`owned-${volume}`} className={`rar-inhand-stack-card is-shelf${extra.coverUrl ? "" : " is-blank"}`} style={place} aria-label={`Vol. ${volume}, on the shelf`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {extra.coverUrl ? <img src={extra.coverUrl} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} /> : null}
+                      <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
+                    </li>;
+                    return <li key={`gap-${volume}`} className="rar-inhand-stack-card is-gap" style={place} aria-label={`Vol. ${volume}, not in this collection`}>
+                      <span className="rar-inhand-stack-num" aria-hidden="true">{volume}</span>
+                    </li>;
+                  })}
+                </ol>
               </div>
+              <span className="rar-inhand-cube-lip" aria-hidden="true" />
               <div className="rar-inhand-wall-plaque">
-                <span className="rar-inhand-wall-number">{String(pieceIndex + 1).padStart(2, "0")} · SERIES RUN</span>
+                <span className="rar-inhand-wall-number">{kicker} · SERIES RUN</span>
                 <strong>{run.name}</strong>
                 <span>{run.editionLine || "Edition details not recorded"}</span>
-                <span className="rar-inhand-run-count">{members.length} of {run.catalogued} catalogued {run.catalogued === 1 ? "volume" : "volumes"}{missing ? ` · ${missing} still to find` : ""}</span>
+                <span className="rar-inhand-run-count">{run.owned} of {run.catalogued} catalogued {run.catalogued === 1 ? "volume" : "volumes"}{missing ? ` · ${missing} still to find` : run.owned >= run.catalogued ? " · complete" : ""}</span>
               </div>
             </li>;
           }
           const item = piece.edition;
           const itemMarket = marketCopy(item.marketGuide);
           const itemNote = galleryComments[item.id]?.trim() ?? "";
-          return <li key={item.id} style={{ "--i": pieceIndex } as CSSProperties}>
-            <button type="button" onClick={() => pickFromWall(piece.index)} aria-label={`Pick up ${editionName(item)}`}>
-              <span className="rar-inhand-wall-cover">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
-                <span className="rar-inhand-wall-sheen" aria-hidden="true" />
-              </span>
-            </button>
+          return <li key={item.id} className="rar-inhand-cube" style={{ "--i": pieceIndex } as CSSProperties}>
+            <span className="rar-inhand-cube-light" aria-hidden="true" />
+            <div className="rar-inhand-cube-bay">
+              <button type="button" className="rar-inhand-cube-single" onClick={() => pickFromWall(piece.index)} aria-label={`Pick up ${editionName(item)}`}>
+                <span className="rar-inhand-wall-cover">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.coverUrl ?? ""} alt={`Cover of ${item.title || item.series || "this publication"}`} loading="lazy" referrerPolicy="no-referrer" draggable={false} ref={fitCover} onLoad={(event) => fitCover(event.currentTarget)} />
+                  <span className="rar-inhand-wall-sheen" aria-hidden="true" />
+                </span>
+              </button>
+            </div>
+            <span className="rar-inhand-cube-lip" aria-hidden="true" />
             <div className="rar-inhand-wall-plaque">
-              <span className="rar-inhand-wall-number">{String(pieceIndex + 1).padStart(2, "0")}</span>
+              <span className="rar-inhand-wall-number">{kicker}</span>
               <strong>{editionName(item)}</strong>
               <span>{[item.publisher, item.language].filter(Boolean).join(" · ") || "Edition details not recorded"}</span>
               <span className="rar-inhand-wall-market">{itemMarket ?? "No market guide yet"}</span>
@@ -246,7 +263,7 @@ export default function GalleryInHand({ wallEditions, ownerName, galleryTitle = 
             </div>
           </li>;
         })}
-      </ul> : <>
+      </ul></div> : <>
 
       <div className="rar-inhand-main">
         <div className="rar-inhand-stage" ref={stageRef} data-tracking="false" data-flipped={flipped}

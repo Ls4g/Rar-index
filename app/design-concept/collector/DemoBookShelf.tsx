@@ -45,6 +45,10 @@ export type DemoWallRun = {
   editionLine: string;
   slots: string[];
   catalogued: number;
+  // Volumes of this edition on the collector's shelf, on the wall or not.
+  owned: number;
+  // Owned volumes that are not on the wall: shown in the stack, not clickable.
+  extras: Array<{ volume: string; coverUrl: string | null; title: string | null }>;
 };
 
 export type DemoSeriesBook = {
