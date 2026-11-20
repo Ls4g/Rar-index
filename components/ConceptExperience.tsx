@@ -248,11 +248,11 @@ export default async function ConceptExperience({ preview = false }: { preview?:
             <p>Build your shelf from the editions you own, choose what to show, and let visitors open each book to explore it.</p>
             <div className="rar-concept-showcase-actions">
               <Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span aria-hidden="true">↗</span></Link>
-              <Link className="rar-concept-showcase-demo-link" href="/design-concept/collector#gallery">View portfolio demo <span aria-hidden="true">↗</span></Link>
+              <Link className="rar-concept-showcase-demo-link" href="/demo#gallery">View portfolio demo <span aria-hidden="true">↗</span></Link>
             </div>
             <small>Fictional gallery preview · real RAR catalogue covers</small>
           </div>
-          <Link className="rar-concept-join-preview" href="/design-concept/collector#gallery" aria-label="Explore a fictional collector gallery example">
+          <Link className="rar-concept-join-preview" href="/demo#gallery" aria-label="Explore a fictional collector gallery example">
             <div className="rar-concept-join-preview-heading">
               <span className="rar-concept-join-avatar" aria-hidden="true">O</span>
               <div><span>FICTIONAL COLLECTOR GALLERY</span><h3>The Opening Chapter</h3><p>A few favourites, on display.</p></div>

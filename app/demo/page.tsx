@@ -4,16 +4,15 @@ import EditionCover from "@/components/EditionCover";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
 import { volumeSortValue } from "@/lib/seriesCompletion";
 import { supabase } from "@/lib/supabase";
-import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook, type DemoWallRun } from "./DemoBookShelf";
-import "../style.css";
-import "./style.css";
-import "./physical-book.css";
-import "./gallery.css";
-import "./in-hand.css";
+import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook, type DemoWallRun } from "@/app/design-concept/collector/DemoBookShelf";
+import "@/app/design-concept/style.css";
+import "@/app/design-concept/collector/style.css";
+import "@/app/design-concept/collector/gallery.css";
+import "@/app/design-concept/collector/in-hand.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Demo collector profile — RAR design concept",
+  title: "Demo collector gallery — RAR Index",
   robots: { index: false, follow: false },
 };
 
@@ -196,9 +195,8 @@ export default async function DemoCollectorProfilePage() {
 
   return (
     <main className="rar-concept rar-demo-profile">
-      <div className="rar-concept-previewbar"><span>RAR design concept · fictional collector profile</span><Link href="/design-concept">Back to the concept ↗</Link></div>
       <header className="rar-concept-header">
-        <Link className="rar-concept-logo" href="/design-concept" aria-label="RAR design concept home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
+        <Link className="rar-concept-logo" href="/" aria-label="RAR Index home"><b>R</b><span>RAR</span><small>INDEX</small></Link>
         <nav aria-label="Demo profile sections"><a href="#gallery">The gallery</a><Link href="/browse">Discover manga</Link></nav>
         <Link className="rar-concept-header-cta" href="/portfolio">Your shelf <span>↗</span></Link>
       </header>
@@ -206,7 +204,7 @@ export default async function DemoCollectorProfilePage() {
       <section className="rar-demo-hero" aria-labelledby="demo-profile-title">
         <div className="rar-concept-container rar-demo-hero-inner">
           <div className="rar-demo-identity">
-            <div className="rar-demo-identity-top"><span className="rar-demo-avatar" aria-hidden="true">O</span><span className="rar-demo-identity-type">PUBLIC SHELF / DESIGN PREVIEW</span></div>
+            <div className="rar-demo-identity-top"><span className="rar-demo-avatar" aria-hidden="true">O</span><span className="rar-demo-identity-type">DEMO GALLERY / FICTIONAL COLLECTOR</span></div>
             <p className="rar-demo-handle">@openingchapter <span>· demo profile</span></p>
             <h1 id="demo-profile-title">The Opening<br />Chapter<span>.</span></h1>
             <p className="rar-demo-bio">A manga shelf made to be explored. Pick a book up to turn it over, or browse the wall.</p>
