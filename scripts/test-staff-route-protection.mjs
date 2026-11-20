@@ -56,8 +56,8 @@ function isCovered(route) {
 const staffPages = pagesUnder(APP)
   .filter((file) => {
     // A page that mounts the staff navigation is, by definition, a staff page.
-    // Design-concept prototypes are excluded: they render no real data.
-    if (file.replaceAll("\\", "/").includes("app/design-concept/")) return false;
+    // The public demo gallery is excluded: it renders no staff data.
+    if (file.replaceAll("\\", "/").includes("app/demo/")) return false;
     return fs.readFileSync(file, "utf8").includes("StaffNav");
   })
   .map(routeFor);

@@ -205,6 +205,31 @@ html[data-theme="night"] .rar-concept .price-things-to-know ul {
 .rar-concept-join-book { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 218px; }
 .rar-concept-join-book .edition-cover { height: min(100%, 210px); max-width: 94%; }
 .rar-concept-join-ledge { display: block; width: min(94%, 180px); height: 7px; margin-top: 3px; background: color-mix(in srgb, var(--join-ink) 24%, var(--join-wall)); box-shadow: 4px 7px 9px #0004; transform: skewX(-15deg); }
+/* The preview is a small version of the gallery Wall: a lit display cabinet,
+   a single book in each end cube and a series run stacked in a double cube. */
+.rar-concept-join-cabinet { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 8px; margin: 6px clamp(14px, 2vw, 28px) 0; padding: 8px; background: #141821; box-shadow: inset 0 0 0 1px #2c3038, 0 24px 48px rgba(0,0,0,.45); }
+.rar-concept-join-cube { --card: 112px; display: flex; flex-direction: column; min-width: 0; background: radial-gradient(ellipse 60% 70% at 50% 0%, rgba(255,236,200,.16) 0%, rgba(255,236,200,.03) 55%, rgba(0,0,0,0) 80%), #0e1015; box-shadow: inset 0 10px 18px rgba(0,0,0,.7), inset 0 0 0 1px #24282f; }
+.rar-concept-join-cube-light { display: block; height: 3px; margin: 0 22%; background: #ffe9c4; opacity: .55; box-shadow: 0 0 14px 3px rgba(255,233,196,.35); }
+.rar-concept-join-cube-bay { flex: 1; display: flex; align-items: flex-end; justify-content: center; min-height: 230px; padding: 20px 12px 0; box-sizing: border-box; overflow: hidden; }
+.rar-concept-join-cube-lip { display: block; height: 8px; background: linear-gradient(180deg, #2e323a, #1c1f25); }
+.rar-concept-join-cube p { display: grid; gap: 2px; margin: 0; padding: 9px 12px 12px; font-size: 12px; font-weight: 700; line-height: 1.25; }
+.rar-concept-join-cube p b { color: #ff7a72; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; }
+.rar-concept-join-cube p small { color: #aab2bf; font-size: 10px; font-weight: 600; }
+.rar-concept-join-cube.is-run p small { color: #e8c46a; }
+.rar-concept-join-single { width: min(var(--card), 92%); box-shadow: 0 16px 22px rgba(0,0,0,.6); }
+.rar-concept-join-single .edition-cover { width: 100%; aspect-ratio: 2 / 3; }
+.rar-concept-join-stack { position: relative; width: min(100%, calc(var(--card) + var(--n1) * 28px)); height: calc(var(--card) * 1.55); }
+.rar-concept-join-stack-card { position: absolute; bottom: 0; left: calc(var(--k) * min(28px, (100% - var(--card)) / var(--n1))); width: var(--card); aspect-ratio: 2 / 3; background: #1c2129; box-shadow: -5px 3px 12px rgba(0,0,0,.6); }
+.rar-concept-join-stack-card .edition-cover { width: 100%; height: 100%; }
+.rar-concept-join-stack-card > span { position: absolute; top: 5px; right: 5px; z-index: 2; min-width: 16px; padding: 1px 4px; box-sizing: border-box; background: rgba(11,13,17,.85); color: #f3efe6; font-size: 10px; font-weight: 800; line-height: 1.35; text-align: center; }
+.rar-concept-join-stack-card.is-gap { background: #14171c; box-shadow: none; outline: 1.5px dashed rgba(243,239,230,.34); outline-offset: -1.5px; }
+.rar-concept-join-stack-card.is-gap > span { background: transparent; color: #8a93a1; }
+@media (max-width: 640px) {
+  .rar-concept-join-cabinet { grid-template-columns: 1fr 1fr; margin-inline: 10px; padding: 6px; gap: 6px; }
+  .rar-concept-join-cube.is-run { grid-column: 1 / -1; grid-row: 1; }
+  .rar-concept-join-cube { --card: 92px; }
+  .rar-concept-join-cube-bay { min-height: 180px; padding-top: 14px; }
+}
 .rar-concept-join-preview-foot { display: flex; justify-content: space-between; gap: 12px; padding: 14px clamp(20px, 3vw, 44px) 22px; font-size: 10px; font-weight: 750; letter-spacing: .04em; opacity: .72; }
 .rar-concept-join-preview:hover .rar-concept-join-preview-link { color: var(--rc-accent); }
 @media (max-width: 980px) {
