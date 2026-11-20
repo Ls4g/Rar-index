@@ -104,7 +104,9 @@ export default function DemoBookShelf({ books, wallEditions = [], isDemo = true,
     : <section className="rar-gallery" id="gallery"><div className="rar-concept-container"><p className="rar-concept-kicker">COLLECTOR GALLERY</p><h2>This wall is being arranged.</h2><p>Books will appear here when this collector chooses editions with confirmed covers to display.</p></div></section>;
 
   return <>
-    {isDemo || wallEditions.length ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} /> : null}
+    {/* The demo shows the same gallery real collectors get. */}
+    {wallEditions.length ? <GalleryInHand books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption || (isDemo ? "A fictional collector, shown with real RAR catalogue covers." : "")} galleryComments={galleryComments} galleryTheme={galleryTheme} />
+      : isDemo ? <GalleryPrototype books={books} wallEditions={wallEditions} isDemo={isDemo} ownerName={ownerName} galleryTitle={galleryTitle} galleryCaption={galleryCaption} galleryComments={galleryComments} galleryTheme={galleryTheme} /> : null}
     <section className="rar-demo-content" id="spotlight">
       <div className="rar-concept-container">
         <div className="rar-demo-section-heading"><div><p className="rar-concept-kicker">THE EDITORIAL SHELF</p><h2>Stories up front.</h2></div><p>Open a cover to explore {isDemo ? "the sample collector’s" : "this collector’s"} volumes, exact editions and source-backed market context.</p></div>

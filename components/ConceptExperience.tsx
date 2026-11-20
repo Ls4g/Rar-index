@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 import EditionCover from "@/components/EditionCover";
@@ -134,7 +135,35 @@ export default async function ConceptExperience({ preview = false }: { preview?:
     ? "/rar-dragon-ball-hero-sketch-clean.png"
     : heroEdition?.series?.toLowerCase() === "one piece"
       ? "/rar-one-piece-cover-sketch-v2.png" : null;
-  const showcaseCovers = featured.slice(0, 3);
+  // The homepage preview is a small version of the real gallery Wall: a lit
+  // display cabinet with one series run stacked in a double cube and a single
+  // book either side. Covers are real RAR catalogue covers; the collector is
+  // fictional, so which volumes "they" are missing is illustrative.
+  const showcaseRun = (() => {
+    const groups = new Map<string, ConceptEdition[]>();
+    for (const edition of withCovers) {
+      const volume = Number(edition.volume_number);
+      if (!edition.series || !Number.isInteger(volume) || volume < 1 || volume > 6) continue;
+      const key = [edition.series, edition.language, edition.publisher].join("::").toLowerCase();
+      groups.set(key, [...(groups.get(key) ?? []), edition]);
+    }
+    const rank = (series: string) => { const at = preferredSeries.findIndex((name) => name.toLowerCase() === series.toLowerCase()); return at < 0 ? 999 : at; };
+    const best = [...groups.values()]
+      .map((editions) => [...new Map(editions.map((edition) => [Number(edition.volume_number), edition])).values()].sort((a, b) => Number(a.volume_number) - Number(b.volume_number)))
+      .filter((editions) => editions.length >= 4 && Number(editions[0].volume_number) === 1)
+      .sort((a, b) => rank(a[0].series ?? "") - rank(b[0].series ?? "") || b.length - a.length)[0];
+    if (!best) return null;
+    const vols = best.slice(0, 6);
+    // Leave the second-to-last volume out so the preview shows a gap.
+    const missing = vols.length >= 4 ? Number(vols[vols.length - 2].volume_number) : null;
+    return {
+      series: best[0].series ?? "Series",
+      line: [best[0].publisher, best[0].language].filter(Boolean).join(" · "),
+      slots: vols.map((edition) => ({ volume: Number(edition.volume_number), edition: Number(edition.volume_number) === missing ? null : edition })),
+    };
+  })();
+  const showcaseSingles = featured.filter((edition) => edition.series?.toLowerCase() !== showcaseRun?.series.toLowerCase()).slice(0, showcaseRun ? 2 : 3);
+  const showcaseCount = showcaseSingles.length + (showcaseRun ? showcaseRun.slots.filter((slot) => slot.edition).length : 0);
   const liveListings = await liveListingsPromise;
 
   return (
@@ -229,16 +258,31 @@ export default async function ConceptExperience({ preview = false }: { preview?:
               <div><span>FICTIONAL COLLECTOR GALLERY</span><h3>The Opening Chapter</h3><p>A few favourites, on display.</p></div>
               <span className="rar-concept-join-preview-link" aria-hidden="true">Explore gallery ↗</span>
             </div>
-            <div className="rar-concept-join-room">
-              <div className="rar-concept-join-books">
-                {showcaseCovers.map((edition) => <div className="rar-concept-join-exhibit" key={edition.id}>
-                  <div className="rar-concept-join-spotlight" aria-hidden="true" />
-                  <div className="rar-concept-join-book">{cover(edition)}</div>
-                  <span className="rar-concept-join-ledge" aria-hidden="true" />
-                </div>)}
-              </div>
+            <div className="rar-concept-join-cabinet">
+              {[showcaseSingles[0] ? { kind: "single" as const, edition: showcaseSingles[0] } : null,
+                showcaseRun ? { kind: "run" as const } : null,
+                ...showcaseSingles.slice(1).map((edition) => ({ kind: "single" as const, edition }))]
+                .filter((piece): piece is NonNullable<typeof piece> => piece !== null)
+                .map((piece) => piece.kind === "run" && showcaseRun ? <div className="rar-concept-join-cube is-run" key="run">
+                  <span className="rar-concept-join-cube-light" aria-hidden="true" />
+                  <div className="rar-concept-join-cube-bay">
+                    <div className="rar-concept-join-stack" style={{ "--n1": Math.max(showcaseRun.slots.length - 1, 1) } as CSSProperties}>
+                      {showcaseRun.slots.map((slot, slotIndex) => <div className={`rar-concept-join-stack-card${slot.edition ? "" : " is-gap"}`} key={slot.volume} style={{ "--k": slotIndex, zIndex: showcaseRun.slots.length - slotIndex } as CSSProperties}>
+                        {slot.edition ? cover(slot.edition) : null}
+                        <span aria-hidden="true">{slot.volume}</span>
+                      </div>)}
+                    </div>
+                  </div>
+                  <span className="rar-concept-join-cube-lip" aria-hidden="true" />
+                  <p><b>SERIES RUN</b>{showcaseRun.series}<small>{showcaseRun.slots.filter((slot) => slot.edition).length} of {showcaseRun.slots.length} · 1 still to find</small></p>
+                </div> : piece.kind === "single" ? <div className="rar-concept-join-cube" key={piece.edition.id}>
+                  <span className="rar-concept-join-cube-light" aria-hidden="true" />
+                  <div className="rar-concept-join-cube-bay"><div className="rar-concept-join-single">{cover(piece.edition)}</div></div>
+                  <span className="rar-concept-join-cube-lip" aria-hidden="true" />
+                  <p><b>{piece.edition.publisher ?? "Edition"}</b>{piece.edition.series ?? piece.edition.title}{piece.edition.volume_number ? <small>Vol. {piece.edition.volume_number}</small> : null}</p>
+                </div> : null)}
             </div>
-            <div className="rar-concept-join-preview-foot"><span>{showcaseCovers.length} editions on one wall</span><span>Real RAR covers · demo display</span></div>
+            <div className="rar-concept-join-preview-foot"><span>{showcaseCount} editions in one cabinet</span><span>Real RAR covers · demo display</span></div>
           </Link>
         </div></section>
 

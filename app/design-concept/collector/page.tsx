@@ -4,11 +4,12 @@ import EditionCover from "@/components/EditionCover";
 import { collectorMarketGuide, type CollectorMarketSale } from "@/lib/collectorMarketGuide";
 import { volumeSortValue } from "@/lib/seriesCompletion";
 import { supabase } from "@/lib/supabase";
-import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook } from "./DemoBookShelf";
+import DemoBookShelf, { type DemoBookEdition, type DemoSeriesBook, type DemoWallRun } from "./DemoBookShelf";
 import "../style.css";
 import "./style.css";
 import "./physical-book.css";
 import "./gallery.css";
+import "./in-hand.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -142,7 +143,11 @@ export default async function DemoCollectorProfilePage() {
       owned.push(edition);
       selectedVolumes.add(volume);
     }
-    return { representative, owned: orderedVolumes(owned), cataloguedVolumes: new Set(sameSeries.map(volumeKey)).size };
+    // Volumes of the representative's own publisher, for the Wall's series run.
+    const samePublisher = sameSeries.filter((edition) => publisherAffinity(edition, representative) < 2);
+    const runVolumes = [...new Set(samePublisher.map((edition) => edition.volume_number?.trim()).filter((value): value is string => Boolean(value)))]
+      .sort((a, b) => (volumeSortValue(a) ?? 9999) - (volumeSortValue(b) ?? 9999) || a.localeCompare(b));
+    return { representative, owned: orderedVolumes(owned), cataloguedVolumes: new Set(sameSeries.map(volumeKey)).size, runVolumes };
   });
   const selectedEditions = sampleBySeries.flatMap((series) => series.owned);
   const selectedIds = selectedEditions.map((edition) => edition.id);
@@ -163,6 +168,21 @@ export default async function DemoCollectorProfilePage() {
       marketGuide: collectorMarketGuide(sales.filter((sale) => saleIds.has(sale.edition_id))),
     };
   };
+  // The demo wall mirrors a real collector's: several volumes of one edition
+  // hang as a single series run, everything else stands alone.
+  const wallEditions: DemoBookEdition[] = sampleBySeries.flatMap(({ representative, owned, runVolumes }) => {
+    const runMembers = owned.filter((edition) => publisherAffinity(edition, representative) < 2 && edition.volume_number?.trim());
+    if (runMembers.length < 2) return [toBookEdition(representative)];
+    const ownedVolumes = new Set(runMembers.map((edition) => edition.volume_number!.trim()));
+    const slots = runVolumes.length <= 30 ? runVolumes : [...ownedVolumes];
+    const run: DemoWallRun = {
+      key: `demo::${representative.id}`,
+      name: representative.series || representative.title || "Manga series",
+      editionLine: [representative.publisher, representative.language].filter(Boolean).join(" · "),
+      slots, catalogued: runVolumes.length, owned: ownedVolumes.size, extras: [],
+    };
+    return runMembers.map((edition) => ({ ...toBookEdition(edition), run }));
+  }).slice(0, 16);
   const books: DemoSeriesBook[] = sampleBySeries.map(({ representative, owned, cataloguedVolumes }) => ({
     key: `${representative.series || representative.title || representative.id}::${representative.language || ""}`,
     name: representative.series || representative.title || "Manga series",
@@ -204,7 +224,7 @@ export default async function DemoCollectorProfilePage() {
         </div>
       </section>
 
-      <DemoBookShelf books={books} />
+      <DemoBookShelf books={books} wallEditions={wallEditions} />
 
       <section className="rar-demo-join"><div className="rar-concept-container"><div><p className="rar-concept-kicker">MAKE IT YOURS</p><h2>Your manga. Your shelf.</h2><p>Choose what to share. The editions you own can be public; what you paid and your private notes stay yours.</p></div><Link className="rar-concept-button is-primary" href="/portfolio">Build your shelf <span>↗</span></Link></div></section>
     </main>
