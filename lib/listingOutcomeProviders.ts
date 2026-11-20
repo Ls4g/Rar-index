@@ -161,6 +161,33 @@ function xmlTexts(xml: string, tag: string) {
     .filter(Boolean);
 }
 
+/**
+ * How the listing was put together, recorded so staff decisions can later
+ * show whether "stock photo" retail listings are worth reviewing at all.
+ *
+ * Staff report that listings shown with eBay's catalogue stock photo (bulk
+ * retailers selling new copies, whose eBay link now opens a catalogue product
+ * page rather than the sold item) never turn out to be provable sales. That
+ * has not been measured, so nothing here changes what happens to a listing:
+ * it only keeps the facts eBay already returned. Any rule built on them must
+ * first be checked against staff decisions, and may only ever auto-dismiss.
+ */
+export function listingShapeSignals(xml: string) {
+  const quantityText = xmlText(xml, "Quantity");
+  const quantity = quantityText === null ? null : Number(quantityText);
+  return {
+    // A catalogue-linked listing carries eBay's product id (ePID).
+    productReferenceId: xmlText(xml, "ProductReferenceID") ?? xmlText(xml, "EPID"),
+    stockPhotoUrl: xmlText(xml, "StockPhotoURL"),
+    includeStockPhotoUrl: xmlText(xml, "IncludeStockPhotoURL"),
+    useStockPhotoUrlAsGallery: xmlText(xml, "UseStockPhotoURLAsGallery"),
+    pictureSource: xmlText(xml, "PictureSource"),
+    photoCount: xmlTexts(xml, "PictureURL").length,
+    quantity: Number.isFinite(quantity) ? quantity : null,
+    condition: xmlText(xml, "ConditionDisplayName"),
+  };
+}
+
 function decodeXmlText(value: string) {
   return value
     .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
@@ -385,6 +412,7 @@ export async function tradingOutcomeProvider(itemId: string, marketplace: string
   const sharedRaw = {
     ack, listingStatus, quantitySold, price, endTime, listingType, bidCount,
     bestOfferEnabled, title, imageUrls, shipping, itemSpecifics,
+    listingShape: listingShapeSignals(xml),
   };
 
   if (listingStatus === "active") {
