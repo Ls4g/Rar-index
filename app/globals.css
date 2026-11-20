@@ -4934,3 +4934,27 @@ html[data-theme="night"] .edition-page .price-history-multi {
 .portfolio-auth-form .portfolio-auth-link { justify-self: start; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .portfolio-auth-form .portfolio-auth-link:hover { color: var(--ink); }
 .portfolio-recovery-form { max-width: 440px; margin: 1.5rem auto; }
+
+/* Cover review: in-browser sharpness check for verified covers. */
+.cover-quality { margin: 0 0 1.5rem; padding: 1.4rem; border: 1px solid var(--line); }
+.cover-quality-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1rem 2rem; }
+.cover-quality-head h2 { margin: .15rem 0 .35rem; font-size: 1.55rem; }
+.cover-quality-head p { margin: 0; color: var(--muted); max-width: 48rem; }
+.cover-quality-actions { display: flex; flex-wrap: wrap; align-items: end; gap: .8rem; }
+.cover-quality-actions label { display: grid; gap: .3rem; font-size: .8rem; color: var(--muted); }
+.cover-quality-actions button { min-height: 44px; }
+.cover-quality-summary { margin: 1.2rem 0 0; }
+.cover-quality-list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .5rem; }
+.cover-quality-list li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: .6rem; border: 1px solid var(--line); }
+.cover-quality-list li > div { display: grid; gap: .15rem; min-width: 0; }
+.cover-quality-list li span { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.cover-quality-thumb { width: 52px; height: 74px; object-fit: cover; background: var(--line); }
+.cover-quality-thumb.is-missing { display: flex; align-items: center; justify-content: center; font-size: .65rem; text-align: center; }
+.cover-quality-list .cover-quality-size { color: var(--ink); font-weight: 600; }
+.cover-quality-list .cover-quality-size.is-bad { color: #c2410c; }
+@media (max-width: 640px) {
+  .cover-quality-head { grid-template-columns: 1fr; }
+  .cover-quality-list li { grid-template-columns: 44px minmax(0, 1fr); }
+  .cover-quality-list li > a { grid-column: 1 / -1; }
+  .cover-quality-thumb { width: 44px; height: 62px; }
+}
