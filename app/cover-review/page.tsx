@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import CataloguePhotoButton from "@/components/CataloguePhotoButton";
 import CoverReviewClient, { type CoverCandidateRow, type CoverQueueRow } from "@/components/CoverReviewClient";
+import CoverQualityCheck, { type QualityCover } from "@/components/CoverQualityCheck";
 import StaffNav from "@/components/StaffNav";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +120,20 @@ export default async function CoverReviewPage({
   ]);
 
   const queueRows = ((queueData ?? []) as QueueRow[]).map(mapQueueRow);
+
+  // Every published cover, for the in-browser sharpness check.
+  const { data: verifiedCoverData } = await admin
+    .from("manga_editions")
+    .select("id,title,series,volume_number,publisher,language,cover_image_url")
+    .eq("cover_verification_status", "verified")
+    .not("cover_image_url", "is", null)
+    .order("series", { ascending: true })
+    .order("volume_number", { ascending: true })
+    .limit(5000);
+  const qualityCovers: QualityCover[] = ((verifiedCoverData ?? []) as Array<{ id: string; title: string | null; series: string | null; volume_number: string | null; publisher: string | null; language: string | null; cover_image_url: string }>).map((row) => ({
+    editionId: row.id, title: row.title, series: row.series, volumeNumber: row.volume_number,
+    publisher: row.publisher, language: row.language, coverImageUrl: row.cover_image_url,
+  }));
   const focusedEdition = focusedEditionResult.data as EditionRow | null;
   const focusedRow: CoverQueueRow | null = focusedEdition
     ? mapQueueRow({
@@ -200,6 +215,7 @@ export default async function CoverReviewPage({
         {/* The ISBN-based book-cover finder does not apply to magazine issues.
             Keep current seller photos separate from catalogue cover decisions. */}
         <CataloguePhotoButton />
+        <CoverQualityCheck covers={qualityCovers} />
         <CoverReviewClient rows={queueRows} focusedRow={focusedRow} candidates={candidates} />
       </section>
     </main>
