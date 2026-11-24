@@ -8,6 +8,20 @@ import { describeRunFairness, isStaffFastTrack, normaliseSeriesKey } from "./cat
 import { listingIsMultiVolumeLot } from "./liveListings.ts";
 
 const DISCOVERY_TARGET_LIMIT = 10;
+
+/**
+ * Whether the curator picks books by itself each day (the discovery backlog:
+ * series gaps, rising and new-release lanes, and the staff fast-track list).
+ *
+ * Off since 24 November 2026 by owner decision. One-a-day picks scattered
+ * across many series left lots of them half-catalogued, each needing its own
+ * cover hunt. The catalogue now grows a whole series at a time through series
+ * batches (raw_payload.series_batch), reviewed with "Select a series" and
+ * finished with the cover finder. Collector requests are still looked up
+ * every day: those are real people asking for a book. Set this back to true
+ * to resume the curator's own picks; nothing in the backlog was deleted.
+ */
+export const CURATOR_OWN_DISCOVERY = false;
 const CANDIDATES_PER_TARGET = 1;
 
 export type CatalogueDiscoveryTarget = {
@@ -496,7 +510,7 @@ export async function stageCatalogueCandidates(admin: SupabaseClient, runId: str
     sources.set(volume, link.source_record_url);
     kodanshaSources.set(key, sources);
   }
-  const { chosen } = await planBacklogRun(admin, editions, kodanshaSources);
+  const { chosen } = CURATOR_OWN_DISCOVERY ? await planBacklogRun(admin, editions, kodanshaSources) : { chosen: [] };
   const fastTrackChosen = chosen.filter(isStaffFastTrack);
   const regularChosen = chosen.filter((target) => !isStaffFastTrack(target));
 
