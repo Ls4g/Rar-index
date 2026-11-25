@@ -87,3 +87,36 @@ assert.equal((await findOpenBdCover(japanese, async () => [{ ...openBdRecord, ca
 assert.equal((await findOpenBdCover({ ...japanese, language: "English" }, async () => { throw Error("no request"); })).candidates.length, 0);
 
 console.log("Cover source search: PRH ISBN, Kodama title, OpenBD ISBN, and refusal guards passed");
+
+// Dark Horse: ISBN search -> one product page that prints the ISBN -> cover.
+{
+  const { findDarkHorseCover, darkHorseProductLinks } = await import("../lib/darkHorseCover.ts");
+  const astro = { title: "Astro Boy Volume 21", series: "Astro Boy", volumeNumber: "21", language: "English", publisher: "Dark Horse Comics", isbn13: "9781569719022" };
+  const product = "https://www.darkhorse.com/books/12-344/astro-boy-volume-21-tpb/";
+  const searchHtml = '<a href="/Books/12-344/Astro-Boy-Volume-21-TPB">Astro Boy Volume 21 TPB</a><a href="/Books/12-344/Astro-Boy-Volume-21-TPB">again</a><a href="/Search/browse/9781569719022/">See all</a>';
+  assert.deepEqual(darkHorseProductLinks(searchHtml), [product]);
+  const pageHtml = '<meta property="og:title" content="Astro Boy Volume 21 TPB :: Profile :: Dark Horse Comics" />'
+    + '<meta property="og:image" content="https://images.darkhorse.com/covers/600/12/12344.jpg" /><dd>9781569719022</dd>';
+  const dhFetch = async (url) => String(url).includes("/Search/") ? { ok: true, status: 200, text: async () => searchHtml }
+    : String(url) === product ? { ok: true, status: 200, text: async () => pageHtml } : imageResponse(jpeg);
+  const found = await findDarkHorseCover(astro, dhFetch);
+  assert.equal(found.candidates.length, 1);
+  assert.equal(found.candidates[0].matchConfidence, "strong");
+  assert.equal(found.candidates[0].candidateIsbn13, "9781569719022");
+  assert.equal(found.candidates[0].coverImageUrl, "https://images.darkhorse.com/covers/600/12/12344.jpg");
+  assert.equal(found.candidates[0].candidateTitle, "Astro Boy Volume 21 TPB");
+  // The page must print the same ISBN.
+  const wrongIsbn = async (url) => String(url).includes("/Search/") ? { ok: true, status: 200, text: async () => searchHtml }
+    : String(url) === product ? { ok: true, status: 200, text: async () => pageHtml.replace("9781569719022", "9781569719039") } : imageResponse(jpeg);
+  assert.equal((await findDarkHorseCover(astro, wrongIsbn)).candidates.length, 0);
+  // Other publishers are never searched.
+  assert.equal((await findDarkHorseCover({ ...astro, publisher: "VIZ Media" }, async () => { throw Error("no request"); })).candidates.length, 0);
+  // Several products for one ISBN is left to staff.
+  const twoHits = searchHtml + '<a href="/Books/99-1/Other-TPB">Other</a>';
+  assert.equal((await findDarkHorseCover(astro, async () => ({ ok: true, status: 200, text: async () => twoHits }))).candidates.length, 0);
+  // Cover must come from Dark Horse's cover server.
+  const offHost = async (url) => String(url).includes("/Search/") ? { ok: true, status: 200, text: async () => searchHtml }
+    : { ok: true, status: 200, text: async () => pageHtml.replace("images.darkhorse.com", "example.com") };
+  assert.equal((await findDarkHorseCover(astro, offHost)).candidates.length, 0);
+  console.log("dark horse cover search: ok");
+}
