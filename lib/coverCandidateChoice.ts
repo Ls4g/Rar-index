@@ -12,6 +12,7 @@ export function isMatchingPublisherCover(sourceName: string, publisher: string |
     || (sourceName === "Shueisha Direct" && name.includes("shueisha"))
     || (sourceName.startsWith("Kodansha ") && name.includes("kodansha"))
     || (sourceName === "Kodama Tales" && name.includes("kodama"))
+    || (sourceName === "Dark Horse" && /dark\s*horse/.test(name))
     || (sourceName === "Penguin Random House" && name.includes("penguin random house"));
 }
 

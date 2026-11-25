@@ -5,10 +5,11 @@ import { findVizCover } from "@/lib/vizCover";
 import { findShueishaCover } from "@/lib/shueishaCover";
 import { findPenguinRandomHouseCover } from "@/lib/penguinRandomHouseCover";
 import { findKodamaCover } from "@/lib/kodamaCover";
+import { findDarkHorseCover } from "@/lib/darkHorseCover";
 import { findOpenBdCover } from "@/lib/openBdCover";
 import { fetchKodanshaRecord, kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
-export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA" | "Penguin Random House" | "Kodama Tales" | "OpenBD";
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA" | "Penguin Random House" | "Kodama Tales" | "Dark Horse" | "OpenBD";
 
 export type DiscoveredCoverCandidate = {
   sourceName: CoverSourceName;
@@ -211,6 +212,9 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
     jobs.push({ sourceName: "Penguin Random House", promise: findPenguinRandomHouseCover(target) });
     if (/\bkodama(?:\s+tales)?\b/i.test(target.publisher ?? "")) {
       jobs.push({ sourceName: "Kodama Tales", promise: findKodamaCover(target) });
+    }
+    if (/\bdark\s*horse\b/i.test(target.publisher ?? "")) {
+      jobs.push({ sourceName: "Dark Horse", promise: findDarkHorseCover(target) });
     }
   }
   if (/^(?:ja|jpn|japanese)$/i.test(target.language?.trim() ?? "")) {
