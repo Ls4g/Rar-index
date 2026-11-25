@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef } from "react";
 import type { HoldingEdition } from "@/components/portfolio/HoldingCard";
+import Link from "next/link";
 
 function editionLabel(edition: HoldingEdition) {
   return [
@@ -35,6 +36,7 @@ type HoldingModalProps = {
   setNotes: (value: string) => void;
   saving: boolean;
   message: string;
+  noMatchFor?: string | null;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
 };
@@ -42,7 +44,7 @@ type HoldingModalProps = {
 export default function HoldingModal({
   open, editingId, query, setQuery, suggestions, selectedEdition, onSelectEdition, onChangeEdition,
   quantity, setQuantity, purchasePrice, setPurchasePrice, purchaseCurrency, setPurchaseCurrency,
-  purchaseDate, setPurchaseDate, notes, setNotes, saving, message, onSubmit, onClose,
+  purchaseDate, setPurchaseDate, notes, setNotes, saving, message, noMatchFor = null, onSubmit, onClose,
 }: HoldingModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -90,11 +92,16 @@ export default function HoldingModal({
               </div>
             ) : (
               <>
-                <input autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="Search title or ISBN" ref={firstFieldRef} value={query} />
+                <input autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="e.g. Naruto 5, One Piece vol 1, or an ISBN" ref={firstFieldRef} value={query} />
                 {visibleSuggestions.length ? (
                   <div className="portfolio-suggestions">
                     {visibleSuggestions.map((edition) => <button key={edition.id} onClick={() => onSelectEdition(edition)} type="button">{editionLabel(edition)}</button>)}
                   </div>
+                ) : null}
+                {!visibleSuggestions.length && noMatchFor ? (
+                  <p className="portfolio-no-match" role="status">
+                    No verified RAR edition matches “{noMatchFor}”. Try just the series name, or check the volume number. RAR only lists editions it has checked, so yours may not be catalogued yet: <Link href="/request-edition">request it</Link>.
+                  </p>
                 ) : null}
               </>
             )}

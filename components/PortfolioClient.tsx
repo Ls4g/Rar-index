@@ -25,6 +25,7 @@ import CollectorUsernameControl from "@/components/portfolio/CollectorUsernameCo
 import CollectorGalleryEditor from "@/components/portfolio/CollectorGalleryEditor";
 import type { CatalogueVolume } from "@/lib/seriesCompletion";
 import { trackPublicJourney } from "@/components/PublicJourneyTracker";
+import { compareVolumes, parseEditionSearch } from "@/lib/editionSearchQuery";
 
 const RECENT_HOLDINGS_LIMIT = 5;
 const RECENT_SALES_LIMIT = 6;
@@ -60,6 +61,9 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<HoldingEdition[]>([]);
+  // The text the last finished search was for, so the form can say "no match"
+  // instead of showing nothing while a collector wonders if it is broken.
+  const [searched, setSearched] = useState<string | null>(null);
   const [selectedEdition, setSelectedEdition] = useState<HoldingEdition | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -241,16 +245,23 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
     if (!userEmail || query.trim().length < 2 || selectedEdition) {
       return;
     }
-    const safeQuery = query.trim().replace(/[,%()]/g, " ");
+    const searchFor = query.trim();
+    const parsed = parseEditionSearch(searchFor);
     const timer = window.setTimeout(async () => {
-      const { data } = await supabase
+      let request = supabase
         .from("manga_editions")
         .select("id,title,series,volume_number,language,isbn_13,edition_statement,printing_number,variant_name,printing_of_edition_id")
-        .or(`title.ilike.%${safeQuery}%,series.ilike.%${safeQuery}%,isbn_13.ilike.%${safeQuery}%`)
         .eq("is_verified", true)
-        .eq("record_kind", "publication")
-        .limit(8);
-      setSuggestions((data ?? []) as HoldingEdition[]);
+        .eq("record_kind", "publication");
+      if (parsed.isbn) request = request.ilike("isbn_13", `%${parsed.isbn}%`);
+      // Every word must appear in the title or the series (one filter: AND of ORs).
+      if (parsed.words.length) request = request.or(`and(${parsed.words.map((word) => `or(title.ilike.%${word}%,series.ilike.%${word}%)`).join(",")})`);
+      if (parsed.volume) request = request.eq("volume_number", parsed.volume);
+      const { data, error } = await request.limit(40);
+      const found = ((data ?? []) as HoldingEdition[])
+        .sort((a, b) => (a.series ?? a.title ?? "").localeCompare(b.series ?? b.title ?? "") || compareVolumes(a.volume_number, b.volume_number));
+      setSuggestions(found);
+      setSearched(error ? null : searchFor);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query, selectedEdition, userEmail]);
@@ -490,6 +501,7 @@ export default function PortfolioClient({ initialEditionId = "", authCovers = []
           setQuantity={setQuantity}
           setQuery={setQuery}
           suggestions={suggestions}
+          noMatchFor={searched !== null && searched === query.trim() && !suggestions.length ? searched : null}
         />
       </MarketCurrencyProvider>
     )}
