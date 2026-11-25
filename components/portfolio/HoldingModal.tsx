@@ -49,15 +49,23 @@ export default function HoldingModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
+  // onClose is a new function on every parent render. Depending on it re-ran
+  // this effect on every keystroke anywhere in the form, and each run moved
+  // focus back to the search box: typing a quantity or price before choosing
+  // an edition jumped the cursor away, and on phones re-opened the keyboard
+  // and scrolled the form. Focus once when the form opens; read the latest
+  // onClose through a ref for Escape.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     firstFieldRef.current?.focus();
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
