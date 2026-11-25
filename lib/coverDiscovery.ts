@@ -6,10 +6,11 @@ import { findShueishaCover } from "@/lib/shueishaCover";
 import { findPenguinRandomHouseCover } from "@/lib/penguinRandomHouseCover";
 import { findKodamaCover } from "@/lib/kodamaCover";
 import { findDarkHorseCover } from "@/lib/darkHorseCover";
+import { findSimonSchusterCover } from "@/lib/simonSchusterCover";
 import { findOpenBdCover } from "@/lib/openBdCover";
 import { fetchKodanshaRecord, kodanshaRecordKind } from "@/lib/kodanshaRecord";
 
-export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA" | "Penguin Random House" | "Kodama Tales" | "Dark Horse" | "OpenBD";
+export type CoverSourceName = "Google Books" | "Open Library" | "VIZ Media" | "Shueisha Direct" | "Kodansha Japan" | "Kodansha USA" | "Penguin Random House" | "Kodama Tales" | "Dark Horse" | "Simon & Schuster" | "OpenBD";
 
 export type DiscoveredCoverCandidate = {
   sourceName: CoverSourceName;
@@ -210,6 +211,8 @@ export async function discoverCoverCandidates(target: CoverMatchTarget, googleBo
   ];
   if (/^(?:en|eng|english)$/i.test(target.language?.trim() ?? "")) {
     jobs.push({ sourceName: "Penguin Random House", promise: findPenguinRandomHouseCover(target) });
+    // Distributor of VIZ Media and others; exact ISBN, covers up to ~1500px.
+    jobs.push({ sourceName: "Simon & Schuster", promise: findSimonSchusterCover(target) });
     if (/\bkodama(?:\s+tales)?\b/i.test(target.publisher ?? "")) {
       jobs.push({ sourceName: "Kodama Tales", promise: findKodamaCover(target) });
     }

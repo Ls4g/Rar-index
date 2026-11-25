@@ -120,3 +120,42 @@ console.log("Cover source search: PRH ISBN, Kodama title, OpenBD ISBN, and refus
   assert.equal((await findDarkHorseCover(astro, offHost)).candidates.length, 0);
   console.log("dark horse cover search: ok");
 }
+
+// Simon & Schuster: /books/<ISBN> -> its product page -> Book record with the
+// same ISBN -> the largest cover on its own CDN.
+{
+  const { findSimonSchusterCover, simonSchusterSizedCover } = await import("../lib/simonSchusterCover.ts");
+  const claymore = { title: "Claymore, Vol. 15", series: "Claymore", volumeNumber: "15", language: "English", publisher: "VIZ Media", isbn13: "9781421531496" };
+  const page = "https://www.simonandschuster.com/books/Claymore-Vol-15/Norihiro-Yagi/Claymore/9781421531496";
+  const lg = "https://d28hgpri8am2if.cloudfront.net/book_images/onix/cvr9781421531496/claymore-vol-15-9781421531496_lg.jpg";
+  const hr = lg.replace("_lg.jpg", "_hr.jpg");
+  assert.equal(simonSchusterSizedCover(lg, "9781421531496", "_hr"), hr);
+  assert.equal(simonSchusterSizedCover(lg, "9781421531497", "_hr"), null, "another ISBN's folder is refused");
+  const html = `<meta property="og:image" content="${lg}" />`
+    + '<script type="application/ld+json">{"@type":"Book","isbn":"9781421581712","name":"Claymore, Vol. 27"}</script>'
+    + '<script type="application/ld+json">{"@context":"http://schema.org","@type":"Book","isbn":"9781421531496","name":"Claymore, Vol. 15"}</script>';
+  const requested = [];
+  const ssFetch = async (url) => {
+    requested.push(String(url));
+    if (String(url).endsWith("/books/9781421531496")) return { ok: true, status: 200, url: page, text: async () => html };
+    return imageResponse(jpeg);
+  };
+  const found = await findSimonSchusterCover(claymore, ssFetch);
+  assert.equal(found.candidates.length, 1);
+  assert.equal(found.candidates[0].coverImageUrl, hr, "largest size first");
+  assert.equal(found.candidates[0].matchConfidence, "strong");
+  assert.equal(found.candidates[0].candidateTitle, "Claymore, Vol. 15");
+  // Falls back to the page's own size when the large one is missing.
+  const noHr = async (url) => String(url).endsWith("/books/9781421531496") ? { ok: true, status: 200, url: page, text: async () => html }
+    : String(url) === hr ? { ok: false, status: 403 } : imageResponse(jpeg);
+  assert.equal((await findSimonSchusterCover(claymore, noHr)).candidates[0].coverImageUrl, lg);
+  // The page's own Book record must carry the ISBN.
+  const otherBook = async (url) => ({ ok: true, status: 200, url: page, text: async () => html.replace('"isbn":"9781421531496"', '"isbn":"9781421531403"') });
+  assert.equal((await findSimonSchusterCover(claymore, otherBook)).candidates.length, 0);
+  // A redirect to some other page is refused.
+  const elsewhere = async () => ({ ok: true, status: 200, url: "https://www.simonandschuster.com/search/books", text: async () => html });
+  assert.equal((await findSimonSchusterCover(claymore, elsewhere)).candidates.length, 0);
+  // Japanese editions are not looked up.
+  assert.equal((await findSimonSchusterCover({ ...claymore, language: "Japanese" }, async () => { throw Error("no request"); })).candidates.length, 0);
+  console.log("simon & schuster cover search: ok");
+}
