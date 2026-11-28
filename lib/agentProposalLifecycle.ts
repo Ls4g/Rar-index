@@ -3,6 +3,7 @@ export type OpenAgentAction = {
   dedupe_key: string;
   status: "proposed" | "approved";
   title: string;
+  action_type?: string;
 };
 
 export function indexOpenAgentActions(actions: OpenAgentAction[]) {
