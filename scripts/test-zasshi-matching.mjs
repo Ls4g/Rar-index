@@ -68,6 +68,19 @@ for (const title of [
   check(`rejected: "${title.slice(0, 46)}"`, !namesAnIssue(parseIssueReference(title)) || parseIssueReference(title).looksLikeBook);
 }
 
+console.log("\n--- a printing or an obi makes it a book ---");
+// Staff watched both of these against Demon Slayer Vol. 1 (Japanese). "#1"
+// beside the 2016 printing year was read as a magazine issue.
+for (const title of [
+  "Demon Slayer Kimetsu no Yaiba #1 2016 1st Print w/Obi Japanese Manga",
+  "Demon Slayer Kimetsu no Yaiba #1 2016 1st Print Japanese Manga Japan",
+]) {
+  check(`book: "${title.slice(0, 46)}"`, parseIssueReference(title).looksLikeBook);
+}
+// A real magazine listing with a year and an issue number is still one.
+check("magazine: \"Weekly Shonen Jump 2016 #11 One Piece\"", !parseIssueReference("Weekly Shonen Jump 2016 #11 One Piece").looksLikeBook
+  && namesAnIssue(parseIssueReference("Weekly Shonen Jump 2016 #11 One Piece")));
+
 console.log("\n--- scoring against the One Piece debut issue ---");
 for (const [title, band] of [
   ["週刊少年ジャンプ 1997年34号 ONE PIECE 新連載号", "strong"],

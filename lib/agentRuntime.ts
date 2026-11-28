@@ -10,6 +10,7 @@ import { readWatchToSaleMetrics } from "@/lib/watchToSale";
 import { preparePrintingEvidenceSuggestions, type PrintingSuggestionRun } from "@/lib/printingEvidenceSuggestions";
 import { ensurePriorityMarketplaceProfiles, type PriorityProfileResult } from "@/lib/priorityCoverage";
 import { approvalStillCoversProposal, indexOpenAgentActions, type OpenAgentAction } from "@/lib/agentProposalLifecycle";
+import { agentActionAudience } from "@/lib/agentActionAudience";
 import { priorShadowRuleForAction, type PriorScoutRule } from "@/lib/scoutRuleEvaluation";
 
 type TriggerSource = "manual" | "schedule" | "system";
@@ -235,10 +236,47 @@ async function reconcileAgentProposals(
     cancelled += stale?.length ?? 0;
   }
 
+  // Developer tasks (lib/agentActionAudience.ts) were approvable until 16 Nov
+  // 2026, and approving one never did anything. An approved one was then
+  // frozen: the refresh below only touched "proposed" rows, so /agents kept
+  // showing the 16 Nov count and examples (e.g. "80 plausible leads", with a
+  // Black Clover lot the scorer has since learned to reject) and the card
+  // never cleared, although the page says it does. For these types only, a
+  // run now closes an approved row whose pattern it no longer sees, through
+  // the same audited close_agent_action used by staff, and refreshes the
+  // evidence of one it still sees. The status and reviewer of the approval
+  // are kept, and every executable approval is left alone.
+  const approvedDeveloperTasks = [...approvedByDedupe.values()]
+    .filter((action) => agentActionAudience(action.action_type ?? "") === "developer");
+  for (const action of approvedDeveloperTasks) {
+    if (activeKeys.has(action.dedupe_key) || proposedByDedupe.has(action.dedupe_key)) continue;
+    const { error: closeError } = await admin.rpc("close_agent_action", {
+      p_action_id: action.id,
+      p_reviewer: `${AGENT_LABELS[agentKey]} system`,
+      p_reason: "Developer task: the latest run no longer sees this pattern.",
+    });
+    if (closeError) throw new Error(`Could not close a resolved developer task: ${closeError.message}`);
+    cancelled += 1;
+  }
+
   let created = 0;
   let refreshed = 0;
   let coveredByApproval = 0;
   for (const item of proposals) {
+    const approvedDeveloperTask = proposedByDedupe.has(item.dedupeKey) ? undefined
+      : approvedDeveloperTasks.find((action) => action.dedupe_key === item.dedupeKey);
+    if (approvedDeveloperTask) {
+      const { error: refreshError } = await admin.from("agent_actions").update({
+        run_id: runId,
+        title: item.title,
+        rationale: item.rationale,
+        confidence: item.confidence,
+        evidence: item.evidence,
+      }).eq("id", approvedDeveloperTask.id).eq("status", "approved");
+      if (refreshError) throw new Error(`Could not refresh developer task: ${refreshError.message}`);
+      refreshed += 1;
+      continue;
+    }
     const existing = proposedByDedupe.get(item.dedupeKey);
     const values = {
       run_id: runId,

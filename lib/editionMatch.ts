@@ -32,8 +32,11 @@ export type IssueReference = {
 const YEAR = /\b(19[6-9]\d|20[0-2]\d)\b/;
 
 // Words that make a listing a book. TPB, "graphic novel" and "omnibus" are
-// all common in the live queue; so is the bare "vol".
-const BOOK_SHAPE = /\b(vol(?:ume)?s?\.?|tankou?bon|tankobon|graphic\s*novels?|paperbacks?|hardcovers?|tpb|omnibus|box\s*set|book\s*set|complete\s*series|manga\s*lot|3[- ]in[- ]1)\b/i;
+// all common in the live queue; so is the bare "vol". A printing ("1st
+// Print") and an obi belong to a tankobon: "Demon Slayer #1 2016 1st Print
+// w/Obi Japanese Manga" is volume 1, not a 2016 magazine issue, and was
+// flagged as one until 28 November 2026.
+const BOOK_SHAPE = /\b(vol(?:ume)?s?\.?|tankou?bon|tankobon|graphic\s*novels?|paperbacks?|hardcovers?|tpb|omnibus|box\s*set|book\s*set|complete\s*series|manga\s*lot|3[- ]in[- ]1|(?:1st|first)\s*print(?:ing)?|w\/?\s*obi|with\s*obi)\b/i;
 
 // Japanese: 1997年34号, 1997年 34・35号, 34号. The 号 marker is unambiguous.
 // A combined issue is printed 4・5合併号, so 合併 may sit between the numbers
